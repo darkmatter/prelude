@@ -1,8 +1,8 @@
 # flake-parts module: the prelude devshell UI suite.
 #
-#   prelude.motd  — devshell welcome banner: load line, banner (status
-#                   chips, description), env/git row, next steps, recipes,
-#                   footer (static; print from shellHook)
+#   prelude.motd  — devshell welcome banner: header bar, description,
+#                   env/git row, Getting Started (commands + examples),
+#                   shortcuts (static; print from shellHook)
 #   prelude.menu  — interactive command menu: fuzzy filter, arg entry, exec
 #
 # Shared config covers theme/palette and project identity. `groups` belongs to
@@ -16,7 +16,7 @@
 #       prelude = {
 #         theme = "phosphor";
 #         project = "acme-web";
-#         motd.banner.tagline = "everything you need to build, test & ship";
+#         motd.header.tagline = "everything you need to build, test & ship";
 #
 #         groups.develop = {
 #           order = 100;
@@ -78,16 +78,12 @@ in
   ];
 
   config = {
+    # One default next-step when the menu is enabled (playground-style list).
     prelude.motd.commands = lib.mkIf cfg.menu.enable {
       browse = {
         command = lib.mkDefault "menu";
-        description = lib.mkDefault "browse project commands";
+        description = lib.mkDefault "browse all project commands";
         order = lib.mkDefault 100;
-      };
-      list = {
-        command = lib.mkDefault "menu list";
-        description = lib.mkDefault "print project commands";
-        order = lib.mkDefault 200;
       };
     };
 
@@ -99,8 +95,6 @@ in
             lib
             writeShellApplication
             writeText
-            gum
-            ncurses
             buildGoModule
             ;
         };
@@ -114,17 +108,18 @@ in
               clearScreen
               margin
               align
-              loadLine
-              banner
+              padding
+              header
               description
               env
               commands
               recipes
               git
-              footer
-              footerHint
+              gettingStarted
+              shortcuts
               width
               maxWidth
+              fullscreen
               ;
           }
         );

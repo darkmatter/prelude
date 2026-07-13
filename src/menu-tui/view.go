@@ -26,12 +26,7 @@ func (m model) innerWidth() int {
 // paint pads a styled line to the inner width with the given filler and
 // wraps it in frame borders.
 func (m model) paint(content string, filler lipgloss.Style, inner int) string {
-	if lipgloss.Width(content) > inner {
-		content = ansi.Truncate(content, inner, "…")
-	}
-	if d := inner - lipgloss.Width(content); d > 0 {
-		content += filler.Render(strings.Repeat(" ", d))
-	}
+	content = filler.MaxWidth(inner).Width(inner).Render(content)
 	v := m.st.frame.Render("│")
 	return v + content + v
 }
@@ -62,10 +57,7 @@ func letterSpace(s string) string {
 func (m model) titleBar(title string, inner int) string {
 	st := m.st
 	mid := st.barMuted.Render(ansi.Truncate(title, inner-2*padX, "…"))
-	gap := max(inner-lipgloss.Width(mid), 0)
-	l := gap / 2
-	line := st.barSp.Render(strings.Repeat(" ", l)) + mid +
-		st.barSp.Render(strings.Repeat(" ", gap-l))
+	line := lipgloss.PlaceHorizontal(inner, lipgloss.Center, mid, lipgloss.WithWhitespaceStyle(st.barSp))
 	return m.paint(line, st.barSp, inner)
 }
 
@@ -81,9 +73,12 @@ func (m model) statusBar(hints [][2]string, status string, inner int) string {
 		}
 		b.WriteString(st.kbdChip.Render(" "+h[0]+" ") + st.barSp.Render(" ") + st.barMuted.Render(h[1]))
 	}
-	line := b.String()
-	pad := inner - lipgloss.Width(line) - lipgloss.Width(status) - padX
-	line += st.barSp.Render(strings.Repeat(" ", max(pad, 1))) + status + st.barSp.Render(strings.Repeat(" ", padX))
+	left := b.String()
+	right := status + st.barSp.Render(strings.Repeat(" ", padX))
+	line := lipgloss.JoinHorizontal(lipgloss.Top,
+		left,
+		lipgloss.PlaceHorizontal(inner-lipgloss.Width(left)-lipgloss.Width(right), lipgloss.Right, right, lipgloss.WithWhitespaceStyle(st.barSp)),
+	)
 	return m.paint(line, st.barSp, inner)
 }
 
@@ -104,6 +99,15 @@ func (m model) blank(inner int) string {
 }
 
 func (m model) View() tea.View {
+	// Help mode is full-bleed and mouse-aware; it builds its own canvas.
+	if m.mode == modeHelp {
+		view := tea.NewView(m.viewHelp())
+		view.BackgroundColor = m.st.bgColor
+		view.AltScreen = true
+		view.MouseMode = tea.MouseModeCellMotion
+		return view
+	}
+
 	inner := m.innerWidth()
 
 	var body string
@@ -113,7 +117,20 @@ func (m model) View() tea.View {
 		body = m.viewList(inner)
 	}
 
-	view := tea.NewView(lipgloss.PlaceHorizontal(m.width, lipgloss.Center, body))
+	// BackgroundColor controls Bubble Tea's default SGR background, but cells
+	// outside the rendered content can remain untouched by the renderer. Emit a
+	// terminal-sized canvas with explicitly styled whitespace so every cell,
+	// including the margins below and beside the panel, receives the theme bg.
+	content := lipgloss.Place(
+		m.width,
+		m.height,
+		lipgloss.Center,
+		lipgloss.Top,
+		body,
+		lipgloss.WithWhitespaceStyle(m.st.windowBg),
+	)
+	view := tea.NewView(content)
+	view.BackgroundColor = m.st.bgColor
 	view.AltScreen = true
 	return view
 }

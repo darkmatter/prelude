@@ -50,8 +50,7 @@ func (m model) renderRows(inner int) []string {
 		msg := m.st.sMuted.Render("no commands match ") +
 			m.st.sFg.Render(fmt.Sprintf("%q", m.input.Value())) +
 			m.st.sMuted.Render(" — press ") + m.st.sAccent2.Render("esc") + m.st.sMuted.Render(" to reset")
-		pad := max((inner-lipgloss.Width(msg))/2, 0)
-		lines[h/2] = m.paint(m.st.sp.Render(strings.Repeat(" ", pad))+msg, m.st.sp, inner)
+		lines[h/2] = m.paint(lipgloss.PlaceHorizontal(inner, lipgloss.Center, msg, lipgloss.WithWhitespaceStyle(m.st.sp)), m.st.sp, inner)
 		return lines
 	}
 
@@ -130,7 +129,7 @@ func (m model) renderRow(t Task, active bool, nameW, inner int) string {
 		if t.Key == "" {
 			chipStr = st.selSp.Render(keyLabel)
 		}
-		name := st.selText.Bold(true).Render(padRight(t.Name, nameW))
+		name := st.selText.Bold(true).Width(nameW).Render(t.Name)
 		used := padX + 1 + 1 + 3 + 1 + nameW + 1 + lipgloss.Width(marker) + 1 + padX
 		desc := st.selText.Render(ansi.Truncate(t.Description, max(inner-used, 4), "…"))
 		line := st.selSp.Render(strings.Repeat(" ", padX)) + gutter + st.selSp.Render(" ") +
@@ -148,7 +147,7 @@ func (m model) renderRow(t Task, active bool, nameW, inner int) string {
 	used := padX + 1 + 1 + 3 + 1 + nameW + 1 + lipgloss.Width(marker) + 1 + padX
 	desc := st.sMuted.Render(ansi.Truncate(t.Description, max(inner-used, 4), "…"))
 	line := st.sp.Render(strings.Repeat(" ", padX)) + st.sDim.Render(" ") + st.sp.Render(" ") +
-		chipStr + st.sp.Render(" ") + st.sFg.Bold(true).Render(padRight(t.Name, nameW)) +
+		chipStr + st.sp.Render(" ") + st.sFg.Bold(true).Width(nameW).Render(t.Name) +
 		st.sp.Render(" ") + desc
 	pad := inner - lipgloss.Width(line) - lipgloss.Width(marker) - padX
 	line += st.sp.Render(strings.Repeat(" ", max(pad, 1))) + st.sDim.Render(marker) +

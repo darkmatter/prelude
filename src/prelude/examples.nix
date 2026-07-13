@@ -152,23 +152,16 @@ let
     };
   };
 
-  # `nix run .#example-motd` — the full acme-web welcome banner: status
-  # chips in the banner, description, env chips, next steps, and recipes.
+  # `nix run .#example-motd` — full acme-web welcome banner.
   motd = {
     project = "acme-web";
-    banner.tagline = "everything you need to build, test & ship";
+    header = {
+      tagline = "everything you need to build, test & ship";
+      statusLabel = "devshell";
+      statusText = "ready";
+    };
     clearScreen = false;
     margin.top = 0;
-    banner.statusItems = [
-      {
-        text = "devshell";
-        status = "success";
-      }
-      {
-        text = "services";
-        status = "warning";
-      }
-    ];
     description.text = "This repo uses nix-based tooling which provides a consistent and reproducible dev environment.";
     env = [
       {
@@ -202,24 +195,33 @@ let
     recipes = {
       clean-local-stack = {
         title = "spin up a clean local stack";
-        lines = [
-          "# Start backing services"
-          "just db:up"
-          "just db:migrate && just db:seed"
-          "just dev"
+        steps = [
+          { comment = "start postgres + redis first"; }
+          { command = "just db:up"; }
+          { command = "just db:migrate && just db:seed"; }
+          { command = "just dev"; }
         ];
       };
       ship-hotfix = {
         title = "ship a hotfix to production";
-        lines = [
-          "git checkout -b fix/login"
-          ""
-          "# Verify before deploying"
-          "just test && just build"
-          "just deploy"
+        steps = [
+          { command = "git checkout -b fix/login"; }
+          { comment = "verify before deploying"; }
+          { command = "just test && just build"; }
+          { command = "just deploy"; }
         ];
       };
     };
+    shortcuts = [
+      {
+        command = "menu";
+        alias = "m";
+      }
+      {
+        command = "docs";
+        alias = "d";
+      }
+    ];
     git = true;
   };
 
@@ -233,16 +235,13 @@ let
   # --- motd feature demos --------------------------------------------------------
 
   motdDemos = {
-    # The merged component doing the former card's job: a standalone
-    # banner + description, no commands, env, footer, or load line.
+    # Standalone header + description, no commands/env/shortcuts.
     minimal = {
       project = "minimal";
-      banner.tagline = "just a banner and a description";
+      header.tagline = "just a header and a description";
       clearScreen = false;
       margin.top = 0;
       align = "left";
-      loadLine = "";
-      footer = false;
       git = false;
       description = {
         text = "Explicit styling beats the theme — this line is italic with a custom color.";
@@ -251,38 +250,20 @@ let
       };
     };
 
-    # Window background fill (theme bg token, edge to edge) + status chips
-    # + thick border.
+    # Window background fill + status on the header bar.
     surface = {
       project = "surface";
-      banner.tagline = "windowBackground = true paints the whole window";
+      header = {
+        tagline = "windowBackground = true paints the whole window";
+        statusLabel = "api · db";
+        statusText = "ready";
+      };
       clearScreen = false;
       margin.top = 1;
       margin.bottom = 1;
       windowBackground = true;
-      banner.border.width = 2;
-      loadLine = "";
       git = false;
-      banner.statusItems = [
-        {
-          text = "api";
-          status = "success";
-        }
-        {
-          text = "db";
-          status = "error";
-        }
-        {
-          text = "cache";
-          status = "warning";
-        }
-        {
-          text = "docs";
-          status = "info";
-        }
-      ];
       description.text = "Every cell, gutter, and line remainder carries the background.";
-      footer = false;
     };
   };
 
@@ -291,33 +272,20 @@ let
   themeMotd = theme: {
     inherit theme;
     project = theme;
-    banner.tagline = "theme ${theme}";
+    header = {
+      tagline = "theme ${theme}";
+      statusText = "ok";
+    };
     clearScreen = false;
     margin.y = 2;
     maxWidth = 60;
     windowBackground = true;
-    loadLine = "";
     git = false;
-    banner.statusItems = [
-      {
-        text = "ok";
-        status = "success";
-      }
-      {
-        text = "warn";
-        status = "warning";
-      }
-      {
-        text = "err";
-        status = "error";
-      }
-    ];
     description.text = "The quick brown fox jumps over the lazy dog.";
     commands.build = {
       command = "just build";
       description = "accent on commands";
     };
-    footer = false;
   };
 in
 {

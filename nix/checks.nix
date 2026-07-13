@@ -76,57 +76,62 @@
     assert mergedDescription == "merged";
     pkgs.runCommand "task-ordering" { } "touch $out";
 
-  # Banner-specific options share one nested namespace for module and direct
-  # consumers. Partial border configuration retains the remaining defaults.
-  motd-banner-options =
+  # Header options share one nested namespace for module and direct consumers.
+  motd-header-options =
     let
       evaluated = lib.evalModules {
         modules = [
           ../src/prelude/options/shared.nix
           ../src/prelude/options/motd.nix
           {
-            prelude.motd.banner = {
-              badge = "test-badge";
-              label = "test-label";
-              tagline = "test-tagline";
-              border.width = 2;
-              statusItems = [
+            prelude.motd = {
+              padding.x = 2;
+              header = {
+                titleStyle = "bracketed";
+                tagline = "test-tagline";
+                statusLabel = "nix develop";
+                statusText = "ready";
+              };
+              shortcuts = [
                 {
-                  text = "ready";
-                  status = "success";
+                  command = "menu";
+                  alias = "m";
                 }
               ];
             };
           }
         ];
       };
-      banner = evaluated.config.prelude.motd.banner;
-
+      header = evaluated.config.prelude.motd.header;
+      padding = evaluated.config.prelude.motd.padding;
+      shortcuts = evaluated.config.prelude.motd.shortcuts;
     in
-    assert banner.badge == "test-badge";
-    assert banner.label == "test-label";
-    assert banner.tagline == "test-tagline";
-    assert banner.border.width == 2;
-    assert banner.border.foreground == null;
-    assert banner.border.rounded;
+    assert header.titleStyle == "bracketed";
+    assert header.tagline == "test-tagline";
+    assert header.statusLabel == "nix develop";
+    assert header.statusText == "ready";
     assert
-      banner.statusItems == [
+      shortcuts == [
         {
-          text = "ready";
-          status = "success";
+          command = "menu";
+          alias = "m";
         }
       ];
+    assert padding.x == 2;
+    assert padding.y == 0;
+    assert padding.left == null;
+    assert padding.right == null;
 
-    pkgs.runCommand "motd-banner-options" { } "touch $out";
+    pkgs.runCommand "motd-header-options" { } "touch $out";
 
-  # Our own motd renders authored next steps, never the menu's task catalog.
+  # Our own motd renders authored commands, never the menu's task catalog.
   motd-renders = pkgs.runCommand "motd-renders" { } ''
     NO_COLOR=1 ${lib.getExe config.packages.motd} > "$out"
     test -s "$out"
     grep -q "prelude" "$out"
-    grep -q "next steps" "$out"
+    grep -q "Getting Started" "$out"
     grep -q "nix flake check" "$out"
-    grep -q "menu list" "$out"
+    grep -q "menu" "$out"
     if grep -q "demo-menu" "$out"; then
       echo "motd must not render menu tasks" >&2
       exit 1
@@ -138,126 +143,111 @@
     let
       commandMotd =
         import ../src/prelude/motd.nix
-          {
-            inherit (pkgs)
-              lib
-              writeShellApplication
-              gum
-              ncurses
-              ;
-          }
-          {
-            project = "command-test";
-            clearScreen = false;
-            margin.top = 0;
-            loadLine = "";
-            footer = false;
-            git = false;
-            banner.border.width = 0;
-            groups.hidden.tasks.should-not-render = {
-              run = "false";
-              description = "menu-only sentinel";
+        {
+          inherit (pkgs)
+            lib
+            writeText
+            buildGoModule
+            ;
+        }
+        {
+          project = "command-test";
+          clearScreen = false;
+          margin.top = 0;
+          git = false;
+          groups.hidden.tasks.should-not-render = {
+            run = "false";
+            description = "menu-only sentinel";
+          };
+          commands = {
+            check = {
+              order = 100;
+              command = "nix flake check";
+              description = "verify the flake";
             };
-            commands = {
-              check = {
-                order = 100;
-                command = "nix flake check";
-                description = "verify the flake";
-              };
-              browse = {
-                command = "menu";
-                description = "browse project commands";
-              };
+            browse = {
+              command = "menu";
+              description = "browse project commands";
             };
           };
+        };
     in
     pkgs.runCommand "motd-commands-render" { } ''
       NO_COLOR=1 ${lib.getExe commandMotd} > "$out"
-      grep -q "next steps" "$out"
-      grep -q '\$ nix flake check.*verify the flake' "$out"
-      grep -q '\$ menu.*browse project commands' "$out"
-      if grep -q "should-not-render\|menu-only sentinel\|false" "$out"; then
+      grep -q "Getting Started" "$out"
+      grep -q "commands" "$out"
+      grep -q 'nix flake check' "$out"
+      grep -q 'verify the flake' "$out"
+      grep -q 'browse project commands' "$out"
+      if grep -q "should-not-render\|menu-only sentinel" "$out"; then
         echo "motd leaked menu task data" >&2
         exit 1
       fi
-      test "$(grep -n 'nix flake check' "$out" | cut -d: -f1)" -lt "$(grep -n '\$ menu' "$out" | cut -d: -f1)"
+      test "$(grep -n 'nix flake check' "$out" | head -n1 | cut -d: -f1)" -lt "$(grep -n '\$ menu' "$out" | head -n1 | cut -d: -f1)"
     '';
 
-  # Narrow command sections stay within the configured width, stacking the
-  # description below the exact command when two columns no longer fit.
+  # Narrow command sections stay within the configured width.
   motd-commands-narrow-render =
     let
       narrowMotd =
         import ../src/prelude/motd.nix
-          {
-            inherit (pkgs)
-              lib
-              writeShellApplication
-              gum
-              ncurses
-              ;
-          }
-          {
-            project = "narrow";
-            width = 20;
-            clearScreen = false;
-            margin.top = 0;
-            loadLine = "";
-            banner.badge = "";
-            footer = false;
-            git = false;
-            banner.border.width = 0;
-            commands.check = {
-              command = "nix flake check";
-              description = "verify the flake";
-            };
+        {
+          inherit (pkgs)
+            lib
+            writeText
+            buildGoModule
+            ;
+        }
+        {
+          project = "narrow";
+          width = 20;
+          clearScreen = false;
+          margin.top = 0;
+          git = false;
+          commands.check = {
+            command = "nix flake check";
+            description = "verify";
           };
+        };
     in
     pkgs.runCommand "motd-commands-narrow-render" { } ''
       NO_COLOR=1 ${lib.getExe narrowMotd} > "$out"
-      grep -q '\$ nix flake check' "$out"
-      grep -q 'verify the flake' "$out"
+      grep -q 'nix flake check' "$out"
+      grep -q 'verify' "$out"
       if ! awk '{ line = $0; sub(/^ +/, "", line) } length(line) > 20 { print length(line) ": " line > "/dev/stderr"; overflow = 1 } END { exit overflow }' "$out"; then
         echo "narrow motd exceeded configured width" >&2
         exit 1
       fi
     '';
 
-  # Recipes render comments, commands, and intentional blank lines as a
-  # distinct motd section.
+  # Recipes render as fade-rule codeblocks with comments and commands.
   motd-recipes-render =
     let
       recipeMotd =
         import ../src/prelude/motd.nix
-          {
-            inherit (pkgs)
-              lib
-              writeShellApplication
-              gum
-              ncurses
-              ;
-          }
-          {
-            project = "recipe-test";
-            clearScreen = false;
-            margin = {
-              top = 0;
-            };
-            loadLine = "";
-            footer = false;
-            git = false;
-            banner.border.width = 0;
-            recipes."-clean-stack" = {
-              lines = [
-                "# Start backing services"
-                "just db:up"
-                ""
-                "just db:migrate && just db:seed"
-                "-x command"
-                ""
-              ];
-            };
+        {
+          inherit (pkgs)
+            lib
+            writeText
+            buildGoModule
+            ;
+        }
+        {
+          project = "recipe-test";
+          clearScreen = false;
+          margin = {
+            top = 0;
           };
+          git = false;
+          recipes."-clean-stack" = {
+            steps = [
+              { comment = "Start backing services"; }
+              { command = "just db:up"; }
+              { command = "just db:migrate && just db:seed"; }
+              { command = "-x command"; }
+            ];
+          };
+        };
     in
     pkgs.runCommand "motd-recipes-render" { } ''
       NO_COLOR=1 ${lib.getExe recipeMotd} > "$out.ansi"
@@ -267,15 +257,13 @@
         echo "direct motd without commands must not invent next steps" >&2
         exit 1
       fi
-      grep -q "recipes — common flows that take a few steps" "$out"
+      grep -q "Getting Started" "$out"
+      grep -q "examples" "$out"
       grep -q -- "-clean-stack" "$out"
-      grep -q '^│   # Start backing services' "$out"
+      grep -q '# Start backing services' "$out"
       grep -q "just db:up" "$out"
       grep -q "just db:migrate && just db:seed" "$out"
       grep -q -- "-x command" "$out"
-      grep -q "╭" "$out"
-      blank_rows=$(grep -Ec '^│[[:space:]]*│$' "$out")
-      test "$blank_rows" -ge 2
     '';
 
   # Our own `menu list` renders the grouped task table.

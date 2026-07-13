@@ -12,9 +12,8 @@
   theme = "phosphor";
   palette = { };
 
-  # Color depth: "auto" lets gum sniff COLORTERM/TERM at runtime,
-  # "truecolor" forces 24-bit output (palettes are truecolor hex),
-  # "ansi256" forces quantization to the 256-color palette.
+  # Color depth: "auto" detects the terminal profile, "truecolor" forces
+  # 24-bit output, and "ansi256" forces quantization to 256 colors.
   colorProfile = "auto";
 
   # Project identity, shared by motd and menu.
@@ -29,6 +28,8 @@
   groups = { };
 
   # --- motd --------------------------------------------------------------------
+  # Layout matches src/motd-playground: header bar → description → env →
+  # Getting Started (commands + examples) → shortcuts.
 
   motd = {
     # Block background fill: null/false = transparent, true = theme `bg`
@@ -61,29 +62,28 @@
     # (content inside stays left-aligned).
     align = "center";
 
-    # Dim load line above the banner; "" disables. A themed ✓ is appended.
-    loadLine = "direnv: loading .envrc · nix develop";
-
-    banner = {
-      # Banner box: "▓▒░ <project> · <label>" + tagline.
-      badge = "▓▒░";
-      label = "development shell";
-      tagline = "everything you need to build, test & ship";
-
-      # Banner border: width 0 hides it, 1 normal/rounded, 2+ thick.
-      # foreground null uses the theme's accentBorder token.
-      border = {
-        width = 1;
-        foreground = null;
-        rounded = true;
-      };
-
-      # Status indicator chips rendered right-aligned inside the banner.
-      # Item: { text; status = "success" | "error" | "warning" | "info"; }
-      statusItems = [ ];
+    # Inner padding between content and the block edge. Header and
+    # shortcuts stay edge-to-edge; only the middle sections are inset.
+    padding = {
+      x = 0;
+      y = 0;
+      top = null;
+      bottom = null;
+      left = null;
+      right = null;
     };
 
-    # Styled text rendered beneath the banner (theme fg role). An empty
+    # Filled hero bar: wordmark variant + status + tagline beneath.
+    header = {
+      # plain | spine | bracketed | label
+      titleStyle = "spine";
+      tagline = "everything you need to build, test & ship";
+      statusLabel = "";
+      statusLabelCompact = "";
+      statusText = "ready";
+    };
+
+    # Styled text rendered beneath the header (theme fg role). An empty
     # text hides it. { text, foreground, background, bold, italic, faint }
     description = {
       text = "";
@@ -95,21 +95,28 @@
     #                        becomes the value, skipped on failure
     env = [ ];
 
-    # Primary runnable commands shown as two-column next steps. The module adds
-    # menu/menu-list defaults when the menu is enabled; direct mkMotd consumers
-    # opt in explicitly.
+    # Primary runnable commands shown with dotted leaders.
+    # The module adds menu/menu-list defaults when the menu is enabled;
+    # direct mkMotd consumers opt in explicitly.
     commands = { };
 
-    # Multi-step workflows keyed by name. Lines beginning with # render as
-    # comments, empty lines add space, and all other lines are commands.
+    # Multi-step workflows keyed by name. Prefer `steps`; legacy `lines`
+    # are normalized into steps at the Nix boundary.
     recipes = { };
 
     # Show a git segment (branch, ahead, dirty) when inside a repo.
     git = true;
 
-    # Inverted footer bar with hints; "" disables the hint text.
-    footerHint = "menu → browse commands";
-    footer = true;
+    # Unified commands + examples region labels.
+    gettingStarted = {
+      heading = "Getting Started";
+      commandsLabel = "commands";
+      examplesLabel = "examples";
+    };
+
+    # Quiet right-aligned discoverability chips (replaces the footer bar).
+    # Item: { command; alias ? ""; }
+    shortcuts = [ ];
 
     width = "full";
     maxWidth = 96;

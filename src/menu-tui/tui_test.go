@@ -2,11 +2,15 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"os/exec"
+	"prelude/shared"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 var _ tea.Model = model{}
@@ -17,7 +21,7 @@ func testConfig() *Config {
 		Placeholder: "filter tasks",
 		Height:      8,
 		MaxWidth:    80,
-		Palette: Palette{
+		Palette: shared.Palette{
 			Fg:          "#ffffff",
 			Muted:       "#aaaaaa",
 			Dim:         "#777777",
@@ -51,6 +55,38 @@ func TestViewDeclaresAltScreen(t *testing.T) {
 	}
 }
 
+func TestViewSetsWindowBackground(t *testing.T) {
+	cfg := testConfig()
+	m := newModel(cfg, newStyles(cfg), nil)
+
+	view := m.View()
+
+	if view.BackgroundColor != m.st.bgColor {
+		t.Fatalf("window background = %v, want theme bg %v", view.BackgroundColor, m.st.bgColor)
+	}
+}
+
+func TestViewPaintsBackgroundAcrossEntireWindow(t *testing.T) {
+	cfg := testConfig()
+	m := newModel(cfg, newStyles(cfg), nil)
+	m.width = 72
+	m.height = 30
+
+	content := m.View().Content
+	if got := lipgloss.Height(content); got != m.height {
+		t.Fatalf("view height = %d, want terminal height %d", got, m.height)
+	}
+
+	lines := strings.Split(content, "\n")
+	bottom := lines[len(lines)-1]
+	if got := ansi.Strip(bottom); got != strings.Repeat(" ", m.width) {
+		t.Fatalf("bottom row = %q, want a full-width background row", got)
+	}
+	if bottom == ansi.Strip(bottom) {
+		t.Fatal("bottom row is unstyled; background would use the terminal default")
+	}
+}
+
 func TestDownKeySelectsNextTask(t *testing.T) {
 	cfg := testConfig()
 	m := newModel(cfg, newStyles(cfg), nil)
@@ -80,6 +116,9 @@ func TestRequiredArgumentPreventsSubmission(t *testing.T) {
 	if got.execCmd != "" {
 		t.Fatalf("exec command = %q, want empty", got.execCmd)
 	}
+	if got.mode != modeArgs {
+		t.Fatalf("mode = %v, want argument mode", got.mode)
+	}
 	if got.argErr == "" {
 		t.Fatal("required argument must produce a validation message")
 	}
@@ -96,8 +135,49 @@ func TestArgumentSubmissionBuildsCommand(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("valid arguments must quit the program")
 	}
+	if !got.hasExecCmd {
+		t.Fatal("valid submission must retain a command decision")
+	}
 	if got.execCmd != "just deploy staging --force" {
 		t.Fatalf("exec command = %q", got.execCmd)
+	}
+}
+func TestListSelectionRetainsEmptyCommandDecision(t *testing.T) {
+	cfg := testConfig()
+	cfg.Groups[0].Tasks = []Task{{Name: "empty", Run: " \t "}}
+	m := newModel(cfg, newStyles(cfg), nil)
+
+	got, cmd := m.updateList(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	if cmd == nil {
+		t.Fatal("command selection must quit the program")
+	}
+	if !got.hasExecCmd {
+		t.Fatal("empty command text must still retain a command decision")
+	}
+	if got.execCmd != "" {
+		t.Fatalf("command = %q, want normalized empty command", got.execCmd)
+	}
+}
+
+func TestArgumentPreviewUsesFinalCommandAssembler(t *testing.T) {
+	cfg := testConfig()
+	task := Task{
+		Name: "deploy",
+		Run:  "  just deploy  ",
+		Args: []Arg{{Token: "<environment>"}},
+	}
+	m := newModel(cfg, newStyles(cfg), &task)
+	m.input.SetValue("  staging  ")
+
+	decision, err := completeInvocation(task, m.input.Value())
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := ansi.Strip(m.View().Content)
+	want := "$ " + decision.command
+	if !strings.Contains(content, want) {
+		t.Fatalf("preview does not contain final command %q:\n%s", want, content)
 	}
 }
 
@@ -198,5 +278,29 @@ func TestPrintListStripsANSIForNonTTY(t *testing.T) {
 
 	if strings.Contains(out.String(), "\x1b[") {
 		t.Fatalf("non-TTY list output contains ANSI escapes: %q", out.String())
+	}
+}
+
+func TestFastPathUnknownTaskExitsOne(t *testing.T) {
+	const helperEnv = "PRELUDE_TEST_FAST_PATH_UNKNOWN"
+	if os.Getenv(helperEnv) == "1" {
+		cfg := testConfig()
+		fastPath(cfg, newStyles(cfg), "missing", nil)
+		return
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run=^TestFastPathUnknownTaskExitsOne$")
+	cmd.Env = append(os.Environ(), helperEnv+"=1")
+	output, err := cmd.CombinedOutput()
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok {
+		t.Fatalf("fast path error = %v, want exit error; output:\n%s", err, output)
+	}
+	if exitErr.ExitCode() != 1 {
+		t.Fatalf("exit code = %d, want 1; output:\n%s", exitErr.ExitCode(), output)
+	}
+	got := ansi.Strip(string(output))
+	if !strings.Contains(got, `menu: unknown task "missing"`) {
+		t.Fatalf("stderr = %q", got)
 	}
 }

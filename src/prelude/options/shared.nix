@@ -44,8 +44,7 @@ in
       default = defaults.colorProfile;
       description = ''
         Color depth for all prelude components:
-        - `auto`: gum sniffs COLORTERM/TERM at runtime (24-bit only when the
-          terminal advertises truecolor).
+        - `auto`: detect color depth from the terminal environment and output.
         - `truecolor`: force 24-bit color output.
         - `ansi256`: force quantization to the 256-color palette.
       '';

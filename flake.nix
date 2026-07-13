@@ -3,8 +3,8 @@
 #
 # prelude — a flake-parts module suite for devshell UI:
 #
-#   motd  — devshell welcome banner (gum, generated bash): banner box with
-#           status chips, description, env/git row, next steps, recipes, footer
+#   motd  — static devshell welcome banner (Go + Lip Gloss): status chips,
+#           description, env/git row, next steps, recipes, and footer
 #   menu  — interactive command menu (bubbletea TUI, configured by Nix)
 #
 # This flake dogfoods its own module: `flakeModules.prelude` is created with

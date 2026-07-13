@@ -5,6 +5,7 @@
 #                        tab-to-expand details, argument entry with chips
 #   menu <name|key> …    fast path: run a task directly, extra args appended
 #   menu list            print the grouped task table (non-interactive)
+#   menu help            man-style manual generated from the config
 #
 # The Go binary is config-independent (one derivation shared by every menu
 # configuration); each config becomes a JSON file baked into a thin wrapper.
@@ -50,6 +51,8 @@ let
       "menu: task keys must not collide with task names";
     assert lib.assertMsg (!(lib.elem "list" (names ++ keys)))
       "menu: \"list\" is reserved for `menu list`";
+    assert lib.assertMsg (!(lib.elem "help" (names ++ keys)))
+      "menu: \"help\" is reserved for `menu help`";
     true;
 
   # --- config payload ----------------------------------------------------------
@@ -90,12 +93,13 @@ let
   menuTui = buildGoModule {
     pname = "prelude-menu";
     version = "0.1.0";
-    src = ../menu-tui;
-    vendorHash = "sha256-J3UGPUk7qR9YctwUw3vwCRCgAlGC3fmZhQtry2KpD/c=";
+    src = ../.;
+    subPackages = [ "menu-tui" ];
+    vendorHash = "sha256-5Vq39NH18R7zee+LHANoHAbjw3iuE9+SoYxF9OqiamQ=";
     ldflags = [ "-s" "-w" ];
     meta = {
       description = "Interactive devshell command menu (bubbletea)";
-      mainProgram = "prelude-menu";
+      mainProgram = "menu-tui";
     };
   };
 in

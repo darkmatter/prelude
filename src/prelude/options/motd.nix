@@ -37,65 +37,45 @@ in
       description = "Horizontal placement of the motd block against the terminal window (content inside stays left-aligned).";
     };
 
-    loadLine = lib.mkOption {
-      type = lib.types.str;
-      default = defaults.motd.loadLine;
-      description = "Dim load line above the banner (a themed ✓ is appended). Empty disables.";
+    padding = t.mkSpacingOption {
+      spacingDefaults = defaults.motd.padding;
+      description = "Inner padding between content and the block edge. The header and shortcuts stay edge-to-edge; only middle sections are inset. Sides supersede the x/y axes.";
     };
 
-    banner = lib.mkOption {
+    header = lib.mkOption {
       default = { };
-      description = "Project banner box.";
+      description = "Filled hero bar: wordmark variant, status, and tagline beneath.";
       type = lib.types.submodule {
         options = {
-          badge = lib.mkOption {
-            type = lib.types.str;
-            default = defaults.motd.banner.badge;
-            description = "Glyph before the project name.";
-          };
-          label = lib.mkOption {
-            type = lib.types.str;
-            default = defaults.motd.banner.label;
-            description = "Label after the project name, e.g. \"development shell\".";
+          titleStyle = lib.mkOption {
+            type = lib.types.enum [
+              "plain"
+              "spine"
+              "bracketed"
+              "label"
+            ];
+            default = defaults.motd.header.titleStyle;
+            description = "Wordmark treatment on the header bar.";
           };
           tagline = lib.mkOption {
             type = lib.types.str;
-            default = defaults.motd.banner.tagline;
-            description = "Tagline shown beneath the project name.";
+            default = defaults.motd.header.tagline;
+            description = "Tagline shown beneath the header bar on the page background.";
           };
-          border = lib.mkOption {
-            default = { };
-            description = "Banner box border.";
-            type = lib.types.submodule {
-              options = {
-                width = lib.mkOption {
-                  type = lib.types.ints.unsigned;
-                  default = defaults.motd.banner.border.width;
-                  description = "Border width: 0 hides the border, 1 is a normal border, 2+ renders thick.";
-                };
-                foreground = lib.mkOption {
-                  type = lib.types.nullOr t.colorType;
-                  default = defaults.motd.banner.border.foreground;
-                  description = "Border color; null uses the theme's accentBorder token.";
-                };
-                rounded = lib.mkOption {
-                  type = lib.types.bool;
-                  default = defaults.motd.banner.border.rounded;
-                  description = "Round the corners (applies at width 1).";
-                };
-              };
-            };
+          statusLabel = lib.mkOption {
+            type = lib.types.str;
+            default = defaults.motd.header.statusLabel;
+            description = "Dim label left of the status dot (e.g. \"nix develop · flake @ abc\").";
           };
-          statusItems = lib.mkOption {
-            type = lib.types.listOf t.statusItemType;
-            default = defaults.motd.banner.statusItems;
-            description = "Status indicator chips rendered right-aligned inside the banner.";
-            example = [
-              {
-                text = "devshell";
-                status = "success";
-              }
-            ];
+          statusLabelCompact = lib.mkOption {
+            type = lib.types.str;
+            default = defaults.motd.header.statusLabelCompact;
+            description = "Shorter status label used when the full label does not fit.";
+          };
+          statusText = lib.mkOption {
+            type = lib.types.str;
+            default = defaults.motd.header.statusText;
+            description = "Muted text after the status dot (e.g. \"ready\"). Empty hides the status.";
           };
         };
       };
@@ -104,7 +84,7 @@ in
     description = t.mkTextOption (
       defaults.motd.description
       // {
-        description = "Styled text rendered beneath the banner (theme fg role). Empty text hides it.";
+        description = "Styled text rendered beneath the header (theme fg role). Empty text hides it.";
       }
     );
 
@@ -127,7 +107,7 @@ in
     commands = lib.mkOption {
       type = lib.types.attrsOf t.commandType;
       default = defaults.motd.commands;
-      description = "Primary next-step commands keyed by identity. Each row renders the exact runnable command and an optional description.";
+      description = "Primary next-step commands keyed by identity. Each row renders `$ command` with dotted leaders to the description.";
       example = {
         check = {
           order = 100;
@@ -140,15 +120,14 @@ in
     recipes = lib.mkOption {
       type = lib.types.attrsOf t.recipeType;
       default = defaults.motd.recipes;
-      description = "Multi-step workflows keyed by name. Empty lines add space, # lines are comments, and other lines are numbered commands.";
+      description = "Multi-step workflows keyed by name. Prefer `steps` ({ command } | { comment }); legacy `lines` are normalized into steps.";
       example.clean-local-stack = {
         title = "spin up a clean local stack";
-        lines = [
-          "# Start backing services"
-          "just db:up"
-          ""
-          "just db:migrate && just db:seed"
-          "just dev"
+        steps = [
+          { comment = "start postgres + redis first"; }
+          { command = "just db:up"; }
+          { command = "just db:migrate && just db:seed"; }
+          { command = "just dev"; }
         ];
       };
     };
@@ -159,16 +138,40 @@ in
       description = "Show a git segment (branch, ahead, dirty) when inside a repo.";
     };
 
-    footer = lib.mkOption {
-      type = lib.types.bool;
-      default = defaults.motd.footer;
-      description = "Show the inverted footer bar.";
+    gettingStarted = lib.mkOption {
+      default = { };
+      description = "Labels for the unified commands + examples region.";
+      type = lib.types.submodule {
+        options = {
+          heading = lib.mkOption {
+            type = lib.types.str;
+            default = defaults.motd.gettingStarted.heading;
+            description = "Centered heading above the commands/examples groups.";
+          };
+          commandsLabel = lib.mkOption {
+            type = lib.types.str;
+            default = defaults.motd.gettingStarted.commandsLabel;
+            description = "Dim sub-label above the commands list.";
+          };
+          examplesLabel = lib.mkOption {
+            type = lib.types.str;
+            default = defaults.motd.gettingStarted.examplesLabel;
+            description = "Dim sub-label above the recipe codeblocks.";
+          };
+        };
+      };
     };
 
-    footerHint = lib.mkOption {
-      type = lib.types.str;
-      default = defaults.motd.footerHint;
-      description = "Right-aligned hint text in the footer bar.";
+    shortcuts = lib.mkOption {
+      type = lib.types.listOf t.shortcutType;
+      default = defaults.motd.shortcuts;
+      description = "Right-aligned discoverability chips that close the composition (replaces the footer bar).";
+      example = [
+        {
+          command = "menu";
+          alias = "m";
+        }
+      ];
     };
 
     width = lib.mkOption {
@@ -181,6 +184,12 @@ in
       type = lib.types.nullOr lib.types.ints.unsigned;
       default = defaults.motd.maxWidth;
       description = "Maximum content width.";
+    };
+
+    fullscreen = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Fill the entire terminal width with no cap. Equivalent to width = \"full\" and maxWidth = null.";
     };
   };
 }

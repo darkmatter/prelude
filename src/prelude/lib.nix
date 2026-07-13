@@ -1,7 +1,6 @@
 # Shared helpers for the prelude generators (motd.nix, menu.nix).
 { lib }:
 let
-  q = lib.escapeShellArg;
 
   themes = import ./themes.nix;
   themeNames = lib.attrNames themes;
@@ -15,39 +14,6 @@ let
     ) "prelude: unknown theme \"${theme}\" (expected one of: ${lib.concatStringsSep ", " themeNames})";
     themes.${theme} // lib.filterAttrs (_n: v: v != null) overrides;
 
-  statusColor =
-    pal: s:
-    {
-      success = pal.accent;
-      error = pal.error;
-      warning = pal.accent2;
-      info = pal.dim;
-    }
-    .${s} or (throw "prelude: invalid status \"${s}\" (expected success|error|warning|info)");
-
-  # gum resolves color depth at runtime from COLORTERM/TERM (sniffed on
-  # stderr's tty). Our palettes are truecolor hex; without
-  # COLORTERM=truecolor they get quantized to the 256-color palette, and
-  # under tmux's default TERM=screen they can drop out entirely. These
-  # exports only affect the generated script's own process.
-  colorProfileSetup =
-    profile:
-    if profile == "truecolor" then
-      [
-        "export COLORTERM=truecolor"
-        "case \"\${TERM:-}\" in *256color*) : ;; *) export TERM=xterm-256color ;; esac"
-      ]
-    else if profile == "ansi256" then
-      [
-        "export COLORTERM="
-        "case \"\${TERM:-}\" in *256color*) : ;; *) export TERM=xterm-256color ;; esac"
-      ]
-    else
-      assert lib.assertMsg (
-        profile == "auto"
-      ) "prelude: colorProfile must be auto, truecolor, or ansi256";
-      [ ];
-
   # Resolve a spacing spec into explicit sides. `x`/`y` are axis shorthands
   # (left+right / top+bottom); explicit sides supersede them.
   resolveSpacing = spec: {
@@ -56,9 +22,6 @@ let
     left = if (spec.left or null) != null then spec.left else (spec.x or 0);
     right = if (spec.right or null) != null then spec.right else (spec.x or 0);
   };
-
-  # gum/lipgloss CSS-style "top right bottom left" value.
-  spacingTRBL = s: "${toString s.top} ${toString s.right} ${toString s.bottom} ${toString s.left}";
 
   textDefaults = {
     text = "";
@@ -69,58 +32,11 @@ let
     faint = false;
   };
 
-  # Fall back to a palette role when no explicit foreground is set.
+  # Explicit colors override semantic palette roles at the Nix boundary so
+  # renderers receive one normalized color rather than duplicating precedence.
   withRole =
-    pal: role: t:
-    t // { foreground = if t.foreground != null then t.foreground else pal.${role}; };
-
-  styleFlags =
-    t:
-    lib.concatStrings (
-      lib.optional (t.foreground != null) " --foreground ${q (toString t.foreground)}"
-      ++ lib.optional (t.background != null) " --background ${q (toString t.background)}"
-      ++ lib.optional t.bold " --bold"
-      ++ lib.optional t.italic " --italic"
-      ++ lib.optional t.faint " --faint"
-    );
-
-  mkTextEl = name: t: "${name}=$(gum style${styleFlags t} ${q t.text})";
-
-  # Runtime width setup: sets card_w (and inner_w when needsInner). "full"
-  # widths track the terminal via tput, capped by maxWidth; fixed widths are
-  # baked as plain assignments.
-  #   sideCols: columns consumed outside card_w (margins + border)
-  #   padCols:  total horizontal padding inside card_w (left + right)
-  mkWidthSetup =
-    {
-      isFull,
-      fixedWidth ? 70,
-      maxWidth ? null,
-      sideCols ? 0,
-      padCols ? 0,
-      needsInner ? false,
-    }:
-    lib.concatStringsSep "\n" (
-      if isFull then
-        [
-          "term_w=$(tput cols 2>/dev/null || echo 80)"
-          "card_w=$(( term_w - ${toString sideCols} ))"
-        ]
-        ++ lib.optional (
-          maxWidth != null
-        ) "if [ \"$card_w\" -gt ${toString maxWidth} ]; then card_w=${toString maxWidth}; fi"
-        ++ [ "if [ \"$card_w\" -lt 10 ]; then card_w=10; fi" ]
-        ++ lib.optionals needsInner [
-          "inner_w=$(( card_w - ${toString padCols} ))"
-          "if [ \"$inner_w\" -lt 1 ]; then inner_w=1; fi"
-        ]
-      else
-        let
-          w = if maxWidth != null then lib.min fixedWidth maxWidth else fixedWidth;
-        in
-        [ "card_w='${toString w}'" ]
-        ++ lib.optional needsInner "inner_w='${toString (lib.max 1 (w - padCols))}'"
-    );
+    pal: role: text:
+    text // { foreground = if text.foreground != null then text.foreground else pal.${role}; };
 
   # --- task schema -------------------------------------------------------------
 
@@ -196,35 +112,64 @@ let
       }
     ) (sortOrderedAttrs commands);
 
+  # Normalize a free-form recipe line into a step. Empty lines are dropped;
+  # "#…" becomes a comment; everything else is a command.
+  lineToStep =
+    line:
+    let
+      trimmed = lib.removePrefix " " (lib.removeSuffix " " line);
+    in
+    if trimmed == "" then
+      null
+    else if lib.hasPrefix "#" trimmed then
+      {
+        command = "";
+        comment =
+          if lib.hasPrefix "# " trimmed then
+            lib.removePrefix "# " trimmed
+          else
+            lib.removePrefix "#" trimmed;
+      }
+    else
+      {
+        command = trimmed;
+        comment = "";
+      };
+
+  normalizeRecipeStep = step: {
+    command = step.command or "";
+    comment = step.comment or "";
+  };
+
   normalizeRecipes =
     recipes:
     map (
       { name, value }:
       let
         title = value.title or null;
+        explicitSteps = value.steps or [ ];
+        legacyLines = value.lines or [ ];
+        steps =
+          if explicitSteps != [ ] then
+            map normalizeRecipeStep explicitSteps
+          else
+            builtins.filter (s: s != null) (map lineToStep legacyLines);
       in
       {
         title = if title == null then name else title;
-        lines = value.lines or [ ];
+        inherit steps;
       }
     ) (sortOrderedAttrs recipes);
 
 in
 {
   inherit
-    q
     themes
     themeNames
     resolvePalette
-    statusColor
-    colorProfileSetup
     resolveSpacing
-    spacingTRBL
     textDefaults
     withRole
-    styleFlags
-    mkTextEl
-    mkWidthSetup
     normalizeArg
     normalizeTask
     normalizeGroups

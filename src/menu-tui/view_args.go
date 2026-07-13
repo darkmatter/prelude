@@ -35,8 +35,8 @@ func (m model) viewArgs(inner int) string {
 			tag = "FLAG"
 		}
 		row := st.sp.Render(strings.Repeat(" ", padX)) +
-			st.sAccent2.Render(padRight(a.Token, tokenW)) + st.sp.Render("  ") +
-			tagStyle.Render(padRight(tag, 8)) + st.sp.Render("  ") +
+			st.sAccent2.Width(tokenW).Render(a.Token) + st.sp.Render("  ") +
+			tagStyle.Width(8).Render(tag) + st.sp.Render("  ") +
 			st.sMuted.Render(a.Description)
 		body = append(body, m.paint(row, st.sp, inner))
 
@@ -72,11 +72,12 @@ func (m model) viewArgs(inner int) string {
 		body = body[:h]
 	}
 
-	// Live preview of the assembled command.
-	preview := st.sp.Render(strings.Repeat(" ", padX)) + st.sAccent.Render("$ ") + st.sFg.Render(t.Run)
-	if v := strings.TrimSpace(m.input.Value()); v != "" {
-		preview += st.sFg.Render(" " + v)
-	} else {
+	// Live preview uses the same assembly path as final submission.
+	argumentLine := strings.TrimSpace(m.input.Value())
+	preview := st.sp.Render(strings.Repeat(" ", padX)) +
+		st.sAccent.Render("$ ") +
+		st.sFg.Render(assembleInvocation(*t, argumentLine))
+	if argumentLine == "" {
 		preview += st.sDim.Render(" …")
 	}
 

@@ -5,7 +5,12 @@
 final: _prev:
 let
   deps = {
-    inherit (final) lib writeShellApplication writeText gum ncurses buildGoModule;
+    inherit (final)
+      lib
+      writeShellApplication
+      writeText
+      buildGoModule
+      ;
   };
 in
 {

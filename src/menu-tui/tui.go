@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"strings"
 
@@ -14,6 +13,7 @@ type mode int
 const (
 	modeList mode = iota
 	modeArgs
+	modeHelp
 )
 
 // chip is one selectable suggested value in argument-entry mode.
@@ -41,8 +41,12 @@ type model struct {
 	chips     []chip
 	chipFocus int // -1 = input focused
 
+	helpScroll int // help doc line offset
+	helpActive int // index into helpSectionTitles
+
 	width, height int
-	execCmd       string // set on selection; consumed by main after quit
+	execCmd       string // consumed by main after the TUI quits
+	hasExecCmd    bool   // distinguishes a valid empty command from no selection
 }
 
 func newModel(cfg *Config, st styles, argTask *Task) model {
@@ -95,10 +99,30 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
-		if m.mode == modeArgs {
+		switch m.mode {
+		case modeHelp:
+			return m.updateHelp(msg)
+		case modeArgs:
 			return m.updateArgs(msg)
 		}
 		return m.updateList(msg)
+
+	case tea.MouseClickMsg:
+		if m.mode == modeHelp && msg.Button == tea.MouseLeft {
+			m.helpClick(msg.X, msg.Y)
+		}
+		return m, nil
+
+	case tea.MouseWheelMsg:
+		if m.mode == modeHelp {
+			switch msg.Button {
+			case tea.MouseWheelUp:
+				m.helpScrollBy(-3)
+			case tea.MouseWheelDown:
+				m.helpScrollBy(3)
+			}
+		}
+		return m, nil
 	}
 
 	var cmd tea.Cmd
@@ -130,13 +154,19 @@ func (m model) updateList(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		if len(m.matches) == 0 {
 			return m, nil
 		}
-		t := m.flat[m.matches[m.sel]]
-		if len(t.Args) > 0 {
-			m.enterArgMode(t)
+		task := m.flat[m.matches[m.sel]]
+		decision := beginInvocation(task)
+		switch decision.kind {
+		case collectArgumentsInvocation:
+			m.enterArgMode(decision.task)
+			return m, nil
+		case commandInvocation:
+			m.execCmd = decision.command
+			m.hasExecCmd = true
+			return m, tea.Quit
+		default:
 			return m, nil
 		}
-		m.execCmd = t.Run
-		return m, tea.Quit
 
 	case "esc":
 		switch {
@@ -265,7 +295,7 @@ func (m *model) exitArgMode() {
 }
 
 func (m *model) appendChip(c chip) {
-	token := tokenFor(c.arg, c.value)
+	token := invocationToken(c.arg, c.value)
 	v := m.input.Value()
 	if v != "" && !strings.HasSuffix(v, " ") {
 		v += " "
@@ -276,21 +306,13 @@ func (m *model) appendChip(c chip) {
 }
 
 func (m model) submitArgs() (model, tea.Cmd) {
-	t := m.argTask
-	val := strings.TrimSpace(m.input.Value())
-	if val == "" {
-		for _, a := range t.Args {
-			if a.Required {
-				m.argErr = fmt.Sprintf("%s: missing required argument %s", t.Name, a.Token)
-				return m, nil
-			}
-		}
+	decision, err := completeInvocation(*m.argTask, m.input.Value())
+	if err != nil {
+		m.argErr = err.Error()
+		return m, nil
 	}
-	cmd := t.Run
-	if val != "" {
-		cmd += " " + val
-	}
-	m.execCmd = cmd
+	m.execCmd = decision.command
+	m.hasExecCmd = true
 	return m, tea.Quit
 }
 

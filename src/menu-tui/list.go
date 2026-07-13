@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
+	"prelude/shared"
 
 	"charm.land/lipgloss/v2"
 	"golang.org/x/term"
@@ -41,7 +41,7 @@ func printListTo(output io.Writer, environ []string, cfg *Config, st styles) {
 	descStyle := st.muted.Width(descW)
 	hintStyle := st.dim.Width(hintW).Align(lipgloss.Right)
 
-	w := colorWriter(output, environ, cfg.ColorProfile)
+	w := shared.ColorWriter(output, environ, cfg.ColorProfile)
 
 	first := true
 	for _, g := range cfg.Groups {
@@ -75,11 +75,4 @@ func listHint(t Task) string {
 		return "⌨ " + t.Key
 	}
 	return t.Run
-}
-
-func padRight(s string, w int) string {
-	if d := w - lipgloss.Width(s); d > 0 {
-		return s + strings.Repeat(" ", d)
-	}
-	return s
 }

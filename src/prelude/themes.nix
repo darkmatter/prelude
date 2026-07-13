@@ -149,4 +149,22 @@
     error = "#cc2827";
     selectionFg = "#f7f5f1";
   };
+
+  # Brand palette for this repo. Formerly ANSI/xterm-256 indices (fg=7, accent=212,
+  # …); pinned to the standard xterm-256 hex so every terminal paints the same RGB
+  # instead of rebinding 0–15 through the user's theme.
+  prelude = {
+    bg = "#0e0b13";
+    surface = "#1b1621";
+    secondary = "#8787af"; # was 103
+    fg = "#c0c0c0"; # was 7 (ANSI white)
+    muted = "#8787af"; # was 103
+    dim = "#444444"; # was 238
+    border = "#444444"; # was 238
+    accentBorder = "#ff005f"; # was 197
+    accent = "#ff87d7"; # was 212
+    accent2 = "#afff87"; # was 156
+    error = "#ff005f"; # was 197
+    selectionFg = "#0e0b13"; # was 8; use bg for contrast on accent selection
+  };
 }

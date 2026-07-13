@@ -4,6 +4,8 @@ import (
 	"image/color"
 
 	"charm.land/lipgloss/v2"
+
+	"prelude/shared"
 )
 
 // styles derives every lipgloss style from the theme palette.
@@ -16,12 +18,14 @@ import (
 // (background-free) styles serve non-TUI output: `menu list` and the
 // post-quit `$ command` preview.
 type styles struct {
-	pal Palette
+	pal shared.Palette
 
 	surface   color.Color
 	secondary color.Color
 	bgColor   color.Color
 	accentC   color.Color
+
+	windowBg lipgloss.Style // fills the terminal canvas outside the panel
 
 	// plain, no background (list output, exec preview)
 	fg      lipgloss.Style
@@ -60,20 +64,21 @@ type styles struct {
 
 func newStyles(cfg *Config) styles {
 	p := cfg.Palette
-	c := func(s string) color.Color { return lipgloss.Color(s) }
-	surface := c(p.Surface)
-	secondary := c(p.Secondary)
+	h := shared.NewPaletteHelper(p)
+	surface := h.Color(string(p.Surface))
+	secondary := h.Color(string(p.Secondary))
 
-	plain := func(fg string) lipgloss.Style { return lipgloss.NewStyle().Foreground(c(fg)) }
-	on := func(fg string) lipgloss.Style { return plain(fg).Background(surface) }
-	onBar := func(fg string) lipgloss.Style { return plain(fg).Background(secondary) }
+	plain := func(fg shared.Color) lipgloss.Style { return h.Plain(string(fg)) }
+	on := func(fg shared.Color) lipgloss.Style { return h.On(surface, string(fg)) }
+	onBar := func(fg shared.Color) lipgloss.Style { return h.On(secondary, string(fg)) }
 
 	return styles{
 		pal:       p,
 		surface:   surface,
 		secondary: secondary,
-		bgColor:   c(p.Bg),
-		accentC:   c(p.Accent),
+		bgColor:   h.Color(string(p.Bg)),
+		accentC:   h.Color(string(p.Accent)),
+		windowBg:  lipgloss.NewStyle().Background(h.Color(string(p.Bg))),
 
 		fg:      plain(p.Fg),
 		muted:   plain(p.Muted),
@@ -96,22 +101,22 @@ func newStyles(cfg *Config) styles {
 		barSp:    lipgloss.NewStyle().Background(secondary),
 
 		keyChip: onBar(p.Accent2),
-		kbdChip: plain(p.Accent2).Background(c(p.Bg)),
+		kbdChip: plain(p.Accent2).Background(h.Color(string(p.Bg))),
 		optChip: onBar(p.Fg),
 
-		selText: lipgloss.NewStyle().Background(c(p.Accent)).Foreground(c(p.SelectionFg)),
-		selDim:  lipgloss.NewStyle().Background(c(p.Accent)).Foreground(c(p.SelectionFg)).Faint(true),
-		selChip: lipgloss.NewStyle().Background(c(p.SelectionFg)).Foreground(c(p.Accent)),
-		selSp:   lipgloss.NewStyle().Background(c(p.Accent)),
+		selText: lipgloss.NewStyle().Background(h.Color(string(p.Accent))).Foreground(h.Color(string(p.SelectionFg))),
+		selDim:  lipgloss.NewStyle().Background(h.Color(string(p.Accent))).Foreground(h.Color(string(p.SelectionFg))).Faint(true),
+		selChip: lipgloss.NewStyle().Background(h.Color(string(p.SelectionFg))).Foreground(h.Color(string(p.Accent))),
+		selSp:   lipgloss.NewStyle().Background(h.Color(string(p.Accent))),
 	}
 }
 
 // bar returns an arbitrary foreground on the secondary (bar) background.
-func (s styles) bar(fg string) lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(fg)).Background(s.secondary)
+func (s styles) bar(fg shared.Color) lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(string(fg))).Background(s.secondary)
 }
 
 // inset returns an arbitrary foreground on the bg (details inset) background.
-func (s styles) inset(fg string) lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(fg)).Background(s.bgColor)
+func (s styles) inset(fg shared.Color) lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(string(fg))).Background(s.bgColor)
 }

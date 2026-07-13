@@ -63,6 +63,11 @@ let
             default = faint;
             description = "Render faint.";
           };
+          tips = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            default = [ ];
+            description = "Optional tip lines under the body. Wrap commands in backticks for accent highlighting.";
+          };
         };
       };
     };
@@ -257,6 +262,21 @@ let
     };
   };
 
+  recipeStepType = lib.types.submodule {
+    options = {
+      command = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = "Runnable command line. Mutually exclusive with comment in practice.";
+      };
+      comment = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = "Caption rendered as a # comment. Mutually exclusive with command in practice.";
+      };
+    };
+  };
+
   recipeType = lib.types.submodule {
     options = {
       order = lib.mkOption {
@@ -269,10 +289,30 @@ let
         default = null;
         description = "Displayed recipe title; defaults to the recipe name.";
       };
+      steps = lib.mkOption {
+        type = lib.types.listOf recipeStepType;
+        default = [ ];
+        description = "Recipe steps: { command = \"...\"; } or { comment = \"...\"; }.";
+      };
+      # Legacy free-form lines; normalized into steps by lib.normalizeRecipes.
       lines = lib.mkOption {
         type = lib.types.listOf lib.types.str;
         default = [ ];
-        description = "Display lines: empty lines add space, # lines are comments, and other lines are numbered commands.";
+        description = "Legacy display lines (# comments / commands). Prefer steps.";
+      };
+    };
+  };
+
+  shortcutType = lib.types.submodule {
+    options = {
+      command = lib.mkOption {
+        type = lib.types.str;
+        description = "Command name shown in the shortcuts line.";
+      };
+      alias = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = "Optional short alias in parentheses.";
       };
     };
   };
@@ -313,7 +353,9 @@ in
     taskType
     groupType
     commandType
+    recipeStepType
     recipeType
+    shortcutType
     envItemType
     ;
 }

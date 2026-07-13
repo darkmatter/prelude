@@ -7,8 +7,6 @@ let
       lib
       writeShellApplication
       writeText
-      gum
-      ncurses
       buildGoModule
       ;
   };
