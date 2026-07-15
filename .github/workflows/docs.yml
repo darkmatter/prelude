@@ -1,0 +1,64 @@
+name: Refresh generated docs
+
+on:
+  push:
+    branches:
+      - "**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    if: github.actor != 'github-actions[bot]' && github.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Record stale media and sync Markdown
+        run: nix run .#docs-record
+
+      - name: Stage generated documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          unexpected=$(git status --porcelain | grep -Ev '^.. docs/(generated|media|reference)/' || true)
+          if [[ -n "$unexpected" ]]; then
+            echo 'docs-record modified files outside the generated documentation allowlist:' >&2
+            printf '%s\n' "$unexpected" >&2
+            exit 1
+          fi
+
+          # Git flakes ignore untracked paths, so stage before validation. The
+          # final commit remains restricted to these generated directories.
+          git add docs/generated docs/media docs/reference
+
+      - name: Verify generated docs and flake checks
+        run: nix flake check
+
+      - name: Commit generated documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --cached --quiet; then
+            echo 'Generated documentation is already current.'
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'docs: regenerate terminal showcases [skip ci]'
+          git push

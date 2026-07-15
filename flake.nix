@@ -3,8 +3,8 @@
 #
 # prelude — a flake-parts module suite for devshell UI:
 #
-#   motd  — static devshell welcome banner (Go + Lip Gloss): status chips,
-#           description, env/git row, next steps, recipes, and footer
+#   motd  — static devshell welcome banner (Go + Lip Gloss): header, description,
+#           optional env chips, next steps, recipes, and shortcuts
 #   menu  — interactive command menu (bubbletea TUI, configured by Nix)
 #
 # This flake dogfoods its own module: `flakeModules.prelude` is created with
@@ -56,6 +56,11 @@
         # importApply keeps the exported module's error locations pointing at
         # module.nix and lets it close over this flake (localFlake).
         preludeModule = flake-parts-lib.importApply ./src/prelude/module.nix {
+          inherit flake-parts-lib;
+          localFlake = self;
+        };
+        # PROTOTYPE: parallel module, intentionally not part of preludeModule.
+        motdShellExperimentModule = flake-parts-lib.importApply ./src/experimental/motd-shell/module.nix {
           localFlake = self;
         };
       in
@@ -68,15 +73,19 @@
         ];
 
         # Dogfood: this repo uses its own module, configured in nix/dogfood.nix.
-        imports = [ preludeModule ];
-        prelude = import ./nix/dogfood.nix;
+        imports = [
+          preludeModule
+          motdShellExperimentModule
+          ./nix/dogfood.nix
+        ];
 
         flake = {
           # The prelude flake-parts module, for downstream consumers.
           flakeModules.prelude = preludeModule;
+          flakeModules.motd-shell-experiment = motdShellExperimentModule;
 
           overlays.default = import ./nix/overlay.nix;
-          lib = import ./nix/lib.nix;
+          lib = import ./nix/lib.nix { lib = inputs.nixpkgs.lib; };
         };
 
         perSystem = import ./nix/per-system.nix;

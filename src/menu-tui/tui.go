@@ -4,6 +4,8 @@ import (
 	"log"
 	"strings"
 
+	"prelude/manual"
+
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 )
@@ -41,8 +43,7 @@ type model struct {
 	chips     []chip
 	chipFocus int // -1 = input focused
 
-	helpScroll int // help doc line offset
-	helpActive int // index into helpSectionTitles
+	help manual.Viewer
 
 	width, height int
 	execCmd       string // consumed by main after the TUI quits
@@ -53,11 +54,13 @@ func newModel(cfg *Config, st styles, argTask *Task) model {
 	in := textinput.New()
 	in.Prompt = ""
 	in.Placeholder = cfg.Placeholder
+	// Input sits on the open surface outside the frame; match that bg so the
+	// virtual cursor and placeholder do not punch holes in the chrome.
 	inputStyles := textinput.DefaultDarkStyles()
-	inputStyles.Focused.Placeholder = st.sDim
-	inputStyles.Focused.Text = st.sFg
-	inputStyles.Blurred.Placeholder = st.sDim
-	inputStyles.Blurred.Text = st.sFg
+	inputStyles.Focused.Placeholder = st.openDim
+	inputStyles.Focused.Text = st.openFg
+	inputStyles.Blurred.Placeholder = st.openDim
+	inputStyles.Blurred.Text = st.openFg
 	inputStyles.Cursor.Color = st.accentC
 	inputStyles.Cursor.Blink = true
 	in.SetStyles(inputStyles)
@@ -70,6 +73,7 @@ func newModel(cfg *Config, st styles, argTask *Task) model {
 		flat:      cfg.flatten(),
 		input:     in,
 		chipFocus: -1,
+		help:      manual.New(helpDocument(cfg), cfg.Palette),
 		width:     80,
 		height:    24,
 	}
@@ -90,37 +94,38 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		if m.mode == modeHelp {
+			m.help, _ = m.help.Handle(msg)
+		}
 		return m, nil
 
 	case tea.KeyPressMsg:
 		if debugLog {
 			log.Printf("key=%q mode=%d sel=%d matches=%d", msg.String(), m.mode, m.sel, len(m.matches))
 		}
+		if m.mode == modeHelp {
+			var cmd tea.Cmd
+			m.help, cmd = m.help.Handle(msg)
+			return m, cmd
+		}
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
 		switch m.mode {
-		case modeHelp:
-			return m.updateHelp(msg)
 		case modeArgs:
 			return m.updateArgs(msg)
 		}
 		return m.updateList(msg)
 
 	case tea.MouseClickMsg:
-		if m.mode == modeHelp && msg.Button == tea.MouseLeft {
-			m.helpClick(msg.X, msg.Y)
+		if m.mode == modeHelp {
+			m.help, _ = m.help.Handle(msg)
 		}
 		return m, nil
 
 	case tea.MouseWheelMsg:
 		if m.mode == modeHelp {
-			switch msg.Button {
-			case tea.MouseWheelUp:
-				m.helpScrollBy(-3)
-			case tea.MouseWheelDown:
-				m.helpScrollBy(3)
-			}
+			m.help, _ = m.help.Handle(msg)
 		}
 		return m, nil
 	}

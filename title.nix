@@ -1,0 +1,4 @@
+{
+  text = "prelude";
+  font = "slant";
+}

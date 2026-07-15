@@ -2,32 +2,22 @@
 # Evaluated once per system in flake.nix and passed down as `demos`.
 { pkgs, lib, ... }:
 let
-  deps = {
-    inherit (pkgs)
-      lib
-      writeShellApplication
-      writeText
-      buildGoModule
-      ;
-  };
-
-  mkMotd = import ../src/prelude/motd.nix deps;
-  mkMenu = import ../src/prelude/menu.nix deps;
-
-  plib = import ../src/prelude/lib.nix { inherit lib; };
+  motdDemos = import ./motd-demo-builder.nix { inherit pkgs lib; };
+  menuDemo = import ./menu-demo-builder.nix { inherit pkgs lib; };
   ex = import ../src/prelude/examples.nix;
+  typescriptPrelude = (import ../examples/typescript/prelude.nix { inherit lib; }).prelude;
+  typescriptMenu = menuDemo.mkMenu (
+    {
+      inherit (typescriptPrelude) project groups;
+    }
+    // lib.removeAttrs typescriptPrelude.menu [ "enable" ]
+  );
 
   # Feature demos — `example-<name>` packages/apps.
-  examplePackages =
-    lib.mapAttrs' (name: cfg: lib.nameValuePair "example-${name}" (mkMotd cfg)) ex.motdDemos
-    // {
-      example-motd = mkMotd ex.motd;
-      example-menu = mkMenu ex.menu;
-      example-themes = pkgs.writeShellApplication {
-        name = "motd-themes";
-        text = lib.concatMapStringsSep "\n" (t: lib.getExe (mkMotd (ex.themeMotd t))) plib.themeNames;
-      };
-    };
+  examplePackages = motdDemos.examplePackages // {
+    example-menu = menuDemo.package;
+    example-typescript-menu = typescriptMenu;
+  };
 
   # `nix run .#examples` — on a tty: a pager, one demo per screen,
   # ←/→ to navigate. Piped (CI): every demo rendered in sequence.
@@ -54,6 +44,11 @@ let
             label = "example-menu list";
             hint = "nix run .#example-menu -- list";
             cmd = "${lib.getExe examplePackages.example-menu} list";
+          }
+          {
+            label = "example-typescript-menu list";
+            hint = "nix run .#example-typescript-menu -- list";
+            cmd = "${lib.getExe examplePackages.example-typescript-menu} list";
           }
         ];
       bashArray =

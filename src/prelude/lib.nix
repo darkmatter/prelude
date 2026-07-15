@@ -103,14 +103,36 @@ let
   flatTasks = groups: lib.concatMap (g: g.tasks) groups;
 
   normalizeCommands =
-    commands:
-    map (
-      { value, ... }:
-      {
-        inherit (value) command;
-        description = value.description or "";
-      }
-    ) (sortOrderedAttrs commands);
+    commandNames: tasks:
+    let
+      tasksByName = lib.listToAttrs (map (task: lib.nameValuePair task.name task) tasks);
+      missing = lib.filter (name: !(tasksByName ? ${name})) commandNames;
+    in
+    assert lib.assertMsg (
+      missing == [ ]
+    ) "prelude: motd.commands references unknown menu tasks: ${lib.concatStringsSep ", " missing}";
+    map (name: {
+      command = name;
+      description = tasksByName.${name}.description;
+    }) commandNames;
+
+  # Header status badges: order then key. Keep static text and/or live checks.
+  normalizeHeaderStatus =
+    status:
+    builtins.filter (item: item.label != "" || item.status != "" || item.check != "") (
+      map (
+        { value, ... }:
+        {
+          label = value.label or "";
+          status = value.status or "";
+          check = value.check or "";
+          ok = value.ok or "ok";
+          fail = value.fail or "fail";
+          failLevel = value.failLevel or "error";
+          output = value.output or "";
+        }
+      ) (sortOrderedAttrs status)
+    );
 
   # Normalize a free-form recipe line into a step. Empty lines are dropped;
   # "#…" becomes a comment; everything else is a command.
@@ -125,10 +147,7 @@ let
       {
         command = "";
         comment =
-          if lib.hasPrefix "# " trimmed then
-            lib.removePrefix "# " trimmed
-          else
-            lib.removePrefix "#" trimmed;
+          if lib.hasPrefix "# " trimmed then lib.removePrefix "# " trimmed else lib.removePrefix "#" trimmed;
       }
     else
       {
@@ -170,11 +189,13 @@ in
     resolveSpacing
     textDefaults
     withRole
+    sortOrderedAttrs
     normalizeArg
     normalizeTask
     normalizeGroups
     flatTasks
     normalizeCommands
+    normalizeHeaderStatus
     normalizeRecipes
     ;
 }

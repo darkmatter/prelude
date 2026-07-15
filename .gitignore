@@ -1,6 +1,10 @@
 # Nix
 result
 result-*
+docs/.record-bin/
+
+# Local Go build outputs
+/src/motd/motd
 
 # direnv
 .direnv/
@@ -29,3 +33,4 @@ Thumbs.db
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
+src/.tmp-motd-region-test/

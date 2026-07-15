@@ -1,12 +1,24 @@
 package main
 
-import (
-	"charm.land/lipgloss/v2"
-)
+// renderFooter places status items centered in the footer row when a
+// generated title is active. Without a generated title, shortcut hints
+// fill the footer instead.
+func (r renderer) renderFooter() string {
+	if r.cfg.Title != "" {
+		status := r.renderStatusItems(r.cfg.Header.Status, false)
+		if status == "" {
+			return ""
+		}
+		return r.padContentLine(status, "center")
+	}
+	right := r.renderShortcutItems()
+	if right == "" {
+		return ""
+	}
+	return r.padContentLine(right, "right")
+}
 
-// renderShortcuts paints a quiet right-aligned discoverability line.
-// Replaces the old inverted footer bar.
-func (r renderer) renderShortcuts() string {
+func (r renderer) renderShortcutItems() string {
 	if len(r.cfg.Shortcuts) == 0 {
 		return ""
 	}
@@ -26,5 +38,6 @@ func (r renderer) renderShortcuts() string {
 		}
 		content += item(s.Command, s.Alias)
 	}
-	return r.st.blockFill.Width(r.cardWidth).Align(lipgloss.Right).Render(content)
+
+	return content
 }

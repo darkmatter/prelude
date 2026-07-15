@@ -5,8 +5,37 @@ let
   # Colors are ANSI-256 numbers (e.g. 212) or hex strings (e.g. "#dddddd").
   colorType = lib.types.either lib.types.ints.unsigned lib.types.str;
 
-  # null/false = transparent, true = theme token, or an explicit color.
-  bgType = lib.types.nullOr (lib.types.either lib.types.bool colorType);
+  # Relative shade of a containing background: negative darkens, positive lightens.
+  # Amount is in [ -1.0, 1.0 ]. Resolved at runtime against the terminal (card/
+  # window) or the resolved card (nested description).
+  relativeBgType = lib.types.addCheck (lib.types.submodule {
+    options.relative = lib.mkOption {
+      type = lib.types.either lib.types.float lib.types.int;
+      description = "Signed shade amount relative to the containing background (−1..1).";
+    };
+  }) (v: (v.relative or 2) >= -1 && (v.relative or 2) <= 1);
+
+  # Blend amount toward the theme background: 0 is the detected terminal
+  # background, 1 is the theme `bg` token.
+  blendBgType = lib.types.addCheck (lib.types.submodule {
+    options.blend = lib.mkOption {
+      type = lib.types.either lib.types.float lib.types.int;
+      description = "Blend amount from the detected terminal background toward the theme background (0..1).";
+    };
+  }) (v: (v.blend or 2) >= 0 && (v.blend or 2) <= 1);
+
+  # Terminal-relative backgrounds add `{ blend = n; }`; nested backgrounds only
+  # support relative shading because their base may be the containing card.
+  terminalBgType = lib.types.nullOr (
+    lib.types.either lib.types.bool (
+      lib.types.either colorType (lib.types.either relativeBgType blendBgType)
+    )
+  );
+
+  # null/false = transparent, true = theme token, explicit color, or { relative }.
+  bgType = lib.types.nullOr (
+    lib.types.either lib.types.bool (lib.types.either colorType relativeBgType)
+  );
 
   widthType = lib.types.either lib.types.int (lib.types.enum [ "full" ]);
 
@@ -44,9 +73,12 @@ let
             description = "Foreground color; null uses the theme role color.";
           };
           background = lib.mkOption {
-            type = lib.types.nullOr colorType;
+            type = bgType;
             default = background;
-            description = "Background color.";
+            description = ''
+              Background fill: null/false = inherit/transparent, true = theme bg,
+              a color, or `{ relative = ±n; }` relative to the resolved card.
+            '';
           };
           bold = lib.mkOption {
             type = lib.types.bool;
@@ -116,21 +148,62 @@ let
       };
     };
 
-  statusItemType = lib.types.submodule {
+  # Header status badge. Static: { label?, status }. Live: { label?, check, ok?, fail?, failLevel? }.
+  # `check` is a shell command; exit 0 → success (ok text / stdout), else error
+  # (fail) — or warning when failLevel = "warning".
+  headerStatusType = lib.types.submodule {
     options = {
-      text = lib.mkOption {
+      order = lib.mkOption {
+        type = lib.types.int;
+        default = 1000;
+        description = "Display order; attribute name breaks ties.";
+      };
+      label = lib.mkOption {
         type = lib.types.str;
-        description = "Label shown next to the status dot.";
+        default = "";
+        description = "Dim label left of the status indicator.";
       };
       status = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = "Static status text (no check). Ignored when `check` is set.";
+      };
+      check = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = "Shell command that determines the badge. Exit 0 = success; non-zero = error. First stdout line may become the status text when non-empty.";
+      };
+      ok = lib.mkOption {
+        type = lib.types.str;
+        default = "ok";
+        description = "Status text when `check` succeeds and stdout is empty.";
+      };
+      fail = lib.mkOption {
+        type = lib.types.str;
+        default = "fail";
+        description = "Status text when `check` fails and stdout is empty.";
+      };
+      failLevel = lib.mkOption {
         type = lib.types.enum [
-          "success"
           "error"
           "warning"
-          "info"
         ];
-        default = "success";
-        description = "Status level; controls the dot color.";
+        default = "error";
+        description = "Severity when `check` fails: error dot (default) or accent2 warning dot.";
+      };
+      output = lib.mkOption {
+        type = lib.types.enum [
+          ""
+          "light"
+          "diagnostic"
+        ];
+        default = "";
+        description = ''
+          Controls what the badge shows after a check runs:
+          - `""` (default): configured ok/fail text, or first output line.
+          - `"light"`: colored dot + label only; discard text and diagnostics.
+          - `"diagnostic"`: ok/fail text plus captured output rendered below the MOTD.
+        '';
       };
     };
   };
@@ -188,7 +261,19 @@ let
       run = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
-        description = "Command the task executes; defaults to the task key.";
+        description = ''
+          Command the task executes; defaults to the task key. Unless `run`
+          starts with the task's own name (meaning the command already exists
+          on PATH), the module bundles a wrapper executable named after the
+          task into `packages.menu` (delegating to `menu <name> …`), so every
+          task the menu displays is directly invocable in the devshell.
+        '';
+      };
+      runtimePackages = lib.mkOption {
+        type = lib.types.listOf lib.types.package;
+        default = [ ];
+        internal = true;
+        description = "Packages automatically bundled for this task by prelude.lib.mkTask.";
       };
       description = lib.mkOption {
         type = lib.types.str;
@@ -239,25 +324,6 @@ let
         type = lib.types.attrsOf taskType;
         default = { };
         description = "Tasks keyed by invocation name.";
-      };
-    };
-  };
-
-  commandType = lib.types.submodule {
-    options = {
-      order = lib.mkOption {
-        type = lib.types.int;
-        default = 1000;
-        description = "Display order; command key breaks ties.";
-      };
-      command = lib.mkOption {
-        type = lib.types.str;
-        description = "Exact runnable command to display.";
-      };
-      description = lib.mkOption {
-        type = lib.types.str;
-        default = "";
-        description = "Short explanation of when to run the command.";
       };
     };
   };
@@ -341,18 +407,20 @@ in
 {
   inherit
     colorType
+    relativeBgType
+    blendBgType
+    terminalBgType
     bgType
     widthType
     alignType
     mkTextOption
     mkColorOption
     mkSpacingOption
-    statusItemType
+    headerStatusType
     exampleType
     argType
     taskType
     groupType
-    commandType
     recipeStepType
     recipeType
     shortcutType

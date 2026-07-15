@@ -16,7 +16,10 @@ func (m model) viewArgs(inner int) string {
 
 	var body []string
 	body = append(body, m.blank(inner))
-	body = append(body, m.paint(st.sp.Render(strings.Repeat(" ", padX))+st.sMuted.Render(letterSpace("arguments")), st.sp, inner))
+	body = append(body, m.paint(
+		st.sp.Render(strings.Repeat(" ", padX))+st.sMuted.Render(letterSpace("arguments")),
+		st.sp, inner,
+	))
 	body = append(body, m.blank(inner))
 
 	tokenW := 4
@@ -35,7 +38,7 @@ func (m model) viewArgs(inner int) string {
 			tag = "FLAG"
 		}
 		row := st.sp.Render(strings.Repeat(" ", padX)) +
-			st.sAccent2.Width(tokenW).Render(a.Token) + st.sp.Render("  ") +
+			st.sAccent.Bold(true).Width(tokenW).Render(a.Token) + st.sp.Render("  ") +
 			tagStyle.Width(8).Render(tag) + st.sp.Render("  ") +
 			st.sMuted.Render(a.Description)
 		body = append(body, m.paint(row, st.sp, inner))
@@ -50,7 +53,8 @@ func (m model) viewArgs(inner int) string {
 				c := m.chips[chipIdx]
 				label := " " + c.label + " "
 				if chipIdx == m.chipFocus {
-					chips = append(chips, st.selText.Render(label))
+					// Focused options use the phosphor selection treatment.
+					chips = append(chips, st.selText.Bold(true).Render(label))
 				} else {
 					chips = append(chips, st.optChip.Render(label))
 				}
@@ -63,7 +67,7 @@ func (m model) viewArgs(inner int) string {
 		body = append(body, m.blank(inner))
 	}
 
-	// Pad the body to a stable height before the preview.
+	// Pad the body to a stable height before the open preview.
 	h := m.listHeight() - 3
 	for len(body) < h {
 		body = append(body, m.blank(inner))
@@ -72,37 +76,41 @@ func (m model) viewArgs(inner int) string {
 		body = body[:h]
 	}
 
-	// Live preview uses the same assembly path as final submission.
+	// Live preview uses the same assembly path as final submission; open
+	// full-width region under the frame (no side rails).
 	argumentLine := strings.TrimSpace(m.input.Value())
-	preview := st.sp.Render(strings.Repeat(" ", padX)) +
-		st.sAccent.Render("$ ") +
-		st.sFg.Render(assembleInvocation(*t, argumentLine))
+	preview := st.openSp.Render(strings.Repeat(" ", padX)) +
+		st.openAccent.Render("$ ") +
+		st.openFg.Render(assembleInvocation(*t, argumentLine))
 	if argumentLine == "" {
-		preview += st.sDim.Render(" …")
+		preview += st.openDim.Render(" …")
 	}
+	openPreview := st.openSp.Width(inner + 2).MaxWidth(inner + 2).Render(preview)
 
-	tail := []string{m.frameDiv(inner), m.paint(preview, st.sp, inner)}
+	var errLine string
 	if m.argErr != "" {
-		tail = append(tail, m.paint(st.sp.Render(strings.Repeat(" ", padX))+st.sErr.Render(m.argErr), st.sp, inner))
-	} else {
-		tail = append(tail, m.blank(inner))
+		errStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(string(st.pal.Error))).
+			Background(st.openColor)
+		errLine = st.openSp.Width(inner+2).MaxWidth(inner+2).Render(
+			st.openSp.Render(strings.Repeat(" ", padX)) + errStyle.Render(m.argErr),
+		)
 	}
 
 	parts := []string{
-		m.frameTop(inner),
-		m.titleBar(title, inner),
-		m.frameDiv(inner),
+		m.mutedTitleRow(title, inner),
 		m.promptLine(inner, t.Name),
-		m.frameDiv(inner),
+		m.frameTop(inner),
 	}
 	parts = append(parts, body...)
-	parts = append(parts, tail...)
+	parts = append(parts, m.frameBottom(inner), openPreview)
+	if errLine != "" {
+		parts = append(parts, errLine)
+	}
 	parts = append(parts,
-		m.frameDiv(inner),
 		m.statusBar([][2]string{
 			{"⇥", "chips"}, {"↵", "run"}, {"esc", "back"},
-		}, m.st.bar(m.st.pal.Accent2).Render("◆ args"), inner),
-		m.frameBottom(inner),
+		}, "◆ args", inner),
 	)
 	return strings.Join(parts, "\n")
 }

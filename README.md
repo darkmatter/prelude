@@ -5,17 +5,17 @@ Go: Lip Gloss for the static MOTD and Bubble Tea for the interactive menu. The
 components share visual and project identity while keeping their content models
 separate:
 
-- **`motd`** — a devshell welcome banner: filled header bar (wordmark variant +
-  status + tagline), styled description, env/git info, Getting Started
-  (commands with dotted leaders + recipe codeblocks), and shortcuts. Static —
-  print it from your `shellHook`. Every section is optional.
+- **`motd`** — a devshell welcome banner: header (wordmark + status + tagline),
+  styled description, optional env chips, Getting Started (commands with dotted
+  leaders + recipe codeblocks), and shortcuts. Static — print it from your
+  `shellHook`. Every section is optional.
 - **`menu`** — an interactive command menu (a bubbletea TUI): filter over
   grouped tasks, tab-to-expand details, argument entry with suggested-value
   chips and required validation, live command preview, then `exec`.
 
 Nix validates and normalizes configuration at build time, then embeds JSON
 configuration paths into the Go binaries. Runtime work is limited to terminal
-layout and explicitly configured environment/Git probes.
+layout and explicitly configured environment probes.
 
 ## Usage
 
@@ -32,59 +32,27 @@ layout and explicitly configured environment/Git probes.
       prelude = {
         theme = "phosphor";
         project = "acme-web";
-
-        groups = {
-          develop = {
-            order = 100;
-            tasks = {
-              dev = {
-                order = 100;
-                run = "pnpm dev";
-                description = "start the dev server with hot reload";
-                key = "d";
-                args = [
-                  { token = "--port"; description = "Port to bind"; options = [ "3000" "8080" ]; }
-                ];
-              };
-              build = {
-                order = 200;
-                run = "pnpm build";
-                description = "compile a production bundle";
-                key = "b";
-              };
-            };
-          };
-          database = {
-            order = 200;
-            tasks."db:migrate" = {
-              run = "drizzle-kit migrate";
-              description = "apply pending migrations";
-            };
-          };
-        };
-
         motd = {
           enable = true;
-          header.tagline = "everything you need to build, test & ship";
-          env = [
-            { label = "node"; probe = "node --version"; }
-            { label = "postgres"; value = "16.3"; }
-          ];
-          commands.check = {
-            command = "pnpm test";
-            description = "run the test suite";
-          };
+          commands = [ "check" ];
         };
-
         menu.enable = true;
       };
 
       perSystem = { pkgs, config, ... }: {
+        # Package-backed tasks bring their executable into the menu/MOTD
+        # closure automatically—no second devShell package entry is needed.
+        prelude.groups.develop.tasks.check = prelude.lib.mkTask {
+          package = pkgs.nix;
+          arguments = [ "flake" "check" ];
+          description = "verify the flake";
+          key = "c";
+        };
+
         devShells.default = pkgs.mkShell {
-          packages = [ config.packages.motd config.packages.menu ];
-          shellHook = ''
-            motd
-          '';
+          # packages.motd carries the enabled menu and all task dependencies.
+          packages = [ config.packages.motd ];
+          shellHook = "motd";
         };
       };
     };
@@ -125,10 +93,10 @@ instead. Set `PRELUDE_MENU_DEBUG=<path>` to log TUI events for debugging.
 
 ## Themes
 
-`prelude.theme` selects a palette: `phosphor` (default), `amber`,
-`solarized`, `nord`, `gruvbox`, and `paper` (light) — ported from the
-cli-menu-design demo — plus `mono` (strict dark grayscale) and `apathy`
-(ported from czxtm/apathy-theme: purple-tinted darks, lavender +
+`prelude.theme` selects a palette: `phosphor` (default), `minted` (indigo-black
+with sage + rose), `amber`, `solarized`, `nord`, `gruvbox`, and `paper` (light)
+— ported from the cli-menu-design demo — plus `mono` (strict dark grayscale)
+and `apathy` (ported from czxtm/apathy-theme: purple-tinted darks, lavender +
 butterscotch accents). Preview them all with `nix run .#example-themes`.
 
 Tokens: `fg`, `muted`, `dim`, `border`, `accentBorder`, `accent`,
@@ -168,7 +136,8 @@ terminal profile. For tmux, the cleaner global fix is advertising truecolor:
 `prelude.groups` is an attribute set keyed by group name. Each group's
 `tasks` is an attribute set keyed by invocation name. Groups and tasks sort by
 `order`, then by their attribute key for deterministic ties; `title` defaults
-to the group key. Tasks feed only the interactive menu:
+to the group key. Tasks feed the interactive menu — and become devshell
+commands:
 
 | Field         | Type        | Default  | Description                                              |
 | ------------- | ----------- | -------- | -------------------------------------------------------- |
@@ -181,28 +150,67 @@ to the group key. Tasks feed only the interactive menu:
 | `examples`    | list of str | `[ ]`    | Worked example invocations.                              |
 | `args`        | list of arg | `[ ]`    | Arguments; presence triggers arg-entry mode in the menu. |
 
+Package-backed tasks belong under `perSystem` and use `prelude.lib.mkTask`:
+
+```nix
+prelude.groups.develop.tasks.lint = prelude.lib.mkTask {
+  package = pkgs.eslint;
+  arguments = [ "." ];
+  description = "lint the project";
+};
+```
+
+Set exactly one of `package`, `executable`, or `command`. For `package`,
+`meta.mainProgram` selects the binary; use `program = "name"` for another
+binary. `arguments` are shell-escaped and appended. The package is bundled into
+`packages.menu` automatically, and the task receives its normal direct wrapper.
+Plain task attribute sets remain supported for shell commands and shared,
+system-independent configuration.
+
 Argument: `{ token, description ? "", required ? false, boolean ? false,
 options ? [ ] }`. Tokens starting with `--` insert as `--flag value`;
 anything else (e.g. `<remote>`, `name`) inserts positionally; `boolean`
 tokens insert as-is when confirmed.
 
+Every task the menu displays is directly invocable: unless a task's `run`
+starts with the task's own name (which asserts "this command already exists
+on PATH" — e.g. a task `previews` with `run = "previews"` backed by a real
+package), the module bundles a wrapper executable named after the task into
+`packages.menu`. Wrappers delegate to the menu fast path (`menu <name> …`),
+so direct invocation and menu selection share one execution contract,
+including appended arguments (`build .#motd` ≡ `menu build .#motd`). Bundling
+happens in the flake-parts module; direct `mkMenu` consumers only get the
+`menu` binary.
+
+Evaluated packages expose this result for downstream composition and checks:
+`config.packages.menu.taskNames` lists configured tasks, while
+`config.packages.menu.taskWrappers` contains the wrapper derivations that were
+actually built. Consumers can add those derivations to a shell or test PATH
+without importing and reinterpreting their source configuration.
+
 ### MOTD commands
 
-`prelude.motd.commands` contains the small set of exact commands users should
-run next. Entries are keyed by an internal identity that is never displayed.
-They sort by `order` (default `1000`), then key.
+`prelude.motd.commands` is an ordered list of menu task names to advertise as
+next steps. The displayed command and description are derived from the task
+catalogue, so they cannot drift from the runnable menu commands.
 
 ```nix
-prelude.motd.commands.check = {
-  command = "nix flake check";
+prelude.groups.develop.tasks.check = {
+  run = "nix flake check";
   description = "verify the flake";
 };
+
+prelude.motd.commands = [ "check" ];
 ```
 
-`command` is required and rendered exactly; `description` defaults to `""`.
-When the menu is enabled, `menu` and `menu list` are supplied as low-priority
-defaults. Direct `mkMotd` consumers and configurations without the menu start
-with no commands.
+Unknown task names fail evaluation. When the menu is enabled, `packages.motd`
+also carries the menu and its generated task wrappers, so each displayed name
+is directly invocable even when the MOTD package is used on its own.
+
+`config.packages.motd.commandNames` exposes the evaluated selection, and
+`config.packages.motd.taskWrappers` exposes the menu wrappers bundled with it. When
+the menu is enabled, `menu` is supplied as the low-priority default. Direct
+`mkMotd` consumers and configurations without the menu start with no commands.
 
 ### MOTD recipes
 
@@ -226,34 +234,71 @@ Each step is either a `{ command }` (bold shell line) or a `{ comment }`
 (dim `#` caption). Legacy `lines` (`#…` / free-form commands) still normalize
 into steps at the Nix boundary.
 
+### Generated FIGlet title
+
+Prelude ships 23 selectable fonts: `3d-ascii`, `ansi-shadow`, `calvin-s`,
+`computer`, `cricket`, `cybermedium`, `dos-rebel`, `dr-pepper`, `fender`,
+`georgia11`, `halfiwi`, `kban`, `kompaktblk`, `larry3d`, `mini`, `roman`,
+`slant`, `small-slant`, `speed`, `standard`, `thin`, `tubes-regular`, and
+`univers`. Keep the recipe and generated title in the consuming repository:
+
+```nix
+# title.nix
+{
+  text = "acme-web";
+  font = "calvin-s";
+}
+```
+
+Preview text in every bundled font:
+
+```console
+nix run .#title-previews -- "acme-web"
+```
+
+Once you choose a font, generate `title.txt`, check it in, and point the MOTD at it:
+
+```console
+nix run .#title
+```
+
+```nix
+prelude.motd.title = ./title.txt;
+```
+
+Use `--recipe` and `--output` to override either conventional filename. FIGlet
+is only used by the generator; the MOTD embeds and renders the checked-in text.
+
 ## motd options (`prelude.motd.*`)
 
 `description` is a styled text item (`{ text, foreground, background,
 bold, italic, faint }`; null foreground uses the theme fg role).
 
-| Option                      | Default                                       | Description                                                                                                                         |
-| --------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `enable`                    | `false`                                       | Expose `packages.motd` / `apps.motd`.                                                                                               |
-| `clearScreen`               | `true`                                        | Clear the terminal before rendering.                                                                                                |
-| `background`                | `null`                                        | Block fill: `true` = theme `bg` token, or a color. Falls back to `windowBackground`.                                                |
-| `windowBackground`          | `null`                                        | Whole-window fill (margins, gutters, line remainders): `true` = theme `bg` token, or a color.                                       |
-| `margin`                    | `{ top = 10; }`                               | `top`/`bottom` blank lines, `left`/`right` offset columns; sides supersede the `x`/`y` axes.                                        |
-| `align`                     | `"center"`                                    | Placement of the motd block against the terminal window.                                                                            |
-| `padding`                   | `{ }`                                         | Inner padding between content and the block edge. Header and shortcuts stay edge-to-edge; sides supersede `x`/`y`.                  |
-| `header.titleStyle`         | `"spine"`                                     | Wordmark variant: `plain` / `spine` / `bracketed` / `label`.                                                                        |
-| `header.tagline`            | `"everything you need to build, test & ship"` | Tagline beneath the header bar.                                                                                                     |
-| `header.statusLabel`        | `""`                                          | Dim label left of the status dot.                                                                                                   |
-| `header.statusLabelCompact` | `""`                                          | Shorter status label when the full one does not fit.                                                                                |
-| `header.statusText`         | `"ready"`                                     | Muted text after the status dot; empty hides status.                                                                                |
-| `description`               | `{ text = ""; }`                              | Styled text beneath the header. Empty text hides it.                                                                                |
-| `env`                       | `[ ]`                                         | Chips in order; each `{ label; value; }` (static) **or** `{ label; probe; }` (runtime command, first output line, skipped on fail). |
-| `commands`                  | conditional                                   | Keyed next steps: exact runnable `command` plus optional `description` (dotted leaders). Defaults to `menu` / `menu list` when on.  |
-| `recipes`                   | `{ }`                                         | Keyed multi-step workflows with `steps` (or legacy `lines`).                                                                        |
-| `gettingStarted`            | see defaults                                  | Labels for the unified commands + examples region (`heading`, `commandsLabel`, `examplesLabel`).                                    |
-| `shortcuts`                 | `[ ]`                                         | Right-aligned discoverability chips `{ command; alias? }` that close the composition.                                               |
-| `git`                       | `true`                                        | Branch/↑ahead/●dirty segment when inside a repo.                                                                                    |
-| `width`                     | `"full"`                                      | Content width, or `"full"`.                                                                                                         |
-| `maxWidth`                  | `96`                                          | Width cap.                                                                                                                          |
+| Option                 | Default                              | Description                                                                                                                                                                                                                                  |
+| ---------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enable`               | `false`                              | Expose `packages.motd` / `apps.motd` and the `prelude-title` generator.                                                                                                                                                                      |
+| `title`                | `null`                               | Checked-in multiline title file generated from `title.nix`; null uses the styled project name.                                                                                                                                               |
+| `clearScreen`          | `true`                               | Clear the terminal before rendering.                                                                                                                                                                                                         |
+| `background`           | `null`                               | Block fill: `true` = theme `bg`, a color, `{ relative = ±n; }`, or `{ blend = n; }` from terminal bg toward theme `bg` (`0..1`). Falls back to `windowBackground`.                                                                           |
+| `windowBackground`     | `null`                               | Solid whole-window fill: `true` = theme `bg`, a color, `{ relative = ±n; }`, or `{ blend = n; }` from terminal bg toward theme `bg` (`0..1`).                                                                                                |
+| `margin`               | `{ top = 10; }`                      | `top`/`bottom` blank lines, `left`/`right` offset columns; sides supersede the `x`/`y` axes.                                                                                                                                                 |
+| `align`                | `"center"`                           | Placement of the motd block against the terminal window.                                                                                                                                                                                     |
+| `padding`              | `{ }`                                | Inner padding: sides inset tagline, middle, and footer (header bar edge-to-edge); top/bottom pad the whole card outside title and shortcuts. Sides supersede `x`/`y`.                                                                        |
+| `header.titleStyle`    | `"spine"`                            | Wordmark: `plain` / `spine` / `bracketed` / `label` / `inline` / `inverted` (accent chip).                                                                                                                                                   |
+| `header.tagline`       | `"Dev Shell Activated"`              | Bold accent2 activation title under the header rule.                                                                                                                                                                                         |
+| `header.subtitle`      | `"Your environment is ready"`        | Faint muted line under the tagline.                                                                                                                                                                                                          |
+| `header.taglineLayout` | `"stack"`                            | `stack` = two lines; `inline` = `tagline · subtitle` on one row.                                                                                                                                                                             |
+| `header.taglineAlign`  | `"left"`                             | `left` or `center` alignment of the tagline/subtitle block.                                                                                                                                                                                  |
+| `header.background`    | `true`                               | Header bar fill: `true` = raised lightened bar, `null`/`false` = transparent, color / `{ relative }` = explicit.                                                                                                                             |
+| `header.status`        | `{ ready = { status = "ready"; }; }` | Keyed badges: static `{ label?; status }` or live `{ label?; check; ok?; fail?; failLevel? }`. Live checks show a spinner, then `●` in accent (ok), error (fail), or accent2 when `failLevel = "warning"`.                                   |
+| `description`          | `{ text = ""; }`                     | Styled text beneath the header (`text`, colors, `bold`/`italic`/`faint`, `tips`). `background` may be `{ relative = ±n; }` vs the card. Empty text hides.                                                                                    |
+| `env`                  | `[ ]`                                | Chips in order; each `{ label; value; }` (static) **or** `{ label; probe; }` (runtime command, first output line, skipped on fail).                                                                                                          |
+| `commands`             | conditional                          | Keyed next steps: exact runnable `command`, optional `description` (dotted leaders), and optional `run` script — when set, a generated executable named `command` is bundled into `packages.motd`. Defaults to `menu` / `menu list` when on. |
+| `recipes`              | `{ }`                                | Keyed multi-step workflows with `steps` (or legacy `lines`).                                                                                                                                                                                 |
+| `gettingStarted`       | see defaults                         | Labels for the unified commands + examples region (`heading`, `commandsLabel`, `examplesLabel`).                                                                                                                                             |
+| `shortcuts`            | `[ ]`                                | Right-aligned discoverability chips `{ command; alias? }` that close the composition.                                                                                                                                                        |
+| `width`                | `"full"`                             | Content width, or `"full"`.                                                                                                                                                                                                                  |
+| `maxWidth`             | `96`                                 | Width cap.                                                                                                                                                                                                                                   |
 
 ## menu options (`prelude.menu.*`)
 
@@ -313,10 +358,32 @@ nix run .#example-minimal     # standalone banner + styled description (the old 
 nix run .#example-surface     # background fill, status chips, thick border
 ```
 
+## Generated documentation
+
+The [terminal showcase](docs/generated/showcases.md) is rendered from the real
+example packages with [VHS](https://github.com/charmbracelet/vhs). It includes
+animated MOTD/menu recordings, still PNGs, and the exact Nix configuration used
+for each recording. The [options reference](docs/reference/options.md) is built
+from the module declarations with `nixosOptionsDoc`.
+
+```sh
+nix run .#docs-sync           # regenerate deterministic Markdown
+nix run .#docs-record         # record stale GIF/PNG media, then sync Markdown
+```
+
+`nix flake check` compares committed Markdown and media fingerprints with their
+generator inputs. CI runs `docs-record` after every writable branch push and
+auto-commits changes under `docs/` when regeneration is needed.
+
 ## Layout
 
 ```
 flake.nix              # canonical outputs + flakeModules.prelude
+nix/docs-automation.nix # VHS tapes, fingerprints, docs apps + freshness checks
+nix/*-demo-builder.nix  # final demo packages shared by apps and recordings
+docs/generated/        # generated showcase markdown
+docs/media/            # committed VHS GIFs/PNGs + input fingerprint manifest
+docs/reference/        # generated module options reference
 src/motd/              # Go source for the static MOTD renderer (Lip Gloss)
 src/menu-tui/          # Go source for the menu TUI (Bubble Tea)
 src/prelude/

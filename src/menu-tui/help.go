@@ -3,217 +3,153 @@ package main
 import (
 	"strings"
 
-	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
-
-	"prelude/shared"
+	"prelude/manual"
 )
 
-// --- help mode ---------------------------------------------------------------
-//
-// `menu help` renders a man-style manual generated from the config: a
-// contents sidebar, a scrollable body, and an inverted status bar. The
-// section list is fixed; COMMANDS and EXAMPLES are filled from the groups.
-
-// helpSectionTitles lists the manual's sections in sidebar/body order.
-var helpSectionTitles = []string{
-	"name", "synopsis", "description", "options", "commands", "examples", "see also",
-}
-
-// helpDoc renders the manual body: styled, unpadded lines wrapped at textW,
-// plus the line index where each section header starts.
-func (m model) helpDoc(textW int) (lines []string, starts []int) {
-	st := m.st
-	pal := st.pal
-	textW = max(textW, 24)
-
-	insetSp := lipgloss.NewStyle().Background(st.bgColor)
-	sp := func(n int) string { return insetSp.Render(strings.Repeat(" ", n)) }
-
-	var out []string
-	blank := func() { out = append(out, "") }
-	section := func(title string) {
-		if len(out) > 0 && out[len(out)-1] != "" {
-			blank()
-		}
-		starts = append(starts, len(out))
-		out = append(out, sp(2)+st.inset(pal.Accent).Bold(true).Render(strings.ToUpper(title)))
+// helpDocument adapts task configuration into the shared manual presentation model.
+func helpDocument(cfg *Config) manual.Document {
+	project := cfg.Project
+	sections := []manual.Section{
+		{
+			Title: "name",
+			Blocks: []manual.Block{richBlock(4, false,
+				manual.Span{Role: manual.Accent2, Text: project, Bold: true},
+				manual.Span{Role: manual.Foreground, Text: " — devshell UI: welcome banner, command menu, and docs"},
+			)},
+		},
+		{
+			Title: "synopsis",
+			Blocks: []manual.Block{
+				richBlock(4, false,
+					manual.Span{Role: manual.Accent2, Text: "help", Bold: true},
+					manual.Span{Role: manual.Muted, Text: " | "},
+					manual.Span{Role: manual.Accent2, Text: "?", Bold: true},
+					manual.Span{Role: manual.Muted, Text: "              reprint the welcome banner (motd)"},
+				),
+				richBlock(4, false,
+					manual.Span{Role: manual.Accent2, Text: "menu", Bold: true},
+					manual.Span{Role: manual.Muted, Text: " | "},
+					manual.Span{Role: manual.Accent2, Text: "m", Bold: true},
+					manual.Span{Role: manual.Muted, Text: " ["},
+					manual.Span{Role: manual.Accent, Text: "<task|key>"},
+					manual.Span{Role: manual.Muted, Text: " [args…]]"},
+				),
+				richBlock(4, false,
+					manual.Span{Role: manual.Accent2, Text: "menu", Bold: true},
+					manual.Span{Role: manual.Foreground, Text: " list"},
+				),
+				richBlock(4, false,
+					manual.Span{Role: manual.Accent2, Text: "menu", Bold: true},
+					manual.Span{Role: manual.Foreground, Text: " help"},
+					manual.Span{Role: manual.Muted, Text: " | "},
+					manual.Span{Role: manual.Accent2, Text: "docs", Bold: true},
+					manual.Span{Role: manual.Muted, Text: " | "},
+					manual.Span{Role: manual.Accent2, Text: "d", Bold: true},
+					manual.Span{Role: manual.Muted, Text: "   this manual"},
+				),
+			},
+		},
+		{
+			Title: "description",
+			Blocks: []manual.Block{
+				paragraph(manual.Muted, 4, project+" greets you with a static MOTD on shell entry, then exposes a small set of shortcuts for the rest of the session. The interactive menu is a fuzzy-filtered picker over the tasks declared in Nix: type to filter, ↑/↓ to select, ↵ to run, and ⇥ to expand details.", true),
+				paragraph(manual.Muted, 4, "Tasks that declare arguments open argument-entry mode with suggested value chips, boolean flags, required-argument validation, and a live command preview. Extra command-line arguments bypass argument entry and are appended verbatim.", true),
+			},
+		},
+		{Title: "options"},
+		{Title: "commands"},
+		{Title: "examples"},
+		{Title: "see also"},
 	}
-	para := func(fg shared.Color, indent int, text string) {
-		for _, l := range strings.Split(ansi.Wordwrap(text, max(textW-indent, 16), ""), "\n") {
-			out = append(out, sp(indent)+st.inset(fg).Render(l))
-		}
-	}
-	// entry renders a bold accent2 term with an indented description, the
-	// shape used by OPTIONS and the builtin COMMANDS.
-	entry := func(term, desc string) {
-		out = append(out, sp(4)+st.inset(pal.Accent2).Bold(true).Render(term))
-		para(pal.Muted, 6, desc)
-		blank()
-	}
-	cmdline := func(indent int, cmd string) {
-		out = append(out, sp(indent)+st.inset(pal.Accent).Render("$ ")+st.inset(pal.Fg).Render(cmd))
-	}
-
-	blank()
-
-	section("name")
-	out = append(out, sp(4)+
-		st.inset(pal.Accent2).Bold(true).Render("menu")+
-		st.inset(pal.Fg).Render(" — interactive command menu for "+m.cfg.Project))
-
-	section("synopsis")
-	menuTok := st.inset(pal.Accent2).Bold(true).Render("menu")
-	muted := func(s string) string { return st.inset(pal.Muted).Render(s) }
-	out = append(out,
-		sp(4)+menuTok+muted(" [--config <path>] [")+st.inset(pal.Accent).Render("<task|key>")+muted(" [args…]]"),
-		sp(4)+menuTok+st.inset(pal.Fg).Render(" list"),
-		sp(4)+menuTok+st.inset(pal.Fg).Render(" help"),
-	)
-
-	section("description")
-	para(pal.Muted, 4, "menu presents the "+m.cfg.Project+" tasks as a fuzzy-filtered picker: "+
-		"type to filter, ↑/↓ to select, ↵ to run, and ⇥ to expand the selected task's details. "+
-		"Naming a task (or its key) on the command line skips the picker and runs it directly.")
-	blank()
-	para(pal.Muted, 4, "Tasks that declare arguments open argument-entry mode with suggested "+
-		"value chips, boolean flags, required-argument validation, and a live command preview. "+
-		"Extra command-line arguments bypass argument entry and are appended verbatim.")
-	blank()
-	if m.cfg.Execute {
-		para(pal.Muted, 4, "The selected command replaces the menu process (bash -c) and the menu exits with its status.")
+	if cfg.Execute {
+		sections[2].Blocks = append(sections[2].Blocks, paragraph(manual.Muted, 4, "The selected command replaces the menu process (bash -c) and the menu exits with its status.", false))
 	} else {
-		para(pal.Muted, 4, "This menu is configured to print the assembled command instead of executing it.")
+		sections[2].Blocks = append(sections[2].Blocks, paragraph(manual.Muted, 4, "This menu is configured to print the assembled command instead of executing it.", false))
 	}
 
-	section("options")
-	entry("--config <path>", "Path to the menu config JSON. Defaults to $PRELUDE_MENU_CONFIG; the Nix wrapper bakes this in.")
-	entry("PRELUDE_MENU_DEBUG=<path>", "Write TUI diagnostics to the given file.")
+	appendEntry(&sections[3], "help, ?", "Reprint the MOTD welcome banner.")
+	appendEntry(&sections[3], "menu, m", "Open the interactive command picker. Pass a task name or key to run it directly.")
+	appendEntry(&sections[3], "docs, d", "Open this manual (same as menu help). Digits 1–7 jump to sections; j/k scroll; q quits.")
+	appendEntry(&sections[3], "--config <path>", "Path to the menu config JSON. Defaults to $PRELUDE_MENU_CONFIG; the Nix wrapper bakes this in.")
+	appendEntry(&sections[3], "PRELUDE_MENU_DEBUG=<path>", "Write TUI diagnostics to the given file.")
 
-	section("commands")
-	entry("list", "Print the grouped task table and exit (non-interactive).")
-	entry("help", "Show this manual.")
-	for _, g := range m.cfg.Groups {
-		if g.Title != "" {
-			out = append(out, sp(4)+st.inset(pal.Muted).Render(letterSpace(g.Title)))
-			blank()
+	appendEntry(&sections[4], "list", "Print the grouped task table and exit (non-interactive).")
+	appendEntry(&sections[4], "help", "Show this manual.")
+	for _, group := range cfg.Groups {
+		if group.Title != "" {
+			sections[4].Blocks = append(sections[4].Blocks, richBlock(4, true,
+				manual.Span{Role: manual.Muted, Text: strings.ToUpper(group.Title)},
+			))
 		}
-		for _, t := range g.Tasks {
-			nameLine := sp(4) + st.inset(pal.Accent2).Bold(true).Render(t.Name)
-			if t.Key != "" {
-				nameLine += st.inset(pal.Dim).Render("  (" + t.Key + ")")
+		for _, task := range group.Tasks {
+			spans := []manual.Span{{Role: manual.Accent2, Text: task.Name, Bold: true}}
+			if task.Key != "" {
+				spans = append(spans, manual.Span{Role: manual.Dim, Text: "  (" + task.Key + ")"})
 			}
-			out = append(out, nameLine)
-			if t.Description != "" {
-				para(pal.Muted, 6, t.Description)
+			sections[4].Blocks = append(sections[4].Blocks, richBlock(4, false, spans...))
+			if task.Description != "" {
+				sections[4].Blocks = append(sections[4].Blocks, paragraph(manual.Muted, 6, task.Description, false))
 			}
-			if t.Details != "" {
-				para(pal.Muted, 6, t.Details)
+			if task.Details != "" {
+				sections[4].Blocks = append(sections[4].Blocks, paragraph(manual.Muted, 6, task.Details, false))
 			}
-			if t.Usage != "" {
-				cmdline(6, t.Usage)
+			if task.Usage != "" {
+				sections[4].Blocks = append(sections[4].Blocks, shellLine(6, task.Usage, false))
 			}
-			blank()
-		}
-	}
-
-	section("examples")
-	example := func(cmd, desc string) {
-		cmdline(4, cmd)
-		if desc != "" {
-			para(pal.Dim, 6, desc)
-		}
-		blank()
-	}
-	example("menu", "open the interactive picker")
-	example("menu list", "print the task table without a TTY")
-	for _, g := range m.cfg.Groups {
-		for _, t := range g.Tasks {
-			for _, ex := range t.Examples {
-				example(ex, "")
+			for _, example := range task.Examples {
+				sections[4].Blocks = append(sections[4].Blocks, shellLine(6, example, false))
 			}
+			sections[4].Blocks = append(sections[4].Blocks, manual.Block{BlankAfter: true})
 		}
 	}
 
-	section("see also")
-	out = append(out, sp(4)+st.inset(pal.Fg).Render("menu list")+
-		st.inset(pal.Muted).Render(" — the same catalogue as a plain table"))
-	out = append(out, sp(4)+st.inset(pal.Fg).Render("⇥ in the picker")+
-		st.inset(pal.Muted).Render(" — per-task details, usage, and examples"))
-	blank()
+	appendExample := func(command, description string) {
+		sections[5].Blocks = append(sections[5].Blocks, shellLine(4, command, false))
+		if description != "" {
+			sections[5].Blocks = append(sections[5].Blocks, paragraph(manual.Dim, 6, description, false))
+		}
+		sections[5].Blocks = append(sections[5].Blocks, manual.Block{BlankAfter: true})
+	}
+	appendExample("help", "reprint the welcome banner")
+	appendExample("menu", "open the interactive picker")
+	appendExample("menu list", "print the task table without a TTY")
+	appendExample("docs", "open this manual; press 5 to jump to COMMANDS")
+	for _, group := range cfg.Groups {
+		for _, task := range group.Tasks {
+			for _, example := range task.Examples {
+				appendExample(example, "")
+			}
+		}
+	}
 
-	return out, starts
+	sections[6].Blocks = []manual.Block{
+		richBlock(4, false, manual.Span{Role: manual.Foreground, Text: "motd"}, manual.Span{Role: manual.Muted, Text: " — static welcome banner (also: help, ?)"}),
+		richBlock(4, false, manual.Span{Role: manual.Foreground, Text: "menu list"}, manual.Span{Role: manual.Muted, Text: " — the same catalogue as a plain table"}),
+		richBlock(4, false, manual.Span{Role: manual.Foreground, Text: "⇥ in the picker"}, manual.Span{Role: manual.Muted, Text: " — per-task details, usage, and examples"}),
+		richBlock(4, true, manual.Span{Role: manual.Foreground, Text: "README.md"}, manual.Span{Role: manual.Muted, Text: " — module options, themes, and downstream usage"}),
+	}
+
+	return manual.Document{Sections: sections}
 }
 
-// --- navigation ----------------------------------------------------------------
-
-func (m model) updateHelp(msg tea.KeyPressMsg) (model, tea.Cmd) {
-	l := m.helpLayout()
-	switch msg.String() {
-	case "q", "esc":
-		return m, tea.Quit
-	case "j", "down", "ctrl+n":
-		m.helpScrollBy(1)
-	case "k", "up", "ctrl+p":
-		m.helpScrollBy(-1)
-	case "pgdown", "space", "ctrl+d":
-		m.helpScrollBy(l.viewH)
-	case "pgup", "b", "ctrl+u":
-		m.helpScrollBy(-l.viewH)
-	case "home", "g":
-		m.helpScroll, m.helpActive = 0, 0
-	case "end", "G", "shift+g":
-		m.helpScrollBy(1 << 20)
-	default:
-		if s := msg.String(); len(s) == 1 && s[0] >= '1' && s[0] <= '9' {
-			m.helpJumpSection(int(s[0] - '1'))
-		}
-	}
-	return m, nil
+func richBlock(indent int, blankAfter bool, spans ...manual.Span) manual.Block {
+	return manual.Block{Indent: indent, BlankAfter: blankAfter, Spans: spans}
 }
 
-// helpScrollBy moves the viewport and re-derives the active section from the
-// topmost visible line.
-func (m *model) helpScrollBy(delta int) {
-	l := m.helpLayout()
-	lines, starts := m.helpDoc(l.textW)
-	maxScroll := max(0, len(lines)-l.viewH)
-	m.helpScroll = min(max(m.helpScroll+delta, 0), maxScroll)
-	m.helpActive = helpActiveAt(starts, m.helpScroll)
+func paragraph(role manual.Role, indent int, text string, blankAfter bool) manual.Block {
+	return manual.Block{Indent: indent, Wrap: true, BlankAfter: blankAfter, Spans: []manual.Span{{Role: role, Text: text}}}
 }
 
-// helpJumpSection scrolls a section's header to the top of the viewport and
-// marks it active even when the tail sections cannot reach the top line.
-func (m *model) helpJumpSection(i int) {
-	if i < 0 || i >= len(helpSectionTitles) {
-		return
-	}
-	l := m.helpLayout()
-	lines, starts := m.helpDoc(l.textW)
-	maxScroll := max(0, len(lines)-l.viewH)
-	m.helpScroll = min(starts[i], maxScroll)
-	m.helpActive = i
+func shellLine(indent int, command string, blankAfter bool) manual.Block {
+	return richBlock(indent, blankAfter,
+		manual.Span{Role: manual.Accent, Text: "$ "},
+		manual.Span{Role: manual.Foreground, Text: command},
+	)
 }
 
-// helpClick maps a terminal click to a sidebar item.
-func (m *model) helpClick(x, y int) {
-	l := m.helpLayout()
-	if x >= l.sideW {
-		return
-	}
-	if i := y - helpSidebarItemsTop; i >= 0 && i < len(helpSectionTitles) {
-		m.helpJumpSection(i)
-	}
-}
-
-// helpActiveAt returns the section covering the given top line.
-func helpActiveAt(starts []int, off int) int {
-	active := 0
-	for i, s := range starts {
-		if s <= off {
-			active = i
-		}
-	}
-	return active
+func appendEntry(section *manual.Section, term, description string) {
+	section.Blocks = append(section.Blocks,
+		richBlock(4, false, manual.Span{Role: manual.Accent2, Text: term, Bold: true}),
+		paragraph(manual.Muted, 6, description, true),
+	)
 }

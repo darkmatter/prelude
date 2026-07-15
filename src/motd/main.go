@@ -6,11 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strconv"
 
 	"prelude/shared"
-
-	"golang.org/x/term"
 )
 
 // defaultConfigPath is injected by Nix at link time. Keeping configuration in
@@ -31,19 +28,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	runtime := systemRuntime{}
+	terminal := systemRenderTerminal{output: os.Stdout}
 	output := shared.ColorWriter(os.Stdout, os.Environ(), cfg.ColorProfile)
-	if _, err := fmt.Fprint(output, render(cfg, terminalWidth(os.Stdout), systemRuntime{})); err != nil {
+	if _, err := fmt.Fprint(output, renderSession(cfg, runtime, terminal)); err != nil {
 		fmt.Fprintln(os.Stderr, "motd:", err)
 		os.Exit(1)
 	}
-}
-
-func terminalWidth(output *os.File) int {
-	if width, _, err := term.GetSize(int(output.Fd())); err == nil && width > 0 {
-		return width
-	}
-	if width, err := strconv.Atoi(os.Getenv("COLUMNS")); err == nil && width > 0 {
-		return width
-	}
-	return 80
 }

@@ -9,11 +9,15 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// view: a hand-drawn window frame so section dividers junction into the
-// border (├──┤) and every interior cell is painted like the mock.
+// view: playground-aligned chrome — open title/prompt/status outside a framed
+// list body, with half-cell surface transitions into the window background.
 // ---------------------------------------------------------------------------
 
 const padX = 2 // horizontal padding inside the frame
+
+// chromeRows is the fixed vertical cost of title(3) + prompt(1) + frameTop(1) +
+// status(3). listHeight subtracts this from the terminal so the panel fits.
+const chromeRows = 8
 
 func (m model) innerWidth() int {
 	w := m.width - 2 // frame borders
@@ -43,55 +47,94 @@ func (m model) frameBottom(inner int) string {
 	return m.st.frame.Render("╰" + strings.Repeat("─", inner) + "╯")
 }
 
-// letterSpace renders the mock's tracked section labels: "PROJECT" → "P R O J E C T".
+// letterSpace renders tracked section labels: "PROJECT" → "PROJECT" (uppercased).
+// Kept as a named helper so group headers stay consistent with the playground.
 func letterSpace(s string) string {
-	runes := []rune(strings.ToUpper(s))
-	out := make([]string, len(runes))
-	for i, r := range runes {
-		out[i] = string(r)
-	}
-	return strings.Join(out, "")
+	return strings.ToUpper(s)
 }
 
-// titleBar renders the secondary-colored top bar with the centered title.
-func (m model) titleBar(title string, inner int) string {
+// mutedTitleRow is the open chrome title: half-cell rise from window bg into
+// the chrome surface, centered muted title, half-cell drop into the open input.
+func (m model) mutedTitleRow(title string, inner int) string {
 	st := m.st
-	mid := st.barMuted.Render(ansi.Truncate(title, inner-2*padX, "…"))
-	line := lipgloss.PlaceHorizontal(inner, lipgloss.Center, mid, lipgloss.WithWhitespaceStyle(st.barSp))
-	return m.paint(line, st.barSp, inner)
+	width := inner + 2
+	halfPad := lipgloss.NewStyle().
+		Foreground(st.chromeColor).
+		Background(st.bgColor).
+		Render(strings.Repeat("▄", width))
+	row := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(string(st.pal.Muted))).
+		Background(st.chromeColor).
+		Width(width).
+		MaxWidth(width).
+		Align(lipgloss.Center).
+		Render(ansi.Truncate(title, width-2*padX-2, "…"))
+	bottomHalfPad := lipgloss.NewStyle().
+		Foreground(st.chromeColor).
+		Background(st.openColor).
+		Render(strings.Repeat("▀", width))
+	return lipgloss.JoinVertical(lipgloss.Left, halfPad, row, bottomHalfPad)
 }
 
-// statusBar renders the secondary-colored bottom bar: kbd hint chips left,
-// mode indicator right.
+// statusBar is the open chrome footer: half-cell rise from open surface, keymap
+// on chrome, half-cell drop back to window bg. Hints left, live status right.
 func (m model) statusBar(hints [][2]string, status string, inner int) string {
 	st := m.st
+	width := inner + 2
+	sp := st.chromeSp
+	key := st.kbdChip
+	mutedText := st.chromeMuted
+
 	var b strings.Builder
-	b.WriteString(st.barSp.Render(strings.Repeat(" ", padX)))
+	b.WriteString(sp.Render(strings.Repeat(" ", padX)))
 	for i, h := range hints {
 		if i > 0 {
-			b.WriteString(st.barSp.Render("  "))
+			b.WriteString(mutedText.Render("  "))
 		}
-		b.WriteString(st.kbdChip.Render(" "+h[0]+" ") + st.barSp.Render(" ") + st.barMuted.Render(h[1]))
+		b.WriteString(key.Render(" "+h[0]+" ") + sp.Render(" ") + mutedText.Render(h[1]))
 	}
 	left := b.String()
-	right := status + st.barSp.Render(strings.Repeat(" ", padX))
-	line := lipgloss.JoinHorizontal(lipgloss.Top,
-		left,
-		lipgloss.PlaceHorizontal(inner-lipgloss.Width(left)-lipgloss.Width(right), lipgloss.Right, right, lipgloss.WithWhitespaceStyle(st.barSp)),
-	)
-	return m.paint(line, st.barSp, inner)
+
+	statusColor := lipgloss.Color(string(st.pal.Accent))
+	if strings.Contains(status, "args") {
+		statusColor = lipgloss.Color(string(st.pal.Accent2))
+	}
+	right := lipgloss.NewStyle().
+		Foreground(statusColor).
+		Background(st.chromeColor).
+		Bold(true).
+		Render(status) + sp.Render(strings.Repeat(" ", padX))
+
+	available := max(width-lipgloss.Width(left)-lipgloss.Width(right), 1)
+	line := left + sp.Render(strings.Repeat(" ", available)) + right
+	keymap := sp.Width(width).MaxWidth(width).Render(ansi.Truncate(line, width, ""))
+
+	topHalfPad := lipgloss.NewStyle().
+		Foreground(st.chromeColor).
+		Background(st.openColor).
+		Render(strings.Repeat("▄", width))
+	bottomHalfPad := lipgloss.NewStyle().
+		Foreground(st.chromeColor).
+		Background(st.bgColor).
+		Render(strings.Repeat("▀", width))
+	return lipgloss.JoinVertical(lipgloss.Left, topHalfPad, keymap, bottomHalfPad)
 }
 
-// promptLine renders the input row: `<project> ❯ [task] <input>`.
+// promptLine is the open filter/arg input row: ~/project or task name, amber
+// prompt glyph, then the textinput view. Sits outside the frame on open surface.
 func (m model) promptLine(inner int, taskName string) string {
 	st := m.st
-	line := st.sp.Render(strings.Repeat(" ", padX)) +
-		st.sMuted.Render(m.cfg.Project) + st.sp.Render(" ") + st.sAccent2.Render("❯") + st.sp.Render(" ")
+	line := st.openSp.Render(strings.Repeat(" ", padX))
+	context := "~/" + m.cfg.Project
 	if taskName != "" {
-		line += st.sAccent.Render(taskName) + st.sp.Render(" ")
+		context = taskName
 	}
-	line += m.input.View()
-	return m.paint(line, st.sp, inner)
+	line += st.openMuted.Render(context) +
+		st.openSp.Render(" ") +
+		st.openAccent2.Bold(true).Render("❯") +
+		st.openSp.Render(" ") +
+		m.input.View()
+	return st.openSp.Width(inner + 2).MaxWidth(inner + 2).Render(line)
 }
 
 func (m model) blank(inner int) string {
@@ -99,13 +142,8 @@ func (m model) blank(inner int) string {
 }
 
 func (m model) View() tea.View {
-	// Help mode is full-bleed and mouse-aware; it builds its own canvas.
 	if m.mode == modeHelp {
-		view := tea.NewView(m.viewHelp())
-		view.BackgroundColor = m.st.bgColor
-		view.AltScreen = true
-		view.MouseMode = tea.MouseModeCellMotion
-		return view
+		return m.help.View()
 	}
 
 	inner := m.innerWidth()
@@ -121,11 +159,12 @@ func (m model) View() tea.View {
 	// outside the rendered content can remain untouched by the renderer. Emit a
 	// terminal-sized canvas with explicitly styled whitespace so every cell,
 	// including the margins below and beside the panel, receives the theme bg.
+	// Horizontally and vertically center the panel in the terminal window.
 	content := lipgloss.Place(
 		m.width,
 		m.height,
 		lipgloss.Center,
-		lipgloss.Top,
+		lipgloss.Center,
 		body,
 		lipgloss.WithWhitespaceStyle(m.st.windowBg),
 	)

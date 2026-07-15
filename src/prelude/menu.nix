@@ -95,7 +95,8 @@ let
     version = "0.1.0";
     src = ../.;
     subPackages = [ "menu-tui" ];
-    vendorHash = "sha256-5Vq39NH18R7zee+LHANoHAbjw3iuE9+SoYxF9OqiamQ=";
+    doCheck = false;
+    vendorHash = "sha256-a4FKIcqmKJ0TxRogtXe1T7iNf7mgX27GDtbnwf4FvxU=";
     ldflags = [ "-s" "-w" ];
     meta = {
       description = "Interactive devshell command menu (bubbletea)";

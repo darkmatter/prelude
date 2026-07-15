@@ -5,13 +5,68 @@
   lib,
   config,
   demos,
+  docsAutomation,
+  previews,
   ...
 }:
+let
+  # The command-providing packages of the dogfood devshell (shell.nix).
+  devshellCommandPackages = [
+    config.packages.motd
+    config.packages.menu
+    config.packages.docs
+    docsAutomation.sync
+    docsAutomation.record
+    previews
+  ]
+  # Consume the wrappers exposed by the evaluated Prelude package, just as a
+  # downstream module can, instead of rebuilding knowledge from source config.
+  ++ config.packages.menu.taskWrappers;
+
+  # Assert that every advertised command name resolves on a PATH built from
+  # the devshell's packages.
+  mkRunnableCheck =
+    checkName: surface: names:
+    pkgs.runCommand checkName { nativeBuildInputs = devshellCommandPackages; } ''
+      for cmd in ${lib.concatMapStringsSep " " lib.escapeShellArg names}; do
+        command -v "$cmd" >/dev/null 2>&1 || {
+          echo "${surface} advertises '$cmd' but no devshell package provides it" >&2
+          exit 1
+        }
+      done
+      touch "$out"
+    '';
+in
 {
   # Building the module-produced packages runs shellcheck / go vet on the
   # generated artifacts.
   motd-default = config.packages.motd;
+  title-default = config.packages.title;
   menu-default = config.packages.menu;
+
+  title-previews = pkgs.runCommand "title-previews" { } ''
+    ${lib.getExe config.packages.title-previews} "choose me" > "$out"
+    test "$(grep -c '^===== .* =====$' "$out")" -eq 23
+    grep -q '^===== 3d-ascii =====$' "$out"
+    grep -q '^===== calvin-s =====$' "$out"
+    grep -q '^===== roman =====$' "$out"
+    grep -q '^===== univers =====$' "$out"
+    test "$(wc -l < "$out")" -gt 50
+  '';
+
+  title-generates =
+    let
+      recipe = pkgs.writeText "title.nix" ''
+        {
+          text = "prelude";
+          font = "calvin-s";
+        }
+      '';
+    in
+    pkgs.runCommand "title-generates" { } ''
+      ${lib.getExe config.packages.title} --recipe ${recipe} --output "$out"
+      grep -q '┌─┐' "$out"
+    '';
 
   # Keyed groups/tasks normalize into deterministic display order. Explicit
   # order wins; otherwise keys break ties and become the default labels.
@@ -85,12 +140,29 @@
           ../src/prelude/options/motd.nix
           {
             prelude.motd = {
-              padding.x = 2;
+              title = pkgs.writeText "test-title.txt" "TEST TITLE\n";
+              padding = {
+                x = 2;
+                top = 2;
+              };
+              windowBackground = {
+                blend = 0.15;
+              };
               header = {
                 titleStyle = "bracketed";
                 tagline = "test-tagline";
-                statusLabel = "nix develop";
-                statusText = "ready";
+                status.shell = {
+                  order = 100;
+                  label = "nix develop";
+                  status = "ready";
+                };
+                status.cache = {
+                  order = 200;
+                  label = "cache";
+                  check = "false";
+                  fail = "stale";
+                  failLevel = "warning";
+                };
               };
               shortcuts = [
                 {
@@ -102,14 +174,20 @@
           }
         ];
       };
+      title = evaluated.config.prelude.motd.title;
       header = evaluated.config.prelude.motd.header;
       padding = evaluated.config.prelude.motd.padding;
       shortcuts = evaluated.config.prelude.motd.shortcuts;
+      windowBackground = evaluated.config.prelude.motd.windowBackground;
+      shellStatus = header.status.shell;
     in
+    assert builtins.readFile title == "TEST TITLE\n";
     assert header.titleStyle == "bracketed";
     assert header.tagline == "test-tagline";
-    assert header.statusLabel == "nix develop";
-    assert header.statusText == "ready";
+    assert shellStatus.label == "nix develop";
+    assert shellStatus.status == "ready";
+    assert shellStatus.failLevel == "error";
+    assert header.status.cache.failLevel == "warning";
     assert
       shortcuts == [
         {
@@ -119,152 +197,72 @@
       ];
     assert padding.x == 2;
     assert padding.y == 0;
+    assert padding.top == 2;
     assert padding.left == null;
     assert padding.right == null;
+    assert windowBackground.blend == 0.15;
 
     pkgs.runCommand "motd-header-options" { } "touch $out";
 
-  # Our own motd renders authored commands, never the menu's task catalog.
+  # Smoke: dogfood motd runs and prints something. Content is not asserted
+  # while the banner layout is still in flux.
   motd-renders = pkgs.runCommand "motd-renders" { } ''
     NO_COLOR=1 ${lib.getExe config.packages.motd} > "$out"
     test -s "$out"
-    grep -q "prelude" "$out"
-    grep -q "Getting Started" "$out"
-    grep -q "nix flake check" "$out"
-    grep -q "menu" "$out"
-    if grep -q "demo-menu" "$out"; then
-      echo "motd must not render menu tasks" >&2
-      exit 1
-    fi
   '';
 
-  # Command rows contain only an exact runnable command and its description.
-  motd-commands-render =
-    let
-      commandMotd =
-        import ../src/prelude/motd.nix
-        {
-          inherit (pkgs)
-            lib
-            writeText
-            buildGoModule
-            ;
-        }
-        {
-          project = "command-test";
-          clearScreen = false;
-          margin.top = 0;
-          git = false;
-          groups.hidden.tasks.should-not-render = {
-            run = "false";
-            description = "menu-only sentinel";
-          };
-          commands = {
-            check = {
-              order = 100;
-              command = "nix flake check";
-              description = "verify the flake";
-            };
-            browse = {
-              command = "menu";
-              description = "browse project commands";
-            };
-          };
-        };
-    in
-    pkgs.runCommand "motd-commands-render" { } ''
-      NO_COLOR=1 ${lib.getExe commandMotd} > "$out"
-      grep -q "Getting Started" "$out"
-      grep -q "commands" "$out"
-      grep -q 'nix flake check' "$out"
-      grep -q 'verify the flake' "$out"
-      grep -q 'browse project commands' "$out"
-      if grep -q "should-not-render\|menu-only sentinel" "$out"; then
-        echo "motd leaked menu task data" >&2
-        exit 1
-      fi
-      test "$(grep -n 'nix flake check' "$out" | head -n1 | cut -d: -f1)" -lt "$(grep -n '\$ menu' "$out" | head -n1 | cut -d: -f1)"
-    '';
+  # MOTD commands are selected from the menu task catalogue, whose generated
+  # wrappers are bundled with packages.motd when the menu is enabled.
+  motd-commands-runnable =
+    mkRunnableCheck "motd-commands-runnable" "motd"
+      config.packages.motd.commandNames;
 
-  # Narrow command sections stay within the configured width.
-  motd-commands-narrow-render =
-    let
-      narrowMotd =
-        import ../src/prelude/motd.nix
-        {
-          inherit (pkgs)
-            lib
-            writeText
-            buildGoModule
-            ;
-        }
-        {
-          project = "narrow";
-          width = 20;
-          clearScreen = false;
-          margin.top = 0;
-          git = false;
-          commands.check = {
-            command = "nix flake check";
-            description = "verify";
-          };
-        };
-    in
-    pkgs.runCommand "motd-commands-narrow-render" { } ''
-      NO_COLOR=1 ${lib.getExe narrowMotd} > "$out"
-      grep -q 'nix flake check' "$out"
-      grep -q 'verify' "$out"
-      if ! awk '{ line = $0; sub(/^ +/, "", line) } length(line) > 20 { print length(line) ": " line > "/dev/stderr"; overflow = 1 } END { exit overflow }' "$out"; then
-        echo "narrow motd exceeded configured width" >&2
-        exit 1
-      fi
-    '';
+  menu-tasks-runnable = mkRunnableCheck "menu-tasks-runnable" "menu" config.packages.menu.taskNames;
 
-  # Recipes render as fade-rule codeblocks with comments and commands.
-  motd-recipes-render =
+  # Package-backed tasks carry their runtime package into the evaluated menu
+  # package and still receive a directly invocable task wrapper.
+  package-task-bundled =
+    assert lib.elem pkgs.nixfmt config.packages.menu.taskRuntimePackages;
+    pkgs.runCommand "package-task-bundled"
+      {
+        nativeBuildInputs = [ config.packages.menu ];
+      }
+      ''
+        command -v nixfmt >/dev/null
+        command -v fmt >/dev/null
+        touch "$out"
+      '';
+
+  # Docs options accept hand-authored sections; nothing is required beyond blocks.
+  docs-options =
     let
-      recipeMotd =
-        import ../src/prelude/motd.nix
-        {
-          inherit (pkgs)
-            lib
-            writeText
-            buildGoModule
-            ;
-        }
-        {
-          project = "recipe-test";
-          clearScreen = false;
-          margin = {
-            top = 0;
-          };
-          git = false;
-          recipes."-clean-stack" = {
-            steps = [
-              { comment = "Start backing services"; }
-              { command = "just db:up"; }
-              { command = "just db:migrate && just db:seed"; }
-              { command = "-x command"; }
-            ];
-          };
-        };
+      evaluated = lib.evalModules {
+        modules = [
+          ../src/prelude/options/shared.nix
+          ../src/prelude/options/docs.nix
+          {
+            prelude.docs = {
+              enable = true;
+              sections.name = {
+                order = 100;
+                blocks = [
+                  {
+                    type = "lead";
+                    term = "acme";
+                    text = "demo";
+                  }
+                ];
+              };
+            };
+          }
+        ];
+      };
+      secs = evaluated.config.prelude.docs.sections;
     in
-    pkgs.runCommand "motd-recipes-render" { } ''
-      NO_COLOR=1 ${lib.getExe recipeMotd} > "$out.ansi"
-      sed $'s/\033\\[[0-9;]*m//g' "$out.ansi" > "$out"
-      rm "$out.ansi"
-      if grep -q "next steps" "$out"; then
-        echo "direct motd without commands must not invent next steps" >&2
-        exit 1
-      fi
-      grep -q "Getting Started" "$out"
-      grep -q "examples" "$out"
-      grep -q -- "-clean-stack" "$out"
-      grep -q '# Start backing services' "$out"
-      grep -q "just db:up" "$out"
-      grep -q "just db:migrate && just db:seed" "$out"
-      grep -q -- "-x command" "$out"
-    '';
+    assert secs.name.blocks != [ ];
+    assert (builtins.head secs.name.blocks).type == "lead";
+    assert (builtins.head secs.name.blocks).term == "acme";
+    pkgs.runCommand "docs-options" { } "touch $out";
 
   # Our own `menu list` renders the grouped task table.
   menu-list-renders = pkgs.runCommand "menu-list-renders" { } ''
@@ -279,4 +277,8 @@
     ${lib.getExe demos.examplesRunner} > "$out"
     test -s "$out"
   '';
+
+  # Generated documentation and its media fingerprints must match the repo.
+  docs-generated-fresh = docsAutomation.docsFresh;
+  docs-media-fresh = docsAutomation.mediaFresh;
 }

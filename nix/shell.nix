@@ -3,10 +3,11 @@
 #
 #   help / ?   → reprint the welcome banner (motd)
 #   menu / m   → interactive command picker
-#   docs / d   → docs page (stub until built)
+#   docs / d   → hand-authored man-style manual
 {
   pkgs,
   config,
+  docsAutomation,
   previews,
   ...
 }:
@@ -14,6 +15,9 @@ pkgs.mkShell {
   packages = [
     config.packages.motd
     config.packages.menu
+    config.packages.docs
+    docsAutomation.record
+    docsAutomation.sync
     previews
   ]
   ++ (with pkgs; [
@@ -22,24 +26,20 @@ pkgs.mkShell {
   ]);
   shellHook = ''
     # ── footer keybinds (motd.shortcuts) ─────────────────────────────────────
-    # Prefer functions over aliases so args pass through and special names work.
     help() { command motd "$@"; }
-    '?'() { command motd "$@"; }
     m() { command menu "$@"; }
-    docs() {
-      # Placeholder until the docs surface exists.
-      printf '%s\n' "docs: not built yet — check README.md for now"
-      return 1
-    }
+    # Hand-authored manual: CONTENTS sidebar, 1–N jump, j/k scroll, q quit.
+    docs() { command docs "$@"; }
     d() { docs "$@"; }
 
-    # direnv / nested bash: make the short names available to child shells.
     if [ -n "''${BASH_VERSION-}" ]; then
       export -f help m docs d 2>/dev/null || true
-      # '?' is a valid function name but awkward to export; alias covers it.
       alias '?'='help'
     fi
 
-    motd
+    # Nix writes evaluation/build diagnostics to stderr. Render the shell-hook
+    # MOTD on the same stream so those diagnostics are ordered before the card
+    # instead of racing stdout and appearing over its header.
+    motd >&2
   '';
 }

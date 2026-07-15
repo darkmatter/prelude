@@ -14,27 +14,59 @@ func render(cfg Config, terminalWidth int, runtime Runtime) string {
 	return "\x1b[2J\x1b[H" + output
 }
 
-// renderBody composes the card from playground-aligned sections:
-// header bar → description → env → Getting Started → shortcuts.
+// renderBody composes three sibling surfaces at one shared card width:
+// header → divider on window/default → content container.
 func (r renderer) renderBody() string {
 	var sections []string
 
+	for range max(r.cfg.Padding.Top, 0) {
+		sections = append(sections, r.headerBlankLine())
+	}
 	if header := r.renderHeader(); header != "" {
-		sections = append(sections, header, r.blankLine())
+		sections = append(sections, header)
+	}
+
+	// The divider belongs to neither sibling.
+	sections = append(sections, r.renderHeaderDivider())
+
+	if r.cfg.Title != "" {
+		// Shortcuts swap to just below the divider.
+		if shortcuts := r.renderShortcutItems(); shortcuts != "" {
+			sections = append(sections, r.padContentLine(shortcuts, "right"))
+		}
+	} else {
+		sections = append(sections, r.blankLine())
+	}
+
+	h := r.cfg.Header
+	if h.Tagline != "" || h.Subtitle != "" {
+		sections = append(sections, join(r.renderActivation(h.Tagline, h.Subtitle)...))
+	}
+
+	// Newline after the tagline/subtitle when a generated title is active.
+	if r.cfg.Title != "" && (h.Tagline != "" || h.Subtitle != "") {
+		sections = append(sections, r.blankLine())
 	}
 
 	if middle := r.renderMiddle(); middle != "" {
 		sections = append(sections, middle)
 	}
 
-	if shortcuts := r.renderShortcuts(); shortcuts != "" {
-		sections = append(sections, r.blankLine(), shortcuts)
+	if footer := r.renderFooter(); footer != "" {
+		sections = append(sections, r.blankLine(), footer)
+	}
+
+	// Bottom padding is under the whole card — below the shortcut hints when
+	// present, not between middle content and the hints.
+	for range max(r.cfg.Padding.Bottom, 0) {
+		sections = append(sections, r.blankLine())
 	}
 
 	return r.joinCardVertical(sections...)
 }
 
-// renderMiddle builds description + env + getting-started, then applies padding.
+// renderMiddle builds description + env + getting-started, then applies side
+// padding. Vertical padding is applied around the whole card in renderBody.
 func (r renderer) renderMiddle() string {
 	var content block
 

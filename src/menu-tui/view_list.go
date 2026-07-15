@@ -11,8 +11,7 @@ import (
 // --- list view ---------------------------------------------------------------
 
 func (m model) listHeight() int {
-	// frame(2) + title(1) + div(1) + prompt(1) + div(1) + div(1) + footer(1)
-	return max(min(m.cfg.Height, m.height-8), 4)
+	return max(min(m.cfg.Height, m.height-chromeRows), 4)
 }
 
 func (m model) viewList(inner int) string {
@@ -20,19 +19,15 @@ func (m model) viewList(inner int) string {
 	rows := m.renderRows(inner)
 
 	parts := []string{
-		m.frameTop(inner),
-		m.titleBar(title, inner),
-		m.frameDiv(inner),
+		m.mutedTitleRow(title, inner),
 		m.promptLine(inner, ""),
-		m.frameDiv(inner),
+		m.frameTop(inner),
 	}
 	parts = append(parts, rows...)
 	parts = append(parts,
-		m.frameDiv(inner),
 		m.statusBar([][2]string{
 			{"↑ ↓", "navigate"}, {"⇥", "details"}, {"↵", "run"}, {"esc", "clear"},
-		}, m.st.bar(m.st.pal.Accent).Render("● ready"), inner),
-		m.frameBottom(inner),
+		}, "● ready", inner),
 	)
 	return strings.Join(parts, "\n")
 }
@@ -63,16 +58,15 @@ func (m model) renderRows(inner int) []string {
 	var lines []string
 	selLine := 0
 	lastGroup := "\x00"
-	lines = append(lines, m.blank(inner)) // py padding
 	for pos, fi := range m.matches {
 		t := m.flat[fi]
 		if t.group != lastGroup {
 			lastGroup = t.group
-			if len(lines) > 1 {
-				lines = append(lines, m.blank(inner))
-			}
 			if t.group != "" {
-				label := m.st.sp.Render(strings.Repeat(" ", padX)) + m.st.sMuted.Render(letterSpace(t.group))
+				// paint adds the frame's left rail; subtract that cell so group
+				// labels align with the unframed ~/project context above.
+				label := m.st.sp.Render(strings.Repeat(" ", max(padX-1, 0))) +
+					m.st.sMuted.Render(letterSpace(t.group))
 				lines = append(lines, m.paint(label, m.st.sp, inner))
 			}
 		}
@@ -87,18 +81,23 @@ func (m model) renderRows(inner int) []string {
 	}
 	lines = append(lines, m.blank(inner))
 
-	// Scroll to keep the selected row visible.
+	// Scroll to keep the selected row visible. Expanded menus grow past the
+	// configured height so the full disclosure stays on screen.
+	targetH := h
+	if m.expanded {
+		targetH = max(targetH, len(lines))
+	}
 	offset := m.offset
 	if selLine < offset {
 		offset = selLine
 	}
-	if selLine >= offset+h {
-		offset = selLine - h + 1
+	if selLine >= offset+targetH {
+		offset = selLine - targetH + 1
 	}
-	offset = max(0, min(offset, max(0, len(lines)-h)))
+	offset = max(0, min(offset, max(0, len(lines)-targetH)))
 
-	visible := lines[offset:min(offset+h, len(lines))]
-	for len(visible) < h {
+	visible := lines[offset:min(offset+targetH, len(lines))]
+	for len(visible) < targetH {
 		visible = append(visible, m.blank(inner))
 	}
 	return visible
@@ -107,69 +106,65 @@ func (m model) renderRows(inner int) []string {
 func (m model) renderRow(t Task, active bool, nameW, inner int) string {
 	st := m.st
 
-	keyLabel := "   "
+	keyLabel := ""
 	if t.Key != "" {
-		keyLabel = " " + t.Key + " "
-	}
-	marker := ""
-	if len(t.Args) > 0 {
-		marker = "args…"
-	}
-	if active && t.Details != "" {
-		if m.expanded {
-			marker = "⇥ less"
-		} else {
-			marker = "⇥ more"
-		}
+		keyLabel = t.Key
 	}
 
 	if active {
-		gutter := st.selText.Render("❯")
-		chipStr := st.selChip.Render(keyLabel)
-		if t.Key == "" {
-			chipStr = st.selSp.Render(keyLabel)
+		// Compact columns: caret then command name; the hotkey keycap sits in
+		// the right lane.
+		caretCol := st.selText.Bold(true).Width(2).Render("❯")
+		chip := ""
+		if t.Key != "" {
+			// Glyph rails keep the outlined keycap while every cell stays on
+			// the active row's accent background.
+			chip = st.selChip.Render("│" + keyLabel + "│")
 		}
 		name := st.selText.Bold(true).Width(nameW).Render(t.Name)
-		used := padX + 1 + 1 + 3 + 1 + nameW + 1 + lipgloss.Width(marker) + 1 + padX
+		used := (padX - 1) + 2 + nameW + 1 + lipgloss.Width(chip) + 1 + padX
 		desc := st.selText.Render(ansi.Truncate(t.Description, max(inner-used, 4), "…"))
-		line := st.selSp.Render(strings.Repeat(" ", padX)) + gutter + st.selSp.Render(" ") +
-			chipStr + st.selSp.Render(" ") + name + st.selSp.Render(" ") + desc
-		pad := inner - lipgloss.Width(line) - lipgloss.Width(marker) - padX
-		line += st.selSp.Render(strings.Repeat(" ", max(pad, 1))) + st.selDim.Render(marker) +
+		line := st.selSp.Render(strings.Repeat(" ", padX-1)) + caretCol +
+			name + st.selSp.Render(" ") + desc
+		pad := inner - lipgloss.Width(line) - lipgloss.Width(chip) - padX
+		line += st.selSp.Render(strings.Repeat(" ", max(pad, 1))) + chip +
 			st.selSp.Render(strings.Repeat(" ", padX))
 		return m.paint(line, st.selSp, inner)
 	}
 
-	chipStr := st.keyChip.Render(keyLabel)
-	if t.Key == "" {
-		chipStr = st.sp.Render(keyLabel)
+	caretCol := st.sp.Width(2).Render("")
+	chip := ""
+	if t.Key != "" {
+		chip = st.keyChip.Render(keyLabel)
 	}
-	used := padX + 1 + 1 + 3 + 1 + nameW + 1 + lipgloss.Width(marker) + 1 + padX
+	used := (padX - 1) + 2 + nameW + 1 + lipgloss.Width(chip) + 1 + padX
 	desc := st.sMuted.Render(ansi.Truncate(t.Description, max(inner-used, 4), "…"))
-	line := st.sp.Render(strings.Repeat(" ", padX)) + st.sDim.Render(" ") + st.sp.Render(" ") +
-		chipStr + st.sp.Render(" ") + st.sFg.Bold(true).Width(nameW).Render(t.Name) +
-		st.sp.Render(" ") + desc
-	pad := inner - lipgloss.Width(line) - lipgloss.Width(marker) - padX
-	line += st.sp.Render(strings.Repeat(" ", max(pad, 1))) + st.sDim.Render(marker) +
+	line := st.sp.Render(strings.Repeat(" ", padX-1)) + caretCol +
+		st.sFg.Bold(true).Width(nameW).Render(t.Name) + st.sp.Render(" ") + desc
+	pad := inner - lipgloss.Width(line) - lipgloss.Width(chip) - padX
+	line += st.sp.Render(strings.Repeat(" ", max(pad, 1))) + chip +
 		st.sp.Render(strings.Repeat(" ", padX))
 	return m.paint(line, st.sp, inner)
 }
 
-// renderDetails draws the expanded panel on the darker `bg` inset, like the
-// mock's bg-background/60 details block.
+// renderDetails draws the expanded panel on the darker bg inset, framed with
+// the same side rails as the picker so the disclosure stays aligned.
 func (m model) renderDetails(t Task, inner int) []string {
 	st := m.st
 	insetSp := lipgloss.NewStyle().Background(st.bgColor)
-	indent := insetSp.Render(strings.Repeat(" ", padX+6))
+	// Align disclosure content with the caret column of the item rows.
+	detailIndent := padX - 1
+	indent := insetSp.Render(strings.Repeat(" ", detailIndent))
 
 	paintInset := func(content string) string {
-		return m.paint(content, insetSp, inner)
+		panel := insetSp.Width(inner).MaxWidth(inner).Render(content)
+		return st.frame.Render("│") + panel + st.frame.Render("│")
 	}
 
 	var out []string
 	out = append(out, paintInset(""))
 	if t.Details != "" {
-		wrapW := inner - (padX + 6) - padX
+		wrapW := inner - detailIndent - padX
 		for _, l := range strings.Split(ansi.Wordwrap(t.Details, wrapW, ""), "\n") {
 			out = append(out, paintInset(indent+st.inset(st.pal.Muted).Render(l)))
 		}

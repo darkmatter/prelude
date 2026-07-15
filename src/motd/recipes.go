@@ -34,8 +34,9 @@ func (r renderer) codeblock(recipe Recipe) []string {
 	bot := r.fadeRule("", true, surface, frame, width)
 
 	out := []string{top}
+	indent := r.st.fill(surface).Render("  ")
 	for _, step := range recipe.Steps {
-		out = append(out, r.fillLine("  "+r.stepLine(step, surface), width, surface))
+		out = append(out, r.fillLine(indent+r.stepLine(step, surface), width, surface))
 	}
 	return append(out, bot)
 }
@@ -45,7 +46,7 @@ func (r renderer) stepLine(s RecipeStep, surface color.Color) string {
 		if s.Comment == "" {
 			return ""
 		}
-		return inline(r.st.on(surface, r.st.h.Color(string(r.st.pal.Dim)))).Render("# " + s.Comment)
+		return inline(r.st.on(surface, r.st.h.Color(string(r.st.pal.Muted)))).Render("# " + s.Comment)
 	}
 	return inline(r.st.on(surface, r.st.h.Color(string(r.st.pal.Fg))).Bold(true)).Render(s.Command)
 }

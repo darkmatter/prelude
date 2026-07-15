@@ -1,0 +1,11 @@
+{
+  "name": "acme-typescript-app",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  }
+}

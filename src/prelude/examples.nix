@@ -155,10 +155,13 @@ let
   # `nix run .#example-motd` — full acme-web welcome banner.
   motd = {
     project = "acme-web";
+    inherit groups;
     header = {
       tagline = "everything you need to build, test & ship";
-      statusLabel = "devshell";
-      statusText = "ready";
+      status.ready = {
+        label = "devshell";
+        status = "ready";
+      };
     };
     clearScreen = false;
     margin.top = 0;
@@ -177,21 +180,11 @@ let
         value = "16.3";
       }
     ];
-    commands = {
-      menu = {
-        order = 100;
-        command = "menu";
-        description = "browse all project commands";
-      };
-      dev = {
-        command = "just dev";
-        description = "start local development";
-      };
-      test = {
-        command = "just test";
-        description = "run the test suite";
-      };
-    };
+    commands = [
+      "menu"
+      "dev"
+      "test"
+    ];
     recipes = {
       clean-local-stack = {
         title = "spin up a clean local stack";
@@ -222,7 +215,7 @@ let
         alias = "d";
       }
     ];
-    git = true;
+
   };
 
   # `nix run .#example-menu` — the interactive command menu (`menu list`
@@ -242,7 +235,6 @@ let
       clearScreen = false;
       margin.top = 0;
       align = "left";
-      git = false;
       description = {
         text = "Explicit styling beats the theme — this line is italic with a custom color.";
         foreground = "#8be9fd";
@@ -255,14 +247,23 @@ let
       project = "surface";
       header = {
         tagline = "windowBackground = true paints the whole window";
-        statusLabel = "api · db";
-        statusText = "ready";
+        status = {
+          api = {
+            order = 100;
+            label = "api";
+            status = "ready";
+          };
+          db = {
+            order = 200;
+            label = "db";
+            status = "ready";
+          };
+        };
       };
       clearScreen = false;
       margin.top = 1;
       margin.bottom = 1;
       windowBackground = true;
-      git = false;
       description.text = "Every cell, gutter, and line remainder carries the background.";
     };
   };
@@ -274,18 +275,20 @@ let
     project = theme;
     header = {
       tagline = "theme ${theme}";
-      statusText = "ok";
+      status.ready = {
+        status = "ok";
+      };
     };
     clearScreen = false;
     margin.y = 2;
     maxWidth = 60;
     windowBackground = true;
-    git = false;
     description.text = "The quick brown fox jumps over the lazy dog.";
-    commands.build = {
-      command = "just build";
+    groups.general.tasks.build = {
+      run = "just build";
       description = "accent on commands";
     };
+    commands = [ "build" ];
   };
 in
 {
