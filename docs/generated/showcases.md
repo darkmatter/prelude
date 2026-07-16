@@ -17,139 +17,128 @@ A still image is available for renderers that do not animate GIFs:
 
 ```nix
 prelude = {
-  groups = {
-    database = {
-      order = 300;
-      tasks = {
-        "db:migrate" = {
-          description = "apply pending schema migrations";
-          key = "m";
-          order = 200;
-          run = "drizzle-kit migrate";
-        };
-        "db:up" = {
-          description = "start postgres & redis in the background";
-          order = 100;
-          run = "docker compose up -d db redis";
-        };
-      };
-    };
-    develop = {
-      order = 200;
-      tasks = {
-        build = {
-          description = "compile an optimized production bundle";
-          key = "b";
-          order = 200;
-          run = "pnpm build";
-        };
-        dev = {
-          args = [
-            {
-              description = "Port to bind the dev server";
-              options = [
-                "3000"
-                "8080"
-              ];
-              token = "--port";
-            }
-            {
-              description = "Interface to expose";
-              options = [
-                "127.0.0.1"
-                "0.0.0.0"
-              ];
-              token = "--host";
-            }
-          ];
-          description = "start the dev server with hot reload";
-          details = "Boots a development server that watches the source tree and hot-reloads modules as files change. Binds to 127.0.0.1:3000 by default; override with --port and --host.";
-          examples = [
-            "menu dev --port 8080"
-            "menu dev --host 0.0.0.0"
-          ];
-          key = "d";
-          order = 100;
-          run = "pnpm dev";
-          usage = "menu dev --port 3000";
-        };
-        test = {
-          description = "run the unit test suite";
-          key = "t";
-          order = 300;
-          run = "pnpm test";
-        };
-      };
-    };
-    general = {
-      order = 100;
-      tasks = {
-        clean = {
-          description = "remove build artifacts & caches";
-          order = 200;
-          run = "rm -rf .next .turbo node_modules/.cache";
-        };
-        menu = {
-          description = "open the interactive command menu";
-          order = 100;
-        };
-      };
-    };
-    ops = {
+  commands = {
+    build = {
+      description = "compile an optimized production bundle";
+      exec = "pnpm build";
+      group = "develop";
+      key = "b";
       order = 400;
-      tasks = {
-        deploy = {
-          args = [
-            {
-              description = "Publish to a named preview URL";
-              options = [
-                "staging"
-                "preview"
-              ];
-              token = "--alias";
-            }
-            {
-              boolean = true;
-              description = "Print the manifest without shipping";
-              token = "--dry-run";
-            }
+    };
+    clean = {
+      description = "remove build artifacts & caches";
+      exec = "rm -rf .next .turbo node_modules/.cache";
+      group = "general";
+      order = 200;
+    };
+    "db:migrate" = {
+      description = "apply pending schema migrations";
+      exec = "drizzle-kit migrate";
+      group = "database";
+      key = "m";
+      order = 700;
+    };
+    "db:up" = {
+      description = "start postgres & redis in the background";
+      exec = "docker compose up -d db redis";
+      group = "database";
+      order = 600;
+    };
+    deploy = {
+      args = [
+        {
+          description = "Publish to a named preview URL";
+          options = [
+            "staging"
+            "preview"
           ];
-          description = "ship the current build to production";
-          details = "Uploads the most recent production build and promotes it to the live environment. Deploys are atomic: traffic switches only after the new release passes its health checks.";
-          examples = [
-            "menu deploy --dry-run"
-            "menu deploy --alias staging"
+          token = "--alias";
+        }
+        {
+          boolean = true;
+          description = "Print the manifest without shipping";
+          token = "--dry-run";
+        }
+      ];
+      description = "ship the current build to production";
+      details = "Uploads the most recent production build and promotes it to the live environment. Deploys are atomic: traffic switches only after the new release passes its health checks.";
+      examples = [
+        "menu deploy --dry-run"
+        "menu deploy --alias staging"
+      ];
+      exec = "vercel deploy";
+      group = "ops";
+      order = 800;
+      usage = "menu deploy --alias staging";
+    };
+    dev = {
+      args = [
+        {
+          description = "Port to bind the dev server";
+          options = [
+            "3000"
+            "8080"
           ];
-          order = 100;
-          run = "vercel deploy";
-          usage = "menu deploy --alias staging";
-        };
-        push = {
-          args = [
-            {
-              description = "Remote to push to";
-              options = [
-                "origin"
-                "upstream"
-              ];
-              required = true;
-              token = "<remote>";
-            }
-            {
-              description = "Branch to publish";
-              options = [
-                "main"
-                "dev"
-              ];
-              token = "<branch>";
-            }
+          token = "--port";
+        }
+        {
+          description = "Interface to expose";
+          options = [
+            "127.0.0.1"
+            "0.0.0.0"
           ];
-          description = "publish the current branch to the remote";
-          key = "p";
-          order = 200;
-          run = "git push";
-        };
-      };
+          token = "--host";
+        }
+      ];
+      description = "start the dev server with hot reload";
+      details = "Boots a development server that watches the source tree and hot-reloads modules as files change. Binds to 127.0.0.1:3000 by default; override with --port and --host.";
+      examples = [
+        "menu dev --port 8080"
+        "menu dev --host 0.0.0.0"
+      ];
+      exec = "pnpm dev";
+      group = "develop";
+      key = "d";
+      order = 300;
+      usage = "menu dev --port 3000";
+    };
+    menu = {
+      description = "open the interactive command menu";
+      group = "general";
+      order = 100;
+    };
+    push = {
+      args = [
+        {
+          description = "Remote to push to";
+          options = [
+            "origin"
+            "upstream"
+          ];
+          required = true;
+          token = "<remote>";
+        }
+        {
+          description = "Branch to publish";
+          options = [
+            "main"
+            "dev"
+          ];
+          token = "<branch>";
+        }
+      ];
+      description = "publish the current branch to the remote";
+      exec = "git push";
+      group = "ops";
+      key = "p";
+      order = 900;
+    };
+    test = {
+      description = "run the unit test suite";
+      exec = "pnpm test";
+      group = "develop";
+      key = "t";
+      order = 500;
     };
   };
   motd = {
@@ -183,7 +172,9 @@ prelude = {
           status = "ready";
         };
       };
-      tagline = "everything you need to build, test & ship";
+      tagline = {
+        text = "everything you need to build, test & ship";
+      };
     };
     margin = {
       top = 0;
@@ -260,7 +251,9 @@ prelude = {
       text = "Explicit styling beats the theme — this line is italic with a custom color.";
     };
     header = {
-      tagline = "just a header and a description";
+      tagline = {
+        text = "just a header and a description";
+      };
     };
     margin = {
       top = 0;
@@ -272,9 +265,10 @@ prelude = {
 
 ### Full-window background
 
-`prelude.motd.windowBackground = true` paints terminal gutters and line
-remainders with the theme background. Static keyed statuses appear in the
-header without running environment probes.
+With `prelude.motd.clearScreen = true`, `windowBackground = true` paints
+the entire cleared terminal with the theme background. Without clearing,
+it fills the gutters and line remainders of emitted rows. Static keyed
+statuses appear in the header without running environment probes.
 
 ![MOTD with a full-window background](../media/surface.png)
 
@@ -298,7 +292,9 @@ prelude = {
           status = "ready";
         };
       };
-      tagline = "windowBackground = true paints the whole window";
+      tagline = {
+        text = "windowBackground = true paints the whole window";
+      };
     };
     margin = {
       bottom = 1;
@@ -312,7 +308,7 @@ prelude = {
 
 ## Interactive command menu
 
-The menu demonstrates live filtering, task details, argument suggestion
+The menu demonstrates live filtering, command details, argument suggestion
 chips, required-value validation, and a command preview. The recording
 selects `dev`, opens its details, accepts the `--port 3000` chip, and types
 `--host 0.0.0.0`.
@@ -327,139 +323,128 @@ A still of the final argument-entry state is available at
 
 ```nix
 prelude = {
-  groups = {
-    database = {
-      order = 300;
-      tasks = {
-        "db:migrate" = {
-          description = "apply pending schema migrations";
-          key = "m";
-          order = 200;
-          run = "drizzle-kit migrate";
-        };
-        "db:up" = {
-          description = "start postgres & redis in the background";
-          order = 100;
-          run = "docker compose up -d db redis";
-        };
-      };
-    };
-    develop = {
-      order = 200;
-      tasks = {
-        build = {
-          description = "compile an optimized production bundle";
-          key = "b";
-          order = 200;
-          run = "pnpm build";
-        };
-        dev = {
-          args = [
-            {
-              description = "Port to bind the dev server";
-              options = [
-                "3000"
-                "8080"
-              ];
-              token = "--port";
-            }
-            {
-              description = "Interface to expose";
-              options = [
-                "127.0.0.1"
-                "0.0.0.0"
-              ];
-              token = "--host";
-            }
-          ];
-          description = "start the dev server with hot reload";
-          details = "Boots a development server that watches the source tree and hot-reloads modules as files change. Binds to 127.0.0.1:3000 by default; override with --port and --host.";
-          examples = [
-            "menu dev --port 8080"
-            "menu dev --host 0.0.0.0"
-          ];
-          key = "d";
-          order = 100;
-          run = "pnpm dev";
-          usage = "menu dev --port 3000";
-        };
-        test = {
-          description = "run the unit test suite";
-          key = "t";
-          order = 300;
-          run = "pnpm test";
-        };
-      };
-    };
-    general = {
-      order = 100;
-      tasks = {
-        clean = {
-          description = "remove build artifacts & caches";
-          order = 200;
-          run = "rm -rf .next .turbo node_modules/.cache";
-        };
-        menu = {
-          description = "open the interactive command menu";
-          order = 100;
-        };
-      };
-    };
-    ops = {
+  commands = {
+    build = {
+      description = "compile an optimized production bundle";
+      exec = "pnpm build";
+      group = "develop";
+      key = "b";
       order = 400;
-      tasks = {
-        deploy = {
-          args = [
-            {
-              description = "Publish to a named preview URL";
-              options = [
-                "staging"
-                "preview"
-              ];
-              token = "--alias";
-            }
-            {
-              boolean = true;
-              description = "Print the manifest without shipping";
-              token = "--dry-run";
-            }
+    };
+    clean = {
+      description = "remove build artifacts & caches";
+      exec = "rm -rf .next .turbo node_modules/.cache";
+      group = "general";
+      order = 200;
+    };
+    "db:migrate" = {
+      description = "apply pending schema migrations";
+      exec = "drizzle-kit migrate";
+      group = "database";
+      key = "m";
+      order = 700;
+    };
+    "db:up" = {
+      description = "start postgres & redis in the background";
+      exec = "docker compose up -d db redis";
+      group = "database";
+      order = 600;
+    };
+    deploy = {
+      args = [
+        {
+          description = "Publish to a named preview URL";
+          options = [
+            "staging"
+            "preview"
           ];
-          description = "ship the current build to production";
-          details = "Uploads the most recent production build and promotes it to the live environment. Deploys are atomic: traffic switches only after the new release passes its health checks.";
-          examples = [
-            "menu deploy --dry-run"
-            "menu deploy --alias staging"
+          token = "--alias";
+        }
+        {
+          boolean = true;
+          description = "Print the manifest without shipping";
+          token = "--dry-run";
+        }
+      ];
+      description = "ship the current build to production";
+      details = "Uploads the most recent production build and promotes it to the live environment. Deploys are atomic: traffic switches only after the new release passes its health checks.";
+      examples = [
+        "menu deploy --dry-run"
+        "menu deploy --alias staging"
+      ];
+      exec = "vercel deploy";
+      group = "ops";
+      order = 800;
+      usage = "menu deploy --alias staging";
+    };
+    dev = {
+      args = [
+        {
+          description = "Port to bind the dev server";
+          options = [
+            "3000"
+            "8080"
           ];
-          order = 100;
-          run = "vercel deploy";
-          usage = "menu deploy --alias staging";
-        };
-        push = {
-          args = [
-            {
-              description = "Remote to push to";
-              options = [
-                "origin"
-                "upstream"
-              ];
-              required = true;
-              token = "<remote>";
-            }
-            {
-              description = "Branch to publish";
-              options = [
-                "main"
-                "dev"
-              ];
-              token = "<branch>";
-            }
+          token = "--port";
+        }
+        {
+          description = "Interface to expose";
+          options = [
+            "127.0.0.1"
+            "0.0.0.0"
           ];
-          description = "publish the current branch to the remote";
-          key = "p";
-          order = 200;
-          run = "git push";
-        };
-      };
+          token = "--host";
+        }
+      ];
+      description = "start the dev server with hot reload";
+      details = "Boots a development server that watches the source tree and hot-reloads modules as files change. Binds to 127.0.0.1:3000 by default; override with --port and --host.";
+      examples = [
+        "menu dev --port 8080"
+        "menu dev --host 0.0.0.0"
+      ];
+      exec = "pnpm dev";
+      group = "develop";
+      key = "d";
+      order = 300;
+      usage = "menu dev --port 3000";
+    };
+    menu = {
+      description = "open the interactive command menu";
+      group = "general";
+      order = 100;
+    };
+    push = {
+      args = [
+        {
+          description = "Remote to push to";
+          options = [
+            "origin"
+            "upstream"
+          ];
+          required = true;
+          token = "<remote>";
+        }
+        {
+          description = "Branch to publish";
+          options = [
+            "main"
+            "dev"
+          ];
+          token = "<branch>";
+        }
+      ];
+      description = "publish the current branch to the remote";
+      exec = "git push";
+      group = "ops";
+      key = "p";
+      order = 900;
+    };
+    test = {
+      description = "run the unit test suite";
+      exec = "pnpm test";
+      group = "develop";
+      key = "t";
+      order = 500;
     };
   };
   project = "acme-web";

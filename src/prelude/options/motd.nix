@@ -9,10 +9,35 @@ in
     enable = lib.mkEnableOption "devshell MOTD banner";
 
     title = lib.mkOption {
-      type = lib.types.nullOr lib.types.path;
-      default = defaults.motd.title;
-      description = "Checked-in multiline title file. Generate it from title.nix with the prelude-title utility; null uses the project-name header.";
-      example = lib.literalExpression "./title.txt";
+      default = { };
+      description = "MOTD title content and fallback wordmark presentation.";
+      type = lib.types.submodule {
+        options = {
+          text = lib.mkOption {
+            type = lib.types.nullOr lib.types.path;
+            default = defaults.motd.title.text;
+            description = "Checked-in multiline title file; null uses the project-name wordmark.";
+            example = lib.literalExpression "./title.txt";
+          };
+          align = lib.mkOption {
+            type = t.alignType;
+            default = defaults.motd.title.align;
+            description = "Horizontal alignment of custom title lines within the MOTD card.";
+          };
+          style = lib.mkOption {
+            type = lib.types.enum [
+              "plain"
+              "spine"
+              "bracketed"
+              "label"
+              "inline"
+              "inverted"
+            ];
+            default = defaults.motd.title.style;
+            description = "Project-name wordmark treatment used when title.text is null.";
+          };
+        };
+      };
     };
 
     background = lib.mkOption {
@@ -33,7 +58,8 @@ in
       type = t.terminalBgType;
       default = defaults.motd.windowBackground;
       description = ''
-        Window background: paints the full terminal width (margins, gutters,
+        Window background: with `clearScreen`, paints the entire cleared terminal;
+        otherwise paints the full width of emitted rows (margins, gutters, and
         line remainders). true uses theme `bg`, a color, `{ relative = ±n; }`,
         or `{ blend = n; }` from the terminal toward theme `bg` (0..1).
       '';
@@ -63,46 +89,42 @@ in
 
     header = lib.mkOption {
       default = { };
-      description = "Filled hero bar: wordmark variant, status, and tagline beneath.";
+      description = "Filled hero bar: status chips plus tagline and subtitle activation copy beneath the title.";
       type = lib.types.submodule {
         options = {
-          titleStyle = lib.mkOption {
-            type = lib.types.enum [
-              "plain"
-              "spine"
-              "bracketed"
-              "label"
-              "inline"
-              "inverted"
-            ];
-            default = defaults.motd.header.titleStyle;
-            description = "Wordmark treatment: plain / spine / bracketed / label / inline / inverted (accent chip).";
-          };
           tagline = lib.mkOption {
-            type = lib.types.str;
-            default = defaults.motd.header.tagline;
-            description = "Bold accent2 line under the header rule (e.g. \"Dev Shell Activated\").";
-          };
-          subtitle = lib.mkOption {
-            type = lib.types.str;
-            default = defaults.motd.header.subtitle;
-            description = "Faint muted line under the tagline (e.g. \"Your environment is ready\").";
-          };
-          taglineLayout = lib.mkOption {
-            type = lib.types.enum [
-              "stack"
-              "inline"
-            ];
-            default = defaults.motd.header.taglineLayout;
-            description = "How tagline + subtitle are arranged: stack (two lines) or inline (one row, joined by ·).";
-          };
-          taglineAlign = lib.mkOption {
-            type = lib.types.enum [
-              "left"
-              "center"
-            ];
-            default = defaults.motd.header.taglineAlign;
-            description = "Horizontal alignment of the tagline/subtitle block within the content band.";
+            default = { };
+            description = "Activation text rendered beneath the header rule.";
+            type = lib.types.submodule {
+              options = {
+                text = lib.mkOption {
+                  type = lib.types.str;
+                  default = defaults.motd.header.tagline.text;
+                  description = "Bold accent2 activation line (e.g. \"Dev Shell Activated\").";
+                };
+                subtitle = lib.mkOption {
+                  type = lib.types.str;
+                  default = defaults.motd.header.tagline.subtitle;
+                  description = "Faint muted supporting text (e.g. \"Your environment is ready\").";
+                };
+                layout = lib.mkOption {
+                  type = lib.types.enum [
+                    "stack"
+                    "inline"
+                  ];
+                  default = defaults.motd.header.tagline.layout;
+                  description = "How text + subtitle are arranged: stack (two lines) or inline (one row, joined by ·).";
+                };
+                align = lib.mkOption {
+                  type = lib.types.enum [
+                    "left"
+                    "center"
+                  ];
+                  default = defaults.motd.header.tagline.align;
+                  description = "Horizontal alignment of the tagline block within the content band.";
+                };
+              };
+            };
           };
           background = lib.mkOption {
             type = t.bgType;
@@ -113,25 +135,47 @@ in
             '';
             example = null;
           };
+          statusHint = lib.mkOption {
+            default = { };
+            description = "Layout for the timestamp and reload hint derived from asynchronous status checks.";
+            type = lib.types.submodule {
+              options.layout = lib.mkOption {
+                type = lib.types.enum [
+                  "below"
+                  "inline"
+                ];
+                default = defaults.motd.header.statusHint.layout;
+                description = "Render the hint below the lights, or inline with lights left-aligned and the hint right-aligned.";
+              };
+            };
+          };
           status = lib.mkOption {
             type = lib.types.attrsOf t.headerStatusType;
             default = defaults.motd.header.status;
             description = ''
-              Keyed status badges on the header, sorted by `order` then name.
+              Keyed status lights, sorted by `order` then name. Generated titles
+              place them in a right-aligned row under the divider; wordmark
+              layouts keep them in the header row.
 
               Static: `{ label?, status }` — always shows that text.
-              Live: `{ label?, check, ok?, fail?, failLevel? }` — runs `check`
-              (shell) with a spinner; exit 0 paints a green/accent dot with `ok`
-              (or stdout), non-zero paints an error dot with `fail`. Set
-              `failLevel = "warning"` for a non-fatal accent2 dot instead.
+              Live: `{ label?, check, async?, ok?, fail?, failLevel? }`. By
+              default, `async = true`: the cached result renders immediately,
+              `check` refreshes it in the background, and a dim timestamp notes
+              that reloading the shell will display the latest result. Set
+              `async = false` only when the check should intentionally block
+              rendering; synchronous checks show a spinner while running.
 
-              Empty attrs hide the status region. Tight rows drop labels.
+              Exit 0 paints a green/accent dot with `ok` (or stdout); non-zero
+              paints an error dot with `fail`. Set `failLevel = "warning"` for
+              a non-fatal accent2 dot instead. Empty attrs hide the status
+              region. Tight rows drop labels.
             '';
             example = {
               nix = {
                 order = 100;
                 label = "nix";
                 check = "nix --version >/dev/null";
+                async = false;
                 ok = "ready";
               };
               flake = {
@@ -173,7 +217,7 @@ in
     commands = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = defaults.motd.commands;
-      description = "Ordered menu task names rendered as runnable `$ command` rows with descriptions inherited from those tasks.";
+      description = "Ordered command names rendered as runnable `$ command` rows with descriptions inherited from the command catalogue.";
       example = [
         "dev"
         "check"

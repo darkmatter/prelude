@@ -21,7 +21,7 @@
 #       prelude = {
 #         theme = "phosphor";
 #         project = "acme-web";
-#         groups.develop.tasks.dev.run = "pnpm dev";
+#         commands.dev = { exec = "pnpm dev"; group = "develop"; };
 #         motd.enable = true;
 #         menu.enable = true;
 #       };
@@ -37,7 +37,7 @@
 #   dogfood.nix          this repo's own prelude.* config
 #   per-system.nix       packages/apps/devshell/checks composition root
 #   overlay.nix, lib.nix flake-level outputs
-# Component sources live in src/prelude (Nix generators) and src/menu-tui
+# Component sources live in src/prelude (Nix generators) and internal/menu
 # (Go TUI).
 # ==============================================================================
 {
@@ -63,6 +63,7 @@
         motdShellExperimentModule = flake-parts-lib.importApply ./src/experimental/motd-shell/module.nix {
           localFlake = self;
         };
+        preludeLib = import ./nix/lib.nix { lib = inputs.nixpkgs.lib; };
       in
       {
         systems = [
@@ -85,10 +86,10 @@
           flakeModules.motd-shell-experiment = motdShellExperimentModule;
 
           overlays.default = import ./nix/overlay.nix;
-          lib = import ./nix/lib.nix { lib = inputs.nixpkgs.lib; };
+          lib = preludeLib;
         };
 
-        perSystem = import ./nix/per-system.nix;
+        perSystem = preludeLib.wrapPerSystem (import ./nix/per-system.nix);
       }
     );
 }

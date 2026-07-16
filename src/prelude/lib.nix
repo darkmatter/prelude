@@ -38,7 +38,7 @@ let
     pal: role: text:
     text // { foreground = if text.foreground != null then text.foreground else pal.${role}; };
 
-  # --- task schema -------------------------------------------------------------
+  # --- command schema ----------------------------------------------------------
 
   normalizeArg = a: {
     token = a.token;
@@ -59,61 +59,58 @@ let
       if aOrder != bOrder then aOrder < bOrder else a.name < b.name
     ) (lib.mapAttrsToList lib.nameValuePair attrs);
 
-  normalizeTask =
-    name: task:
+  normalizeCommand =
+    name: command:
     assert lib.assertMsg (
       builtins.match "[^ \t]+" name != null
-    ) "prelude: task name \"${name}\" must not contain whitespace";
+    ) "prelude: command name \"${name}\" must not contain whitespace";
     {
       inherit name;
-      # Explicit null (e.g. from module option defaults) also falls back.
+      # The Go menu still calls this field `run` at its JSON boundary.
       run =
         let
-          r = task.run or null;
+          value = command.exec or null;
         in
-        if r == null then name else r;
-      description = task.description or "";
-      key = task.key or null;
-      usage = task.usage or null;
-      details = task.details or null;
-      examples = task.examples or [ ];
-      args = map normalizeArg (task.args or [ ]);
+        if value == null then name else value;
+      description = command.description or "";
+      key = command.key or null;
+      usage = command.usage or null;
+      details = command.details or null;
+      examples = command.examples or [ ];
+      args = map normalizeArg (command.args or [ ]);
     };
 
-  normalizeGroups =
-    groups:
+  normalizeCommandGroups =
+    commands:
     let
-      gs = map (
+      ordered = map (
         { name, value }:
-        let
-          title = value.title or null;
-        in
         {
-          title = if title == null then name else title;
-          tasks = map ({ name, value }: normalizeTask name value) (sortOrderedAttrs (value.tasks or { }));
+          group = value.group or "general";
+          command = normalizeCommand name value;
         }
-      ) (sortOrderedAttrs groups);
-      names = lib.concatMap (group: map (task: task.name) group.tasks) gs;
+      ) (sortOrderedAttrs commands);
+      groupNames = lib.unique (map (item: item.group) ordered);
     in
-    assert lib.assertMsg (
-      lib.unique names == names
-    ) "prelude: task names must be unique across all groups";
-    gs;
+    map (group: {
+      title = group;
+      tasks = map (item: item.command) (lib.filter (item: item.group == group) ordered);
+    }) groupNames;
 
-  flatTasks = groups: lib.concatMap (g: g.tasks) groups;
+  flatCommands = groups: lib.concatMap (group: group.tasks) groups;
 
-  normalizeCommands =
-    commandNames: tasks:
+  selectCommands =
+    commandNames: commands:
     let
-      tasksByName = lib.listToAttrs (map (task: lib.nameValuePair task.name task) tasks);
-      missing = lib.filter (name: !(tasksByName ? ${name})) commandNames;
+      commandsByName = lib.listToAttrs (map (command: lib.nameValuePair command.name command) commands);
+      missing = lib.filter (name: !(commandsByName ? ${name})) commandNames;
     in
     assert lib.assertMsg (
       missing == [ ]
-    ) "prelude: motd.commands references unknown menu tasks: ${lib.concatStringsSep ", " missing}";
+    ) "prelude: motd.commands references unknown commands: ${lib.concatStringsSep ", " missing}";
     map (name: {
       command = name;
-      description = tasksByName.${name}.description;
+      description = commandsByName.${name}.description;
     }) commandNames;
 
   # Header status badges: order then key. Keep static text and/or live checks.
@@ -126,6 +123,7 @@ let
           label = value.label or "";
           status = value.status or "";
           check = value.check or "";
+          async = value.async or true;
           ok = value.ok or "ok";
           fail = value.fail or "fail";
           failLevel = value.failLevel or "error";
@@ -191,10 +189,10 @@ in
     withRole
     sortOrderedAttrs
     normalizeArg
-    normalizeTask
-    normalizeGroups
-    flatTasks
-    normalizeCommands
+    normalizeCommand
+    normalizeCommandGroups
+    flatCommands
+    selectCommands
     normalizeHeaderStatus
     normalizeRecipes
     ;

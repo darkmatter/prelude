@@ -23,7 +23,7 @@ in
     execute = lib.mkOption {
       type = lib.types.bool;
       default = defaults.menu.execute;
-      description = "Execute the selected task (exec bash -c). When false, print the command instead.";
+      description = "Execute the selected command (exec bash -c). When false, print it instead.";
     };
 
     width = lib.mkOption {

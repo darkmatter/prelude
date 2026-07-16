@@ -21,8 +21,8 @@ pkgs.writeShellApplication {
       checks=("$@")
     fi
     for chk in "''${checks[@]}"; do
-      printf '\n\033[1m── %s\033[0m  (nix build .#checks.${pkgs.system}.%s)\n\n' "$chk" "$chk"
-      out=$(nix build --no-link --print-out-paths ".#checks.${pkgs.system}.$chk")
+      printf '\n\033[1m── %s\033[0m  (nix build .#checks.${pkgs.stdenv.hostPlatform.system}.%s)\n\n' "$chk" "$chk"
+      out=$(nix build --no-link --print-out-paths ".#checks.${pkgs.stdenv.hostPlatform.system}.$chk")
       cat "$out"
       echo ""
     done

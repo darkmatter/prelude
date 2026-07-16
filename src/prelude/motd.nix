@@ -1,6 +1,6 @@
 # MOTD package builder. Nix resolves and validates configuration, then embeds a
 # normalized JSON file into the Go renderer at link time. Runtime terminal
-# layout, probes, Git state, and styling live in src/motd — never in generated
+# layout, probes, Git state, and styling live in internal/motd — never in generated
 # shell source.
 {
   lib,
@@ -9,10 +9,10 @@
   ...
 }:
 
-# Component config: { theme?, palette?, project?, groups?, header?, description?,
-#                     env?, commands?, recipes?, gettingStarted?, shortcuts?,
-#                     background?, clearScreen?, margin?, padding?, align?, width?,
-#                     maxWidth? }
+# Component config: { theme?, palette?, project?, commandCatalog?, title?,
+#                     header?, description?, env?, commands?, recipes?, gettingStarted?,
+#                     shortcuts?, background?, clearScreen?, margin?, padding?,
+#                     align?, width?, maxWidth? }
 config:
 
 let
@@ -23,8 +23,12 @@ let
   colorProfile = config.colorProfile or d.colorProfile;
   project = config.project or d.project;
   m = d.motd // config;
-  title = if m.title == null then "" else builtins.readFile m.title;
+  titleIn = d.motd.title // (m.title or { });
+  title = if titleIn.text == null then "" else builtins.readFile titleIn.text;
+  titleAlign = titleIn.align;
   headerIn = d.motd.header // (m.header or { });
+  taglineIn = d.motd.header.tagline // (headerIn.tagline or { });
+  statusHintIn = d.motd.header.statusHint // (headerIn.statusHint or { });
   # Header bg: true → raised auto bar; null/false → transparent; color/relative → solid.
   splitHeaderBg =
     value:
@@ -54,18 +58,22 @@ let
       };
   headerBg = splitHeaderBg (headerIn.background or true);
   header = {
-    inherit (headerIn) titleStyle tagline;
-    subtitle = headerIn.subtitle or "";
-    taglineLayout = headerIn.taglineLayout or "stack";
-    taglineAlign = headerIn.taglineAlign or "left";
+    titleStyle = titleIn.style;
+    tagline = taglineIn.text;
+    subtitle = taglineIn.subtitle;
+    taglineLayout = taglineIn.layout;
+    taglineAlign = taglineIn.align;
+    statusHintLayout = statusHintIn.layout;
     status = plib.normalizeHeaderStatus (headerIn.status or { });
     background = headerBg.color;
     backgroundRelative = headerBg.relative;
     backgroundRaised = headerBg.raised;
   };
   gettingStarted = d.motd.gettingStarted // (m.gettingStarted or { });
-  tasks = plib.flatTasks (plib.normalizeGroups (config.groups or d.groups));
-  commands = plib.normalizeCommands (m.commands or [ ]) tasks;
+  commandCatalog = plib.flatCommands (
+    plib.normalizeCommandGroups (config.commandCatalog or d.commands)
+  );
+  commands = plib.selectCommands (m.commands or [ ]) commandCatalog;
   recipes = plib.normalizeRecipes (m.recipes or { });
 
   # Split a bg option into concrete color (or null), relative shade, or blend.
@@ -173,6 +181,7 @@ let
       inherit
         project
         title
+        titleAlign
         colorProfile
         margin
         env
@@ -196,6 +205,7 @@ let
           subtitle
           taglineLayout
           taglineAlign
+          statusHintLayout
           status
           backgroundRelative
           backgroundRaised
@@ -239,12 +249,17 @@ assert lib.assertOneOf "motd align" m.align [
   "center"
   "right"
 ];
+assert lib.assertOneOf "motd title.align" titleAlign [
+  "left"
+  "center"
+  "right"
+];
 assert lib.assertOneOf "motd colorProfile" colorProfile [
   "auto"
   "truecolor"
   "ansi256"
 ];
-assert lib.assertOneOf "motd header.titleStyle" header.titleStyle [
+assert lib.assertOneOf "motd title.style" header.titleStyle [
   "plain"
   "spine"
   "bracketed"
@@ -252,13 +267,17 @@ assert lib.assertOneOf "motd header.titleStyle" header.titleStyle [
   "inline"
   "inverted"
 ];
-assert lib.assertOneOf "motd header.taglineLayout" header.taglineLayout [
+assert lib.assertOneOf "motd header.tagline.layout" header.taglineLayout [
   "stack"
   "inline"
 ];
-assert lib.assertOneOf "motd header.taglineAlign" header.taglineAlign [
+assert lib.assertOneOf "motd header.tagline.align" header.taglineAlign [
   "left"
   "center"
+];
+assert lib.assertOneOf "motd header.statusHint.layout" header.statusHintLayout [
+  "below"
+  "inline"
 ];
 assert lib.assertMsg (
   m.width == "full" || builtins.isInt m.width
@@ -270,10 +289,10 @@ buildGoModule {
   pname = "motd";
   version = "0.1.0";
   src = ../.;
-  subPackages = [ "motd" ];
+  subPackages = [ "cmd/motd" ];
   # Banner layout is still in flux — don't block package builds on render tests.
   doCheck = false;
-  vendorHash = "sha256-a4FKIcqmKJ0TxRogtXe1T7iNf7mgX27GDtbnwf4FvxU=";
+  vendorHash = "sha256-hKvYlJqQUQ3NrBRgWPZyvYhsCvceW1HbDRlzltKyCxQ=";
   ldflags = [
     "-s"
     "-w"

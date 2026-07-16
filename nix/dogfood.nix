@@ -7,6 +7,7 @@
     ./dogfood/motd.nix
     ./dogfood/menu.nix
     ./dogfood/docs.nix
+    ./dogfood/prompt.nix
   ];
 
   prelude = {

@@ -25,42 +25,11 @@ one of “auto”, “truecolor”, “ansi256”
 
 
 
-## prelude\.docs\.enable
+## prelude\.commands
 
 
 
-Whether to enable project docs manual (man-style TUI)\.
-
-
-
-*Type:*
-boolean
-
-
-
-*Default:*
-
-```nix
-false
-```
-
-
-
-*Example:*
-
-```nix
-true
-```
-
-
-
-## prelude\.docs\.sections
-
-
-
-Hand-authored manual sections, keyed by identity\. Each section becomes a
-CONTENTS sidebar entry; digits 1–9 jump to them\. Write the body yourself
-with ` blocks ` — the viewer does not invent content from menu groups\.
+Runnable commands keyed by invocation name for the interactive menu and MOTD\.
 
 
 
@@ -81,279 +50,19 @@ attribute set of (submodule)
 
 ```nix
 {
-  name = {
-    blocks = [
-      {
-        term = "acme";
-        text = "a tiny project runner";
-        type = "lead";
-      }
-    ];
+  dev = {
+    description = "start the dev server";
+    exec = "pnpm dev";
+    group = "develop";
+    key = "d";
     order = 100;
-  };
-  synopsis = {
-    blocks = [
-      {
-        command = "menu";
-        type = "shell";
-      }
-    ];
-    order = 200;
   };
 }
 ```
 
 
 
-## prelude\.docs\.sections\.\<name>\.blocks
-
-
-
-Hand-authored body blocks for this section\. Nothing is auto-generated\.
-
-
-
-*Type:*
-list of (submodule)
-
-
-
-*Default:*
-
-```nix
-[ ]
-```
-
-
-
-## prelude\.docs\.sections\.\<name>\.blocks\.\*\.command
-
-
-
-Shell command for shell/example blocks\.
-
-
-
-*Type:*
-string
-
-
-
-*Default:*
-
-```nix
-""
-```
-
-
-
-## prelude\.docs\.sections\.\<name>\.blocks\.\*\.note
-
-
-
-Dim note under a shell/example line\.
-
-
-
-*Type:*
-string
-
-
-
-*Default:*
-
-```nix
-""
-```
-
-
-
-## prelude\.docs\.sections\.\<name>\.blocks\.\*\.term
-
-
-
-Highlighted term (lead / option / command)\.
-
-
-
-*Type:*
-string
-
-
-
-*Default:*
-
-```nix
-""
-```
-
-
-
-## prelude\.docs\.sections\.\<name>\.blocks\.\*\.text
-
-
-
-Body text (lead summary, paragraph, option/command description)\.
-
-
-
-*Type:*
-string
-
-
-
-*Default:*
-
-```nix
-""
-```
-
-
-
-## prelude\.docs\.sections\.\<name>\.blocks\.\*\.type
-
-
-
-Block kind:
-
- - lead: ` term — text ` (name line)
- - para: wrapped body paragraph
- - option / command: bold term + indented description
- - shell / example: ` $ command ` with optional note
- - blank: empty row
-
-
-
-*Type:*
-one of “lead”, “para”, “paragraph”, “option”, “command”, “shell”, “example”, “blank”
-
-
-
-## prelude\.docs\.sections\.\<name>\.order
-
-
-
-Sidebar order; section key breaks ties\.
-
-
-
-*Type:*
-signed integer
-
-
-
-*Default:*
-
-```nix
-1000
-```
-
-
-
-## prelude\.docs\.sections\.\<name>\.title
-
-
-
-Sidebar label; defaults to the section attribute name\.
-
-
-
-*Type:*
-null or string
-
-
-
-*Default:*
-
-```nix
-null
-```
-
-
-
-## prelude\.groups
-
-
-
-Runnable task groups keyed by name for the interactive menu\.
-
-
-
-*Type:*
-attribute set of (submodule)
-
-
-
-*Default:*
-
-```nix
-{ }
-```
-
-
-
-*Example:*
-
-```nix
-{
-  develop = {
-    order = 100;
-    tasks = {
-      dev = {
-        description = "start the dev server";
-        key = "d";
-        run = "pnpm dev";
-      };
-    };
-  };
-}
-```
-
-
-
-## prelude\.groups\.\<name>\.order
-
-
-
-Display order; group name breaks ties\.
-
-
-
-*Type:*
-signed integer
-
-
-
-*Default:*
-
-```nix
-1000
-```
-
-
-
-## prelude\.groups\.\<name>\.tasks
-
-
-
-Tasks keyed by invocation name\.
-
-
-
-*Type:*
-attribute set of (submodule)
-
-
-
-*Default:*
-
-```nix
-{ }
-```
-
-
-
-## prelude\.groups\.\<name>\.tasks\.\<name>\.args
+## prelude\.commands\.\<name>\.args
 
 
 
@@ -374,7 +83,7 @@ list of (submodule)
 
 
 
-## prelude\.groups\.\<name>\.tasks\.\<name>\.args\.\*\.boolean
+## prelude\.commands\.\<name>\.args\.\*\.boolean
 
 
 
@@ -395,7 +104,7 @@ false
 
 
 
-## prelude\.groups\.\<name>\.tasks\.\<name>\.args\.\*\.description
+## prelude\.commands\.\<name>\.args\.\*\.description
 
 
 
@@ -416,7 +125,7 @@ string
 
 
 
-## prelude\.groups\.\<name>\.tasks\.\<name>\.args\.\*\.options
+## prelude\.commands\.\<name>\.args\.\*\.options
 
 
 
@@ -437,7 +146,7 @@ list of string
 
 
 
-## prelude\.groups\.\<name>\.tasks\.\<name>\.args\.\*\.required
+## prelude\.commands\.\<name>\.args\.\*\.required
 
 
 
@@ -458,7 +167,7 @@ false
 
 
 
-## prelude\.groups\.\<name>\.tasks\.\<name>\.args\.\*\.token
+## prelude\.commands\.\<name>\.args\.\*\.token
 
 
 
@@ -471,7 +180,7 @@ string
 
 
 
-## prelude\.groups\.\<name>\.tasks\.\<name>\.description
+## prelude\.commands\.\<name>\.description
 
 
 
@@ -492,7 +201,7 @@ string
 
 
 
-## prelude\.groups\.\<name>\.tasks\.\<name>\.details
+## prelude\.commands\.\<name>\.details
 
 
 
@@ -513,7 +222,7 @@ null
 
 
 
-## prelude\.groups\.\<name>\.tasks\.\<name>\.examples
+## prelude\.commands\.\<name>\.examples
 
 
 
@@ -534,7 +243,52 @@ list of string
 
 
 
-## prelude\.groups\.\<name>\.tasks\.\<name>\.key
+## prelude\.commands\.\<name>\.exec
+
+
+
+Shell command to execute; defaults to the command name\. Unless ` exec `
+starts with the command’s own name (meaning it already exists on
+PATH), the module bundles a wrapper executable named after the
+command into ` packages.menu ` (delegating to ` menu <name> … `)\.
+
+
+
+*Type:*
+null or string
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+
+
+## prelude\.commands\.\<name>\.group
+
+
+
+Menu group heading\. Groups follow the order of their first command\.
+
+
+
+*Type:*
+string
+
+
+
+*Default:*
+
+```nix
+"general"
+```
+
+
+
+## prelude\.commands\.\<name>\.key
 
 
 
@@ -555,11 +309,11 @@ null
 
 
 
-## prelude\.groups\.\<name>\.tasks\.\<name>\.order
+## prelude\.commands\.\<name>\.order
 
 
 
-Display order within the group; task name breaks ties\.
+Display order; command name breaks ties\.
 
 
 
@@ -576,32 +330,7 @@ signed integer
 
 
 
-## prelude\.groups\.\<name>\.tasks\.\<name>\.run
-
-
-
-Command the task executes; defaults to the task key\. Unless ` run `
-starts with the task’s own name (meaning the command already exists
-on PATH), the module bundles a wrapper executable named after the
-task into ` packages.menu ` (delegating to ` menu <name> … `), so every
-task the menu displays is directly invocable in the devshell\.
-
-
-
-*Type:*
-null or string
-
-
-
-*Default:*
-
-```nix
-null
-```
-
-
-
-## prelude\.groups\.\<name>\.tasks\.\<name>\.usage
+## prelude\.commands\.\<name>\.usage
 
 
 
@@ -622,24 +351,51 @@ null
 
 
 
-## prelude\.groups\.\<name>\.title
+## prelude\.docs\.pages
 
 
 
-Displayed group heading; defaults to the group name\.
+Markdown pages shown in declaration order\. Each file becomes one CONTENTS
+sidebar entry; digits 1–9 jump between pages\. The first level-one heading
+labels the entry and the complete file is rendered as Markdown\.
 
 
 
 *Type:*
-null or string
+list of (submodule)
 
 
 
 *Default:*
 
 ```nix
-null
+[ ]
 ```
+
+
+
+*Example:*
+
+```nix
+[
+  { text = ./docs/getting-started.md; }
+  { text = ./docs/commands.md; }
+]
+
+```
+
+
+
+## prelude\.docs\.pages\.\*\.text
+
+
+
+Path to a Markdown file\. Its first level-one heading labels the sidebar entry\.
+
+
+
+*Type:*
+absolute path
 
 
 
@@ -676,7 +432,7 @@ true
 
 
 
-Execute the selected task (exec bash -c)\. When false, print the command instead\.
+Execute the selected command (exec bash -c)\. When false, print it instead\.
 
 
 
@@ -886,7 +642,7 @@ true
 
 
 
-Ordered menu task names rendered as runnable ` $ command ` rows with descriptions inherited from those tasks\.
+Ordered command names rendered as runnable ` $ command ` rows with descriptions inherited from the command catalogue\.
 
 
 
@@ -1285,7 +1041,7 @@ string
 
 
 
-Filled hero bar: wordmark variant, status, and tagline beneath\.
+Filled hero bar: status chips plus tagline and subtitle activation copy beneath the title\.
 
 
 
@@ -1336,15 +1092,22 @@ null
 
 
 
-Keyed status badges on the header, sorted by ` order ` then name\.
+Keyed status lights, sorted by ` order ` then name\. Generated titles
+place them in a right-aligned row under the divider; wordmark
+layouts keep them in the header row\.
 
 Static: ` { label?, status } ` — always shows that text\.
-Live: ` { label?, check, ok?, fail?, failLevel? } ` — runs ` check `
-(shell) with a spinner; exit 0 paints a green/accent dot with ` ok `
-(or stdout), non-zero paints an error dot with ` fail `\. Set
-` failLevel = "warning" ` for a non-fatal accent2 dot instead\.
+Live: ` { label?, check, async?, ok?, fail?, failLevel? } `\. By
+default, ` async = true `: the cached result renders immediately,
+` check ` refreshes it in the background, and a dim timestamp notes
+that reloading the shell will display the latest result\. Set
+` async = false ` only when the check should intentionally block
+rendering; synchronous checks show a spinner while running\.
 
-Empty attrs hide the status region\. Tight rows drop labels\.
+Exit 0 paints a green/accent dot with ` ok ` (or stdout); non-zero
+paints an error dot with ` fail `\. Set ` failLevel = "warning" ` for
+a non-fatal accent2 dot instead\. Empty attrs hide the status
+region\. Tight rows drop labels\.
 
 
 
@@ -1377,12 +1140,34 @@ attribute set of (submodule)
     order = 200;
   };
   nix = {
+    async = false;
     check = "nix --version >/dev/null";
     label = "nix";
     ok = "ready";
     order = 100;
   };
 }
+```
+
+
+
+## prelude\.motd\.header\.status\.\<name>\.async
+
+
+
+Refresh the check in the background and render its cached result without blocking shell entry\. Set false to run the check synchronously before rendering\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+true
 ```
 
 
@@ -1559,23 +1344,44 @@ string
 
 
 
-## prelude\.motd\.header\.subtitle
+## prelude\.motd\.header\.statusHint
 
 
 
-Faint muted line under the tagline (e\.g\. “Your environment is ready”)\.
+Layout for the timestamp and reload hint derived from asynchronous status checks\.
 
 
 
 *Type:*
-string
+submodule
 
 
 
 *Default:*
 
 ```nix
-"Your environment is ready"
+{ }
+```
+
+
+
+## prelude\.motd\.header\.statusHint\.layout
+
+
+
+Render the hint below the lights, or inline with lights left-aligned and the hint right-aligned\.
+
+
+
+*Type:*
+one of “below”, “inline”
+
+
+
+*Default:*
+
+```nix
+"below"
 ```
 
 
@@ -1584,28 +1390,28 @@ string
 
 
 
-Bold accent2 line under the header rule (e\.g\. “Dev Shell Activated”)\.
+Activation text rendered beneath the header rule\.
 
 
 
 *Type:*
-string
+submodule
 
 
 
 *Default:*
 
 ```nix
-"Dev Shell Activated"
+{ }
 ```
 
 
 
-## prelude\.motd\.header\.taglineAlign
+## prelude\.motd\.header\.tagline\.align
 
 
 
-Horizontal alignment of the tagline/subtitle block within the content band\.
+Horizontal alignment of the tagline block within the content band\.
 
 
 
@@ -1622,11 +1428,11 @@ one of “left”, “center”
 
 
 
-## prelude\.motd\.header\.taglineLayout
+## prelude\.motd\.header\.tagline\.layout
 
 
 
-How tagline + subtitle are arranged: stack (two lines) or inline (one row, joined by ·)\.
+How text + subtitle are arranged: stack (two lines) or inline (one row, joined by ·)\.
 
 
 
@@ -1643,23 +1449,44 @@ one of “stack”, “inline”
 
 
 
-## prelude\.motd\.header\.titleStyle
+## prelude\.motd\.header\.tagline\.subtitle
 
 
 
-Wordmark treatment: plain / spine / bracketed / label / inline / inverted (accent chip)\.
+Faint muted supporting text (e\.g\. “Your environment is ready”)\.
 
 
 
 *Type:*
-one of “plain”, “spine”, “bracketed”, “label”, “inline”, “inverted”
+string
 
 
 
 *Default:*
 
 ```nix
-"spine"
+"Your environment is ready"
+```
+
+
+
+## prelude\.motd\.header\.tagline\.text
+
+
+
+Bold accent2 activation line (e\.g\. “Dev Shell Activated”)\.
+
+
+
+*Type:*
+string
+
+
+
+*Default:*
+
+```nix
+"Dev Shell Activated"
 ```
 
 
@@ -2224,7 +2051,70 @@ string
 
 
 
-Checked-in multiline title file\. Generate it from title\.nix with the prelude-title utility; null uses the project-name header\.
+MOTD title content and fallback wordmark presentation\.
+
+
+
+*Type:*
+submodule
+
+
+
+*Default:*
+
+```nix
+{ }
+```
+
+
+
+## prelude\.motd\.title\.align
+
+
+
+Horizontal alignment of custom title lines within the MOTD card\.
+
+
+
+*Type:*
+one of “left”, “center”, “right”
+
+
+
+*Default:*
+
+```nix
+"left"
+```
+
+
+
+## prelude\.motd\.title\.style
+
+
+
+Project-name wordmark treatment used when title\.text is null\.
+
+
+
+*Type:*
+one of “plain”, “spine”, “bracketed”, “label”, “inline”, “inverted”
+
+
+
+*Default:*
+
+```nix
+"spine"
+```
+
+
+
+## prelude\.motd\.title\.text
+
+
+
+Checked-in multiline title file; null uses the project-name wordmark\.
 
 
 
@@ -2274,7 +2164,8 @@ signed integer or value “full” (singular enum)
 
 
 
-Window background: paints the full terminal width (margins, gutters,
+Window background: with ` clearScreen `, paints the entire cleared terminal;
+otherwise paints the full width of emitted rows (margins, gutters, and
 line remainders)\. true uses theme ` bg `, a color, ` { relative = ±n; } `,
 or ` { blend = n; } ` from the terminal toward theme ` bg ` (0…1)\.
 
@@ -2294,6 +2185,8 @@ null
 
 
 ## prelude\.palette
+
+
 
 Per-token overrides applied on top of the theme\.
 
@@ -2376,8 +2269,6 @@ null
 
 
 ## prelude\.palette\.bg
-
-
 
 Override the theme’s ` bg ` token\.
 
@@ -2582,6 +2473,161 @@ string
 ```nix
 "devshell"
 ```
+
+
+
+## prelude\.prompt\.enable
+
+
+
+Whether to enable themed starship prompt config (` packages.prompt ` = starship\.toml)\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+
+
+*Example:*
+
+```nix
+true
+```
+
+
+
+## prelude\.prompt\.configFile
+
+
+
+Use this starship\.toml verbatim instead of the generated themed config\.
+
+
+
+*Type:*
+null or absolute path
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+
+
+## prelude\.prompt\.settings
+
+
+
+Starship settings merged (recursively) over the themed defaults\.
+See [https://starship\.rs/config/](https://starship\.rs/config/)\.
+
+
+
+*Type:*
+TOML value
+
+
+
+*Default:*
+
+```nix
+{ }
+```
+
+
+
+*Example:*
+
+```nix
+{
+  add_newline = true;
+  format = "$directory$git_branch$character";
+}
+```
+
+
+
+## prelude\.prompt\.shortcuts
+
+
+
+Shortcut chips on the prompt’s footer bar — a full-width ` surface `
+line rendered directly above the input (starship cannot draw below
+the cursor), padded edge-to-edge via the ` $fill ` module\. Defaults to
+` prelude.motd.shortcuts ` so the prompt mirrors the MOTD footer; set
+` [ ] ` to drop the footer line\.
+
+
+
+*Type:*
+list of (submodule)
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+
+
+*Example:*
+
+```nix
+[
+  {
+    alias = "m";
+    command = "menu";
+  }
+]
+```
+
+
+
+## prelude\.prompt\.shortcuts\.\*\.alias
+
+
+
+Optional short alias in parentheses\.
+
+
+
+*Type:*
+string
+
+
+
+*Default:*
+
+```nix
+""
+```
+
+
+
+## prelude\.prompt\.shortcuts\.\*\.command
+
+
+
+Command name shown in the shortcuts line\.
+
+
+
+*Type:*
+string
 
 
 

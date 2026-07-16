@@ -3,11 +3,14 @@
 {
   prelude.motd = {
     enable = true;
-    title = ../title.txt;
-
-    maxWidth = 80;
-    windowBackground = { relative = 0.05; };
-    background = null;
+    title = {
+      text = ../title.txt;
+      align = "center";
+      style = "spine";
+    };
+    maxWidth = 88;
+    windowBackground = false;
+    background = false;
     clearScreen = true;
     margin.bottom = 10;
     padding.x = 4;
@@ -15,22 +18,27 @@
     padding.top = 1;
 
     header = {
-      titleStyle = "spine";
-      tagline = "Dev Shell Activated";
-      subtitle = "Your environment is ready";
-      taglineLayout = "stack";
-      background = null;
+      tagline = {
+        text = "Dev Shell Activated";
+        subtitle = "Your environment is ready";
+        layout = "stack";
+        align = "left";
+      };
+      background = false;
+      statusHint.layout = "inline";
       status = {
-        nix = {
+        dev = {
           order = 100;
-          label = "nix";
-          check = "nix --version >/dev/null 2>&1";
+          label = "dev server";
+          check = "bash -c ': </dev/tcp/127.0.0.1/\${PORT:-3000}' >/dev/null 2>&1";
           output = "light";
         };
         flake = {
           order = 200;
           label = "flake";
-          check = "nix flake check >/dev/null 2>&1";
+          # Header probes should stay cheap: evaluate all checks, but leave
+          # their builds to the explicit `check` menu command.
+          check = "nix flake check --no-build >/dev/null 2>&1";
           output = "light";
         };
       };
@@ -42,7 +50,7 @@
 
     env = [ ];
 
-    # Menu task names: descriptions and wrappers come from the shared catalogue.
+    # Command names: descriptions and wrappers come from the shared catalogue.
     commands = [
       "menu"
       "check"

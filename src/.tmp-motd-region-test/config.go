@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"prelude/shared"
+	"prelude/pkg/shared"
 )
 
 // Config is the normalized JSON boundary produced by motd.nix.

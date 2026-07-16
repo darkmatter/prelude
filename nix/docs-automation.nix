@@ -128,7 +128,7 @@ let
     (builtins.readFile ../src/prelude/defaults.nix)
     (builtins.readFile ../src/prelude/lib.nix)
     (builtins.readFile ../src/prelude/themes.nix)
-    (readTree ../src/shared)
+    (readTree ../src/pkg/shared)
     pkgs.vhs.version
   ];
   fingerprint =
@@ -145,7 +145,7 @@ let
   motdComponentInput = builtins.concatStringsSep "\n" [
     (builtins.readFile ./motd-demo-builder.nix)
     (builtins.readFile ../src/prelude/motd.nix)
-    (readTree ../src/motd)
+    (readTree ../src/internal/motd)
   ];
   motdFingerprint = fingerprint motdComponentInput motdTapeText ex.motd;
   minimalFingerprint = fingerprint motdComponentInput minimalTapeText ex.motdDemos.minimal;
@@ -153,7 +153,7 @@ let
   menuFingerprint = fingerprint (builtins.concatStringsSep "\n" [
     (builtins.readFile ./menu-demo-builder.nix)
     (builtins.readFile ../src/prelude/menu.nix)
-    (readTree ../src/menu-tui)
+    (readTree ../src/internal/menu)
   ]) menuTapeText ex.menu;
 
   manifestData = {
@@ -193,12 +193,14 @@ let
         "palette"
         "colorProfile"
         "project"
-        "groups"
       ];
     in
     (lib.filterAttrs (name: _value: builtins.elem name sharedNames) config)
+    // lib.optionalAttrs ((config.commandCatalog or { }) != { }) {
+      commands = config.commandCatalog;
+    }
     // {
-      motd = builtins.removeAttrs config sharedNames;
+      motd = builtins.removeAttrs config (sharedNames ++ [ "commandCatalog" ]);
     };
 
   gallery = pkgs.writeText "prelude-showcases.md" ''
@@ -239,9 +241,10 @@ let
 
     ### Full-window background
 
-    `prelude.motd.windowBackground = true` paints terminal gutters and line
-    remainders with the theme background. Static keyed statuses appear in the
-    header without running environment probes.
+    With `prelude.motd.clearScreen = true`, `windowBackground = true` paints
+    the entire cleared terminal with the theme background. Without clearing,
+    it fills the gutters and line remainders of emitted rows. Static keyed
+    statuses appear in the header without running environment probes.
 
     ![MOTD with a full-window background](../media/surface.png)
 
@@ -251,7 +254,7 @@ let
 
     ## Interactive command menu
 
-    The menu demonstrates live filtering, task details, argument suggestion
+    The menu demonstrates live filtering, command details, argument suggestion
     chips, required-value validation, and a command preview. The recording
     selects `dev`, opens its details, accepts the `--port 3000` chip, and types
     `--host 0.0.0.0`.
@@ -268,7 +271,7 @@ let
     prelude = ${
       lib.generators.toPretty { } {
         project = ex.menu.project;
-        groups = ex.menu.groups;
+        commands = ex.menu.commands;
       }
     };
     ```
@@ -281,6 +284,7 @@ let
     ../src/prelude/options/motd.nix
     ../src/prelude/options/menu.nix
     ../src/prelude/options/docs.nix
+    ../src/prelude/options/prompt.nix
   ];
   evaluatedOptions = lib.evalModules { modules = optionModules; };
   validatedMotdConfigs =

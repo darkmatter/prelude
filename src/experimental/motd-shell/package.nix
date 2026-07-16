@@ -46,10 +46,14 @@ let
     text = builtins.readFile ./workspace-view.sh;
   };
 
-  initLogPane = pkgs.writeShellApplication {
-    name = "prelude-init-log-pane";
-    runtimeInputs = [ pkgs.coreutils ];
-    text = builtins.readFile ./init-log-pane.sh;
+  initLogCycle = pkgs.writeShellApplication {
+    name = "prelude-init-log-cycle";
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.gnused
+      pkgs.tmux
+    ];
+    text = builtins.readFile ./init-log-cycle.sh;
   };
 
   initLogPopup = pkgs.writeShellApplication {
@@ -67,7 +71,7 @@ pkgs.writeShellApplication {
     motdPane
     childShell
     workspaceView
-    initLogPane
+    initLogCycle
     initLogPopup
   ];
   text = builtins.readFile ./launcher.sh;

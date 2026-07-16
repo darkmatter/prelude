@@ -10,7 +10,7 @@ separate:
   leaders + recipe codeblocks), and shortcuts. Static — print it from your
   `shellHook`. Every section is optional.
 - **`menu`** — an interactive command menu (a bubbletea TUI): filter over
-  grouped tasks, tab-to-expand details, argument entry with suggested-value
+  grouped commands, tab-to-expand details, argument entry with suggested-value
   chips and required validation, live command preview, then `exec`.
 
 Nix validates and normalizes configuration at build time, then embeds JSON
@@ -34,41 +34,95 @@ layout and explicitly configured environment probes.
         project = "acme-web";
         motd = {
           enable = true;
-          commands = [ "check" ];
+          commands = [
+            "run:hello"
+            "check:hello"
+          ];
         };
         menu.enable = true;
+        docs.pages = [
+          { text = ./docs/getting-started.md; }
+          { text = ./docs/commands.md; }
+        ];
       };
 
-      perSystem = { pkgs, config, ... }: {
-        # Package-backed tasks bring their executable into the menu/MOTD
-        # closure automatically—no second devShell package entry is needed.
-        prelude.groups.develop.tasks.check = prelude.lib.mkTask {
-          package = pkgs.nix;
-          arguments = [ "flake" "check" ];
-          description = "verify the flake";
-          key = "c";
-        };
+      # Write an ordinary flake-parts perSystem function. The wrapper discovers
+      # canonical outputs and augments each declared devshell.
+      perSystem = prelude.lib.wrapPerSystem ({ pkgs, ... }:
+        let
+          hello = pkgs.writeShellApplication {
+            name = "hello";
+            text = ''echo "hello from the devshell"'';
+          };
+          helloApp = {
+            type = "app";
+            program = pkgs.lib.getExe hello;
+          };
+        in
+        {
+          packages = {
+            inherit hello;
+            default = hello;
+          };
 
-        devShells.default = pkgs.mkShell {
-          # packages.motd carries the enabled menu and all task dependencies.
-          packages = [ config.packages.motd ];
-          shellHook = "motd";
-        };
-      };
+          apps = {
+            hello = helloApp;
+            default = helloApp;
+          };
+
+          checks.hello = hello;
+
+          devShells.default = pkgs.mkShell { };
+        });
     };
 }
 ```
 
-Entering the devshell prints the MOTD; `menu` opens the interactive picker.
+Entering the devshell prints the MOTD; `menu` opens the interactive picker and
+`docs` opens the configured Markdown pages.
+
+### Canonical output discovery
+
+`prelude.lib.wrapPerSystem` receives a normal flake-parts `perSystem` function.
+It preserves the returned outputs and derives commands from their attribute
+names without evaluating package, app, or check values:
+
+| Output            | Generated command | Invocation                                |
+| ----------------- | ----------------- | ----------------------------------------- |
+| `apps.<name>`     | `run:<name>`      | `nix run .#apps.${system}."<name>"`       |
+| `packages.<name>` | `build:<name>`    | `nix build .#packages.${system}."<name>"` |
+| `checks.<name>`   | `check:<name>`    | `nix build .#checks.${system}."<name>"`   |
+
+`default` is skipped because it is normally an alias. Prefixes keep overlapping
+app, package, and check names unambiguous. Every declared devshell retains its
+existing inputs and `shellHook`; the wrapper adds enabled Prelude packages,
+exports the generated prompt path when configured, and prints the MOTD after
+the original hook.
+
+Generated commands require no Prelude-specific configuration. To customize one,
+add only the fields that differ inside the wrapped function; Prelude retains the
+generated invocation and Nix runtime dependency:
+
+```nix
+prelude.commands."run:hello" = {
+  description = "say hello from this project";
+  group = "develop";
+  key = "h";
+};
+```
+
+For lower-level composition, `prelude.lib.commandsFromOutputs` accepts
+`{ pkgs, system, outputs = { packages, apps, checks; }; }` and returns the same
+command catalogue without wrapping devshells.
 
 ### The menu
 
 ```
-menu              # fuzzy-filter picker over all tasks
-menu dev          # run a task by name
+menu              # fuzzy-filter picker over all commands
+menu dev          # run a command by name
 menu d            # …or by its single-key accelerator
 menu dev --port 80  # extra CLI args skip argument entry
-menu list         # print the task table (non-interactive)
+menu list         # print the command table (non-interactive)
 menu help         # man-style manual generated from the config
 ```
 
@@ -77,19 +131,37 @@ time, one shared binary per system):
 
 | Keys                | Action                                                   |
 | ------------------- | -------------------------------------------------------- |
-| type                | filter tasks (name, usage, description, group)           |
+| type                | filter commands (name, usage, description, group)        |
 | `↑` `↓` / `⌃n` `⌃p` | move selection                                           |
 | `⇥`                 | list: expand details · args: cycle suggested-value chips |
 | `↵`                 | run selection / append focused chip / submit args        |
 | `esc`               | collapse → clear query → quit; args: back to list        |
 | backspace (empty)   | args: back to the list                                   |
 
-Selecting a task with declared `args` opens argument entry: every argument
+Selecting a command with declared `args` opens argument entry: every argument
 is listed with its token, a required/flag/optional tag, description, and
 suggested values as chips; a live `$ command` preview updates as you type.
 Required arguments are validated on submit. The assembled command is
 `exec`'d via `bash -c` — set `prelude.menu.execute = false` to print it
 instead. Set `PRELUDE_MENU_DEBUG=<path>` to log TUI events for debugging.
+
+### The docs viewer
+
+Each Markdown file is one navigable page. Declaring pages enables the docs
+package automatically; the first `# Heading` becomes the sidebar label.
+
+```nix
+prelude.docs = {
+  pages = [
+    { text = ./docs/getting-started.md; }
+    { text = ./docs/commands.md; }
+  ];
+};
+```
+
+Pages support ordinary Markdown such as headings, lists, emphasis, links, and
+fenced code blocks. Use digits to jump between pages, `j`/`k` to scroll, and
+`q` to quit.
 
 ## Themes
 
@@ -131,40 +203,41 @@ output. `"ansi256"` forces quantization instead; `"auto"` (default) detects the
 terminal profile. For tmux, the cleaner global fix is advertising truecolor:
 `set -ga terminal-features ',*:RGB'` (or `terminal-overrides ',*:Tc'`).
 
-## Task schema
+## Command schema
 
-`prelude.groups` is an attribute set keyed by group name. Each group's
-`tasks` is an attribute set keyed by invocation name. Groups and tasks sort by
-`order`, then by their attribute key for deterministic ties; `title` defaults
-to the group key. Tasks feed the interactive menu — and become devshell
-commands:
+`prelude.commands` is an attribute set keyed by invocation name. Commands sort
+globally by `order`, then by name for deterministic ties. Each command's `group`
+becomes its menu heading; groups appear where their first command occurs in that
+order. Commands feed the interactive menu and become devshell executables:
 
-| Field         | Type        | Default  | Description                                              |
-| ------------- | ----------- | -------- | -------------------------------------------------------- |
-| `order`       | int         | `1000`   | Display order within the group; task name breaks ties.   |
-| `run`         | str / null  | task key | Command the task executes.                               |
-| `description` | str         | `""`     | One-line description.                                    |
-| `key`         | str / null  | `null`   | Single-key accelerator (`menu <key>`).                   |
-| `usage`       | str / null  | `null`   | Usage form shown in the menu details.                    |
-| `details`     | str / null  | `null`   | Extended description shown before argument entry.        |
-| `examples`    | list of str | `[ ]`    | Worked example invocations.                              |
-| `args`        | list of arg | `[ ]`    | Arguments; presence triggers arg-entry mode in the menu. |
+| Field         | Type        | Default   | Description                                              |
+| ------------- | ----------- | --------- | -------------------------------------------------------- |
+| `description` | str         | `""`      | One-line description.                                    |
+| `exec`        | str / null  | command   | Shell command to execute.                                |
+| `group`       | str         | `general` | Menu group heading.                                      |
+| `key`         | str / null  | `null`    | Single-key accelerator (`menu <key>`).                   |
+| `order`       | int         | `1000`    | Global display order; command name breaks ties.          |
+| `usage`       | str / null  | `null`    | Usage form shown in the menu details.                    |
+| `details`     | str / null  | `null`    | Extended description shown before argument entry.        |
+| `examples`    | list of str | `[ ]`     | Worked example invocations.                              |
+| `args`        | list of arg | `[ ]`     | Arguments; presence triggers arg-entry mode in the menu. |
 
-Package-backed tasks belong under `perSystem` and use `prelude.lib.mkTask`:
+Package-backed commands belong under `perSystem` and use `prelude.lib.mkCommand`:
 
 ```nix
-prelude.groups.develop.tasks.lint = prelude.lib.mkTask {
+prelude.commands.lint = prelude.lib.mkCommand {
   package = pkgs.eslint;
   arguments = [ "." ];
   description = "lint the project";
+  group = "develop";
 };
 ```
 
 Set exactly one of `package`, `executable`, or `command`. For `package`,
 `meta.mainProgram` selects the binary; use `program = "name"` for another
 binary. `arguments` are shell-escaped and appended. The package is bundled into
-`packages.menu` automatically, and the task receives its normal direct wrapper.
-Plain task attribute sets remain supported for shell commands and shared,
+`packages.menu` automatically, and the command receives its normal direct wrapper.
+Plain command attribute sets remain supported for shell commands and shared,
 system-independent configuration.
 
 Argument: `{ token, description ? "", required ? false, boolean ? false,
@@ -172,10 +245,10 @@ options ? [ ] }`. Tokens starting with `--` insert as `--flag value`;
 anything else (e.g. `<remote>`, `name`) inserts positionally; `boolean`
 tokens insert as-is when confirmed.
 
-Every task the menu displays is directly invocable: unless a task's `run`
-starts with the task's own name (which asserts "this command already exists
-on PATH" — e.g. a task `previews` with `run = "previews"` backed by a real
-package), the module bundles a wrapper executable named after the task into
+Every command the menu displays is directly invocable: unless its `exec`
+starts with its own name (which asserts "this command already exists on PATH"
+— e.g. `previews.exec = "previews"` backed by a real package), the module
+bundles a wrapper executable named after the command into
 `packages.menu`. Wrappers delegate to the menu fast path (`menu <name> …`),
 so direct invocation and menu selection share one execution contract,
 including appended arguments (`build .#motd` ≡ `menu build .#motd`). Bundling
@@ -183,32 +256,33 @@ happens in the flake-parts module; direct `mkMenu` consumers only get the
 `menu` binary.
 
 Evaluated packages expose this result for downstream composition and checks:
-`config.packages.menu.taskNames` lists configured tasks, while
-`config.packages.menu.taskWrappers` contains the wrapper derivations that were
+`config.packages.menu.commandNames` lists configured commands, while
+`config.packages.menu.commandWrappers` contains the wrapper derivations that were
 actually built. Consumers can add those derivations to a shell or test PATH
 without importing and reinterpreting their source configuration.
 
 ### MOTD commands
 
-`prelude.motd.commands` is an ordered list of menu task names to advertise as
-next steps. The displayed command and description are derived from the task
-catalogue, so they cannot drift from the runnable menu commands.
+`prelude.motd.commands` is an ordered list of command names to advertise as
+next steps. The displayed command and description are derived from
+`prelude.commands`, so they cannot drift from the runnable menu commands.
 
 ```nix
-prelude.groups.develop.tasks.check = {
-  run = "nix flake check";
+prelude.commands.check = {
   description = "verify the flake";
+  exec = "nix flake check";
+  group = "develop";
 };
 
 prelude.motd.commands = [ "check" ];
 ```
 
-Unknown task names fail evaluation. When the menu is enabled, `packages.motd`
-also carries the menu and its generated task wrappers, so each displayed name
+Unknown command names fail evaluation. When the menu is enabled, `packages.motd`
+also carries the menu and its generated command wrappers, so each displayed name
 is directly invocable even when the MOTD package is used on its own.
 
 `config.packages.motd.commandNames` exposes the evaluated selection, and
-`config.packages.motd.taskWrappers` exposes the menu wrappers bundled with it. When
+`config.packages.motd.commandWrappers` exposes the menu wrappers bundled with it.
 the menu is enabled, `menu` is supplied as the low-priority default. Direct
 `mkMotd` consumers and configurations without the menu start with no commands.
 
@@ -263,7 +337,11 @@ nix run .#title
 ```
 
 ```nix
-prelude.motd.title = ./title.txt;
+prelude.motd.title = {
+  text = ./title.txt;
+  align = "center"; # left, center, or right within the card
+  style = "spine";  # project-name fallback when text is null
+};
 ```
 
 Use `--recipe` and `--output` to override either conventional filename. FIGlet
@@ -274,45 +352,93 @@ is only used by the generator; the MOTD embeds and renders the checked-in text.
 `description` is a styled text item (`{ text, foreground, background,
 bold, italic, faint }`; null foreground uses the theme fg role).
 
-| Option                 | Default                              | Description                                                                                                                                                                                                                                  |
-| ---------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `enable`               | `false`                              | Expose `packages.motd` / `apps.motd` and the `prelude-title` generator.                                                                                                                                                                      |
-| `title`                | `null`                               | Checked-in multiline title file generated from `title.nix`; null uses the styled project name.                                                                                                                                               |
-| `clearScreen`          | `true`                               | Clear the terminal before rendering.                                                                                                                                                                                                         |
-| `background`           | `null`                               | Block fill: `true` = theme `bg`, a color, `{ relative = ±n; }`, or `{ blend = n; }` from terminal bg toward theme `bg` (`0..1`). Falls back to `windowBackground`.                                                                           |
-| `windowBackground`     | `null`                               | Solid whole-window fill: `true` = theme `bg`, a color, `{ relative = ±n; }`, or `{ blend = n; }` from terminal bg toward theme `bg` (`0..1`).                                                                                                |
-| `margin`               | `{ top = 10; }`                      | `top`/`bottom` blank lines, `left`/`right` offset columns; sides supersede the `x`/`y` axes.                                                                                                                                                 |
-| `align`                | `"center"`                           | Placement of the motd block against the terminal window.                                                                                                                                                                                     |
-| `padding`              | `{ }`                                | Inner padding: sides inset tagline, middle, and footer (header bar edge-to-edge); top/bottom pad the whole card outside title and shortcuts. Sides supersede `x`/`y`.                                                                        |
-| `header.titleStyle`    | `"spine"`                            | Wordmark: `plain` / `spine` / `bracketed` / `label` / `inline` / `inverted` (accent chip).                                                                                                                                                   |
-| `header.tagline`       | `"Dev Shell Activated"`              | Bold accent2 activation title under the header rule.                                                                                                                                                                                         |
-| `header.subtitle`      | `"Your environment is ready"`        | Faint muted line under the tagline.                                                                                                                                                                                                          |
-| `header.taglineLayout` | `"stack"`                            | `stack` = two lines; `inline` = `tagline · subtitle` on one row.                                                                                                                                                                             |
-| `header.taglineAlign`  | `"left"`                             | `left` or `center` alignment of the tagline/subtitle block.                                                                                                                                                                                  |
-| `header.background`    | `true`                               | Header bar fill: `true` = raised lightened bar, `null`/`false` = transparent, color / `{ relative }` = explicit.                                                                                                                             |
-| `header.status`        | `{ ready = { status = "ready"; }; }` | Keyed badges: static `{ label?; status }` or live `{ label?; check; ok?; fail?; failLevel? }`. Live checks show a spinner, then `●` in accent (ok), error (fail), or accent2 when `failLevel = "warning"`.                                   |
-| `description`          | `{ text = ""; }`                     | Styled text beneath the header (`text`, colors, `bold`/`italic`/`faint`, `tips`). `background` may be `{ relative = ±n; }` vs the card. Empty text hides.                                                                                    |
-| `env`                  | `[ ]`                                | Chips in order; each `{ label; value; }` (static) **or** `{ label; probe; }` (runtime command, first output line, skipped on fail).                                                                                                          |
-| `commands`             | conditional                          | Keyed next steps: exact runnable `command`, optional `description` (dotted leaders), and optional `run` script — when set, a generated executable named `command` is bundled into `packages.motd`. Defaults to `menu` / `menu list` when on. |
-| `recipes`              | `{ }`                                | Keyed multi-step workflows with `steps` (or legacy `lines`).                                                                                                                                                                                 |
-| `gettingStarted`       | see defaults                         | Labels for the unified commands + examples region (`heading`, `commandsLabel`, `examplesLabel`).                                                                                                                                             |
-| `shortcuts`            | `[ ]`                                | Right-aligned discoverability chips `{ command; alias? }` that close the composition.                                                                                                                                                        |
-| `width`                | `"full"`                             | Content width, or `"full"`.                                                                                                                                                                                                                  |
-| `maxWidth`             | `96`                                 | Width cap.                                                                                                                                                                                                                                   |
+| Option                    | Default                              | Description                                                                                                                                                                                                                                  |
+| ------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enable`                  | `false`                              | Expose `packages.motd` / `apps.motd` and the `prelude-title` generator.                                                                                                                                                                      |
+| `title.text`              | `null`                               | Checked-in multiline title file generated from `title.nix`; null uses the styled project name.                                                                                                                                               |
+| `title.align`             | `"left"`                             | Alignment of custom title lines within the MOTD card/content width: `left`, `center`, or `right`.                                                                                                                                            |
+| `title.style`             | `"spine"`                            | Project-name fallback wordmark used when `title.text` is null: `plain` / `spine` / `bracketed` / `label` / `inline` / `inverted`.                                                                                                            |
+| `clearScreen`             | `true`                               | Clear the terminal before rendering.                                                                                                                                                                                                         |
+| `background`              | `null`                               | Block fill: `true` = theme `bg`, a color, `{ relative = ±n; }`, or `{ blend = n; }` from terminal bg toward theme `bg` (`0..1`). Falls back to `windowBackground`.                                                                           |
+| `windowBackground`        | `null`                               | With `clearScreen`, paints the entire cleared terminal; otherwise fills emitted rows across the full terminal width. `true` = theme `bg`, a color, `{ relative = ±n; }`, or `{ blend = n; }` from terminal bg toward theme `bg` (`0..1`).    |
+| `margin`                  | `{ top = 10; }`                      | `top`/`bottom` blank lines, `left`/`right` offset columns; sides supersede `x`/`y`.                                                                                                                                                          |
+| `align`                   | `"center"`                           | Placement of the motd block against the terminal window.                                                                                                                                                                                     |
+| `padding`                 | `{ }`                                | Inner padding: sides inset tagline, middle, and footer (header bar edge-to-edge); top/bottom pad the whole card outside title and shortcuts. Sides supersede `x`/`y`.                                                                        |
+| `header.tagline.text`     | `"Dev Shell Activated"`              | Bold accent2 activation title under the header rule.                                                                                                                                                                                         |
+| `header.tagline.subtitle` | `"Your environment is ready"`        | Faint muted supporting text under the tagline.                                                                                                                                                                                               |
+| `header.tagline.layout`   | `"stack"`                            | `stack` = two lines; `inline` = `text · subtitle` on one row.                                                                                                                                                                                |
+| `header.tagline.align`    | `"left"`                             | `left` or `center` alignment of the tagline/subtitle block.                                                                                                                                                                                  |
+| `header.background`       | `true`                               | Header bar fill: `true` = raised lightened bar, `null`/`false` = transparent, color / `{ relative }` = explicit.                                                                                                                             |
+| `header.status`           | `{ ready = { status = "ready"; }; }` | Keyed badges: static `{ label?; status }` or live `{ label?; check; ok?; fail?; failLevel? }`. Live checks show a spinner, then `●` in accent (ok), error (fail), or accent2 when `failLevel = "warning"`.                                   |
+| `description`             | `{ text = ""; }`                     | Styled text beneath the header (`text`, colors, `bold`/`italic`/`faint`, `tips`). `background` may be `{ relative = ±n; }` vs the card. Empty text hides.                                                                                    |
+| `env`                     | `[ ]`                                | Chips in order; each `{ label; value; }` (static) **or** `{ label; probe; }` (runtime command, first output line, skipped on fail).                                                                                                          |
+| `commands`                | conditional                          | Keyed next steps: exact runnable `command`, optional `description` (dotted leaders), and optional `run` script — when set, a generated executable named `command` is bundled into `packages.motd`. Defaults to `menu` / `menu list` when on. |
+| `recipes`                 | `{ }`                                | Keyed multi-step workflows with `steps` (or legacy `lines`).                                                                                                                                                                                 |
+| `gettingStarted`          | see defaults                         | Labels for the unified commands + examples region (`heading`, `commandsLabel`, `examplesLabel`).                                                                                                                                             |
+| `shortcuts`               | `[ ]`                                | Right-aligned discoverability chips `{ command; alias? }` that close the composition.                                                                                                                                                        |
+| `width`                   | `"full"`                             | Content width, or `"full"`.                                                                                                                                                                                                                  |
+| `maxWidth`                | `96`                                 | Width cap.                                                                                                                                                                                                                                   |
 
 ## menu options (`prelude.menu.*`)
 
-| Option        | Default                      | Description                                          |
-| ------------- | ---------------------------- | ---------------------------------------------------- |
-| `enable`      | `false`                      | Expose `packages.menu` / `apps.menu`.                |
-| `placeholder` | `"type to filter commands…"` | Filter input placeholder.                            |
-| `height`      | `12`                         | Filter list height (rows).                           |
-| `execute`     | `true`                       | `exec` the selected task; `false` prints it instead. |
-| `width`       | `"full"`                     | Menu width, or `"full"`.                             |
-| `maxWidth`    | `96`                         | Width cap.                                           |
+| Option        | Default                      | Description                                     |
+| ------------- | ---------------------------- | ----------------------------------------------- |
+| `enable`      | `false`                      | Expose `packages.menu` / `apps.menu`.           |
+| `placeholder` | `"type to filter commands…"` | Filter input placeholder.                       |
+| `height`      | `12`                         | Filter list height (rows).                      |
+| `execute`     | `true`                       | `exec` the selected command; `false` prints it. |
+| `width`       | `"full"`                     | Menu width, or `"full"`.                        |
+| `maxWidth`    | `96`                         | Width cap.                                      |
 
 > MOTD guidance is authored independently with exact runnable `commands` and
-> multi-step `recipes`; menu `groups` never render in the MOTD.
+> multi-step `recipes`; command groups never render in the MOTD.
+
+## prompt options (`prelude.prompt.*`)
+
+A [starship](https://starship.rs/) config themed from the active palette.
+`packages.prompt` is the generated `starship.toml`. The default layout is a
+two-line prompt — powerline header with right-aligned shortcut chips on the
+first line, marker on the second:
+
+```
+░▒▓ prelude  …/prelude   main  ✘»+⇡   ···  [?] help  [m] menu  [d] docs
+❯
+```
+
+Header: ramp + project pill on `secondary`, then continuous Powerline
+transitions through a `bg` directory segment, an inverted `fg` branch
+segment, and a `surface` status segment before returning to the terminal
+background. Command duration and shortcuts remain transparent; shortcuts are
+right-aligned via `$fill` (works in bash and zsh, while Starship's
+`right_format` requires zsh or ble.sh). Marker: bold
+`accent2`, `error` on failure. Styles reference palette tokens by name — the
+config carries `palettes.prelude` mapping `bg`, `surface`, `secondary`, `fg`,
+`muted`, `dim`, `accent`, `accent2`, `error`, … to the resolved theme, so
+`settings` overrides can use the same names (e.g. `style = "fg:accent"`).
+
+| Option       | Default          | Description                                                                        |
+| ------------ | ---------------- | ---------------------------------------------------------------------------------- |
+| `enable`     | `false`          | Expose `packages.prompt` (a starship.toml).                                        |
+| `settings`   | `{ }`            | Starship settings merged over the themed defaults.                                 |
+| `shortcuts`  | `motd.shortcuts` | Chips right-aligned on the first line. `[ ]` for a header-only single-line prompt. |
+| `configFile` | `null`           | Use this starship.toml verbatim instead of generating one.                         |
+
+Wiring is one line — starship re-resolves `$STARSHIP_CONFIG` on every prompt
+render, and direnv propagates env vars (only `PS1` itself is stripped):
+
+```nix
+devShells.default = pkgs.mkShell {
+  shellHook = ''
+    export STARSHIP_CONFIG=${config.packages.prompt}
+  '';
+};
+```
+
+Entering the project re-themes your prompt; leaving it (direnv unload) reverts
+to your own starship config automatically. Requires starship to already be
+your shell's prompt (`eval "$(starship init zsh)"` via home-manager or
+similar); add `pkgs.starship` to the devshell packages for environments that
+don't have it.
 
 ## Without flake-parts
 
@@ -322,11 +448,13 @@ prelude.lib.mkMotd
   {
     theme = "gruvbox";
     project = "acme-web";
-    header.tagline = "everything you need to build, test & ship";
-    commands.dev = {
-      command = "pnpm dev";
+    header.tagline.text = "everything you need to build, test & ship";
+    commandCatalog.dev = {
       description = "start local development";
+      exec = "pnpm dev";
+      group = "develop";
     };
+    commands = [ "dev" ];
   }
 ```
 

@@ -5,7 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"prelude/shared"
+	"prelude/pkg/shared"
 )
 
 // Shade amounts for lipgloss.Lighten / Darken (0–1). Match the playground.

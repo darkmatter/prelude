@@ -1,11 +1,12 @@
 # flake-parts module: the prelude devshell UI suite.
 #
-#   prelude.motd  — devshell welcome banner
-#   prelude.menu  — interactive command menu
-#   prelude.docs  — hand-authored man-style project manual
+#   prelude.motd    — devshell welcome banner
+#   prelude.menu    — interactive command menu
+#   prelude.docs    — Markdown project docs viewer
+#   prelude.prompt  — themed starship config (packages.prompt = starship.toml)
 #
-# Shared config covers theme/palette and project identity. `groups` belongs to
-# the menu; MOTD guidance and docs content are authored independently.
+# Shared config covers theme/palette, project identity, and a flat command
+# catalogue. MOTD guidance and docs content are authored independently.
 # Options are declared in ./options/{shared,motd,menu,docs}.nix.
 #
 #   outputs = { prelude, flake-parts, ... }@inputs:
@@ -15,24 +16,22 @@
 #       prelude = {
 #         theme = "phosphor";
 #         project = "acme-web";
-#         motd.header.tagline = "everything you need to build, test & ship";
+#         motd.header.tagline.text = "everything you need to build, test & ship";
 #
-#         groups.develop = {
+#         commands.dev = {
+#           description = "start the dev server with hot reload";
+#           exec = "pnpm dev";
+#           group = "develop";
+#           key = "d";
 #           order = 100;
-#           tasks.dev = {
-#             run = "pnpm dev";
-#             description = "start the dev server with hot reload";
-#             key = "d";
-#           };
 #         };
 #
-#         docs.sections.name.blocks = [
-#           { type = "lead"; term = "acme-web"; text = "the product shell"; }
+#         docs.pages = [
+#           { text = ./docs/getting-started.md; }
 #         ];
 #
 #         motd.enable = true;
 #         menu.enable = true;
-#         docs.enable = true;
 #       };
 #
 #       perSystem = { pkgs, config, ... }: {
@@ -61,12 +60,14 @@ let
   _unusedLocalFlake = localFlake;
 
   cfg = config.prelude;
+  docsEnabled = cfg.docs.pages != [ ];
 
   mkMotd = import ./motd.nix;
   mkTitle = import ./title-generator.nix;
   mkTitlePreviews = import ./title-previews.nix;
   mkMenu = import ./menu.nix;
   mkDocs = import ./docs.nix;
+  mkPrompt = import ./prompt.nix;
   optionTypes = import ./option-types.nix { inherit lib; };
 
   # Shared config threaded into every generator.
@@ -90,24 +91,31 @@ in
     ./options/motd.nix
     ./options/menu.nix
     ./options/docs.nix
+    ./options/prompt.nix
   ];
 
-  options.perSystem = flake-parts-lib.mkPerSystemOption ({ lib, ... }: {
-    options.prelude.groups = lib.mkOption {
-      type = lib.types.attrsOf optionTypes.groupType;
-      default = { };
-      description = "System-specific task groups, including package-backed tasks created with prelude.lib.mkTask.";
-    };
-  });
+  options.perSystem = flake-parts-lib.mkPerSystemOption (
+    { lib, ... }: {
+      options.prelude.commands = lib.mkOption {
+        type = lib.types.attrsOf optionTypes.commandType;
+        default = { };
+        description = "System-specific commands, including package-backed commands created with prelude.lib.mkCommand.";
+      };
+    }
+  );
 
   config = {
-    # Advertise the menu task by default; an explicit list replaces this.
+    # Advertise the menu command by default; an explicit list replaces this.
     prelude.motd.commands = lib.mkIf cfg.menu.enable (lib.mkDefault [ "menu" ]);
+
+    # The prompt mirrors the MOTD footer chips by default; an explicit list
+    # (or [ ]) replaces this.
+    prelude.prompt.shortcuts = lib.mkDefault cfg.motd.shortcuts;
 
     perSystem =
       { pkgs, config, ... }:
       let
-        groups = lib.recursiveUpdate cfg.groups config.prelude.groups;
+        commands = lib.recursiveUpdate cfg.commands config.prelude.commands;
         deps = {
           inherit (pkgs)
             lib
@@ -117,25 +125,27 @@ in
             figlet
             jq
             nix
+            formats
             ;
         };
 
-        motdBin = mkMotd deps (generatorConfig cfg.motd // { inherit groups; });
+        motdBin = mkMotd deps (generatorConfig cfg.motd // { commandCatalog = commands; });
         titlePkg = mkTitle deps;
         titlePreviewsPkg = mkTitlePreviews deps;
 
         motdPkg = pkgs.symlinkJoin {
           name = "motd";
-          # Task-backed MOTD rows remain runnable when packages.motd is used
-          # directly by carrying the menu and its generated task wrappers.
+          # Command-backed MOTD rows remain runnable when packages.motd is used
+          # directly by carrying the menu and its generated wrappers.
           paths = [
             motdBin
             titlePkg
+            titlePreviewsPkg
           ]
           ++ lib.optional cfg.menu.enable menuPkg;
           passthru = {
             commandNames = cfg.motd.commands;
-            taskWrappers = lib.optionals cfg.menu.enable menuPkg.taskWrappers;
+            commandWrappers = lib.optionals cfg.menu.enable menuPkg.commandWrappers;
           };
           meta = {
             inherit (motdBin.meta) description;
@@ -143,35 +153,35 @@ in
           };
         };
 
-        menuBin = mkMenu deps (generatorConfig cfg.menu // { inherit groups; });
+        menuBin = mkMenu deps (generatorConfig cfg.menu // { inherit commands; });
 
-        tasks = lib.concatLists (
-          lib.mapAttrsToList (_group: g: lib.mapAttrsToList (name: task: { inherit name task; }) g.tasks) groups
+        commandEntries = lib.mapAttrsToList (name: command: { inherit name command; }) commands;
+        commandNames = map ({ name, ... }: name) commandEntries;
+        commandRuntimePackages = lib.unique (
+          lib.concatMap ({ command, ... }: command.runtimePackages) commandEntries
         );
-        taskNames = map ({ name, ... }: name) tasks;
-        taskRuntimePackages = lib.unique (lib.concatMap ({ task, ... }: task.runtimePackages) tasks);
 
-        # Menu tasks are devshell commands too. A task whose `run` starts with
-        # the task's own name asserts "this command already exists on PATH"
-        # (motd, docs, previews…); every other task gets a generated wrapper
-        # named after it that delegates to the menu fast path (`menu <name> …`,
-        # same argument handling), bundled into packages.menu — so the names
-        # the menu displays are directly invocable in any shell that includes
-        # it. Delegating instead of inlining `run` keeps one execution contract.
-        taskWrappers =
+        # Menu entries are devshell commands too. A command whose `exec` starts
+        # with its own name asserts "this command already exists on PATH"
+        # (motd, docs, previews…); every other command gets a generated wrapper
+        # that delegates to the menu fast path (`menu <name> …`) so direct and
+        # interactive invocation share one execution contract.
+        commandWrappers =
           let
-            needsWrapper = { name, task }: task.run != null && builtins.head (lib.splitString " " task.run) != name;
-            wrapped = lib.filter needsWrapper tasks;
+            needsWrapper =
+              { name, command }:
+              command.exec != null && builtins.head (lib.splitString " " command.exec) != name;
+            wrapped = lib.filter needsWrapper commandEntries;
           in
           assert lib.assertMsg (
             !lib.any ({ name, ... }: name == "menu") wrapped
-          ) "prelude: a task named \"menu\" whose `run` is not `menu …` would shadow the menu itself";
+          ) "prelude: a command named \"menu\" whose `exec` is not `menu …` would shadow the menu itself";
           map (
             { name, ... }:
-            # writeTextFile rather than writeShellApplication: task names may
+            # writeTextFile rather than writeShellApplication: command names may
             # contain ":" (valid in bin/ entries, invalid in store names).
             pkgs.writeTextFile {
-              name = "prelude-task-${lib.replaceStrings [ ":" ] [ "-" ] name}";
+              name = "prelude-command-${lib.replaceStrings [ ":" ] [ "-" ] name}";
               executable = true;
               destination = "/bin/${name}";
               text = ''
@@ -183,9 +193,9 @@ in
 
         menuPkg = pkgs.symlinkJoin {
           name = "menu";
-          paths = [ menuBin ] ++ taskWrappers ++ taskRuntimePackages;
+          paths = [ menuBin ] ++ commandWrappers ++ commandRuntimePackages;
           passthru = {
-            inherit taskNames taskWrappers taskRuntimePackages;
+            inherit commandNames commandWrappers commandRuntimePackages;
           };
           meta = {
             inherit (menuBin.meta) description;
@@ -194,6 +204,7 @@ in
         };
 
         docsPkg = mkDocs deps (generatorConfig cfg.docs);
+        promptPkg = mkPrompt deps (generatorConfig cfg.prompt);
 
         mkApp = pkg: {
           type = "app";
@@ -213,9 +224,13 @@ in
           packages.menu = menuPkg;
           apps.menu = mkApp menuPkg;
         })
-        (lib.mkIf cfg.docs.enable {
+        (lib.mkIf docsEnabled {
           packages.docs = docsPkg;
           apps.docs = mkApp docsPkg;
+        })
+        # A config file, not a program — no app entry.
+        (lib.mkIf cfg.prompt.enable {
+          packages.prompt = promptPkg;
         })
       ];
   };

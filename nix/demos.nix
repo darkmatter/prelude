@@ -8,7 +8,7 @@ let
   typescriptPrelude = (import ../examples/typescript/prelude.nix { inherit lib; }).prelude;
   typescriptMenu = menuDemo.mkMenu (
     {
-      inherit (typescriptPrelude) project groups;
+      inherit (typescriptPrelude) project commands;
     }
     // lib.removeAttrs typescriptPrelude.menu [ "enable" ]
   );

@@ -25,9 +25,12 @@ case "$(basename "$shell_path")" in
   bash)
     prompt_dir="$(mktemp -d)"
     prompt_rc="$prompt_dir/bashrc"
-    cat >"$prompt_rc" <<'PRELUDE_PROMPT'
-# Deliberately isolated from ~/.bashrc prompt hooks: the workspace footer owns
-# the Powerline treatment, while shell input stays compact and unambiguous.
+    if [ -r "${HOME:-}/.bashrc" ]; then
+      printf 'source %q\n' "$HOME/.bashrc" >"$prompt_rc"
+    fi
+    cat >>"$prompt_rc" <<'PRELUDE_PROMPT'
+# Preserve shell initialization (including terminal colors), then replace only
+# prompt state so the workspace footer remains the sole Powerline surface.
 unset PROMPT_COMMAND
 PS1='\[\e[38;2;135;135;175m\]\W \[\e[1;38;2;255;151;215m\]❯ \[\e[0m\]'
 PS2='\[\e[38;2;74;69;86m\]· \[\e[0m\]'
@@ -37,8 +40,15 @@ PRELUDE_PROMPT
     ;;
   zsh)
     prompt_dir="$(mktemp -d)"
-    cat >"$prompt_dir/.zshrc" <<'PRELUDE_PROMPT'
-# Isolated from user prompt plugins for the same reason as the Bash prompt.
+    if [ -r "${HOME:-}/.zshrc" ]; then
+      printf 'source %q\n' "$HOME/.zshrc" >"$prompt_dir/.zshrc"
+    fi
+    cat >>"$prompt_dir/.zshrc" <<'PRELUDE_PROMPT'
+# Keep user initialization/colors, but detach prompt-plugin redraw hooks before
+# installing the compact workspace prompt.
+precmd_functions=()
+preexec_functions=()
+unfunction precmd preexec 2>/dev/null || true
 PROMPT='%F{#8787af}%1~ %B%F{#ff97d7}❯%f%b '
 PROMPT2='%F{#4a4556}·%f '
 RPROMPT=

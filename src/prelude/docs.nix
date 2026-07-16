@@ -1,4 +1,4 @@
-# Docs package builder: hand-authored sections → JSON → Go man-style viewer.
+# Docs package builder: Markdown page paths → embedded JSON → Go viewer.
 {
   lib,
   writeText,
@@ -6,7 +6,7 @@
   ...
 }:
 
-# Component config: { theme?, palette?, colorProfile?, project?, sections? }
+# Component config: { theme?, palette?, colorProfile?, project?, pages? }
 config:
 
 let
@@ -18,37 +18,20 @@ let
   project = config.project or d.project;
   m = d.docs // config;
 
-  normalizeBlock = b: {
-    type = b.type;
-    term = b.term or "";
-    text = b.text or "";
-    command = b.command or "";
-    note = b.note or "";
-  };
-
-  sections = map (
-    { name, value }:
-    let
-      title = value.title or null;
-    in
-    {
-      title = if title == null then name else title;
-      blocks = map normalizeBlock (value.blocks or [ ]);
-    }
-  ) (plib.sortOrderedAttrs (m.sections or { }));
+  pages = map (page: { text = builtins.readFile page.text; }) (m.pages or [ ]);
 
   configFile = writeText "prelude-docs.json" (
     builtins.toJSON {
       inherit
         project
         colorProfile
-        sections
+        pages
         ;
       palette = pal;
     }
   );
 in
-assert lib.assertMsg (sections != [ ]) "docs: no sections configured — set prelude.docs.sections";
+assert lib.assertMsg (pages != [ ]) "docs: no pages configured — set prelude.docs.pages";
 assert lib.assertOneOf "docs colorProfile" colorProfile [
   "auto"
   "truecolor"
@@ -58,16 +41,16 @@ buildGoModule {
   pname = "docs";
   version = "0.1.0";
   src = ../.;
-  subPackages = [ "docs" ];
+  subPackages = [ "cmd/docs" ];
   doCheck = false;
-  vendorHash = "sha256-a4FKIcqmKJ0TxRogtXe1T7iNf7mgX27GDtbnwf4FvxU=";
+  vendorHash = "sha256-hKvYlJqQUQ3NrBRgWPZyvYhsCvceW1HbDRlzltKyCxQ=";
   ldflags = [
     "-s"
     "-w"
     "-X main.defaultConfigPath=${configFile}"
   ];
   meta = {
-    description = "Hand-authored project manual (man-style TUI)";
+    description = "Markdown project docs viewer";
     mainProgram = "docs";
   };
 }

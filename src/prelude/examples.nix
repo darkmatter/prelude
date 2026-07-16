@@ -13,151 +13,140 @@
 # Demos disable clearScreen and the top margin so they can render one after
 # another.
 let
-  # Demo task groups, ported from the design's lib/devshell.ts + commands.ts.
-  # Exercises: keys, run-vs-name, details/usage/examples, optional args with
+  # Demo commands, ported from the design's lib/devshell.ts + commands.ts.
+  # Exercises: keys, exec-vs-name, details/usage/examples, optional args with
   # suggestions, boolean flags, required positional args, and free text.
-  groups = {
-    general = {
+  commands = {
+    menu = {
+      description = "open the interactive command menu";
+      group = "general";
       order = 100;
-      tasks = {
-        menu = {
-          order = 100;
-          description = "open the interactive command menu";
-        };
-        clean = {
-          order = 200;
-          run = "rm -rf .next .turbo node_modules/.cache";
-          description = "remove build artifacts & caches";
-        };
-      };
     };
-    develop = {
+    clean = {
+      description = "remove build artifacts & caches";
+      exec = "rm -rf .next .turbo node_modules/.cache";
+      group = "general";
       order = 200;
-      tasks = {
-        dev = {
-          order = 100;
-          run = "pnpm dev";
-          description = "start the dev server with hot reload";
-          key = "d";
-          usage = "menu dev --port 3000";
-          details = "Boots a development server that watches the source tree and hot-reloads modules as files change. Binds to 127.0.0.1:3000 by default; override with --port and --host.";
-          examples = [
-            "menu dev --port 8080"
-            "menu dev --host 0.0.0.0"
-          ];
-          args = [
-            {
-              token = "--port";
-              description = "Port to bind the dev server";
-              options = [
-                "3000"
-                "8080"
-              ];
-            }
-            {
-              token = "--host";
-              description = "Interface to expose";
-              options = [
-                "127.0.0.1"
-                "0.0.0.0"
-              ];
-            }
-          ];
-        };
-        build = {
-          order = 200;
-          run = "pnpm build";
-          description = "compile an optimized production bundle";
-          key = "b";
-        };
-        test = {
-          order = 300;
-          run = "pnpm test";
-          description = "run the unit test suite";
-          key = "t";
-        };
-      };
     };
-    database = {
+    dev = {
+      description = "start the dev server with hot reload";
+      exec = "pnpm dev";
+      group = "develop";
+      key = "d";
       order = 300;
-      tasks = {
-        "db:up" = {
-          order = 100;
-          run = "docker compose up -d db redis";
-          description = "start postgres & redis in the background";
-        };
-        "db:migrate" = {
-          order = 200;
-          run = "drizzle-kit migrate";
-          description = "apply pending schema migrations";
-          key = "m";
-        };
-      };
+      usage = "menu dev --port 3000";
+      details = "Boots a development server that watches the source tree and hot-reloads modules as files change. Binds to 127.0.0.1:3000 by default; override with --port and --host.";
+      examples = [
+        "menu dev --port 8080"
+        "menu dev --host 0.0.0.0"
+      ];
+      args = [
+        {
+          token = "--port";
+          description = "Port to bind the dev server";
+          options = [
+            "3000"
+            "8080"
+          ];
+        }
+        {
+          token = "--host";
+          description = "Interface to expose";
+          options = [
+            "127.0.0.1"
+            "0.0.0.0"
+          ];
+        }
+      ];
     };
-    ops = {
+    build = {
+      description = "compile an optimized production bundle";
+      exec = "pnpm build";
+      group = "develop";
+      key = "b";
       order = 400;
-      tasks = {
-        deploy = {
-          order = 100;
-          run = "vercel deploy";
-          description = "ship the current build to production";
-          usage = "menu deploy --alias staging";
-          details = "Uploads the most recent production build and promotes it to the live environment. Deploys are atomic: traffic switches only after the new release passes its health checks.";
-          examples = [
-            "menu deploy --dry-run"
-            "menu deploy --alias staging"
+    };
+    test = {
+      description = "run the unit test suite";
+      exec = "pnpm test";
+      group = "develop";
+      key = "t";
+      order = 500;
+    };
+    "db:up" = {
+      description = "start postgres & redis in the background";
+      exec = "docker compose up -d db redis";
+      group = "database";
+      order = 600;
+    };
+    "db:migrate" = {
+      description = "apply pending schema migrations";
+      exec = "drizzle-kit migrate";
+      group = "database";
+      key = "m";
+      order = 700;
+    };
+    deploy = {
+      description = "ship the current build to production";
+      exec = "vercel deploy";
+      group = "ops";
+      order = 800;
+      usage = "menu deploy --alias staging";
+      details = "Uploads the most recent production build and promotes it to the live environment. Deploys are atomic: traffic switches only after the new release passes its health checks.";
+      examples = [
+        "menu deploy --dry-run"
+        "menu deploy --alias staging"
+      ];
+      args = [
+        {
+          token = "--alias";
+          description = "Publish to a named preview URL";
+          options = [
+            "staging"
+            "preview"
           ];
-          args = [
-            {
-              token = "--alias";
-              description = "Publish to a named preview URL";
-              options = [
-                "staging"
-                "preview"
-              ];
-            }
-            {
-              token = "--dry-run";
-              description = "Print the manifest without shipping";
-              boolean = true;
-            }
+        }
+        {
+          token = "--dry-run";
+          description = "Print the manifest without shipping";
+          boolean = true;
+        }
+      ];
+    };
+    push = {
+      description = "publish the current branch to the remote";
+      exec = "git push";
+      group = "ops";
+      key = "p";
+      order = 900;
+      args = [
+        {
+          token = "<remote>";
+          description = "Remote to push to";
+          required = true;
+          options = [
+            "origin"
+            "upstream"
           ];
-        };
-        push = {
-          order = 200;
-          run = "git push";
-          description = "publish the current branch to the remote";
-          key = "p";
-          args = [
-            {
-              token = "<remote>";
-              description = "Remote to push to";
-              required = true;
-              options = [
-                "origin"
-                "upstream"
-              ];
-            }
-            {
-              token = "<branch>";
-              description = "Branch to publish";
-              options = [
-                "main"
-                "dev"
-              ];
-            }
+        }
+        {
+          token = "<branch>";
+          description = "Branch to publish";
+          options = [
+            "main"
+            "dev"
           ];
-        };
-      };
+        }
+      ];
     };
   };
 
   # `nix run .#example-motd` — full acme-web welcome banner.
   motd = {
     project = "acme-web";
-    inherit groups;
+    commandCatalog = commands;
     header = {
-      tagline = "everything you need to build, test & ship";
+      tagline.text = "everything you need to build, test & ship";
       status.ready = {
         label = "devshell";
         status = "ready";
@@ -222,7 +211,7 @@ let
   # for CI).
   menu = {
     project = "acme-web";
-    inherit groups;
+    inherit commands;
   };
 
   # --- motd feature demos --------------------------------------------------------
@@ -231,7 +220,7 @@ let
     # Standalone header + description, no commands/env/shortcuts.
     minimal = {
       project = "minimal";
-      header.tagline = "just a header and a description";
+      header.tagline.text = "just a header and a description";
       clearScreen = false;
       margin.top = 0;
       align = "left";
@@ -246,7 +235,7 @@ let
     surface = {
       project = "surface";
       header = {
-        tagline = "windowBackground = true paints the whole window";
+        tagline.text = "windowBackground = true paints the whole window";
         status = {
           api = {
             order = 100;
@@ -274,7 +263,7 @@ let
     inherit theme;
     project = theme;
     header = {
-      tagline = "theme ${theme}";
+      tagline.text = "theme ${theme}";
       status.ready = {
         status = "ok";
       };
@@ -284,16 +273,17 @@ let
     maxWidth = 60;
     windowBackground = true;
     description.text = "The quick brown fox jumps over the lazy dog.";
-    groups.general.tasks.build = {
-      run = "just build";
+    commandCatalog.build = {
       description = "accent on commands";
+      exec = "just build";
+      group = "general";
     };
     commands = [ "build" ];
   };
 in
 {
   inherit
-    groups
+    commands
     motd
     menu
     motdDemos

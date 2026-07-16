@@ -46,8 +46,9 @@ The isolated tmux prefix is `C-g`:
 - `C-g q` — exit the workspace
 - `C-g C-g` — forward a literal prefix to the active program
 
-When shell-hook output exists, a compact pane shows it for four seconds and
-collapses. The complete log remains available through `C-g l`.
+When shell-hook output exists, a dedicated status row cycles through each
+non-empty line and then keeps the final line visible. The complete log remains
+available through `C-g l`.
 
 The experiment uses a unique tmux socket and ignores the user's tmux config.
 Exiting the child shell tears down the session and returns to the parent shell.

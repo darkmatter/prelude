@@ -15,6 +15,7 @@ let
 in
 {
   prelude = {
+    mkCommand = import ../src/prelude/task.nix { inherit (final) lib; };
     mkTask = import ../src/prelude/task.nix { inherit (final) lib; };
     mkMotd = import ../src/prelude/motd.nix deps;
     mkMenu = import ../src/prelude/menu.nix deps;

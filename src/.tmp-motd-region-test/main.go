@@ -9,7 +9,7 @@ import (
 	"os"
 	"strconv"
 
-	"prelude/shared"
+	"prelude/pkg/shared"
 
 	"charm.land/lipgloss/v2"
 	"golang.org/x/term"

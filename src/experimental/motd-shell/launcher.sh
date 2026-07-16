@@ -69,21 +69,22 @@ run_tmux bind-key m display-popup -E -w '90%' -h '90%' -d '#{pane_current_path}'
 run_tmux bind-key l display-popup -E -w '85%' -h '70%' -d '#{pane_current_path}' prelude-init-log-popup
 run_tmux bind-key q confirm-before -p 'exit workspace? (y/n)' "kill-session -t $session"
 
-# Powerline-like persistent footer.
+# Powerline-like footer. Non-empty shell-hook output gets its own status row:
+# lines cycle after the client attaches, then the final line remains visible.
 run_tmux set-option -t "$session" status on
 run_tmux set-option -t "$session" status-position bottom
 run_tmux set-option -t "$session" status-style 'fg=#8787af,bg=#0e0d11'
-run_tmux set-option -t "$session" status-left-length 120
-run_tmux set-option -t "$session" status-right-length 160
-run_tmux set-option -t "$session" status-left '#[fg=#0e0d11,bg=#ff97d7,bold] prelude #[fg=#ff97d7,bg=#211f28]#[fg=#d6d2df,bg=#211f28] #{pane_current_path} #[fg=#211f28,bg=#0e0d11]#[fg=#8787af,bg=#0e0d11] #{@prelude_view} '
-run_tmux set-option -t "$session" status-right '#[fg=#8787af]C-g #[fg=#d6d2df]h#[fg=#8787af] motd  #[fg=#d6d2df]d#[fg=#8787af] docs  #[fg=#d6d2df]m#[fg=#8787af] menu  #[fg=#d6d2df]l#[fg=#8787af] logs  #[fg=#d6d2df]s#[fg=#8787af] shell  #[fg=#d6d2df]z#[fg=#8787af] zoom  #[fg=#d6d2df]q#[fg=#8787af] exit '
+powerline_format='#[align=left,fg=#0e0d11,bg=#ff97d7,bold] prelude #[fg=#ff97d7,bg=#211f28]#[fg=#d6d2df,bg=#211f28] #{pane_current_path} #[fg=#211f28,bg=#0e0d11]#[fg=#8787af,bg=#0e0d11] #{@prelude_view} #[align=right]C-g #[fg=#d6d2df]h#[fg=#8787af] motd  #[fg=#d6d2df]d#[fg=#8787af] docs  #[fg=#d6d2df]m#[fg=#8787af] menu  #[fg=#d6d2df]l#[fg=#8787af] logs  #[fg=#d6d2df]s#[fg=#8787af] shell  #[fg=#d6d2df]z#[fg=#8787af] zoom  #[fg=#d6d2df]q#[fg=#8787af] exit '
 
-# Shell-hook output gets a compact temporary pane, then remains available via
-# C-g l. Splitting above the shell keeps MOTD/docs pinned at the top.
 if [ -s "${PRELUDE_SHELL_INIT_LOG:-}" ]; then
-  log_pane="$(run_tmux split-window -d -v -l 5 -P -F '#{pane_id}' -t "$top_pane" -c "$PWD" prelude-init-log-pane)"
-  run_tmux select-pane -t "$log_pane" -T 'shell init · closes automatically'
-  run_tmux run-shell -b "sleep 4; tmux kill-pane -t '$log_pane' 2>/dev/null || true"
+  run_tmux set-option -t "$session" status 2
+  run_tmux set-option -t "$session" @prelude_init_line 'captured shell-hook output'
+  run_tmux set-option -t "$session" 'status-format[0]' '#[align=left,fg=#0e0d11,bg=#a8cf94,bold] init #[fg=#a8cf94,bg=#19171d]#[fg=#d6d2df,bg=#19171d] #{@prelude_init_line} #[align=right,fg=#8787af]shell hook '
+  run_tmux set-option -t "$session" 'status-format[1]' "$powerline_format"
+  run_tmux set-hook -t "$session" client-attached 'run-shell -b prelude-init-log-cycle'
+else
+  run_tmux set-option -t "$session" status on
+  run_tmux set-option -t "$session" 'status-format[0]' "$powerline_format"
 fi
 
 run_tmux select-pane -t "$shell_pane"

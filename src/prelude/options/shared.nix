@@ -1,5 +1,5 @@
-# Top-level prelude.* options: shared visual/project identity plus task groups
-# used exclusively by the interactive menu.
+# Top-level prelude.* options: shared visual/project identity plus the command
+# catalogue used by the interactive menu and MOTD.
 { lib, ... }:
 let
   plib = import ../lib.nix { inherit lib; };
@@ -56,18 +56,17 @@ in
       description = "Project name shown in the motd banner and menu header.";
     };
 
-    groups = lib.mkOption {
-      type = lib.types.attrsOf t.groupType;
-      default = defaults.groups;
-      description = "Runnable task groups keyed by name for the interactive menu.";
+    commands = lib.mkOption {
+      type = lib.types.attrsOf t.commandType;
+      default = defaults.commands;
+      description = "Runnable commands keyed by invocation name for the interactive menu and MOTD.";
       example = {
-        develop = {
+        dev = {
+          description = "start the dev server";
+          exec = "pnpm dev";
+          group = "develop";
+          key = "d";
           order = 100;
-          tasks.dev = {
-            run = "pnpm dev";
-            description = "start the dev server";
-            key = "d";
-          };
         };
       };
     };

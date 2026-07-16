@@ -10,6 +10,9 @@
   ...
 }:
 let
+  preludeLib = import ./lib.nix { inherit lib; };
+  system = pkgs.stdenv.hostPlatform.system;
+
   # The command-providing packages of the dogfood devshell (shell.nix).
   devshellCommandPackages = [
     config.packages.motd
@@ -21,7 +24,7 @@ let
   ]
   # Consume the wrappers exposed by the evaluated Prelude package, just as a
   # downstream module can, instead of rebuilding knowledge from source config.
-  ++ config.packages.menu.taskWrappers;
+  ++ config.packages.menu.commandWrappers;
 
   # Assert that every advertised command name resolves on a PATH built from
   # the devshell's packages.
@@ -68,48 +71,130 @@ in
       grep -q '┌─┐' "$out"
     '';
 
-  # Keyed groups/tasks normalize into deterministic display order. Explicit
-  # order wins; otherwise keys break ties and become the default labels.
-  task-ordering =
+  # Canonical output families become commands by name without forcing output
+  # values. Explicit output paths preserve names that need quoted attr segments.
+  output-commands =
+    let
+      commands = preludeLib.commandsFromOutputs {
+        inherit pkgs system;
+        outputs = {
+          packages = {
+            default = throw "commandsFromOutputs forced packages.default";
+            api = throw "commandsFromOutputs forced packages.api";
+          };
+          apps."api.admin" = throw "commandsFromOutputs forced apps.api.admin";
+          checks.unit = throw "commandsFromOutputs forced checks.unit";
+        };
+      };
+    in
+    assert
+      builtins.attrNames commands == [
+        "build:api"
+        "check:unit"
+        "run:api.admin"
+      ];
+    assert commands."run:api.admin".group == "run";
+    assert commands."build:api".group == "build";
+    assert commands."check:unit".group == "check";
+    assert lib.hasSuffix " run '.#apps.${system}.\"api.admin\"'" commands."run:api.admin".exec;
+    assert lib.hasSuffix " build '.#packages.${system}.\"api\"'" commands."build:api".exec;
+    assert lib.hasSuffix " build '.#checks.${system}.\"unit\"'" commands."check:unit".exec;
+    pkgs.runCommand "output-commands" { } "touch $out";
+
+  # wrapPerSystem preserves canonical outputs, lets explicit command fields win,
+  # and augments rather than replaces the caller's devshell inputs and hook.
+  wrap-per-system =
+    let
+      motd = pkgs.writeShellApplication {
+        name = "motd";
+        text = "true";
+      };
+      docs = pkgs.writeShellApplication {
+        name = "docs";
+        text = "true";
+      };
+      prompt = pkgs.writeText "starship.toml" "";
+      wrapped =
+        preludeLib.wrapPerSystem
+          (
+            { pkgs, ... }:
+            {
+              packages = {
+                default = throw "wrapPerSystem forced packages.default";
+                api = throw "wrapPerSystem forced packages.api";
+              };
+              apps.api = throw "wrapPerSystem forced apps.api";
+              checks.unit = throw "wrapPerSystem forced checks.unit";
+              prelude.commands."run:api" = {
+                description = "custom run description";
+                key = "a";
+              };
+              devShells.default = pkgs.mkShell {
+                packages = [ pkgs.hello ];
+                shellHook = "export BEFORE_PRELUDE=1";
+              };
+            }
+          )
+          {
+            inherit pkgs system;
+            config.packages = {
+              inherit motd docs prompt;
+            };
+          };
+      shell = wrapped.devShells.default;
+      runCommand = wrapped.prelude.commands."run:api";
+    in
+    assert wrapped.packages ? api;
+    assert !(wrapped.prelude.commands ? "build:default");
+    assert runCommand.description == "custom run description";
+    assert runCommand.key == "a";
+    assert lib.hasSuffix " run '.#apps.${system}.\"api\"'" runCommand.exec;
+    assert lib.elem pkgs.nix runCommand.runtimePackages;
+    assert lib.elem motd shell.nativeBuildInputs;
+    assert lib.elem docs shell.nativeBuildInputs;
+    assert lib.elem pkgs.hello shell.nativeBuildInputs;
+    assert shell.shellHook == "export BEFORE_PRELUDE=1\nexport STARSHIP_CONFIG=${prompt}\nmotd >&2";
+    pkgs.runCommand "wrap-per-system" { } "touch $out";
+
+  # Flat commands normalize into deterministic groups. Explicit order wins;
+  # names break ties, and each group appears at its first command's position.
+  command-ordering =
     let
       plib = import ../src/prelude/lib.nix { inherit lib; };
       evaluated = lib.evalModules {
         modules = [
           ../src/prelude/options/shared.nix
           {
-            prelude.groups = {
-              z-last = {
+            prelude.commands = {
+              z-task = {
+                group = "z-last";
                 order = 100;
-                tasks.z-task = { };
               };
-              a-first = {
+              z-default.group = "a-first";
+              m-default.group = "a-first";
+              a-explicit = {
+                group = "a-first";
                 order = 100;
-                title = "First";
-                tasks = {
-                  z-default = { };
-                  m-default = { };
-                  a-explicit.order = 100;
-                };
               };
             };
           }
           {
-            prelude.groups.a-first.tasks.m-default.description = "merged";
+            prelude.commands.m-default.description = "merged";
           }
         ];
       };
-      normalized = plib.normalizeGroups evaluated.config.prelude.groups;
+      normalized = plib.normalizeCommandGroups evaluated.config.prelude.commands;
       actual = map (group: {
         inherit (group) title;
-        tasks = map (task: task.name) group.tasks;
+        commands = map (command: command.name) group.tasks;
       }) normalized;
-      firstTasks = builtins.head normalized;
-      defaultRuns = map (task: task.run) firstTasks.tasks;
-      mergedDescription = (builtins.elemAt firstTasks.tasks 1).description;
+      firstGroup = builtins.head normalized;
+      defaultExecs = map (command: command.run) firstGroup.tasks;
+      mergedDescription = (builtins.elemAt firstGroup.tasks 1).description;
       expected = [
         {
-          title = "First";
-          tasks = [
+          title = "a-first";
+          commands = [
             "a-explicit"
             "m-default"
             "z-default"
@@ -117,19 +202,19 @@ in
         }
         {
           title = "z-last";
-          tasks = [ "z-task" ];
+          commands = [ "z-task" ];
         }
       ];
     in
     assert actual == expected;
     assert
-      defaultRuns == [
+      defaultExecs == [
         "a-explicit"
         "m-default"
         "z-default"
       ];
     assert mergedDescription == "merged";
-    pkgs.runCommand "task-ordering" { } "touch $out";
+    pkgs.runCommand "command-ordering" { } "touch $out";
 
   # Header options share one nested namespace for module and direct consumers.
   motd-header-options =
@@ -140,7 +225,11 @@ in
           ../src/prelude/options/motd.nix
           {
             prelude.motd = {
-              title = pkgs.writeText "test-title.txt" "TEST TITLE\n";
+              title = {
+                text = pkgs.writeText "test-title.txt" "TEST TITLE\n";
+                align = "center";
+                style = "bracketed";
+              };
               padding = {
                 x = 2;
                 top = 2;
@@ -149,8 +238,13 @@ in
                 blend = 0.15;
               };
               header = {
-                titleStyle = "bracketed";
-                tagline = "test-tagline";
+                tagline = {
+                  text = "test-tagline";
+                  subtitle = "test-subtitle";
+                  layout = "inline";
+                  align = "center";
+                };
+                statusHint.layout = "inline";
                 status.shell = {
                   order = 100;
                   label = "nix develop";
@@ -181,13 +275,19 @@ in
       windowBackground = evaluated.config.prelude.motd.windowBackground;
       shellStatus = header.status.shell;
     in
-    assert builtins.readFile title == "TEST TITLE\n";
-    assert header.titleStyle == "bracketed";
-    assert header.tagline == "test-tagline";
+    assert builtins.readFile title.text == "TEST TITLE\n";
+    assert title.align == "center";
+    assert title.style == "bracketed";
+    assert header.tagline.text == "test-tagline";
+    assert header.tagline.subtitle == "test-subtitle";
+    assert header.tagline.layout == "inline";
+    assert header.tagline.align == "center";
+    assert header.statusHint.layout == "inline";
     assert shellStatus.label == "nix develop";
     assert shellStatus.status == "ready";
     assert shellStatus.failLevel == "error";
     assert header.status.cache.failLevel == "warning";
+    assert header.status.cache.async;
     assert
       shortcuts == [
         {
@@ -211,19 +311,34 @@ in
     test -s "$out"
   '';
 
-  # MOTD commands are selected from the menu task catalogue, whose generated
+  # MOTD commands are selected from the command catalogue, whose generated
   # wrappers are bundled with packages.motd when the menu is enabled.
   motd-commands-runnable =
     mkRunnableCheck "motd-commands-runnable" "motd"
       config.packages.motd.commandNames;
 
-  menu-tasks-runnable = mkRunnableCheck "menu-tasks-runnable" "menu" config.packages.menu.taskNames;
+  menu-commands-runnable =
+    mkRunnableCheck "menu-commands-runnable" "menu"
+      config.packages.menu.commandNames;
 
-  # Package-backed tasks carry their runtime package into the evaluated menu
-  # package and still receive a directly invocable task wrapper.
-  package-task-bundled =
-    assert lib.elem pkgs.nixfmt config.packages.menu.taskRuntimePackages;
-    pkgs.runCommand "package-task-bundled"
+  titles-wrapper-renders =
+    pkgs.runCommand "titles-wrapper-renders"
+      {
+        nativeBuildInputs = [ config.packages.motd ] ++ config.packages.motd.commandWrappers;
+      }
+      ''
+        titles > "$out"
+        test "$(grep -c '^===== .* =====$' "$out")" -eq 23
+        grep -q '^===== 3d-ascii =====$' "$out"
+        grep -q '^===== calvin-s =====$' "$out"
+        test "$(wc -l < "$out")" -gt 50
+      '';
+
+  # Package-backed commands carry their runtime package into the evaluated menu
+  # package and still receive a directly invocable wrapper.
+  package-command-bundled =
+    assert lib.elem pkgs.nixfmt config.packages.menu.commandRuntimePackages;
+    pkgs.runCommand "package-command-bundled"
       {
         nativeBuildInputs = [ config.packages.menu ];
       }
@@ -233,7 +348,7 @@ in
         touch "$out"
       '';
 
-  # Docs options accept hand-authored sections; nothing is required beyond blocks.
+  # Docs options accept Markdown page paths in declaration order.
   docs-options =
     let
       evaluated = lib.evalModules {
@@ -241,30 +356,20 @@ in
           ../src/prelude/options/shared.nix
           ../src/prelude/options/docs.nix
           {
-            prelude.docs = {
-              enable = true;
-              sections.name = {
-                order = 100;
-                blocks = [
-                  {
-                    type = "lead";
-                    term = "acme";
-                    text = "demo";
-                  }
-                ];
-              };
-            };
+            prelude.docs.pages = [
+              { text = ./dogfood/docs/name.md; }
+              { text = ./dogfood/docs/synopsis.md; }
+            ];
           }
         ];
       };
-      secs = evaluated.config.prelude.docs.sections;
+      pages = evaluated.config.prelude.docs.pages;
     in
-    assert secs.name.blocks != [ ];
-    assert (builtins.head secs.name.blocks).type == "lead";
-    assert (builtins.head secs.name.blocks).term == "acme";
+    assert builtins.length pages == 2;
+    assert (builtins.head pages).text == ./dogfood/docs/name.md;
     pkgs.runCommand "docs-options" { } "touch $out";
 
-  # Our own `menu list` renders the grouped task table.
+  # Our own `menu list` renders the grouped command table.
   menu-list-renders = pkgs.runCommand "menu-list-renders" { } ''
     ${lib.getExe config.packages.menu} list > "$out"
     test -s "$out"

@@ -1,4 +1,5 @@
 {
   text = "prelude";
-  font = "kompaktblk";
+  font = "thin";
+  # font = "kompaktblk";
 }

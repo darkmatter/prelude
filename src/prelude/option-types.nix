@@ -148,7 +148,9 @@ let
       };
     };
 
-  # Header status badge. Static: { label?, status }. Live: { label?, check, ok?, fail?, failLevel? }.
+  # Header status badge. Static: { label?, status }. Live checks are cached and
+  # refreshed asynchronously by default; set async = false only for probes that
+  # may intentionally block MOTD rendering.
   # `check` is a shell command; exit 0 → success (ok text / stdout), else error
   # (fail) — or warning when failLevel = "warning".
   headerStatusType = lib.types.submodule {
@@ -172,6 +174,11 @@ let
         type = lib.types.str;
         default = "";
         description = "Shell command that determines the badge. Exit 0 = success; non-zero = error. First stdout line may become the status text when non-empty.";
+      };
+      async = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Refresh the check in the background and render its cached result without blocking shell entry. Set false to run the check synchronously before rendering.";
       };
       ok = lib.mkOption {
         type = lib.types.str;
@@ -251,29 +258,33 @@ let
     };
   };
 
-  taskType = lib.types.submodule {
+  commandType = lib.types.submodule {
     options = {
       order = lib.mkOption {
         type = lib.types.int;
         default = 1000;
-        description = "Display order within the group; task name breaks ties.";
+        description = "Display order; command name breaks ties.";
       };
-      run = lib.mkOption {
+      exec = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
         description = ''
-          Command the task executes; defaults to the task key. Unless `run`
-          starts with the task's own name (meaning the command already exists
-          on PATH), the module bundles a wrapper executable named after the
-          task into `packages.menu` (delegating to `menu <name> …`), so every
-          task the menu displays is directly invocable in the devshell.
+          Shell command to execute; defaults to the command name. Unless `exec`
+          starts with the command's own name (meaning it already exists on
+          PATH), the module bundles a wrapper executable named after the
+          command into `packages.menu` (delegating to `menu <name> …`).
         '';
+      };
+      group = lib.mkOption {
+        type = lib.types.str;
+        default = "general";
+        description = "Menu group heading. Groups follow the order of their first command.";
       };
       runtimePackages = lib.mkOption {
         type = lib.types.listOf lib.types.package;
         default = [ ];
         internal = true;
-        description = "Packages automatically bundled for this task by prelude.lib.mkTask.";
+        description = "Packages automatically bundled for this command by prelude.lib.mkCommand.";
       };
       description = lib.mkOption {
         type = lib.types.str;
@@ -304,26 +315,6 @@ let
         type = lib.types.listOf argType;
         default = [ ];
         description = "Arguments/flags; presence triggers arg-entry mode in the menu.";
-      };
-    };
-  };
-
-  groupType = lib.types.submodule {
-    options = {
-      order = lib.mkOption {
-        type = lib.types.int;
-        default = 1000;
-        description = "Display order; group name breaks ties.";
-      };
-      title = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        description = "Displayed group heading; defaults to the group name.";
-      };
-      tasks = lib.mkOption {
-        type = lib.types.attrsOf taskType;
-        default = { };
-        description = "Tasks keyed by invocation name.";
       };
     };
   };
@@ -419,8 +410,7 @@ in
     headerStatusType
     exampleType
     argType
-    taskType
-    groupType
+    commandType
     recipeStepType
     recipeType
     shortcutType

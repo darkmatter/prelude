@@ -1,7 +1,7 @@
 # TypeScript package-script menu
 
 A copyable Prelude configuration that reads `package.json` and exposes each
-script as an `npm run <name>` menu task.
+script as an `npm run <name>` menu command.
 
 ```nix
 { lib, ... }:
@@ -12,20 +12,18 @@ in
   prelude = {
     project = package.name or "typescript-app";
     menu.enable = true;
-    groups.package-scripts = {
-      title = "package.json scripts";
-      tasks = lib.mapAttrs (
-        name: command: {
-          run = "npm run ${name}";
-          description = command;
-        }
-      ) (package.scripts or { });
-    };
+    commands = lib.mapAttrs (
+      name: description: {
+        inherit description;
+        exec = "npm run ${name}";
+        group = "package.json scripts";
+      }
+    ) (package.scripts or { });
   };
 }
 ```
 
-From the Prelude repository, inspect the generated task list with:
+From the Prelude repository, inspect the generated command list with:
 
 ```sh
 nix run path:.#example-typescript-menu -- list
