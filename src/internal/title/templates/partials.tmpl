@@ -1,0 +1,154 @@
+{{/* Shared partials for setup-generated Nix config. */}}
+
+{{define "commandEntry"}}
+{{ .Pad }}{{ .Key }} = {
+{{- if .Exec }}
+{{ .Pad }}  exec = {{ nixString .Exec }};  # defaults to the key suffix after the first colon
+{{- else }}
+{{ .Pad }}  # exec = {{ nixString .InferredExec }};  # defaults to the key suffix after the first colon
+{{- end }}
+{{- if .Description }}
+{{ .Pad }}  description = {{ nixString .Description }};
+{{- else }}
+{{ .Pad }}  # description = "";
+{{- end }}
+{{ .Pad }}  # key = null;  # single-key accelerator (`menu <key>`)
+{{ .Pad }}  # usage = null;  # usage form shown in menu details
+{{ .Pad }}  # details = null;  # extended description before arg entry
+{{ .Pad }}  # examples = [ ];  # worked example invocations
+{{ .Pad }}  # args = [ ];  # arg-entry mode: { token, description?, required?, boolean?, options? }
+{{ .Pad }}  # invocation = null;  # canonical shell text for duplicate detection; defaults to exec
+{{- if .MotdOrder }}
+{{ .Pad }}  motd = {{ .MotdOrder }};  # MOTD Getting Started sort order; null hides from MOTD
+{{- else }}
+{{ .Pad }}  # motd = null;  # MOTD Getting Started sort order; null hides from MOTD
+{{- end }}
+{{ .Pad }}};
+{{- end }}
+
+{{/* Example command fields when the catalogue is empty (already under `# ` lines). */}}
+{{define "commandFieldsCommented"}}
+    #     # key = null;  # single-key accelerator (`menu <key>`)
+    #     # usage = null;  # usage form shown in menu details
+    #     # details = null;  # extended description before arg entry
+    #     # examples = [ ];  # worked example invocations
+    #     # args = [ ];  # arg-entry mode: { token, description?, required?, boolean?, options? }
+    #     # invocation = null;  # canonical shell text for duplicate detection; defaults to exec
+    #     # motd = null;  # MOTD Getting Started sort order; null hides from MOTD
+{{- end }}
+
+{{/* Full motd = { … }; block (no leading indent). Used active or via commentLines. */}}
+{{define "motdBlock"}}
+motd = {
+  enable = true;
+
+{{ template "motdOptions" . -}}
+};
+{{- end }}
+
+{{/* Body of motd options (title + commented defaults). */}}
+{{define "motdOptions"}}
+      title = {
+        text = {{ .TitlePath }};  # multiline title file; null uses the project-name wordmark
+{{- if .Motd }}
+        align = "center";  # left|center|right; default "left"
+        # style = "spine";  # wordmark when text is null: plain|spine|bracketed|label|inline|inverted
+{{- else }}
+        # align = "left";  # left|center|right
+        # style = "spine";  # plain|spine|bracketed|label|inline|inverted
+{{- end }}
+      };
+
+      # background = null;  # block fill: null/false | true (theme bg) | color | { relative } | { blend }
+      # windowBackground = null;  # full-width window fill; same value forms as background
+      # clearScreen = true;  # clear the terminal before rendering
+      # align = "center";  # horizontal placement of the MOTD block: left|center|right
+      # width = "full";  # content width or "full"
+      # maxWidth = 96;  # maximum content width
+      # fullscreen = false;  # fill terminal width with no cap (width=full + maxWidth=null)
+
+      # Outer spacing: top/bottom blank lines, left/right columns (sides supersede x/y).
+      # margin = {
+      #   x = 0;           # horizontal shorthand
+      #   y = 0;           # vertical shorthand
+      #   top = 10;        # supersedes y
+      #   bottom = null;   # supersedes y
+      #   left = null;     # supersedes x
+      #   right = null;    # supersedes x
+      #   minHeight = 0;   # apply vertical sides only at/above this terminal height
+      # };
+
+      # Inner spacing between content and block edge (sides supersede x/y).
+      # padding = {
+      #   x = 0;
+      #   y = 0;
+      #   top = null;
+      #   bottom = null;
+      #   left = null;
+      #   right = null;
+      #   minHeight = 0;
+      # };
+
+      # Hero bar: tagline, status lights, activation copy.
+      # header = {
+      #   tagline = {
+      #     text = "Dev Shell Activated";
+      #     subtitle = "Your environment is ready";
+      #     layout = "stack";  # "stack" | "inline"
+      #     align = "left";  # "left" | "center"
+      #   };
+      #   background = true;  # true = raised bar; null/false = transparent; color | { relative }
+      #   statusHint = {
+      #     layout = "below";  # "below" | "inline"
+      #     links = [ ];  # terminal hyperlinks after the reload hint: { label, url }
+      #   };
+      #   # Keyed lights, sorted by order then name. Static: { status }. Live: { check, … }.
+      #   status = {
+      #     ready = { status = "ready"; };
+      #     # nix = {
+      #     #   order = 100;
+      #     #   label = "nix";
+      #     #   check = "nix --version >/dev/null";
+      #     #   async = true;  # background refresh
+      #     #   ok = "ok";
+      #     #   fail = "fail";
+      #     #   failLevel = "error";  # "error" | "warning"
+      #     #   output = "";  # "" | "light" | "diagnostic"
+      #     # };
+      #   };
+      # };
+
+      # Styled text under the header; empty text hides it.
+      # description = {
+      #   text = "";
+      #   foreground = null;  # null uses the theme role color
+      #   background = null;  # null/false | true | color | { relative }
+      #   bold = false;
+      #   italic = false;
+      #   faint = false;
+      #   tips = [ ];  # optional tip lines; wrap commands in backticks
+      # };
+
+      # links = [ ];  # terminal hyperlinks under the description: { label, url }
+      # env = [  # info chips; each sets exactly one of value (static) or probe (command)
+      #   # { label = "node"; value = "22.3.0"; }
+      #   # { label = "nix"; probe = "nix --version | awk '{print $NF}'"; }
+      # ];
+      # recipes = {  # multi-step workflows keyed by name
+      #   # clean-local-stack = {
+      #   #   order = 1000;
+      #   #   title = "spin up a clean local stack";
+      #   #   steps = [
+      #   #     { comment = "start postgres first"; }
+      #   #     { command = "just db:up"; }
+      #   #   ];
+      #   # };
+      # };
+
+      # Labels for the commands + examples region.
+      # gettingStarted = {
+      #   heading = "Getting Started";
+      #   commandsLabel = "commands";
+      #   examplesLabel = "examples";
+      # };
+{{- end }}

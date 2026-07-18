@@ -64,7 +64,10 @@ func (v *Viewer) click(x, y int) {
 func (v *Viewer) recomputeLayout() {
 	offset := v.viewport.YOffset()
 	v.l = v.computeLayout()
-	v.viewport.SetWidth(v.l.bodyW)
+	// Keep the viewport constrained to the rendered document width. Its View
+	// pads to its configured width with plain cells, so using bodyW here makes
+	// those cells consume the right margin before render() can paint it.
+	v.viewport.SetWidth(v.l.textW)
 	v.viewport.SetHeight(v.l.viewH)
 	lines, starts := v.renderDocument(v.l.textW)
 	v.starts = starts

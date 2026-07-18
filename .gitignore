@@ -35,3 +35,4 @@ Thumbs.db
 !.vscode/extensions.json
 src/.tmp-motd-region-test/
 .omo/run-continuation/
+.omo

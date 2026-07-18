@@ -69,8 +69,10 @@ The tool that owns a workflow also owns its underlying invocation:
 `nix run`. The Nix devshell provides dependencies and environment. Once inside
 that shell, Prelude invokes the owning tool directly.
 
-The MOTD advertises the concise catalogue invocation (`x go:test`), while
-command details may show the canonical invocation (`go test ./...`).
+The MOTD advertises the concise catalogue invocation (`x go:test`) for project
+commands, while always listing bare `menu` (no `x` prefix) so the command
+palette is discoverable from the banner. Command details may show the canonical
+invocation (`go test ./...`).
 
 ## Import; do not export
 

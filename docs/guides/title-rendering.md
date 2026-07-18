@@ -32,19 +32,29 @@ Pager keys:
 `setup` opens the project setup flow. After the title and style pages it
 collects the project name, theme (with live palette preview), color depth,
 component toggles (each previewed in your theme), initial project commands
-(name, exec, description), and the config shape, then prints a ready-to-use
-config to stdout:
+(name, exec, description), and the config shape, then writes a ready-to-use
+config next to a sibling title file:
 
 ```sh
-nix run .#setup > prelude.nix
+nix run .#setup
+# equivalent: nix run .#setup -- -o prelude.nix
 ```
 
-The setup UI renders on stderr, so redirecting stdout captures only the
-config. The previous `nix run .#title -- --wizard` invocation remains available
-for compatibility. The rendered wordmark is written to `docs/title.txt` (override with
-`-o`; an existing file at that path is replaced). Enabling the docs viewer
-also writes a starter `docs/getting-started.md`, but an existing page is
-kept untouched.
+That writes `prelude.nix` and `title.txt` in the current directory. Point `-o`
+at another config path to relocate both files — the wordmark is always
+`title.txt` beside the config (e.g. `-o nix/prelude.nix` → `nix/prelude.nix`
+and `nix/title.txt`). An existing file at either path is replaced.
+
+The generated config is an options template as well as a working module: every
+supported Prelude option appears once with a short comment. Wizard choices
+are active; everything else is commented out at its default so you can see
+defaults and enable knobs without leaving the file. Full prose docs live in
+`docs/reference/options.md`.
+
+The setup UI renders on stderr; status lines (`wrote …`) go there too. The
+previous `nix run .#title -- --wizard` invocation remains available for
+compatibility. Enabling the docs viewer also writes a starter
+`docs/getting-started.md`, but an existing page is kept untouched.
 
 The final step chooses between two config shapes:
 

@@ -188,19 +188,35 @@ let
 
   flatCommands = groups: lib.concatMap (group: group.tasks) groups;
 
-  # Select commands whose `motd` sort order is set, sorted ascending by
-  # `motd` then by command name. Returns `{ name, command, description }`
-  # rows in display order. Commands with `motd = null` are hidden from the MOTD.
+  # Select commands for the MOTD Getting Started list.
+  # - Commands with `motd` set appear at that sort order.
+  # - `menu` is always included when present (opens the command palette).
+  # - Most rows render as `x <name>`; `menu` is bare so it does not show the
+  #   `x` prefix (it is a first-class PATH entrypoint, not an x dispatch).
+  # Returns `{ name, command, description }` rows in display order.
   selectCommands =
     commands:
     let
-      motdEntries = lib.filter (entry: entry.raw.motd or null != null) commands;
+      isMenu = entry: entry.name == "menu";
+      motdOrder =
+        entry:
+        let
+          order = entry.raw.motd or null;
+        in
+        if order != null then
+          order
+        else if isMenu entry then
+          # Default ahead of project next-steps unless an explicit order is set.
+          0
+        else
+          null;
+      motdEntries = lib.filter (entry: motdOrder entry != null) commands;
       sorted = lib.sort
         (
           a: b:
             let
-              ao = a.raw.motd;
-              bo = b.raw.motd;
+              ao = motdOrder a;
+              bo = motdOrder b;
             in
             if ao != bo then ao < bo else a.name < b.name
         )
@@ -209,7 +225,8 @@ let
     map
       (entry: {
         name = entry.name;
-        command = entry.xInvocation;
+        # Bare `menu` (no `x` prefix); every other MOTD row is an x dispatch.
+        command = if isMenu entry then entry.name else entry.xInvocation;
         description = entry.description;
       })
       sorted;

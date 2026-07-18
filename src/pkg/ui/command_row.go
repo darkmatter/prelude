@@ -23,14 +23,15 @@ func (x CommandRow) promptStyle() lipgloss.Style {
 	if x.Prompt != nil {
 		return *x.Prompt
 	}
-	return x.Context.Accent()
+	// Quiet shell prompt; the x dispatch prefix carries the accent instead.
+	return x.Context.Dim()
 }
 
 func (x CommandRow) prefixStyle() lipgloss.Style {
 	if x.PrefixStyle != nil {
 		return *x.PrefixStyle
 	}
-	return x.Context.Dim()
+	return x.Context.Accent()
 }
 
 func (x CommandRow) commandStyle() lipgloss.Style {

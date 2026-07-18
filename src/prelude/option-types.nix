@@ -339,8 +339,9 @@ let
         description = ''
           When set, this command appears on the MOTD Getting Started list at this
           sort order (ascending, ties broken by command name). When null/undefined
-          the command is hidden from the MOTD. Prelude navigation commands
-          (`menu`, `help`, `docs`) belong outside this list and stay null.
+          the command is hidden from the MOTD, except `menu` which is always
+          listed (bare, without the `x` prefix) whenever the menu is enabled.
+          Other navigation commands (`help`, `docs`) stay off this list.
         '';
       };
     };

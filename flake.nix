@@ -8,9 +8,9 @@
 #   menu  — interactive command menu (bubbletea TUI, configured by Nix)
 #
 # This flake dogfoods its own module: `flakeModules.default` is created with
-# flake-parts' importApply, imported below, and configured with this repo's
-# default example (`examples/default`) — `nix develop` greets you with our own motd
-# and `menu` drives the project.
+# flake-parts' importApply, imported below, and configured via root `prelude.nix`
+# (the same shape a consumer gets from setup) — `nix develop` greets you with our
+# own motd and `menu` drives the project.
 #
 # Downstream usage (see src/prelude/module.nix for the full option set):
 #
@@ -33,8 +33,9 @@
 #   nix run .#motd / .#menu / .#previews / .#examples / .#example-*
 #   nix flake check      # build + render smoke tests
 #
-# Layout: flake outputs are one file per output under nix/, while
-# `examples/default` is the Prelude configuration this repository dogfoods.
+# Layout: flake outputs are one file per output under nix/; root `prelude.nix`
+# is the dogfood configuration (imports nix/prelude-*.nix). docs/ holds the
+# docs-viewer pages plus guides and generated references.
 #   per-system.nix       packages/apps/devshell/checks composition root
 #   overlay.nix, lib.nix flake-level outputs
 # Component sources live in src/prelude (Nix generators) and internal/menu
@@ -74,11 +75,11 @@
           "aarch64-darwin"
         ];
 
-        # Dogfood the same configuration presented as the default example.
+        # Dogfood like a consumer: module + prelude.nix next to it.
         imports = [
           preludeModule
           motdShellExperimentModule
-          ./examples/default
+          ./prelude.nix
           inputs.treefmt-nix.flakeModule
         ];
 

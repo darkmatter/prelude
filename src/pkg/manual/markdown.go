@@ -5,96 +5,20 @@ import (
 
 	"charm.land/glamour/v2"
 	gansi "charm.land/glamour/v2/ansi"
-	"charm.land/lipgloss/v2"
+	glamstyles "charm.land/glamour/v2/styles"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/ast"
-	gtext "github.com/yuin/goldmark/text"
-
-	"prelude/pkg/ui"
 )
 
-// renderMarkdown renders one page. Top-level `##` headings become labeled
-// fading rules — the same header treatment as the code-block element — so
-// sections separate visually; everything between them renders through glamour.
 func (v Viewer) renderMarkdown(source string, textWidth int) []string {
-	var lines []string
-	for _, segment := range splitAtH2(source) {
-		if segment.title != "" {
-			if len(lines) > 0 {
-				lines = append(lines, "")
-			}
-			lines = append(lines, v.sectionRule(segment.title, textWidth), "")
-		}
-		if strings.TrimSpace(segment.body) == "" {
-			continue
-		}
-		lines = append(lines, v.renderMarkdownBody(segment.body, textWidth)...)
-	}
-	return lines
+	return v.renderMarkdownBody(source, textWidth)
 }
 
-// markdownSegment is one H2-delimited slice of a page; the leading segment
-// (before any H2) carries an empty title.
-type markdownSegment struct {
-	title string
-	body  string
-}
-
-// splitAtH2 splits markdown at top-level `##` headings. Parsing with goldmark
-// keeps fenced code blocks containing "## …" lines intact.
-func splitAtH2(source string) []markdownSegment {
-	contents := []byte(source)
-	root := goldmark.DefaultParser().Parse(gtext.NewReader(contents))
-	segments := []markdownSegment{{}}
-	cursor := 0
-	for node := root.FirstChild(); node != nil; node = node.NextSibling() {
-		heading, ok := node.(*ast.Heading)
-		if !ok || heading.Level != 2 || heading.Lines().Len() == 0 {
-			continue
-		}
-		title := strings.TrimSpace(string(heading.Text(contents)))
-		if title == "" {
-			continue
-		}
-		segment := heading.Lines().At(0)
-		// The heading segment covers the text only; extend to the "## " line
-		// start so the marker never leaks into the previous body.
-		start := segment.Start
-		for start > 0 && contents[start-1] != '\n' {
-			start--
-		}
-		segments[len(segments)-1].body = source[cursor:start]
-		segments = append(segments, markdownSegment{title: title})
-		cursor = segment.Stop
-	}
-	segments[len(segments)-1].body = source[cursor:]
-	return segments
-}
-
-// sectionRule renders an H2 title inset in a fading horizontal rule, mirroring
-// the code-block header so both section markers share one visual language.
-// The context is non-transparent on the body surface: every dash and label
-// cell must carry the body background (the viewport is a solid surface).
-func (v Viewer) sectionRule(title string, textWidth int) string {
-	rule := ui.FadingRule{
-		Context: ui.NewContext(v.styles.pal, v.styles.bg, false),
-		Width:   max(textWidth-2, 1),
-		Frame:   lipgloss.Color(string(v.styles.pal.AccentBorder)),
-		Fade:    true,
-	}
-	return v.styles.indent(2) + rule.Render(title)
-}
-
-// renderMarkdownBody renders one H2-free chunk through glamour.
+// renderMarkdownBody renders Markdown through glamour.
 func (v Viewer) renderMarkdownBody(source string, textWidth int) []string {
-	// Leave a 2-cell indent we paint ourselves with the body fill. Glamour's
-	// Document.Margin inserts unstyled spaces that punch holes through to the
-	// terminal default background — never use it when the viewer owns the bg.
-	innerWidth := max(textWidth-2, 1)
 	renderer, err := glamour.NewTermRenderer(
 		glamour.WithStyles(v.markdownStyle()),
-		glamour.WithWordWrap(innerWidth),
+		glamour.WithChromaFormatter("terminal16m"),
+		glamour.WithWordWrap(max(textWidth, 1)),
 	)
 	if err != nil {
 		return v.renderPlainMarkdown(source, textWidth)
@@ -104,14 +28,7 @@ func (v Viewer) renderMarkdownBody(source string, textWidth int) []string {
 	if err != nil {
 		return v.renderPlainMarkdown(source, textWidth)
 	}
-	raw := trimMarkdownBlankEdges(strings.Split(strings.TrimRight(output, "\n"), "\n"))
-	indent := v.styles.indent(2)
-	lines := make([]string, len(raw))
-	for i, line := range raw {
-		// Prefix every row with filled indent so the left margin carries bg.
-		lines[i] = indent + line
-	}
-	return lines
+	return strings.Split(strings.TrimRight(output, "\n"), "\n")
 }
 
 func (v Viewer) renderPlainMarkdown(source string, textWidth int) []string {
@@ -125,87 +42,111 @@ func (v Viewer) renderPlainMarkdown(source string, textWidth int) []string {
 
 func (v Viewer) markdownStyle() gansi.StyleConfig {
 	palette := v.styles.pal
-	foreground := string(palette.Fg)
-	background := string(palette.Bg)
 	accent := manualStringPtr(string(palette.Accent))
 	accent2 := manualStringPtr(string(palette.Accent2))
 	muted := manualStringPtr(string(palette.Muted))
 	dim := manualStringPtr(string(palette.Dim))
-	bg := manualStringPtr(background)
-	fg := manualStringPtr(foreground)
+	success := manualStringPtr(string(palette.Success))
+	warning := manualStringPtr(string(palette.Warning))
+	info := manualStringPtr(string(palette.Info))
+	errorColor := manualStringPtr(string(palette.Error))
+	bg := manualStringPtr(string(palette.Bg))
+	fg := manualStringPtr(string(palette.Fg))
 
-	// Every primitive carries BackgroundColor so glamour spans do not reset to
-	// the terminal default between style changes (the classic "hole" look).
+	style := glamstyles.DarkStyleConfig
 	base := gansi.StylePrimitive{Color: fg, BackgroundColor: bg}
 
-	return gansi.StyleConfig{
-		Document: gansi.StyleBlock{
-			StylePrimitive: base,
-			// Margin must stay 0 — glamour margin is unstyled whitespace.
-			Margin: manualUintPtr(0),
-		},
-		Paragraph: gansi.StyleBlock{StylePrimitive: base},
-		BlockQuote: gansi.StyleBlock{
-			StylePrimitive: gansi.StylePrimitive{Color: muted, BackgroundColor: bg, Italic: manualBoolPtr(true)},
-			Indent:         manualUintPtr(1),
-			IndentToken:    manualStringPtr("│ "),
-		},
-		List: gansi.StyleList{LevelIndent: 2},
-		Heading: gansi.StyleBlock{
-			StylePrimitive: gansi.StylePrimitive{
-				Color:           accent2,
-				BackgroundColor: bg,
-				Bold:            manualBoolPtr(true),
-				BlockSuffix:     "\n",
-			},
-		},
-		H1: gansi.StyleBlock{StylePrimitive: gansi.StylePrimitive{
-			Color: accent2, BackgroundColor: bg, Bold: manualBoolPtr(true), BlockSuffix: "\n",
-		}},
-		H2: gansi.StyleBlock{StylePrimitive: gansi.StylePrimitive{
-			Color: accent2, BackgroundColor: bg, Bold: manualBoolPtr(true), BlockSuffix: "\n",
-		}},
-		H3: gansi.StyleBlock{StylePrimitive: gansi.StylePrimitive{
-			Color: accent, BackgroundColor: bg, Bold: manualBoolPtr(true), BlockSuffix: "\n",
-		}},
-		H4:            gansi.StyleBlock{StylePrimitive: gansi.StylePrimitive{Color: accent, BackgroundColor: bg, Bold: manualBoolPtr(true)}},
-		H5:            gansi.StyleBlock{StylePrimitive: gansi.StylePrimitive{Color: muted, BackgroundColor: bg, Bold: manualBoolPtr(true)}},
-		H6:            gansi.StyleBlock{StylePrimitive: gansi.StylePrimitive{Color: dim, BackgroundColor: bg, Bold: manualBoolPtr(true)}},
-		Text:          base,
-		Strong:        gansi.StylePrimitive{Color: fg, BackgroundColor: bg, Bold: manualBoolPtr(true)},
-		Emph:          gansi.StylePrimitive{Color: fg, BackgroundColor: bg, Italic: manualBoolPtr(true)},
-		Strikethrough: gansi.StylePrimitive{Color: muted, BackgroundColor: bg, CrossedOut: manualBoolPtr(true)},
-		HorizontalRule: gansi.StylePrimitive{
-			Color: dim, BackgroundColor: bg, Format: "\n────────\n",
-		},
-		Item:        gansi.StylePrimitive{Color: fg, BackgroundColor: bg, BlockPrefix: "• "},
-		Enumeration: gansi.StylePrimitive{Color: fg, BackgroundColor: bg, BlockPrefix: ". "},
-		Link: gansi.StylePrimitive{
-			Color: accent, BackgroundColor: bg, Underline: manualBoolPtr(true),
-		},
-		LinkText: gansi.StylePrimitive{Color: accent, BackgroundColor: bg},
-		Code: gansi.StyleBlock{
-			StylePrimitive: gansi.StylePrimitive{Color: accent, BackgroundColor: bg, Bold: manualBoolPtr(true)},
-		},
-		CodeBlock: gansi.StyleCodeBlock{
-			StyleBlock: gansi.StyleBlock{
-				StylePrimitive: gansi.StylePrimitive{Color: muted, BackgroundColor: bg},
-				Indent:         manualUintPtr(2),
-			},
-		},
-	}
-}
+	style.Document.StylePrimitive = base
+	style.Document.Margin = manualUintPtr(0)
+	style.Paragraph.StylePrimitive = base
+	style.Paragraph.Indent = manualUintPtr(2)
+	style.BlockQuote.StylePrimitive.Color = muted
+	style.BlockQuote.StylePrimitive.BackgroundColor = bg
+	style.BlockQuote.StylePrimitive.Italic = manualBoolPtr(true)
+	style.BlockQuote.Indent = manualUintPtr(1)
+	style.BlockQuote.IndentToken = manualStringPtr("  │ ")
+	style.List.StyleBlock.StylePrimitive = base
+	style.List.StyleBlock.Indent = manualUintPtr(2)
+	style.List.LevelIndent = 2
+	style.Heading.StylePrimitive.Color = accent2
+	style.Heading.StylePrimitive.BackgroundColor = bg
+	style.Heading.StylePrimitive.Bold = manualBoolPtr(true)
+	style.Heading.StylePrimitive.BlockSuffix = "\n"
+	style.Heading.Indent = manualUintPtr(2)
 
-func trimMarkdownBlankEdges(lines []string) []string {
-	blank := func(line string) bool { return strings.TrimSpace(ansi.Strip(line)) == "" }
-	start, end := 0, len(lines)
-	for start < end && blank(lines[start]) {
-		start++
+	style.H1.StylePrimitive.Color = accent2
+	style.H1.StylePrimitive.BackgroundColor = bg
+	style.H1.StylePrimitive.Bold = manualBoolPtr(true)
+	style.H1.StylePrimitive.BlockSuffix = "\n"
+	style.H2.StylePrimitive.Color = accent
+	style.H2.StylePrimitive.BackgroundColor = bg
+	style.H2.StylePrimitive.Bold = manualBoolPtr(true)
+	style.H2.StylePrimitive.BlockSuffix = "\n"
+	style.H3.StylePrimitive.Color = accent2
+	style.H3.StylePrimitive.BackgroundColor = bg
+	style.H3.StylePrimitive.Bold = manualBoolPtr(true)
+	style.H3.StylePrimitive.BlockSuffix = "\n"
+	style.H4.StylePrimitive.Color = accent
+	style.H4.StylePrimitive.BackgroundColor = bg
+	style.H4.StylePrimitive.Bold = manualBoolPtr(true)
+	style.H5.StylePrimitive.Color = accent2
+	style.H5.StylePrimitive.BackgroundColor = bg
+	style.H5.StylePrimitive.Bold = manualBoolPtr(false)
+	style.H6.StylePrimitive.Color = accent
+	style.H6.StylePrimitive.BackgroundColor = bg
+	style.H6.StylePrimitive.Bold = manualBoolPtr(false)
+
+	style.Text = base
+	style.Strong = gansi.StylePrimitive{Color: fg, BackgroundColor: bg, Bold: manualBoolPtr(true)}
+	style.Emph = gansi.StylePrimitive{Color: fg, BackgroundColor: bg, Italic: manualBoolPtr(true)}
+	style.Strikethrough = gansi.StylePrimitive{Color: muted, BackgroundColor: bg, CrossedOut: manualBoolPtr(true)}
+	style.HorizontalRule = gansi.StylePrimitive{Color: dim, BackgroundColor: bg, Format: "\n────────\n"}
+	style.Item = gansi.StylePrimitive{Color: fg, BackgroundColor: bg, BlockPrefix: "• "}
+	style.Enumeration = gansi.StylePrimitive{Color: fg, BackgroundColor: bg, BlockPrefix: ". "}
+	style.Link = gansi.StylePrimitive{Color: accent, BackgroundColor: bg, Underline: manualBoolPtr(true)}
+	style.LinkText = gansi.StylePrimitive{Color: accent, BackgroundColor: bg}
+	style.Code = gansi.StyleBlock{StylePrimitive: gansi.StylePrimitive{Color: accent, BackgroundColor: bg, Bold: manualBoolPtr(true)}}
+	style.CodeBlock = gansi.StyleCodeBlock{
+		StyleBlock: gansi.StyleBlock{
+			StylePrimitive: base,
+			Indent:         manualUintPtr(4),
+		},
+		Chroma: &gansi.Chroma{
+			Text:                gansi.StylePrimitive{Color: fg, BackgroundColor: bg},
+			Error:               gansi.StylePrimitive{Color: errorColor, BackgroundColor: bg},
+			Comment:             gansi.StylePrimitive{Color: muted, BackgroundColor: bg, Italic: manualBoolPtr(true)},
+			CommentPreproc:      gansi.StylePrimitive{Color: info, BackgroundColor: bg},
+			Keyword:             gansi.StylePrimitive{Color: accent, BackgroundColor: bg, Bold: manualBoolPtr(true)},
+			KeywordReserved:     gansi.StylePrimitive{Color: accent, BackgroundColor: bg, Bold: manualBoolPtr(true)},
+			KeywordNamespace:    gansi.StylePrimitive{Color: accent, BackgroundColor: bg},
+			KeywordType:         gansi.StylePrimitive{Color: accent2, BackgroundColor: bg},
+			Operator:            gansi.StylePrimitive{Color: accent, BackgroundColor: bg},
+			Punctuation:         gansi.StylePrimitive{Color: muted, BackgroundColor: bg},
+			Name:                gansi.StylePrimitive{Color: fg, BackgroundColor: bg},
+			NameBuiltin:         gansi.StylePrimitive{Color: info, BackgroundColor: bg},
+			NameTag:             gansi.StylePrimitive{Color: accent, BackgroundColor: bg},
+			NameAttribute:       gansi.StylePrimitive{Color: accent2, BackgroundColor: bg},
+			NameClass:           gansi.StylePrimitive{Color: accent2, BackgroundColor: bg},
+			NameConstant:        gansi.StylePrimitive{Color: warning, BackgroundColor: bg},
+			NameDecorator:       gansi.StylePrimitive{Color: accent, BackgroundColor: bg},
+			NameException:       gansi.StylePrimitive{Color: errorColor, BackgroundColor: bg},
+			NameFunction:        gansi.StylePrimitive{Color: accent2, BackgroundColor: bg},
+			NameOther:           gansi.StylePrimitive{Color: fg, BackgroundColor: bg},
+			Literal:             gansi.StylePrimitive{Color: fg, BackgroundColor: bg},
+			LiteralNumber:       gansi.StylePrimitive{Color: warning, BackgroundColor: bg},
+			LiteralDate:         gansi.StylePrimitive{Color: warning, BackgroundColor: bg},
+			LiteralString:       gansi.StylePrimitive{Color: success, BackgroundColor: bg},
+			LiteralStringEscape: gansi.StylePrimitive{Color: accent, BackgroundColor: bg},
+			GenericDeleted:      gansi.StylePrimitive{Color: errorColor, BackgroundColor: bg},
+			GenericEmph:         gansi.StylePrimitive{Color: fg, BackgroundColor: bg, Italic: manualBoolPtr(true)},
+			GenericInserted:     gansi.StylePrimitive{Color: success, BackgroundColor: bg},
+			GenericStrong:       gansi.StylePrimitive{Color: fg, BackgroundColor: bg, Bold: manualBoolPtr(true)},
+			GenericSubheading:   gansi.StylePrimitive{Color: accent2, BackgroundColor: bg, Bold: manualBoolPtr(true)},
+			Background:          gansi.StylePrimitive{BackgroundColor: bg},
+		},
 	}
-	for end > start && blank(lines[end-1]) {
-		end--
-	}
-	return lines[start:end]
+
+	return style
 }
 
 func manualStringPtr(value string) *string { return &value }

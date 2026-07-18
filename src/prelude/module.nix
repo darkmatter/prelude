@@ -174,9 +174,10 @@ in
             usage: setup [--recipe path] [-o path]
 
             Interactively generate a ready-to-use Prelude configuration.
-            The UI renders on stderr and the generated Nix config on stdout.
+            The UI renders on stderr. Writes the Nix config to -o and a sibling
+            title.txt next to it (e.g. prelude.nix + title.txt).
 
-              -o, --output path  write the generated title (default: docs/title.txt)
+              -o, --output path  write the generated config (default: prelude.nix)
               --recipe path      prefill title text and font from a Nix recipe
             EOF
               exit 0

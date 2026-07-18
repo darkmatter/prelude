@@ -8,7 +8,7 @@ Prelude supplies these whenever the components are enabled:
 - **`help`** (`h`) — command help (`menu help`).
 - **`docs`** (`d`) — this viewer.
 
-Project commands declared in `examples/default/menu.nix`:
+Project commands declared in `nix/prelude-menu.nix`:
 
 - **`x go:test`**, **`x go:vet`** — public catalogue commands grouped under
   `go`; they dispatch to canonical `go test -C src ./...` / `go vet -C src

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"prelude/pkg/shared"
@@ -50,7 +51,7 @@ func TestMarkdownPageRendersInViewport(t *testing.T) {
 	}
 }
 
-func TestH2RendersAsLabeledSectionRule(t *testing.T) {
+func TestH2RendersAsMarkdownHeading(t *testing.T) {
 	document := Document{Sections: []Section{{
 		Title:    "Guide",
 		Markdown: "# Guide\n\nintro text\n\n## Workflow\n\nbody text\n\n```sh\n## not a heading\n```",
@@ -58,20 +59,22 @@ func TestH2RendersAsLabeledSectionRule(t *testing.T) {
 	viewer := New(document, testPalette())
 	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 40})
 
-	var ruleLine string
+	var headingLine string
 	for _, line := range strings.Split(viewer.viewport.GetContent(), "\n") {
 		plain := ansi.Strip(line)
 		if strings.Contains(plain, "Workflow") {
-			ruleLine = plain
+			headingLine = plain
 			break
 		}
 	}
-	if ruleLine == "" {
+	if headingLine == "" {
 		t.Fatal("H2 title missing from rendered page")
 	}
-	// The code-block header treatment: title inset in a dashed rule.
-	if !strings.Contains(ruleLine, "─") {
-		t.Fatalf("H2 not rendered as a labeled rule: %q", ruleLine)
+	if !strings.Contains(headingLine, "## Workflow") {
+		t.Fatalf("H2 did not render with its Markdown heading marker: %q", headingLine)
+	}
+	if strings.Contains(headingLine, "─") {
+		t.Fatalf("H2 rendered as a labeled rule instead of a Markdown heading: %q", headingLine)
 	}
 
 	plain := ansi.Strip(viewer.viewport.GetContent())
@@ -79,17 +82,6 @@ func TestH2RendersAsLabeledSectionRule(t *testing.T) {
 		if !strings.Contains(plain, want) {
 			t.Fatalf("rendered page missing %q:\n%s", want, plain)
 		}
-	}
-	// The fenced "## not a heading" must stay inside its code block, not
-	// become a second rule.
-	ruleLines := 0
-	for _, line := range strings.Split(plain, "\n") {
-		if strings.Contains(line, "─────") {
-			ruleLines++
-		}
-	}
-	if ruleLines != 1 {
-		t.Fatalf("expected exactly one section rule, found %d:\n%s", ruleLines, plain)
 	}
 }
 
@@ -150,6 +142,31 @@ func TestViewportPaintsBackgroundOnEveryVisibleRow(t *testing.T) {
 	}
 }
 
+func TestScreenPaintsBodyBackgroundThroughRightEdge(t *testing.T) {
+	const width, height = 120, 8
+	document := Document{Kind: KindDocs, Sections: []Section{{
+		Title:    "Welcome",
+		Markdown: "# Welcome\n\nShort content",
+	}}}
+	viewer := New(document, testPalette())
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: width, Height: height})
+
+	canvas := lipgloss.NewCanvas(width, height).
+		Compose(lipgloss.NewLayer(viewer.render()))
+	want := lipgloss.Color(string(testPalette().Bg))
+	wantR, wantG, wantB, wantA := want.RGBA()
+	for row := 1; row < height-1; row++ {
+		cell := canvas.CellAt(width-1, row)
+		if cell == nil || cell.Style.Bg == nil {
+			t.Fatalf("rightmost cell on body row %d has no background: %#v", row, cell)
+		}
+		gotR, gotG, gotB, gotA := cell.Style.Bg.RGBA()
+		if gotR != wantR || gotG != wantG || gotB != wantB || gotA != wantA {
+			t.Fatalf("rightmost cell on body row %d background = %v, want %v", row, cell.Style.Bg, want)
+		}
+	}
+}
+
 func TestKindChromeDifferentiatesDocsFromHelp(t *testing.T) {
 	help := New(Document{Kind: KindHelp, Sections: []Section{{Title: "synopsis"}}}, testPalette())
 	docs := New(Document{Kind: KindDocs, Sections: []Section{{Title: "Welcome"}}}, testPalette())
@@ -195,6 +212,57 @@ func TestMarkdownLinesHaveNoUnstyledLeadingCells(t *testing.T) {
 	}
 }
 
+func TestMarkdownStyleConfiguresChromaHighlighting(t *testing.T) {
+	viewer := New(Document{Kind: KindDocs, Sections: []Section{{Title: "Welcome"}}}, testPalette())
+	chroma := viewer.markdownStyle().CodeBlock.Chroma
+	if chroma == nil {
+		t.Fatal("code block style does not configure Chroma syntax highlighting")
+	}
+	if chroma.Keyword.Color == nil || chroma.LiteralString.Color == nil || chroma.Comment.Color == nil {
+		t.Fatalf("code block Chroma style is missing token colors: %#v", chroma)
+	}
+	if *chroma.Keyword.Color == *chroma.LiteralString.Color {
+		t.Fatalf("syntax token colors are not differentiated: keyword and string both use %q", *chroma.Keyword.Color)
+	}
+	if chroma.Text.BackgroundColor == nil || *chroma.Text.BackgroundColor != string(testPalette().Bg) {
+		t.Fatalf("syntax token background = %#v, want %q", chroma.Text.BackgroundColor, testPalette().Bg)
+	}
+}
+
+func TestCodeBlockTrailingWhitespaceUsesDocumentBackground(t *testing.T) {
+	document := Document{Kind: KindDocs, Sections: []Section{{
+		Title:    "Welcome",
+		Markdown: "# Welcome\n\n```go\nconst name = \"prelude\"\n```\n",
+	}}}
+	viewer := New(document, testPalette())
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 16})
+
+	lines := strings.Split(viewer.viewport.GetContent(), "\n")
+	codeRow := -1
+	for row, line := range lines {
+		if strings.Contains(ansi.Strip(line), "prelude") {
+			codeRow = row
+			break
+		}
+	}
+	if codeRow == -1 {
+		t.Fatalf("rendered code line missing:\n%s", ansi.Strip(viewer.viewport.GetContent()))
+	}
+
+	canvas := lipgloss.NewCanvas(viewer.l.textW, len(lines)).
+		Compose(lipgloss.NewLayer(viewer.viewport.GetContent()))
+	cell := canvas.CellAt(viewer.l.textW-1, codeRow)
+	if cell == nil || cell.Style.Bg == nil {
+		t.Fatalf("trailing code-block cell has no background: %#v", cell)
+	}
+	want := lipgloss.Color(string(testPalette().Bg))
+	gotR, gotG, gotB, gotA := cell.Style.Bg.RGBA()
+	wantR, wantG, wantB, wantA := want.RGBA()
+	if gotR != wantR || gotG != wantG || gotB != wantB || gotA != wantA {
+		t.Fatalf("trailing code-block background = %v, want document background %v", cell.Style.Bg, want)
+	}
+}
+
 func TestMouseWheelMovesViewportWithoutChangingSelectedSection(t *testing.T) {
 	document := Document{Sections: []Section{
 		{Title: "First"},
@@ -228,6 +296,10 @@ func testPalette() shared.Palette {
 		Dim:     "#777777",
 		Accent:  "#00ffff",
 		Accent2: "#ff00ff",
+		Success: "#00ff00",
+		Warning: "#ffff00",
+		Info:    "#0000ff",
+		Error:   "#ff0000",
 		Border:  "#555555",
 		Surface: "#111111",
 	}

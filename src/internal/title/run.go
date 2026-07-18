@@ -19,11 +19,11 @@ func Run(defaultConfigPath string, args []string) int {
 	configPath := flags.String("config", defaultConfigPath, "path to the generated font config")
 	recipePath := flags.String("recipe", "", "optional title recipe used to prefill text and font")
 	var outputPath string
-	flags.StringVar(&outputPath, "o", "", "write the generated title to this path instead of stdout")
-	flags.StringVar(&outputPath, "output", "", "write the generated title to this path instead of stdout")
+	flags.StringVar(&outputPath, "o", "", "title mode: write title here instead of stdout; wizard mode: write config here (default: prelude.nix)")
+	flags.StringVar(&outputPath, "output", "", "title mode: write title here instead of stdout; wizard mode: write config here (default: prelude.nix)")
 	generate := flags.Bool("generate", false, "render without opening the chooser")
 	interactive := flags.Bool("interactive", false, "open the chooser even when a terminal is not detected")
-	wizard := flags.Bool("wizard", false, "extend the chooser into a setup wizard that prints a ready-to-use prelude config to stdout")
+	wizard := flags.Bool("wizard", false, "extend the chooser into a setup wizard that writes a ready-to-use prelude config (and a sibling title.txt)")
 	flags.Usage = func() {
 		fmt.Fprintln(flags.Output(), "usage: prelude-title [--recipe path] [-o path] [--generate|--interactive|--wizard]")
 		flags.PrintDefaults()
@@ -137,25 +137,28 @@ func fail(err error) int {
 }
 
 // runWizard drives the setup-wizard iteration of the chooser. The TUI renders
-// on stderr so stdout stays reserved for the generated config, which makes
-// `prelude-title --wizard > prelude.nix` work naturally.
+// on stderr. -o selects the config path (default prelude.nix); the FIGlet
+// wordmark is written as title.txt next to that file.
 func runWizard(cfg Config, recipe Recipe, outputPath string, force bool) int {
 	if len(cfg.Themes) == 0 {
 		return fail(errors.New("config contains no themes; rebuild prelude-title from the current module"))
 	}
-	// The config references the title by path, so the wizard always writes a
-	// file; stdout is reserved for the config itself. The default lands in
-	// docs/ (next to the starter page) to keep the repo root uncluttered.
+	// -o is the config destination. Title always lands beside it as title.txt
+	// so the emitted module can reference ./title.txt relative to itself.
 	if outputPath == "" {
-		outputPath = "docs/title.txt"
+		outputPath = "prelude.nix"
 	}
+	titlePath := titlePathBesideConfig(outputPath)
 	// Validate before the TUI runs: an unrepresentable path would otherwise
 	// surface only after the user walked every step.
+	if !nixPathLiteralPattern.MatchString(titlePath) {
+		return fail(fmt.Errorf("title path %q cannot be written as a Nix path literal (letters, digits, and ./+_- only)", titlePath))
+	}
 	if !nixPathLiteralPattern.MatchString(outputPath) {
-		return fail(fmt.Errorf("output path %q cannot be written as a Nix path literal (letters, digits, and ./+_- only)", outputPath))
+		return fail(fmt.Errorf("config path %q cannot be written as a Nix path literal (letters, digits, and ./+_- only)", outputPath))
 	}
 	if !force && !(term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stderr.Fd()))) {
-		return fail(errors.New("the wizard needs an interactive terminal (stdout may still be redirected)"))
+		return fail(errors.New("the wizard needs an interactive terminal"))
 	}
 
 	model := newWizard(cfg, recipe, renderFIGlet)
@@ -171,14 +174,23 @@ func runWizard(cfg Config, recipe Recipe, outputPath string, force bool) int {
 		fmt.Fprintln(os.Stderr, "prelude-title: canceled")
 		return 130
 	}
-	return finishWizard(cfg, renderFIGlet, finished.result(), outputPath, os.Stdout, os.Stderr)
+	return finishWizard(cfg, renderFIGlet, finished.result(), outputPath, os.Stderr)
 }
 
-// finishWizard materializes a completed wizard: the rendered title file, the
-// starter docs page when the docs viewer was enabled, and the config on
-// stdout. Split from runWizard so the file/emission contract is testable
-// without a terminal.
-func finishWizard(cfg Config, render renderFunc, result wizardResult, outputPath string, stdout, stderr io.Writer) int {
+// titlePathBesideConfig returns title.txt in the same directory as configPath.
+func titlePathBesideConfig(configPath string) string {
+	dir := filepath.Dir(configPath)
+	if dir == "." || dir == "" {
+		return "title.txt"
+	}
+	return filepath.ToSlash(filepath.Join(dir, "title.txt"))
+}
+
+// finishWizard materializes a completed wizard: the rendered title file beside
+// the config, the starter docs page when the docs viewer was enabled, and the
+// config at -o. Split from runWizard so the file contract is testable without
+// a terminal.
+func finishWizard(cfg Config, render renderFunc, result wizardResult, configPath string, stderr io.Writer) int {
 	index := cfg.fontIndex(result.Recipe.Font)
 	if index < 0 {
 		return fail(fmt.Errorf("unknown font %q", result.Recipe.Font))
@@ -187,10 +199,11 @@ func finishWizard(cfg Config, render renderFunc, result wizardResult, outputPath
 	if err != nil {
 		return fail(err)
 	}
-	if err := writeAtomic(outputPath, []byte(rendered+"\n")); err != nil {
-		return fail(fmt.Errorf("write %s: %w", outputPath, err))
+	titlePath := titlePathBesideConfig(configPath)
+	if err := writeAtomic(titlePath, []byte(rendered+"\n")); err != nil {
+		return fail(fmt.Errorf("write %s: %w", titlePath, err))
 	}
-	fmt.Fprintf(stderr, "wrote %s\n", outputPath)
+	fmt.Fprintf(stderr, "wrote %s\n", titlePath)
 
 	if result.Docs {
 		// The emitted config references this page, so create it — but never
@@ -205,8 +218,12 @@ func finishWizard(cfg Config, render renderFunc, result wizardResult, outputPath
 		}
 	}
 
-	if _, err := io.WriteString(stdout, renderWizardConfig(result, outputPath)); err != nil {
-		return fail(fmt.Errorf("write stdout: %w", err))
+	// Config always references the sibling title by name so the path is valid
+	// relative to the config file, regardless of directory.
+	config := renderWizardConfig(result, "title.txt")
+	if err := writeAtomic(configPath, []byte(config)); err != nil {
+		return fail(fmt.Errorf("write %s: %w", configPath, err))
 	}
+	fmt.Fprintf(stderr, "wrote %s\n", configPath)
 	return 0
 }

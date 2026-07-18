@@ -96,16 +96,19 @@ in
     assert command.runtimePackages == [ pkgs.nixfmt ];
     pkgs.runCommand "from-pkg" { } "touch $out";
 
-  # Prelude owns navigation commands; project Getting Started rows remain
-  # focused on the explicitly selected lifecycle commands.
+  # Prelude owns navigation commands. `menu` is always advertised on the MOTD
+  # (bare, no `x` prefix); help/docs stay menu-only. Project Getting Started
+  # rows remain focused on explicitly selected lifecycle commands.
   prelude-command-defaults =
     assert lib.all (name: lib.elem name config.packages.menu.commandNames) [
       "menu"
       "help"
       "docs"
     ];
+    assert lib.elem "menu" config.packages.motd.commandNames;
+    assert lib.elem "menu" config.packages.motd.commandInvocations;
+    assert !lib.elem "x menu" config.packages.motd.commandInvocations;
     assert lib.all (name: !lib.elem name config.packages.motd.commandNames) [
-      "menu"
       "help"
       "docs"
     ];
@@ -359,8 +362,9 @@ in
     touch "$out"
   '';
 
-  # The MOTD advertises x aliases; the menu retains canonical underlying
-  # invocations for execution and diagnostics.
+  # The MOTD advertises x aliases for project commands (plus bare `menu`);
+  # the menu retains canonical underlying invocations for execution and
+  # diagnostics.
   motd-commands-runnable =
     mkRunnableCheck "motd-commands-runnable" "motd"
       config.packages.motd.commandInvocations;
@@ -462,8 +466,8 @@ in
           ../src/prelude/options/docs.nix
           {
             prelude.docs.pages = [
-              { text = ../examples/default/docs/name.md; }
-              { text = ../examples/default/docs/synopsis.md; }
+              { text = ../docs/welcome.md; }
+              { text = ../docs/commands.md; }
             ];
           }
         ];
@@ -471,7 +475,7 @@ in
       pages = evaluated.config.prelude.docs.pages;
     in
     assert builtins.length pages == 2;
-    assert (builtins.head pages).text == ../examples/default/docs/name.md;
+    assert (builtins.head pages).text == ../docs/welcome.md;
     pkgs.runCommand "docs-options" { } "touch $out";
 
   # Our own `menu list` renders the grouped command table.

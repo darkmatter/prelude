@@ -19,7 +19,7 @@ const (
 	contentWidth = cardWidth - 2*paddingX
 )
 
-// Exact `minted` palette selected by examples/default/default.nix.
+// Exact `minted` palette selected by root prelude.nix.
 var palette = shared.Palette{
 	Bg:           "#0c0c13",
 	Surface:      "#161623",

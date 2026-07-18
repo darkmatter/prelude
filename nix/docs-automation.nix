@@ -16,11 +16,19 @@ let
   minimalProgram = lib.getExe motdDemos.examplePackages.example-minimal;
   surfaceProgram = lib.getExe motdDemos.examplePackages.example-surface;
 
+  vhsVisualSettings = ''
+    Set FontFamily "MonaspiceNe Nerd Font Mono"
+    Set FontSize 14
+    Set LineHeight 1.0
+    Set LetterSpacing 0
+    Set Theme {"name":"prelude-minted","black":"#0c0c13","red":"#ee848e","green":"#b7ce99","yellow":"#f2c17d","blue":"#89b4fa","magenta":"#CC99FF","cyan":"#89b4fa","white":"#b1b1bf","brightBlack":"#4a5585","brightRed":"#ee848e","brightGreen":"#b7ce99","brightYellow":"#f2c17d","brightBlue":"#89b4fa","brightMagenta":"#CC99FF","brightCyan":"#89b4fa","brightWhite":"#b1b1bf","background":"#0c0c13","foreground":"#b1b1bf","selection":"#f2cdcd","cursor":"#f2cdcd"}
+  '';
+
   motdTapeText = ''
     Output docs/media/motd.gif
 
     Set Shell "bash"
-    Set FontSize 15
+    ${vhsVisualSettings}
     Set Width 1100
     Set Height 940
     Set Padding 12
@@ -41,7 +49,7 @@ let
     Output docs/media/menu.gif
 
     Set Shell "bash"
-    Set FontSize 15
+    ${vhsVisualSettings}
     Set Width 1100
     Set Height 780
     Set Padding 12
@@ -74,7 +82,7 @@ let
     Output docs/media/.${name}.gif
 
     Set Shell "bash"
-    Set FontSize 15
+    ${vhsVisualSettings}
     Set Width ${toString width}
     Set Height ${toString height}
     Set Padding 12
