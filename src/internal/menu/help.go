@@ -21,10 +21,16 @@ func helpDocument(cfg *Config) manual.Document {
 			Title: "synopsis",
 			Blocks: []manual.Block{
 				richBlock(4, false,
-					manual.Span{Role: manual.Accent2, Text: "help", Bold: true},
+					manual.Span{Role: manual.Accent2, Text: "x", Bold: true},
+					manual.Span{Role: manual.Muted, Text: " "},
+					manual.Span{Role: manual.Accent, Text: "<command-key>"},
+					manual.Span{Role: manual.Muted, Text: " [args…]  run any catalogue command"},
+				),
+				richBlock(4, false,
+					manual.Span{Role: manual.Accent2, Text: "motd", Bold: true},
 					manual.Span{Role: manual.Muted, Text: " | "},
 					manual.Span{Role: manual.Accent2, Text: "?", Bold: true},
-					manual.Span{Role: manual.Muted, Text: "              reprint the welcome banner (motd)"},
+					manual.Span{Role: manual.Muted, Text: "              reprint the welcome banner"},
 				),
 				richBlock(4, false,
 					manual.Span{Role: manual.Accent2, Text: "menu", Bold: true},
@@ -32,7 +38,7 @@ func helpDocument(cfg *Config) manual.Document {
 					manual.Span{Role: manual.Accent2, Text: "m", Bold: true},
 					manual.Span{Role: manual.Muted, Text: " ["},
 					manual.Span{Role: manual.Accent, Text: "<task|key>"},
-					manual.Span{Role: manual.Muted, Text: " [args…]]"},
+					manual.Span{Role: manual.Muted, Text: " [args…]"},
 				),
 				richBlock(4, false,
 					manual.Span{Role: manual.Accent2, Text: "menu", Bold: true},
@@ -42,10 +48,14 @@ func helpDocument(cfg *Config) manual.Document {
 					manual.Span{Role: manual.Accent2, Text: "menu", Bold: true},
 					manual.Span{Role: manual.Foreground, Text: " help"},
 					manual.Span{Role: manual.Muted, Text: " | "},
+					manual.Span{Role: manual.Accent2, Text: "help", Bold: true},
+					manual.Span{Role: manual.Muted, Text: "   this manual"},
+				),
+				richBlock(4, false,
 					manual.Span{Role: manual.Accent2, Text: "docs", Bold: true},
 					manual.Span{Role: manual.Muted, Text: " | "},
 					manual.Span{Role: manual.Accent2, Text: "d", Bold: true},
-					manual.Span{Role: manual.Muted, Text: "   this manual"},
+					manual.Span{Role: manual.Muted, Text: "             project docs viewer"},
 				),
 			},
 		},
@@ -67,9 +77,13 @@ func helpDocument(cfg *Config) manual.Document {
 		sections[2].Blocks = append(sections[2].Blocks, paragraph(manual.Muted, 4, "This menu is configured to print the assembled command instead of executing it.", false))
 	}
 
-	appendEntry(&sections[3], "help, ?", "Reprint the MOTD welcome banner.")
+	appendEntry(&sections[3], "x <command-key> [args…]", "Run any menu entry by its complete, globally unique key.")
+	appendEntry(&sections[3], "x --list", "Print the command catalogue without reserving the command name list.")
+	appendEntry(&sections[3], "x --help", "Show this manual without reserving the command name help.")
+	appendEntry(&sections[3], "motd, ?", "Reprint the MOTD welcome banner. Built-in component aliases are installed on PATH automatically.")
 	appendEntry(&sections[3], "menu, m", "Open the interactive command picker. Pass a task name or key to run it directly.")
-	appendEntry(&sections[3], "docs, d", "Open this manual (same as menu help). Digits 1–7 jump to sections; j/k scroll; q quits.")
+	appendEntry(&sections[3], "docs, d", "Open the project docs viewer.")
+	appendEntry(&sections[3], "help", "Show this manual (also: menu help).")
 	appendEntry(&sections[3], "--config <path>", "Path to the menu config JSON. Defaults to $PRELUDE_MENU_CONFIG; the Nix wrapper bakes this in.")
 	appendEntry(&sections[3], "PRELUDE_MENU_DEBUG=<path>", "Write TUI diagnostics to the given file.")
 
@@ -82,7 +96,7 @@ func helpDocument(cfg *Config) manual.Document {
 			))
 		}
 		for _, task := range group.Tasks {
-			spans := []manual.Span{{Role: manual.Accent2, Text: task.Name, Bold: true}}
+			spans := []manual.Span{{Role: manual.Accent2, Text: task.displayName(), Bold: true}}
 			if task.Key != "" {
 				spans = append(spans, manual.Span{Role: manual.Dim, Text: "  (" + task.Key + ")"})
 			}
@@ -110,10 +124,13 @@ func helpDocument(cfg *Config) manual.Document {
 		}
 		sections[5].Blocks = append(sections[5].Blocks, manual.Block{BlankAfter: true})
 	}
-	appendExample("help", "reprint the welcome banner")
-	appendExample("menu", "open the interactive picker")
+	appendExample("x go:test", "run a grouped catalogue command by its complete key")
+	appendExample("x test:unit -- --watch", "preserve source-owned colons and forward arguments")
+	appendExample("motd", "reprint the welcome banner (also: ?)")
+	appendExample("menu", "open the interactive picker (also: m)")
 	appendExample("menu list", "print the task table without a TTY")
-	appendExample("docs", "open this manual; press 5 to jump to COMMANDS")
+	appendExample("help", "open this manual")
+	appendExample("docs", "open the project docs viewer (also: d)")
 	for _, group := range cfg.Groups {
 		for _, task := range group.Tasks {
 			for _, example := range task.Examples {
@@ -123,13 +140,13 @@ func helpDocument(cfg *Config) manual.Document {
 	}
 
 	sections[6].Blocks = []manual.Block{
-		richBlock(4, false, manual.Span{Role: manual.Foreground, Text: "motd"}, manual.Span{Role: manual.Muted, Text: " — static welcome banner (also: help, ?)"}),
+		richBlock(4, false, manual.Span{Role: manual.Foreground, Text: "motd"}, manual.Span{Role: manual.Muted, Text: " — static welcome banner"}),
 		richBlock(4, false, manual.Span{Role: manual.Foreground, Text: "menu list"}, manual.Span{Role: manual.Muted, Text: " — the same catalogue as a plain table"}),
 		richBlock(4, false, manual.Span{Role: manual.Foreground, Text: "⇥ in the picker"}, manual.Span{Role: manual.Muted, Text: " — per-task details, usage, and examples"}),
 		richBlock(4, true, manual.Span{Role: manual.Foreground, Text: "README.md"}, manual.Span{Role: manual.Muted, Text: " — module options, themes, and downstream usage"}),
 	}
 
-	return manual.Document{Sections: sections}
+	return manual.Document{Kind: manual.KindHelp, Sections: sections}
 }
 
 func richBlock(indent int, blankAfter bool, spans ...manual.Span) manual.Block {

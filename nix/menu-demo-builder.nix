@@ -8,6 +8,7 @@ let
       writeShellApplication
       writeText
       buildGoModule
+      symlinkJoin
       ;
   };
 in

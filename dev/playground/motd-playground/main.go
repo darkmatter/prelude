@@ -61,10 +61,10 @@ const titleStyle = TitleInverted
 type HeaderTitleStyle int
 
 const (
-	HeaderTitlePlain    HeaderTitleStyle = iota // bold accent wordmark
-	HeaderTitleSpine                            // accent spine + bright wordmark
-	HeaderTitleBracketed                        // dim brackets + accent wordmark
-	HeaderTitleLabel                            // small dim label + bright wordmark
+	HeaderTitlePlain     HeaderTitleStyle = iota // bold accent wordmark
+	HeaderTitleSpine                             // accent spine + bright wordmark
+	HeaderTitleBracketed                         // dim brackets + accent wordmark
+	HeaderTitleLabel                             // small dim label + bright wordmark
 )
 
 const headerTitleStyle = HeaderTitleSpine
@@ -114,25 +114,25 @@ const codeblockStyle = CodeblockTopRuleFade
 type StartLayout int
 
 const (
-	StartSubLabels StartLayout = iota // centered inline heading + dim sub-labels per group
-	StartNoHeading                    // plain divider (no inline heading) + sub-labels
-	StartHeadingBelow                 // plain divider, then centered heading line + sub-labels
+	StartSubLabels    StartLayout = iota // centered inline heading + dim sub-labels per group
+	StartNoHeading                       // plain divider (no inline heading) + sub-labels
+	StartHeadingBelow                    // plain divider, then centered heading line + sub-labels
 )
 
 const startLayout = StartHeadingBelow
 
 // ── Content ───────────────────────────────────────────────────────────────────
 const (
-	projectName     = "prelude"
-	tagline         = "everything you need to build, test & ship"
+	projectName        = "prelude"
+	tagline            = "everything you need to build, test & ship"
 	statusLabel        = "nix develop  ·  flake @ 1a2b3c4"
 	statusLabelCompact = "flake @ 1a2b3c4"
 	statusText         = "ready"
-	startHeading    = "Getting Started"
-	commandsHeading = "commands"
-	examplesHeading = "examples"
-	gitBranch = "main"
-	gitStatus = " ↑2 ●1"
+	startHeading       = "Getting Started"
+	commandsHeading    = "commands"
+	examplesHeading    = "examples"
+	gitBranch          = "main"
+	gitStatus          = " ↑2 ●1"
 
 	introText = "This shell pins every tool the repo needs — compilers, linters, and " +
 		"language servers are already on your PATH. No global installs, and " +
@@ -511,7 +511,7 @@ func codeblock(r recipe, cbs CodeblockStyle) []string {
 		trail := max(cardWidth-3-ansi.StringWidth(title), 0)
 		top := fc.Render("┌─") +
 			inline(on(bg, accent).Bold(true)).Render(title) +
-			fc.Render(strings.Repeat("─", trail) + "┐")
+			fc.Render(strings.Repeat("─", trail)+"┐")
 
 		out := []string{top}
 		for _, s := range r.steps {
@@ -623,7 +623,7 @@ func shortcutLine() string {
 		return inline(on(bg, muted)).Bold(true).Render(command) +
 			inline(on(bg, dim)).Render(" ("+alias+")")
 	}
-	content := item("help", "?") +
+	content := item("motd", "?") +
 		inline(on(bg, dim)).Render("  ·  ") +
 		item("menu", "m") +
 		inline(on(bg, dim)).Render("  ·  ") +

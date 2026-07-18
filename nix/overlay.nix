@@ -10,11 +10,13 @@ let
       writeShellApplication
       writeText
       buildGoModule
+      symlinkJoin
       ;
   };
 in
 {
   prelude = {
+    fromPkg = import ../src/prelude/from-pkg.nix { inherit (final) lib; };
     mkCommand = import ../src/prelude/task.nix { inherit (final) lib; };
     mkTask = import ../src/prelude/task.nix { inherit (final) lib; };
     mkMotd = import ../src/prelude/motd.nix deps;

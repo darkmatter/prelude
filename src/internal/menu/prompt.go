@@ -7,7 +7,7 @@ import (
 )
 
 // Prompt is the filter/argument input row: a project or task context, an amber
-// caret, and a virtual-cursor textinput, sitting on the open surface outside
+// caret, and a real bar-cursor textinput, sitting on the open surface outside
 // the framed body.
 //
 // It is a self-contained bubbletea sub-model: it owns its own input state and
@@ -30,15 +30,18 @@ type Prompt struct {
 }
 
 // newPrompt builds the filter/arg input with the open-surface styles and a
-// blinking virtual cursor, focused and ready for list mode. The initial
+// blinking terminal bar cursor, focused and ready for list mode. The initial
 // placeholder is the list-mode filter hint (cfg.Placeholder); arg mode swaps
 // it for the token list via WithPlaceholder.
 func newPrompt(st styles, project, placeholder string, inner int) Prompt {
+	context := "~/" + project
 	in := textinput.New()
 	in.Prompt = ""
 	in.Placeholder = placeholder
 	in.SetStyles(textinputStyles(st))
-	in.SetVirtualCursor(true)
+	in.SetVirtualCursor(false)
+	// Reserve one cell after the text viewport for the insertion cursor.
+	in.SetWidth(max(inner+2-padX-lipgloss.Width(context)-4, 1))
 	in.Focus()
 	return Prompt{
 		input:     in,
@@ -46,12 +49,12 @@ func newPrompt(st styles, project, placeholder string, inner int) Prompt {
 		openMuted: st.openMuted,
 		openCaret: st.openAccent2,
 		inner:     inner,
-		context:   "~/" + project,
+		context:   context,
 	}
 }
 
-// textinputStyles wires the embedded input to the open-surface palette so the
-// virtual cursor and placeholder do not punch holes in the chrome.
+// textinputStyles wires the embedded input to the open-surface palette. A real
+// cursor is required because Bubbles renders every virtual cursor as a block.
 func textinputStyles(st styles) textinput.Styles {
 	s := textinput.DefaultDarkStyles()
 	s.Focused.Placeholder = st.openDim
@@ -59,13 +62,13 @@ func textinputStyles(st styles) textinput.Styles {
 	s.Blurred.Placeholder = st.openDim
 	s.Blurred.Text = st.openFg
 	s.Cursor.Color = st.accentC
+	s.Cursor.Shape = tea.CursorBar
 	s.Cursor.Blink = true
 	return s
 }
 
-// Init returns the command that starts the cursor blink. The root model's
-// Init delegates to this.
-func (p Prompt) Init() tea.Cmd { return textinput.Blink }
+// Init is idle because the terminal owns blinking for a real cursor.
+func (p Prompt) Init() tea.Cmd { return nil }
 
 // Update forwards a message to the embedded textinput and returns the
 // updated Prompt. The root model decides whether a value change implies a
@@ -89,6 +92,17 @@ func (p Prompt) View() string {
 	return p.openSp.Width(p.inner + 2).MaxWidth(p.inner + 2).Render(row)
 }
 
+// Cursor returns the input's terminal cursor relative to the prompt row. The
+// root model adds the prompt row and centered-panel offsets before rendering.
+func (p Prompt) Cursor() *tea.Cursor {
+	cursor := p.input.Cursor()
+	if cursor == nil {
+		return nil
+	}
+	cursor.Position.X += padX + lipgloss.Width(p.context) + 3
+	return cursor
+}
+
 // Value is the current input text.
 func (p Prompt) Value() string { return p.input.Value() }
 
@@ -106,8 +120,17 @@ func (p Prompt) WithValue(s string) Prompt { p.input.SetValue(s); return p }
 func (p Prompt) WithCursorEnd() Prompt { p.input.CursorEnd(); return p }
 
 // WithContext sets the context label shown left of the caret (task name in
-// arg mode, "~/project" in list mode), returning a copy.
-func (p Prompt) WithContext(s string) Prompt { p.context = s; return p }
+// arg mode, "~/project" in list mode), returning a copy. Recomputing the input
+// width keeps long values horizontally scrolled inside the prompt row.
+func (p Prompt) WithContext(s string) Prompt {
+	p.context = s
+	p.input.SetWidth(max(p.inner+2-padX-lipgloss.Width(p.context)-4, 1))
+	return p
+}
 
-// WithSize updates the panel width the row is constrained to.
-func (p Prompt) WithSize(inner int) Prompt { p.inner = inner; return p }
+// WithSize updates the panel width and the input's real-cursor viewport.
+func (p Prompt) WithSize(inner int) Prompt {
+	p.inner = inner
+	p.input.SetWidth(max(p.inner+2-padX-lipgloss.Width(p.context)-4, 1))
+	return p
+}

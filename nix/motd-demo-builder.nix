@@ -19,9 +19,11 @@ in
       example-motd = mkMotd ex.motd;
       example-themes = pkgs.writeShellApplication {
         name = "motd-themes";
-        text = lib.concatMapStringsSep "\n" (
-          theme: lib.getExe (mkMotd (ex.themeMotd theme))
-        ) plib.themeNames;
+        text = lib.concatMapStringsSep "\n"
+          (
+            theme: lib.getExe (mkMotd (ex.themeMotd theme))
+          )
+          plib.themeNames;
       };
     };
 }

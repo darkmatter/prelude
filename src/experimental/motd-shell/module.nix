@@ -5,11 +5,10 @@
 { ... }:
 {
   perSystem =
-    {
-      pkgs,
-      lib,
-      config,
-      ...
+    { pkgs
+    , lib
+    , config
+    , ...
     }:
     let
       _unusedLocalFlake = localFlake;

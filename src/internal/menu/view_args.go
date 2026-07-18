@@ -15,7 +15,7 @@ import (
 // the arg input string and is passed through to ArgsView.View for the live preview.
 func (m model) viewArgs() string {
 	t := *m.args.Task()
-	title := fmt.Sprintf("%s %s — enter arguments", m.cfg.Project, t.Name)
+	title := fmt.Sprintf("%s %s — enter arguments", m.cfg.Project, t.displayName())
 	argsBody := m.args.View(m.prompt.Value(), m.frame, m.listHeight()-3)
 	return strings.Join([]string{
 		m.title.View(title),

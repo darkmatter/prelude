@@ -24,11 +24,13 @@ let
   examplesRunner =
     let
       entries =
-        map (name: {
-          label = "example-${name}";
-          hint = "nix run .#example-${name}";
-          cmd = lib.getExe examplePackages."example-${name}";
-        }) (lib.attrNames ex.motdDemos)
+        map
+          (name: {
+            label = "example-${name}";
+            hint = "nix run .#example-${name}";
+            cmd = lib.getExe examplePackages."example-${name}";
+          })
+          (lib.attrNames ex.motdDemos)
         ++ [
           {
             label = "example-motd";

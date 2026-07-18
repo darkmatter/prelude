@@ -1,9 +1,8 @@
 # Docs package builder: Markdown page paths → embedded JSON → Go viewer.
-{
-  lib,
-  writeText,
-  buildGoModule,
-  ...
+{ lib
+, writeText
+, buildGoModule
+, ...
 }:
 
 # Component config: { theme?, palette?, colorProfile?, project?, pages? }

@@ -11,6 +11,18 @@ const (
 	Accent2
 )
 
+// Kind distinguishes the two surfaces that share this viewer so chrome can
+// label them differently. Content sources stay separate: authored Markdown
+// pages (docs) versus the generated command manual (help).
+type Kind uint8
+
+const (
+	// KindHelp is menu help — a generated man-style command manual.
+	KindHelp Kind = iota
+	// KindDocs is the project docs viewer — Markdown from prelude.docs.pages.
+	KindDocs
+)
+
 // Span is one styled fragment in a document block.
 type Span struct {
 	Role Role
@@ -36,7 +48,24 @@ type Section struct {
 
 // Document is the presentation model consumed by the viewer.
 type Document struct {
+	Kind     Kind
 	Sections []Section
+}
+
+// SidebarLabel is the CONTENTS-column heading for this document kind.
+func (d Document) SidebarLabel() string {
+	if d.Kind == KindDocs {
+		return "PAGES"
+	}
+	return "MANUAL"
+}
+
+// ModeLabel is the status-bar mode chip for this document kind.
+func (d Document) ModeLabel() string {
+	if d.Kind == KindDocs {
+		return "DOCS"
+	}
+	return "HELP"
 }
 
 // SidebarItemsTop is the terminal row occupied by the first sidebar item.

@@ -22,9 +22,9 @@ type statusBar struct {
 func (s statusBar) View(hints [][2]string, status string) string {
 	st := s.st
 
-	statusStyle := st.chromeUI.Accent().Bold(true)
+	statusStyle := st.chromeUI.Success().Bold(true)
 	if strings.Contains(status, "args") {
-		statusStyle = st.chromeUI.Accent2().Bold(true)
+		statusStyle = st.chromeUI.Info().Bold(true)
 	}
 	keyStyle := st.kbdChip
 	footer := ui.KeyHintsFooter{

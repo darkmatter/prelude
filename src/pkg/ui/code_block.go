@@ -11,14 +11,17 @@ import (
 
 // FadingRule renders a labeled horizontal rule that fades toward Context's
 // surface. Frame, Label, and Surface are optional overrides for components that
-// need a distinct code or inset surface.
+// need a distinct code or inset surface. Transparent (defaulting to the context
+// flag) skips painting cell backgrounds; the surface color then only anchors the
+// fade endpoints.
 type FadingRule struct {
-	Context Context
-	Width   int
-	Surface color.Color
-	Frame   color.Color
-	Label   *lipgloss.Style
-	Fade    bool
+	Context     Context
+	Width       int
+	Surface     color.Color
+	Frame       color.Color
+	Label       *lipgloss.Style
+	Fade        bool
+	Transparent *bool
 }
 
 func (r FadingRule) surface() color.Color {
@@ -26,6 +29,13 @@ func (r FadingRule) surface() color.Color {
 		return r.Surface
 	}
 	return r.Context.Background
+}
+
+func (r FadingRule) transparent() bool {
+	if r.Transparent != nil {
+		return *r.Transparent
+	}
+	return r.Context.Transparent
 }
 
 func (r FadingRule) frame() color.Color {
@@ -79,6 +89,7 @@ func (r FadingRule) Render(title string) string {
 	}
 
 	surface, frame := r.surface(), r.frame()
+	transparent := r.transparent()
 	colors := []color.Color{frame}
 	if r.Fade {
 		// BorderForegroundBlend spans an implicit full perimeter, even for a
@@ -87,20 +98,36 @@ func (r FadingRule) Render(title string) string {
 		colors = lipgloss.Blend1D(r.Width, frame, surface)
 	}
 
-	var rule strings.Builder
-	for column := 0; column < r.Width; column++ {
-		foreground := colors[min(column, len(colors)-1)]
-		rule.WriteString(lipgloss.NewStyle().
-			Foreground(foreground).
-			Background(surface).
-			Render("─"))
+	// dashStyle returns the style for a rule dash at the given column.
+	dashStyle := func(column int) lipgloss.Style {
+		style := lipgloss.NewStyle().Foreground(colors[min(column, len(colors)-1)])
+		if !transparent {
+			style = style.Background(surface)
+		}
+		return style
 	}
+
 	if title == "" {
+		var rule strings.Builder
+		for column := 0; column < r.Width; column++ {
+			rule.WriteString(dashStyle(column).Render("─"))
+		}
 		return rule.String()
+	}
+
+	if transparent {
+		// When transparent, render column-by-column so the title region omits
+		// both dashes and backgrounds — no canvas compositing (which defaults
+		// empty cells to a black background rather than truly transparent).
+		return r.renderTransparent(title, dashStyle)
 	}
 
 	// Canvas is backed by Ultraviolet's cell buffer. DrawString segments the
 	// complete label into grapheme clusters and clips it by terminal cells.
+	var rule strings.Builder
+	for column := 0; column < r.Width; column++ {
+		rule.WriteString(dashStyle(column).Render("─"))
+	}
 	canvas := lipgloss.NewCanvas(r.Width, 1).Compose(lipgloss.NewLayer(rule.String()))
 	labelStyle := r.labelStyle().Background(surface)
 	label := screen.NewContext(canvas).WithStyle(ultravioletStyle(labelStyle))
@@ -109,6 +136,40 @@ func (r FadingRule) Render(title string) string {
 	}
 	label.DrawString(" "+title+" ", 1, 0)
 	return canvas.Render()
+}
+
+// renderTransparent renders the rule with a title inset, column-by-column,
+// without painting any cell backgrounds. The title region uses the label
+// foreground style; dashes outside it follow the fade gradient.
+func (r FadingRule) renderTransparent(title string, dashStyle func(int) lipgloss.Style) string {
+	label := r.labelStyle().UnsetBackground().Inline(true)
+	labelText := " " + title + " "
+	labelRunes := []rune(labelText)
+
+	var out strings.Builder
+	column := 0
+	for _, ru := range labelRunes {
+		w := lipgloss.Width(string(ru))
+		if column >= r.Width {
+			break
+		}
+		if ru == ' ' {
+			for range w {
+				if column >= r.Width {
+					break
+				}
+				out.WriteString(" ")
+				column++
+			}
+		} else {
+			out.WriteString(label.Render(string(ru)))
+			column += w
+		}
+	}
+	for ; column < r.Width; column++ {
+		out.WriteString(dashStyle(column).Render("─"))
+	}
+	return out.String()
 }
 
 // CodeBlock renders a framed title-and-lines terminal block. Context supplies
@@ -122,6 +183,9 @@ type CodeBlock struct {
 	Width   int
 	Surface color.Color
 	Rule    FadingRule
+	// HeaderTransparent, when true, omits the background fill behind the top
+	// rule and title so the surrounding card background shows through.
+	HeaderTransparent bool
 }
 
 func (b CodeBlock) surface() color.Color {
@@ -141,7 +205,12 @@ func (b CodeBlock) Render() []string {
 		rule.Surface = surface
 	}
 
-	out := []string{rule.Render(b.Title)}
+	topRule := rule
+	if b.HeaderTransparent {
+		t := true
+		topRule.Transparent = &t
+	}
+	out := []string{topRule.Render(b.Title)}
 	for _, line := range b.Lines {
 		out = append(out, FillLine(b.Indent+line, b.Width, surface))
 	}

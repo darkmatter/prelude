@@ -75,5 +75,13 @@ func (m model) View() tea.View {
 	view := tea.NewView(content)
 	view.BackgroundColor = m.st.bgColor
 	view.AltScreen = true
+	cursor := m.prompt.Cursor()
+	if cursor != nil {
+		// lipgloss.Place centers by assigning the odd remainder to the right
+		// and bottom, so integer division reproduces its left/top offsets.
+		cursor.Position.X += max((m.width-lipgloss.Width(body))/2, 0)
+		cursor.Position.Y += max((m.height-lipgloss.Height(body))/2, 0) + titleRows
+		view.Cursor = cursor
+	}
 	return view
 }

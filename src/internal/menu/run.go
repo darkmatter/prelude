@@ -24,6 +24,9 @@ func Run(defaultConfigPath string) {
 		configPathDefault = defaultConfigPath
 	}
 	cfgPath := flag.String("config", configPathDefault, "path to the menu config JSON")
+	xMode := flag.Bool("x", false, "dispatch using x command names")
+	xList := flag.Bool("list", false, "list x commands")
+	xHelp := flag.Bool("help", false, "show x command help")
 	flag.Parse()
 
 	cfg, err := loadConfig(*cfgPath)
@@ -42,10 +45,19 @@ func Run(defaultConfigPath string) {
 
 	args := flag.Args()
 	switch {
-	case len(args) > 0 && args[0] == "list":
+	case *xMode && *xList:
 		printList(cfg, st)
 
-	case len(args) > 0 && args[0] == "help":
+	case *xMode && *xHelp:
+		runHelp(cfg, st)
+
+	case *xMode && len(args) > 0:
+		xFastPath(cfg, st, args)
+
+	case !*xMode && len(args) > 0 && args[0] == "list":
+		printList(cfg, st)
+
+	case !*xMode && len(args) > 0 && args[0] == "help":
 		runHelp(cfg, st)
 
 	case len(args) > 0:
@@ -60,9 +72,18 @@ func Run(defaultConfigPath string) {
 // and no explicit extras open the TUI in argument-entry mode.
 func fastPath(cfg *Config, st styles, selector string, extra []string) {
 	decision, err := resolveInvocation(cfg, selector, extra)
+	finishDecision(cfg, st, "menu", decision, err)
+}
+
+func xFastPath(cfg *Config, st styles, args []string) {
+	decision, err := resolveXInvocation(cfg, args)
+	finishDecision(cfg, st, "x", decision, err)
+}
+
+func finishDecision(cfg *Config, st styles, command string, decision invocationDecision, err error) {
 	if err != nil {
 		w := shared.ColorWriter(os.Stderr, os.Environ(), cfg.ColorProfile)
-		fmt.Fprintln(w, st.errText.Render("menu: "+err.Error()))
+		fmt.Fprintln(w, st.errText.Render(command+": "+err.Error()))
 		os.Exit(1)
 	}
 	switch decision.kind {

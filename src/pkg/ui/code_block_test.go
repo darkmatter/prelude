@@ -59,6 +59,30 @@ func TestCodeBlockPaintsSurfaceBehindRuleAndTitle(t *testing.T) {
 	}
 }
 
+func TestCodeBlockHeaderTransparentSkipsBackground(t *testing.T) {
+	surface := lipgloss.Color("#102030")
+	block := CodeBlock{
+		Context: NewContext(Palette{
+			Accent: "#ffffff",
+			Border: "#808080",
+		}, surface, false),
+		Title:             "hi",
+		Width:             8,
+		Rule:              FadingRule{Fade: true},
+		HeaderTransparent: true,
+	}
+
+	rows := block.Render()
+	// Top rule (header) must not paint surface backgrounds.
+	if strings.Contains(rows[0], ";48;2;") {
+		t.Fatalf("transparent header paints backgrounds: %q", rows[0])
+	}
+	// Bottom rule must still paint the surface background.
+	if !strings.Contains(rows[len(rows)-1], ";48;2;") {
+		t.Fatalf("bottom rule lost its surface background: %q", rows[len(rows)-1])
+	}
+}
+
 func TestFadingRuleClipsWideLabelToRuleWidth(t *testing.T) {
 	label := lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff"))
 	rule := FadingRule{

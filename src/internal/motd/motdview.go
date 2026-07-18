@@ -76,10 +76,7 @@ func (v MOTDView) renderBody() string {
 	}
 
 	h := v.r.cfg.Header
-	shortcuts := ""
-	if v.r.cfg.Title != "" {
-		shortcuts = (Shortcuts{r: v.r}).Render()
-	}
+	shortcuts := (Shortcuts{r: v.r}).Render()
 	if h.Tagline != "" || h.Subtitle != "" || shortcuts != "" {
 		sections = append(sections, strings.Join((Activation{r: v.r}).Render(h.Tagline, h.Subtitle, shortcuts), "\n"))
 	}
@@ -105,8 +102,9 @@ func (v MOTDView) renderBody() string {
 	return card.JoinVertical(sections...)
 }
 
-// renderMiddle builds description + env + getting-started, then applies side
-// padding. Vertical padding is applied around the whole card in renderBody.
+// renderMiddle builds description + env + getting-started, then applies
+// side padding. Vertical padding is applied around the whole card in renderBody.
+// Links are rendered separately by FooterView so they land at the very bottom.
 func (v MOTDView) renderMiddle() string {
 	var content ui.Block
 

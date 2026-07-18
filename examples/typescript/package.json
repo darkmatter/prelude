@@ -5,6 +5,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "test": "vitest run",
+    "test:unit": "vitest run src/unit",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   }

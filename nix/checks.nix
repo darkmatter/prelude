@@ -1,23 +1,23 @@
 # Flake checks. Checks whose $out is a rendered preview use the `-render(s)`
 # suffix — the previews utility (previews.nix) discovers them by name.
-{
-  pkgs,
-  lib,
-  config,
-  demos,
-  docsAutomation,
-  previews,
-  ...
+{ pkgs
+, lib
+, config
+, demos
+, docsAutomation
+, previews
+, ...
 }:
 let
   preludeLib = import ./lib.nix { inherit lib; };
-  system = pkgs.stdenv.hostPlatform.system;
+  internalLib = import ../src/prelude/lib.nix { inherit lib; };
 
   # The command-providing packages of the dogfood devshell (shell.nix).
   devshellCommandPackages = [
     config.packages.motd
     config.packages.menu
     config.packages.docs
+    pkgs.nix
     docsAutomation.sync
     docsAutomation.record
     previews
@@ -26,14 +26,20 @@ let
   # downstream module can, instead of rebuilding knowledge from source config.
   ++ config.packages.menu.commandWrappers;
 
-  # Assert that every advertised command name resolves on a PATH built from
-  # the devshell's packages.
+  # Assert that every advertised canonical invocation starts with an executable
+  # provided by the devshell. Group selectors (`go:test`) are menu identity and
+  # intentionally do not exist on PATH; their invocation (`go test`) does.
   mkRunnableCheck =
-    checkName: surface: names:
+    checkName: surface: invocations:
+    let
+      executables = lib.unique (
+        map (invocation: builtins.head (lib.splitString " " invocation)) invocations
+      );
+    in
     pkgs.runCommand checkName { nativeBuildInputs = devshellCommandPackages; } ''
-      for cmd in ${lib.concatMapStringsSep " " lib.escapeShellArg names}; do
+      for cmd in ${lib.concatMapStringsSep " " lib.escapeShellArg executables}; do
         command -v "$cmd" >/dev/null 2>&1 || {
-          echo "${surface} advertises '$cmd' but no devshell package provides it" >&2
+          echo "${surface} advertises canonical executable '$cmd' but no devshell package provides it" >&2
           exit 1
         }
       done
@@ -71,93 +77,46 @@ in
       grep -q '┌─┐' "$out"
     '';
 
-  # Canonical output families become commands by name without forcing output
-  # values. Explicit output paths preserve names that need quoted attr segments.
-  output-commands =
+  # fromPkg is a small adapter over mkCommand: package selection is positional,
+  # while program/arguments and presentation metadata stay composable extras.
+  from-pkg =
     let
-      commands = preludeLib.commandsFromOutputs {
-        inherit pkgs system;
-        outputs = {
-          packages = {
-            default = throw "commandsFromOutputs forced packages.default";
-            api = throw "commandsFromOutputs forced packages.api";
-          };
-          apps."api.admin" = throw "commandsFromOutputs forced apps.api.admin";
-          checks.unit = throw "commandsFromOutputs forced checks.unit";
-        };
+      command = preludeLib.fromPkg pkgs.nixfmt {
+        arguments = [ "." ];
+        description = "format Nix sources";
+        key = "f";
       };
     in
-    assert
-      builtins.attrNames commands == [
-        "build:api"
-        "check:unit"
-        "run:api.admin"
-      ];
-    assert commands."run:api.admin".group == "run";
-    assert commands."build:api".group == "build";
-    assert commands."check:unit".group == "check";
-    assert lib.hasSuffix " run '.#apps.${system}.\"api.admin\"'" commands."run:api.admin".exec;
-    assert lib.hasSuffix " build '.#packages.${system}.\"api\"'" commands."build:api".exec;
-    assert lib.hasSuffix " build '.#checks.${system}.\"unit\"'" commands."check:unit".exec;
-    pkgs.runCommand "output-commands" { } "touch $out";
+    assert command.description == "format Nix sources";
+    assert command.key == "f";
+    assert command.invocation == "nixfmt .";
+    assert lib.hasPrefix (lib.getExe pkgs.nixfmt) command.exec;
+    assert command.runtimePackages == [ pkgs.nixfmt ];
+    pkgs.runCommand "from-pkg" { } "touch $out";
 
-  # wrapPerSystem preserves canonical outputs, lets explicit command fields win,
-  # and augments rather than replaces the caller's devshell inputs and hook.
-  wrap-per-system =
-    let
-      motd = pkgs.writeShellApplication {
-        name = "motd";
-        text = "true";
-      };
-      docs = pkgs.writeShellApplication {
-        name = "docs";
-        text = "true";
-      };
-      prompt = pkgs.writeText "starship.toml" "";
-      wrapped =
-        preludeLib.wrapPerSystem
-          (
-            { pkgs, ... }:
-            {
-              packages = {
-                default = throw "wrapPerSystem forced packages.default";
-                api = throw "wrapPerSystem forced packages.api";
-              };
-              apps.api = throw "wrapPerSystem forced apps.api";
-              checks.unit = throw "wrapPerSystem forced checks.unit";
-              prelude.commands."run:api" = {
-                description = "custom run description";
-                key = "a";
-              };
-              devShells.default = pkgs.mkShell {
-                packages = [ pkgs.hello ];
-                shellHook = "export BEFORE_PRELUDE=1";
-              };
-            }
-          )
-          {
-            inherit pkgs system;
-            config.packages = {
-              inherit motd docs prompt;
-            };
-          };
-      shell = wrapped.devShells.default;
-      runCommand = wrapped.prelude.commands."run:api";
-    in
-    assert wrapped.packages ? api;
-    assert !(wrapped.prelude.commands ? "build:default");
-    assert runCommand.description == "custom run description";
-    assert runCommand.key == "a";
-    assert lib.hasSuffix " run '.#apps.${system}.\"api\"'" runCommand.exec;
-    assert lib.elem pkgs.nix runCommand.runtimePackages;
-    assert lib.elem motd shell.nativeBuildInputs;
-    assert lib.elem docs shell.nativeBuildInputs;
-    assert lib.elem pkgs.hello shell.nativeBuildInputs;
-    assert shell.shellHook == "export BEFORE_PRELUDE=1\nexport STARSHIP_CONFIG=${prompt}\nmotd >&2";
-    pkgs.runCommand "wrap-per-system" { } "touch $out";
+  # Prelude owns navigation commands; project Getting Started rows remain
+  # focused on the explicitly selected lifecycle commands.
+  prelude-command-defaults =
+    assert lib.all (name: lib.elem name config.packages.menu.commandNames) [
+      "menu"
+      "help"
+      "docs"
+    ];
+    assert lib.all (name: !lib.elem name config.packages.motd.commandNames) [
+      "menu"
+      "help"
+      "docs"
+    ];
+    pkgs.runCommand "prelude-command-defaults" { nativeBuildInputs = [ config.packages.menu ]; } ''
+      command -v x >/dev/null
+      command -v menu >/dev/null
+      command -v help >/dev/null
+      command -v docs >/dev/null
+      touch "$out"
+    '';
 
-  # Flat commands normalize into deterministic groups. Explicit order wins;
-  # names break ties, and each group appears at its first command's position.
+  # Complete command keys stay public while the first colon derives group/label
+  # presentation. Prelude stays first and configured groups follow in order.
   command-ordering =
     let
       plib = import ../src/prelude/lib.nix { inherit lib; };
@@ -165,55 +124,90 @@ in
         modules = [
           ../src/prelude/options/shared.nix
           {
+            sort.groups = [
+              "docs"
+              "develop"
+              "demos"
+            ];
             prelude.commands = {
-              z-task = {
-                group = "z-last";
-                order = 100;
-              };
-              z-default.group = "a-first";
-              m-default.group = "a-first";
-              a-explicit = {
-                group = "a-first";
-                order = 100;
-              };
+              menu = { };
+              dev = { };
+              "docs:sync" = { };
+              "docs:record" = { };
+              "demos:menu".exec = "nix run .#example-menu";
             };
           }
           {
-            prelude.commands.m-default.description = "merged";
+            prelude.commands."docs:record".description = "merged";
           }
         ];
       };
-      normalized = plib.normalizeCommandGroups evaluated.config.prelude.commands;
-      actual = map (group: {
-        inherit (group) title;
-        commands = map (command: command.name) group.tasks;
-      }) normalized;
-      firstGroup = builtins.head normalized;
-      defaultExecs = map (command: command.run) firstGroup.tasks;
-      mergedDescription = (builtins.elemAt firstGroup.tasks 1).description;
+      normalized = plib.normalizeCommandGroups evaluated.config.sort.groups evaluated.config.prelude.commands;
+      actual = map
+        (group: {
+          inherit (group) title;
+          commands = map
+            (command: {
+              inherit (command)
+                name
+                label
+                run
+                ;
+            })
+            group.tasks;
+        })
+        normalized;
       expected = [
         {
-          title = "a-first";
+          title = "prelude";
           commands = [
-            "a-explicit"
-            "m-default"
-            "z-default"
+            {
+              name = "menu";
+              label = "menu";
+              run = "menu";
+            }
           ];
         }
         {
-          title = "z-last";
-          commands = [ "z-task" ];
+          title = "docs";
+          commands = [
+            {
+              name = "docs:record";
+              label = "record";
+              run = "record";
+            }
+            {
+              name = "docs:sync";
+              label = "sync";
+              run = "sync";
+            }
+          ];
+        }
+        {
+          title = "develop";
+          commands = [
+            {
+              name = "dev";
+              label = "dev";
+              run = "dev";
+            }
+          ];
+        }
+        {
+          title = "demos";
+          commands = [
+            {
+              name = "demos:menu";
+              label = "menu";
+              run = "nix run .#example-menu";
+            }
+          ];
         }
       ];
+      docsGroup = builtins.elemAt normalized 1;
     in
     assert actual == expected;
-    assert
-      defaultExecs == [
-        "a-explicit"
-        "m-default"
-        "z-default"
-      ];
-    assert mergedDescription == "merged";
+    assert (builtins.head docsGroup.tasks).description == "merged";
     pkgs.runCommand "command-ordering" { } "touch $out";
 
   # Header options share one nested namespace for module and direct consumers.
@@ -258,10 +252,10 @@ in
                   failLevel = "warning";
                 };
               };
-              shortcuts = [
+              links = [
                 {
-                  command = "menu";
-                  alias = "m";
+                  label = "Prelude on GitHub";
+                  url = "https://github.com/darkmatter/prelude";
                 }
               ];
             };
@@ -271,9 +265,10 @@ in
       title = evaluated.config.prelude.motd.title;
       header = evaluated.config.prelude.motd.header;
       padding = evaluated.config.prelude.motd.padding;
-      shortcuts = evaluated.config.prelude.motd.shortcuts;
+      links = evaluated.config.prelude.motd.links;
       windowBackground = evaluated.config.prelude.motd.windowBackground;
       shellStatus = header.status.shell;
+      exposesShortcutOption = evaluated.options.prelude.motd ? shortcuts;
     in
     assert builtins.readFile title.text == "TEST TITLE\n";
     assert title.align == "center";
@@ -289,53 +284,113 @@ in
     assert header.status.cache.failLevel == "warning";
     assert header.status.cache.async;
     assert
-      shortcuts == [
-        {
-          command = "menu";
-          alias = "m";
-        }
-      ];
+    links == [
+      {
+        label = "Prelude on GitHub";
+        url = "https://github.com/darkmatter/prelude";
+      }
+    ];
     assert padding.x == 2;
     assert padding.y == 0;
     assert padding.top == 2;
     assert padding.left == null;
     assert padding.right == null;
     assert windowBackground.blend == 0.15;
+    assert !exposesShortcutOption;
 
     pkgs.runCommand "motd-header-options" { } "touch $out";
 
-  # Smoke: dogfood motd runs and prints something. Content is not asserted
-  # while the banner layout is still in flux.
+  # Core navigation shortcuts are synthesized from component availability;
+  # consumers cannot remove or advertise commands that are disabled.
+  component-shortcuts =
+    let
+      all = internalLib.componentShortcuts {
+        motd = true;
+        menu = true;
+        docs = true;
+      };
+      menuOnly = internalLib.componentShortcuts {
+        motd = false;
+        menu = true;
+        docs = false;
+      };
+    in
+    assert
+    all == [
+      {
+        command = "motd";
+        alias = "?";
+      }
+      {
+        command = "menu";
+        alias = "m";
+      }
+      {
+        command = "docs";
+        alias = "d";
+      }
+    ];
+    assert
+    menuOnly == [
+      {
+        command = "menu";
+        alias = "m";
+      }
+    ];
+    pkgs.runCommand "component-shortcuts" { } "touch $out";
+
+  # Dogfood surfaces must render every enable-derived navigation shortcut.
   motd-renders = pkgs.runCommand "motd-renders" { } ''
     NO_COLOR=1 ${lib.getExe config.packages.motd} > "$out"
-    test -s "$out"
+    grep -F '[?] motd' "$out"
+    grep -F '[m] menu' "$out"
+    grep -F '[d] docs' "$out"
   '';
 
-  # MOTD commands are selected from the command catalogue, whose generated
-  # wrappers are bundled with packages.motd when the menu is enabled.
+  prompt-renders-shortcuts = pkgs.runCommand "prompt-renders-shortcuts" { } ''
+    grep -F '[?](bold fg:accent2)' ${config.packages.prompt}
+    grep -F '[ motd](fg:muted)' ${config.packages.prompt}
+    grep -F '[m](bold fg:accent2)' ${config.packages.prompt}
+    grep -F '[ menu](fg:muted)' ${config.packages.prompt}
+    grep -F '[d](bold fg:accent2)' ${config.packages.prompt}
+    grep -F '[ docs](fg:muted)' ${config.packages.prompt}
+    touch "$out"
+  '';
+
+  # The MOTD advertises x aliases; the menu retains canonical underlying
+  # invocations for execution and diagnostics.
   motd-commands-runnable =
     mkRunnableCheck "motd-commands-runnable" "motd"
-      config.packages.motd.commandNames;
+      config.packages.motd.commandInvocations;
 
   menu-commands-runnable =
     mkRunnableCheck "menu-commands-runnable" "menu"
-      config.packages.menu.commandNames;
+      config.packages.menu.commandInvocations;
 
-  titles-wrapper-renders =
-    pkgs.runCommand "titles-wrapper-renders"
+  # Built-in navigation aliases must resolve on the same PATH as their labels.
+  motd-shortcuts-runnable =
+    assert
+    config.packages.motd.shortcutAliases == [
+      "?"
+      "m"
+      "d"
+    ];
+    mkRunnableCheck "motd-shortcuts-runnable" "built-in shortcuts" config.packages.motd.shortcutAliases;
+
+  titles-command-renders =
+    pkgs.runCommand "titles-command-renders"
       {
-        nativeBuildInputs = [ config.packages.motd ] ++ config.packages.motd.commandWrappers;
+        nativeBuildInputs = [ config.packages.motd ];
       }
       ''
-        titles > "$out"
+        prelude-title-previews prelude > "$out"
         test "$(grep -c '^===== .* =====$' "$out")" -eq 23
         grep -q '^===== 3d-ascii =====$' "$out"
         grep -q '^===== calvin-s =====$' "$out"
         test "$(wc -l < "$out")" -gt 50
       '';
 
-  # Package-backed commands carry their runtime package into the evaluated menu
-  # package and still receive a directly invocable wrapper.
+  # Package-backed ungrouped aliases carry their runtime package and wrapper.
   package-command-bundled =
     assert lib.elem pkgs.nixfmt config.packages.menu.commandRuntimePackages;
     pkgs.runCommand "package-command-bundled"
@@ -348,6 +403,55 @@ in
         touch "$out"
       '';
 
+  colon-command-names-preserved =
+    let
+      internalPreludeLib = import ../src/prelude/lib.nix { inherit lib; };
+      imported = internalPreludeLib.normalizeCommand "test:unit" {
+        exec = "npm run test:unit";
+      };
+    in
+    assert imported.name == "test:unit";
+    assert imported.group == "test";
+    assert imported.label == "unit";
+    pkgs.runCommand "colon-command-names-preserved" { } "touch $out";
+
+  duplicate-canonical-invocations-rejected =
+    let
+      internalPreludeLib = import ../src/prelude/lib.nix { inherit lib; };
+      attempted = builtins.tryEval (
+        builtins.deepSeq
+          (internalPreludeLib.normalizeCommandEntries {
+            "go:test" = {
+              exec = "go test";
+            };
+            "quality:test" = {
+              exec = "go test";
+            };
+          })
+          true
+      );
+    in
+    assert !attempted.success;
+    pkgs.runCommand "duplicate-canonical-invocations-rejected" { } "touch $out";
+
+  # Group prefixes are parsed into menu metadata and never become PATH names.
+  # Canonical package invocations remain the native CLI syntax.
+  grouped-commands-use-canonical-invocations =
+    assert lib.elem "go:test" config.packages.menu.commandNames;
+    assert lib.elem "go test -C src ./..." config.packages.menu.commandInvocations;
+    assert lib.elem "x go:test" config.packages.menu.xInvocations;
+    assert lib.elem "x go:test" config.packages.motd.commandInvocations;
+    assert !lib.elem "go:test" config.packages.menu.commandWrapperNames;
+    assert !lib.elem "go-test" config.packages.menu.commandWrapperNames;
+    pkgs.runCommand "grouped-commands-use-canonical-invocations"
+      { nativeBuildInputs = [ config.packages.menu ]; }
+      ''
+        command -v go >/dev/null
+        ! command -v go:test >/dev/null
+        ! command -v go-test >/dev/null
+        touch "$out"
+      '';
+
   # Docs options accept Markdown page paths in declaration order.
   docs-options =
     let
@@ -357,8 +461,8 @@ in
           ../src/prelude/options/docs.nix
           {
             prelude.docs.pages = [
-              { text = ./dogfood/docs/name.md; }
-              { text = ./dogfood/docs/synopsis.md; }
+              { text = ../examples/default/docs/name.md; }
+              { text = ../examples/default/docs/synopsis.md; }
             ];
           }
         ];
@@ -366,14 +470,15 @@ in
       pages = evaluated.config.prelude.docs.pages;
     in
     assert builtins.length pages == 2;
-    assert (builtins.head pages).text == ./dogfood/docs/name.md;
+    assert (builtins.head pages).text == ../examples/default/docs/name.md;
     pkgs.runCommand "docs-options" { } "touch $out";
 
   # Our own `menu list` renders the grouped command table.
   menu-list-renders = pkgs.runCommand "menu-list-renders" { } ''
     ${lib.getExe config.packages.menu} list > "$out"
     test -s "$out"
-    grep -q "demo-menu" "$out"
+    grep -q '^DEMOS$' "$out"
+    grep -q "acme-web command menu demo" "$out"
   '';
 
   # Every feature demo (motd variants, themes, acme-web motd + menu list)

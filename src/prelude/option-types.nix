@@ -8,21 +8,25 @@ let
   # Relative shade of a containing background: negative darkens, positive lightens.
   # Amount is in [ -1.0, 1.0 ]. Resolved at runtime against the terminal (card/
   # window) or the resolved card (nested description).
-  relativeBgType = lib.types.addCheck (lib.types.submodule {
-    options.relative = lib.mkOption {
-      type = lib.types.either lib.types.float lib.types.int;
-      description = "Signed shade amount relative to the containing background (−1..1).";
-    };
-  }) (v: (v.relative or 2) >= -1 && (v.relative or 2) <= 1);
+  relativeBgType = lib.types.addCheck
+    (lib.types.submodule {
+      options.relative = lib.mkOption {
+        type = lib.types.either lib.types.float lib.types.int;
+        description = "Signed shade amount relative to the containing background (−1..1).";
+      };
+    })
+    (v: (v.relative or 2) >= -1 && (v.relative or 2) <= 1);
 
   # Blend amount toward the theme background: 0 is the detected terminal
   # background, 1 is the theme `bg` token.
-  blendBgType = lib.types.addCheck (lib.types.submodule {
-    options.blend = lib.mkOption {
-      type = lib.types.either lib.types.float lib.types.int;
-      description = "Blend amount from the detected terminal background toward the theme background (0..1).";
-    };
-  }) (v: (v.blend or 2) >= 0 && (v.blend or 2) <= 1);
+  blendBgType = lib.types.addCheck
+    (lib.types.submodule {
+      options.blend = lib.mkOption {
+        type = lib.types.either lib.types.float lib.types.int;
+        description = "Blend amount from the detected terminal background toward the theme background (0..1).";
+      };
+    })
+    (v: (v.blend or 2) >= 0 && (v.blend or 2) <= 1);
 
   # Terminal-relative backgrounds add `{ blend = n; }`; nested backgrounds only
   # support relative shading because their base may be the containing card.
@@ -49,13 +53,13 @@ let
   # settings (e.g. `prelude.motd.description.text = "..."`) keep the per-option
   # styling. A null foreground falls back to the theme's role color.
   mkTextOption =
-    {
-      text ? "",
-      foreground ? null,
-      background ? null,
-      bold ? false,
-      faint ? false,
-      description,
+    { text ? ""
+    , foreground ? null
+    , background ? null
+    , bold ? false
+    , faint ? false
+    , description
+    ,
     }:
     lib.mkOption {
       inherit description;
@@ -144,6 +148,16 @@ let
           bottom = mkSide "bottom" "y";
           left = mkSide "left" "x";
           right = mkSide "right" "x";
+          minHeight = lib.mkOption {
+            type = lib.types.ints.unsigned;
+            default = spacingDefaults.minHeight or 0;
+            description = ''
+              Apply the vertical sides (top/bottom) only when the terminal is
+              at least this many rows tall; 0 always applies. Horizontal sides
+              are unaffected. Terminals that cannot report a size count as the
+              80x24 fallback.
+            '';
+          };
         };
       };
     };
@@ -196,7 +210,7 @@ let
           "warning"
         ];
         default = "error";
-        description = "Severity when `check` fails: error dot (default) or accent2 warning dot.";
+        description = "Severity when `check` fails: error dot (default) or warning dot.";
       };
       output = lib.mkOption {
         type = lib.types.enum [
@@ -260,26 +274,28 @@ let
 
   commandType = lib.types.submodule {
     options = {
-      order = lib.mkOption {
-        type = lib.types.int;
-        default = 1000;
-        description = "Display order; command name breaks ties.";
-      };
+
       exec = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
         description = ''
-          Shell command to execute; defaults to the command name. Unless `exec`
-          starts with the command's own name (meaning it already exists on
-          PATH), the module bundles a wrapper executable named after the
-          command into `packages.menu` (delegating to `menu <name> …`).
+          Shell command executed by the menu. Defaults to the command suffix
+          after the first colon, or to the whole key when ungrouped. Colon-grouped
+          keys never create PATH executables.
         '';
       };
-      group = lib.mkOption {
-        type = lib.types.str;
-        default = "general";
-        description = "Menu group heading. Groups follow the order of their first command.";
+
+      invocation = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = ''
+          Canonical underlying shell invocation metadata, used for duplicate
+          detection and command details; defaults to `exec`. `prelude.lib.fromPkg`
+          derives it from the executable basename plus arguments, so package
+          store paths stay hidden.
+        '';
       };
+
       runtimePackages = lib.mkOption {
         type = lib.types.listOf lib.types.package;
         default = [ ];
@@ -315,6 +331,17 @@ let
         type = lib.types.listOf argType;
         default = [ ];
         description = "Arguments/flags; presence triggers arg-entry mode in the menu.";
+      };
+
+      motd = lib.mkOption {
+        type = lib.types.nullOr lib.types.int;
+        default = null;
+        description = ''
+          When set, this command appears on the MOTD Getting Started list at this
+          sort order (ascending, ties broken by command name). When null/undefined
+          the command is hidden from the MOTD. Prelude navigation commands
+          (`menu`, `help`, `docs`) belong outside this list and stay null.
+        '';
       };
     };
   };
@@ -360,20 +387,6 @@ let
     };
   };
 
-  shortcutType = lib.types.submodule {
-    options = {
-      command = lib.mkOption {
-        type = lib.types.str;
-        description = "Command name shown in the shortcuts line.";
-      };
-      alias = lib.mkOption {
-        type = lib.types.str;
-        default = "";
-        description = "Optional short alias in parentheses.";
-      };
-    };
-  };
-
   # Env chip: static (`value`) or resolved at render time (`probe`) —
   # exactly one of the two.
   envItemType = lib.types.submodule {
@@ -413,7 +426,6 @@ in
     commandType
     recipeStepType
     recipeType
-    shortcutType
     envItemType
     ;
 }

@@ -2,16 +2,15 @@ package motd
 
 import "prelude/pkg/ui"
 
-// Shortcuts is a React-style, one-component-per-file presentation of the motd
-// shortcuts row. It maps configured shortcuts and resolved styles into the
-// shared ui.ShortcutList. The component is stateless and uses the resolved
-// renderer context for MOTD-specific data and layout.
+// Shortcuts renders the enable-derived component navigation supplied by Nix.
+// Keeping this component stateless preserves the invariant that presentation
+// cannot add, remove, or retarget built-in aliases.
 type Shortcuts struct {
 	r renderer
 }
 
-// Render builds the shortcuts row as one flowing line of command chips. Returns
-// an empty string when no shortcuts are configured.
+// Render builds the shortcuts row as one flowing line of command chips. It is
+// empty only when no shortcut-bearing Prelude component is enabled.
 func (x Shortcuts) Render() string {
 	items := make([]ui.Shortcut, len(x.r.cfg.Shortcuts))
 	for i, shortcut := range x.r.cfg.Shortcuts {

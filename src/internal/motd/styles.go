@@ -46,15 +46,16 @@ type styles struct {
 	fgBold lipgloss.Style
 	accent lipgloss.Style
 	amber  lipgloss.Style // accent2
-	err    lipgloss.Style
 
 	// Header layer (shared surface for wordmark + status).
-	headerDim    lipgloss.Style
-	headerMuted  lipgloss.Style
-	headerFg     lipgloss.Style
-	headerAccent lipgloss.Style
-	headerAmber  lipgloss.Style
-	headerErr    lipgloss.Style
+	headerDim     lipgloss.Style
+	headerMuted   lipgloss.Style
+	headerFg      lipgloss.Style
+	headerAccent  lipgloss.Style
+	headerSuccess lipgloss.Style
+	headerWarning lipgloss.Style
+	headerInfo    lipgloss.Style
+	headerError   lipgloss.Style
 }
 
 func newStyles(cfg Config) styles {
@@ -144,14 +145,15 @@ func newStyles(cfg Config) styles {
 		fgBold: onBlock(p.Fg).Bold(true),
 		accent: onBlock(p.Accent),
 		amber:  onBlock(p.Accent2),
-		err:    onBlock(p.Error),
 
-		headerDim:    onHeader(p.Dim),
-		headerMuted:  onHeader(p.Muted),
-		headerFg:     onHeader(p.Fg),
-		headerAccent: onHeader(p.Accent),
-		headerAmber:  onHeader(p.Accent2),
-		headerErr:    onHeader(p.Error),
+		headerDim:     onHeader(p.Dim),
+		headerMuted:   onHeader(p.Muted),
+		headerFg:      onHeader(p.Fg),
+		headerAccent:  onHeader(p.Accent),
+		headerSuccess: onHeader(p.Success),
+		headerWarning: onHeader(p.Warning),
+		headerInfo:    onHeader(p.Info),
+		headerError:   onHeader(p.Error),
 	}
 }
 

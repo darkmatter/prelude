@@ -29,7 +29,7 @@ one of “auto”, “truecolor”, “ansi256”
 
 
 
-Runnable commands keyed by invocation name for the interactive menu and MOTD\.
+Project commands keyed by their public ` x ` name\. The first colon infers the menu group; the remaining suffix is the displayed name, while the complete key remains callable\.
 
 
 
@@ -50,12 +50,13 @@ attribute set of (submodule)
 
 ```nix
 {
+  "database:migrate" = {
+    description = "apply pending migrations";
+    exec = "drizzle-kit migrate";
+  };
   dev = {
     description = "start the dev server";
     exec = "pnpm dev";
-    group = "develop";
-    key = "d";
-    order = 100;
   };
 }
 ```
@@ -247,10 +248,9 @@ list of string
 
 
 
-Shell command to execute; defaults to the command name\. Unless ` exec `
-starts with the command’s own name (meaning it already exists on
-PATH), the module bundles a wrapper executable named after the
-command into ` packages.menu ` (delegating to ` menu <name> … `)\.
+Shell command executed by the menu\. Defaults to the command suffix
+after the first colon, or to the whole key when ungrouped\. Colon-grouped
+keys never create PATH executables\.
 
 
 
@@ -267,23 +267,26 @@ null
 
 
 
-## prelude\.commands\.\<name>\.group
+## prelude\.commands\.\<name>\.invocation
 
 
 
-Menu group heading\. Groups follow the order of their first command\.
+Canonical underlying shell invocation metadata, used for duplicate
+detection and command details; defaults to ` exec `\. ` prelude.lib.fromPkg `
+derives it from the executable basename plus arguments, so package
+store paths stay hidden\.
 
 
 
 *Type:*
-string
+null or string
 
 
 
 *Default:*
 
 ```nix
-"general"
+null
 ```
 
 
@@ -309,23 +312,26 @@ null
 
 
 
-## prelude\.commands\.\<name>\.order
+## prelude\.commands\.\<name>\.motd
 
 
 
-Display order; command name breaks ties\.
+When set, this command appears on the MOTD Getting Started list at this
+sort order (ascending, ties broken by command name)\. When null/undefined
+the command is hidden from the MOTD\. Prelude navigation commands
+(` menu `, ` help `, ` docs `) belong outside this list and stay null\.
 
 
 
 *Type:*
-signed integer
+null or signed integer
 
 
 
 *Default:*
 
 ```nix
-1000
+null
 ```
 
 
@@ -634,38 +640,6 @@ boolean
 
 ```nix
 true
-```
-
-
-
-## prelude\.motd\.commands
-
-
-
-Ordered command names rendered as runnable ` $ command ` rows with descriptions inherited from the command catalogue\.
-
-
-
-*Type:*
-list of string
-
-
-
-*Default:*
-
-```nix
-[ ]
-```
-
-
-
-*Example:*
-
-```nix
-[
-  "dev"
-  "check"
-]
 ```
 
 
@@ -1104,10 +1078,10 @@ that reloading the shell will display the latest result\. Set
 ` async = false ` only when the check should intentionally block
 rendering; synchronous checks show a spinner while running\.
 
-Exit 0 paints a green/accent dot with ` ok ` (or stdout); non-zero
+Exit 0 paints a success dot with ` ok ` (or stdout); non-zero
 paints an error dot with ` fail `\. Set ` failLevel = "warning" ` for
-a non-fatal accent2 dot instead\. Empty attrs hide the status
-region\. Tight rows drop labels\.
+a non-fatal warning dot\. Static status dots use the info color\.
+Empty attrs hide the status region\. Tight rows drop labels\.
 
 
 
@@ -1218,7 +1192,7 @@ string
 
 
 
-Severity when ` check ` fails: error dot (default) or accent2 warning dot\.
+Severity when ` check ` fails: error dot (default) or warning dot\.
 
 
 
@@ -1386,6 +1360,66 @@ one of “below”, “inline”
 
 
 
+## prelude\.motd\.header\.statusHint\.links
+
+
+
+Terminal hyperlinks appended after the reload hint (e\.g\. the repository)\.
+
+
+
+*Type:*
+list of (submodule)
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+
+
+*Example:*
+
+```nix
+[
+  {
+    label = "github";
+    url = "https://github.com/darkmatter/prelude";
+  }
+]
+```
+
+
+
+## prelude\.motd\.header\.statusHint\.links\.\*\.label
+
+
+
+Visible text for the terminal hyperlink\.
+
+
+
+*Type:*
+string
+
+
+
+## prelude\.motd\.header\.statusHint\.links\.\*\.url
+
+
+
+Hyperlink target emitted as an OSC 8 terminal link\.
+
+
+
+*Type:*
+string
+
+
+
 ## prelude\.motd\.header\.tagline
 
 
@@ -1491,6 +1525,66 @@ string
 
 
 
+## prelude\.motd\.links
+
+
+
+Terminal hyperlinks rendered beneath the description\.
+
+
+
+*Type:*
+list of (submodule)
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+
+
+*Example:*
+
+```nix
+[
+  {
+    label = "github.com/darkmatter/prelude";
+    url = "https://github.com/darkmatter/prelude";
+  }
+]
+```
+
+
+
+## prelude\.motd\.links\.\*\.label
+
+
+
+Visible text for the terminal hyperlink\.
+
+
+
+*Type:*
+string
+
+
+
+## prelude\.motd\.links\.\*\.url
+
+
+
+Hyperlink target emitted as an OSC 8 terminal link\.
+
+
+
+*Type:*
+string
+
+
+
 ## prelude\.motd\.margin
 
 
@@ -1550,6 +1644,30 @@ null or (unsigned integer, meaning >=0)
 
 ```nix
 null
+```
+
+
+
+## prelude\.motd\.margin\.minHeight
+
+
+
+Apply the vertical sides (top/bottom) only when the terminal is
+at least this many rows tall; 0 always applies\. Horizontal sides
+are unaffected\. Terminals that cannot report a size count as the
+80x24 fallback\.
+
+
+
+*Type:*
+unsigned integer, meaning >=0
+
+
+
+*Default:*
+
+```nix
+0
 ```
 
 
@@ -1722,6 +1840,30 @@ null
 
 
 
+## prelude\.motd\.padding\.minHeight
+
+
+
+Apply the vertical sides (top/bottom) only when the terminal is
+at least this many rows tall; 0 always applies\. Horizontal sides
+are unaffected\. Terminals that cannot report a size count as the
+80x24 fallback\.
+
+
+
+*Type:*
+unsigned integer, meaning >=0
+
+
+
+*Default:*
+
+```nix
+0
+```
+
+
+
 ## prelude\.motd\.padding\.right
 
 
@@ -1810,7 +1952,7 @@ unsigned integer, meaning >=0
 
 
 
-Multi-step workflows keyed by name\. Prefer ` steps ` ({ command } | { comment }); legacy ` lines ` are normalized into steps\.
+Project workflows keyed by name for setup, build, test, deploy, and similar work\. Prefer ` steps ` ({ command } | { comment }); legacy ` lines ` are normalized into steps\.
 
 
 
@@ -1979,74 +2121,6 @@ null
 
 
 
-## prelude\.motd\.shortcuts
-
-
-
-Right-aligned discoverability chips that close the composition (replaces the footer bar)\.
-
-
-
-*Type:*
-list of (submodule)
-
-
-
-*Default:*
-
-```nix
-[ ]
-```
-
-
-
-*Example:*
-
-```nix
-[
-  {
-    alias = "m";
-    command = "menu";
-  }
-]
-```
-
-
-
-## prelude\.motd\.shortcuts\.\*\.alias
-
-
-
-Optional short alias in parentheses\.
-
-
-
-*Type:*
-string
-
-
-
-*Default:*
-
-```nix
-""
-```
-
-
-
-## prelude\.motd\.shortcuts\.\*\.command
-
-
-
-Command name shown in the shortcuts line\.
-
-
-
-*Type:*
-string
-
-
-
 ## prelude\.motd\.title
 
 
@@ -2186,8 +2260,6 @@ null
 
 ## prelude\.palette
 
-
-
 Per-token overrides applied on top of the theme\.
 
 
@@ -2269,6 +2341,8 @@ null
 
 
 ## prelude\.palette\.bg
+
+
 
 Override the theme’s ` bg ` token\.
 
@@ -2371,6 +2445,27 @@ null
 
 
 
+## prelude\.palette\.info
+
+
+
+Override the theme’s ` info ` token\.
+
+
+
+*Type:*
+null or unsigned integer, meaning >=0, or string
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+
+
 ## prelude\.palette\.muted
 
 
@@ -2434,11 +2529,53 @@ null
 
 
 
+## prelude\.palette\.success
+
+
+
+Override the theme’s ` success ` token\.
+
+
+
+*Type:*
+null or unsigned integer, meaning >=0, or string
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+
+
 ## prelude\.palette\.surface
 
 
 
 Override the theme’s ` surface ` token\.
+
+
+
+*Type:*
+null or unsigned integer, meaning >=0, or string
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+
+
+## prelude\.palette\.warning
+
+
+
+Override the theme’s ` warning ` token\.
 
 
 
@@ -2559,78 +2696,6 @@ TOML value
 
 
 
-## prelude\.prompt\.shortcuts
-
-
-
-Shortcut chips on the prompt’s footer bar — a full-width ` surface `
-line rendered directly above the input (starship cannot draw below
-the cursor), padded edge-to-edge via the ` $fill ` module\. Defaults to
-` prelude.motd.shortcuts ` so the prompt mirrors the MOTD footer; set
-` [ ] ` to drop the footer line\.
-
-
-
-*Type:*
-list of (submodule)
-
-
-
-*Default:*
-
-```nix
-[ ]
-```
-
-
-
-*Example:*
-
-```nix
-[
-  {
-    alias = "m";
-    command = "menu";
-  }
-]
-```
-
-
-
-## prelude\.prompt\.shortcuts\.\*\.alias
-
-
-
-Optional short alias in parentheses\.
-
-
-
-*Type:*
-string
-
-
-
-*Default:*
-
-```nix
-""
-```
-
-
-
-## prelude\.prompt\.shortcuts\.\*\.command
-
-
-
-Command name shown in the shortcuts line\.
-
-
-
-*Type:*
-string
-
-
-
 ## prelude\.theme
 
 
@@ -2648,4 +2713,39 @@ one of “amber”, “apathy”, “gruvbox”, “minted”, “mono”, “no
 
 ```nix
 "phosphor"
+```
+
+
+
+## sort\.groups
+
+
+
+Preferred command-group order\. Groups omitted from this list follow alphabetically; Prelude’s own group remains first\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
+
+```nix
+[
+  "develop"
+]
+```
+
+
+
+*Example:*
+
+```nix
+[
+  "develop"
+  "database"
+  "deploy"
+]
 ```

@@ -12,7 +12,10 @@ import (
 )
 
 func manualDocument(cfg *Config) manual.Document {
-	document := manual.Document{Sections: make([]manual.Section, 0, len(cfg.Pages))}
+	document := manual.Document{
+		Kind:     manual.KindDocs,
+		Sections: make([]manual.Section, 0, len(cfg.Pages)),
+	}
 	for index, page := range cfg.Pages {
 		document.Sections = append(document.Sections, manual.Section{
 			Title:    markdownTitle(page.Text, index),

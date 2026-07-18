@@ -5,6 +5,7 @@
 //	prelude-menu --config cfg.json list          print the task table
 //	prelude-menu --config cfg.json help          sectioned manual viewer
 //	prelude-menu --config cfg.json <name|key> …  run a task directly
+//	prelude-menu --config cfg.json --x <key> …    dispatch through the public x catalogue
 //
 // Tasks with declared args open argument-entry mode (option chips, boolean
 // flags, required validation, live preview) unless extra CLI args are given.

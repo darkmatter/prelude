@@ -26,6 +26,7 @@ type Group struct {
 
 type Task struct {
 	Name        string   `json:"name"`
+	Label       string   `json:"label"`
 	Run         string   `json:"run"`
 	Description string   `json:"description"`
 	Key         string   `json:"key"`   // "" = none
@@ -36,6 +37,13 @@ type Task struct {
 
 	group    string // owning group title
 	haystack string // precomputed lowercase filter target
+}
+
+func (t Task) displayName() string {
+	if t.Label != "" {
+		return t.Label
+	}
+	return t.Name
 }
 
 type Arg struct {
@@ -67,7 +75,7 @@ func (c *Config) flatten() []Task {
 		for _, t := range g.Tasks {
 			t.group = g.Title
 			t.haystack = strings.ToLower(
-				t.Name + " " + t.Usage + " " + t.Description + " " + t.group,
+				t.Name + " " + t.displayName() + " " + t.Usage + " " + t.Description + " " + t.group,
 			)
 			flat = append(flat, t)
 		}

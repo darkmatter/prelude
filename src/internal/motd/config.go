@@ -31,6 +31,7 @@ type Config struct {
 	Padding        Spacing        `json:"padding"`
 	Header         Header         `json:"header"`
 	Description    StyledText     `json:"description"`
+	Links          []Link         `json:"links"`
 	Env            []EnvItem      `json:"env"`
 	Commands       []Command      `json:"commands"`
 	Recipes        []Recipe       `json:"recipes"`
@@ -44,6 +45,10 @@ type Config struct {
 	TerminalBackground string `json:"-"`
 	// StatusHint is derived from the async status cache for this render.
 	StatusHint string `json:"-"`
+	// StatusAge is the age of the cached async status (e.g. "2m ago",
+	// "just now"), derived alongside StatusHint. It is rendered on the left,
+	// appended to the status items, so the reload hint on the right stays clean.
+	StatusAge string `json:"-"`
 }
 
 type Spacing struct {
@@ -51,6 +56,20 @@ type Spacing struct {
 	Bottom int `json:"bottom"`
 	Left   int `json:"left"`
 	Right  int `json:"right"`
+	// MinHeight gates the vertical sides: below this terminal height they
+	// collapse to zero so breathing room never pushes content off short
+	// screens. Zero disables the gate.
+	MinHeight int `json:"minHeight"`
+}
+
+// collapseVertical zeroes Top/Bottom when the terminal is shorter than
+// MinHeight. Horizontal sides are width concerns and stay untouched.
+func (s Spacing) collapseVertical(terminalHeight int) Spacing {
+	if s.MinHeight > 0 && terminalHeight < s.MinHeight {
+		s.Top = 0
+		s.Bottom = 0
+	}
+	return s
 }
 
 // Header is the hero bar: wordmark variant + status chips + tagline.
@@ -65,8 +84,11 @@ type Header struct {
 	// TaglineAlign: "left" (default) or "center".
 	TaglineAlign string `json:"taglineAlign"`
 	// StatusHintLayout: "below" (default) or "inline" (lights left, hint right).
-	StatusHintLayout string         `json:"statusHintLayout"`
-	Status           []HeaderStatus `json:"status"`
+	StatusHintLayout string `json:"statusHintLayout"`
+	// StatusHintLinks are OSC 8 hyperlinks appended after the reload hint
+	// (e.g. the project repository).
+	StatusHintLinks []Link         `json:"statusHintLinks"`
+	Status          []HeaderStatus `json:"status"`
 	// Background is an explicit header fill. Empty + BackgroundRaised paints the
 	// lightened bar; empty + !Raised is transparent (fg-only).
 	Background         string  `json:"background"`
@@ -82,8 +104,8 @@ type HeaderStatus struct {
 	Async  bool   `json:"async"`  // resolve from cache; refresh outside foreground rendering
 	Ok     string `json:"ok"`     // text when check exits 0 and stdout empty
 	Fail   string `json:"fail"`   // text when check exits non-zero and stdout empty
-	// FailLevel is the severity of a failed check: "error" (default) paints the
-	// error dot, "warning" paints the accent2 dot.
+	// FailLevel controls the semantic failure color: "error" (default) or
+	// "warning".
 	FailLevel string `json:"failLevel"`
 	// Output controls what the badge displays after a check runs:
 	//   ""        — default: configured ok/fail text, or first output line.
@@ -104,6 +126,11 @@ type StyledText struct {
 	Faint              bool    `json:"faint"`
 	// Tips are optional follow-on lines. Wrap commands in backticks for accent.
 	Tips []string `json:"tips"`
+}
+
+type Link struct {
+	Label string `json:"label"`
+	URL   string `json:"url"`
 }
 
 type EnvItem struct {

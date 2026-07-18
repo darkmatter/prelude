@@ -5,7 +5,8 @@
 ## Welcome banner
 
 The MOTD composes project identity, static status, environment versions,
-next-step commands, recipes, and shortcuts. Each section is optional.
+next-step commands, and recipes. Navigation shortcuts appear automatically
+for enabled Prelude components.
 
 ![Prelude MOTD terminal recording](../media/motd.gif)
 
@@ -21,55 +22,14 @@ prelude = {
     build = {
       description = "compile an optimized production bundle";
       exec = "pnpm build";
-      group = "develop";
-      key = "b";
-      order = 400;
     };
-    clean = {
-      description = "remove build artifacts & caches";
-      exec = "rm -rf .next .turbo node_modules/.cache";
-      group = "general";
-      order = 200;
-    };
-    "db:migrate" = {
+    "database:migrate" = {
       description = "apply pending schema migrations";
       exec = "drizzle-kit migrate";
-      group = "database";
-      key = "m";
-      order = 700;
     };
-    "db:up" = {
+    "database:up" = {
       description = "start postgres & redis in the background";
       exec = "docker compose up -d db redis";
-      group = "database";
-      order = 600;
-    };
-    deploy = {
-      args = [
-        {
-          description = "Publish to a named preview URL";
-          options = [
-            "staging"
-            "preview"
-          ];
-          token = "--alias";
-        }
-        {
-          boolean = true;
-          description = "Print the manifest without shipping";
-          token = "--dry-run";
-        }
-      ];
-      description = "ship the current build to production";
-      details = "Uploads the most recent production build and promotes it to the live environment. Deploys are atomic: traffic switches only after the new release passes its health checks.";
-      examples = [
-        "menu deploy --dry-run"
-        "menu deploy --alias staging"
-      ];
-      exec = "vercel deploy";
-      group = "ops";
-      order = 800;
-      usage = "menu deploy --alias staging";
     };
     dev = {
       args = [
@@ -97,17 +57,39 @@ prelude = {
         "menu dev --host 0.0.0.0"
       ];
       exec = "pnpm dev";
-      group = "develop";
-      key = "d";
-      order = 300;
+      motd = 1;
       usage = "menu dev --port 3000";
     };
-    menu = {
-      description = "open the interactive command menu";
-      group = "general";
-      order = 100;
+    "general:clean" = {
+      description = "remove build artifacts & caches";
+      exec = "rm -rf .next .turbo node_modules/.cache";
     };
-    push = {
+    "ops:deploy" = {
+      args = [
+        {
+          description = "Publish to a named preview URL";
+          options = [
+            "staging"
+            "preview"
+          ];
+          token = "--alias";
+        }
+        {
+          boolean = true;
+          description = "Print the manifest without shipping";
+          token = "--dry-run";
+        }
+      ];
+      description = "ship the current build to production";
+      details = "Uploads the most recent production build and promotes it to the live environment. Deploys are atomic: traffic switches only after the new release passes its health checks.";
+      examples = [
+        "menu deploy --dry-run"
+        "menu deploy --alias staging"
+      ];
+      exec = "vercel deploy";
+      usage = "menu deploy --alias staging";
+    };
+    "ops:push" = {
       args = [
         {
           description = "Remote to push to";
@@ -129,25 +111,15 @@ prelude = {
       ];
       description = "publish the current branch to the remote";
       exec = "git push";
-      group = "ops";
-      key = "p";
-      order = 900;
     };
     test = {
       description = "run the unit test suite";
       exec = "pnpm test";
-      group = "develop";
-      key = "t";
-      order = 500;
+      motd = 2;
     };
   };
   motd = {
     clearScreen = false;
-    commands = [
-      "menu"
-      "dev"
-      "test"
-    ];
     description = {
       text = "This repo uses nix-based tooling which provides a consistent and reproducible dev environment.";
     };
@@ -215,16 +187,6 @@ prelude = {
         title = "ship a hotfix to production";
       };
     };
-    shortcuts = [
-      {
-        alias = "m";
-        command = "menu";
-      }
-      {
-        alias = "d";
-        command = "docs";
-      }
-    ];
   };
   project = "acme-web";
 };
@@ -327,55 +289,14 @@ prelude = {
     build = {
       description = "compile an optimized production bundle";
       exec = "pnpm build";
-      group = "develop";
-      key = "b";
-      order = 400;
     };
-    clean = {
-      description = "remove build artifacts & caches";
-      exec = "rm -rf .next .turbo node_modules/.cache";
-      group = "general";
-      order = 200;
-    };
-    "db:migrate" = {
+    "database:migrate" = {
       description = "apply pending schema migrations";
       exec = "drizzle-kit migrate";
-      group = "database";
-      key = "m";
-      order = 700;
     };
-    "db:up" = {
+    "database:up" = {
       description = "start postgres & redis in the background";
       exec = "docker compose up -d db redis";
-      group = "database";
-      order = 600;
-    };
-    deploy = {
-      args = [
-        {
-          description = "Publish to a named preview URL";
-          options = [
-            "staging"
-            "preview"
-          ];
-          token = "--alias";
-        }
-        {
-          boolean = true;
-          description = "Print the manifest without shipping";
-          token = "--dry-run";
-        }
-      ];
-      description = "ship the current build to production";
-      details = "Uploads the most recent production build and promotes it to the live environment. Deploys are atomic: traffic switches only after the new release passes its health checks.";
-      examples = [
-        "menu deploy --dry-run"
-        "menu deploy --alias staging"
-      ];
-      exec = "vercel deploy";
-      group = "ops";
-      order = 800;
-      usage = "menu deploy --alias staging";
     };
     dev = {
       args = [
@@ -403,17 +324,39 @@ prelude = {
         "menu dev --host 0.0.0.0"
       ];
       exec = "pnpm dev";
-      group = "develop";
-      key = "d";
-      order = 300;
+      motd = 1;
       usage = "menu dev --port 3000";
     };
-    menu = {
-      description = "open the interactive command menu";
-      group = "general";
-      order = 100;
+    "general:clean" = {
+      description = "remove build artifacts & caches";
+      exec = "rm -rf .next .turbo node_modules/.cache";
     };
-    push = {
+    "ops:deploy" = {
+      args = [
+        {
+          description = "Publish to a named preview URL";
+          options = [
+            "staging"
+            "preview"
+          ];
+          token = "--alias";
+        }
+        {
+          boolean = true;
+          description = "Print the manifest without shipping";
+          token = "--dry-run";
+        }
+      ];
+      description = "ship the current build to production";
+      details = "Uploads the most recent production build and promotes it to the live environment. Deploys are atomic: traffic switches only after the new release passes its health checks.";
+      examples = [
+        "menu deploy --dry-run"
+        "menu deploy --alias staging"
+      ];
+      exec = "vercel deploy";
+      usage = "menu deploy --alias staging";
+    };
+    "ops:push" = {
       args = [
         {
           description = "Remote to push to";
@@ -435,16 +378,11 @@ prelude = {
       ];
       description = "publish the current branch to the remote";
       exec = "git push";
-      group = "ops";
-      key = "p";
-      order = 900;
     };
     test = {
       description = "run the unit test suite";
       exec = "pnpm test";
-      group = "develop";
-      key = "t";
-      order = 500;
+      motd = 2;
     };
   };
   project = "acme-web";

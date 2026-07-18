@@ -15,7 +15,8 @@ type layout struct {
 }
 
 func (v Viewer) computeLayout() layout {
-	side := lipgloss.Width("CONTENTS")
+	label := v.document.SidebarLabel()
+	side := lipgloss.Width(label)
 	for _, section := range v.document.Sections {
 		side = max(side, lipgloss.Width(section.Title)+2)
 	}
@@ -31,21 +32,33 @@ func (v Viewer) computeLayout() layout {
 
 func (v Viewer) renderDocument(textWidth int) (lines []string, starts []int) {
 	textWidth = max(textWidth, 24)
-	lines = append(lines, "")
+	isBlank := func(line string) bool {
+		return strings.TrimSpace(ansi.Strip(line)) == ""
+	}
+	// Seed with a painted blank so the viewport never holds a raw empty string
+	// (those punch holes through to the terminal default background).
+	lines = append(lines, v.styles.blankLine(textWidth))
 	for _, section := range v.document.Sections {
-		if len(lines) > 0 && lines[len(lines)-1] != "" {
-			lines = append(lines, "")
+		if len(lines) > 0 && !isBlank(lines[len(lines)-1]) {
+			lines = append(lines, v.styles.blankLine(textWidth))
 		}
 		starts = append(starts, len(lines))
 		if section.Markdown != "" {
-			lines = append(lines, v.renderMarkdown(section.Markdown, textWidth)...)
+			for _, line := range v.renderMarkdown(section.Markdown, textWidth) {
+				lines = append(lines, v.styles.fillLine(line, textWidth))
+			}
 			continue
 		}
-		lines = append(lines, v.styles.onBody(Accent, true).PaddingLeft(2).Render(strings.ToUpper(section.Title)))
+		// Structured manuals: paint heading + blocks, then seal each row to
+		// textWidth so trailing cells keep the body fill.
+		title := v.styles.indent(2) + v.styles.onBody(Accent, true).Render(strings.ToUpper(section.Title))
+		lines = append(lines, v.styles.fillLine(title, textWidth))
 		for _, block := range section.Blocks {
-			lines = append(lines, v.renderBlock(block, textWidth)...)
+			for _, line := range v.renderBlock(block, textWidth) {
+				lines = append(lines, v.styles.fillLine(line, textWidth))
+			}
 			if block.BlankAfter {
-				lines = append(lines, "")
+				lines = append(lines, v.styles.blankLine(textWidth))
 			}
 		}
 	}
@@ -63,18 +76,22 @@ func (v Viewer) renderBlock(block Block, textWidth int) []string {
 	if plain.Len() == 0 {
 		return nil
 	}
+	// Indent with a filled run rather than Style.PaddingLeft: lipgloss padding
+	// inserts a reset between pad and content, which is fine when both share a
+	// bg, but an explicit fill indent matches the rest of the codebase.
+	pad := v.styles.indent(block.Indent)
 	if block.Wrap {
 		role, bold := block.Spans[0].Role, block.Spans[0].Bold
 		wrapped := strings.Split(ansi.Wordwrap(plain.String(), max(textWidth-block.Indent, 16), ""), "\n")
 		lines := make([]string, len(wrapped))
 		for index, line := range wrapped {
-			lines[index] = v.styles.onBody(role, bold).PaddingLeft(block.Indent).Render(line)
+			lines[index] = pad + v.styles.onBody(role, bold).Render(line)
 		}
 		return lines
 	}
 
 	var line strings.Builder
-	line.WriteString(v.styles.bodySpace.PaddingLeft(block.Indent).Render(""))
+	line.WriteString(pad)
 	for _, span := range block.Spans {
 		line.WriteString(v.styles.onBody(span.Role, span.Bold).Render(span.Text))
 	}
@@ -95,6 +112,8 @@ func (v Viewer) render() string {
 
 	// Sidebar column — rendered by the sidebarView sub-model.
 	sb := sidebarView{
+		label:    v.document.SidebarLabel(),
+		kind:     v.document.Kind,
 		sections: v.document.Sections,
 		active:   v.active,
 		styles:   v.styles,
@@ -103,11 +122,12 @@ func (v Viewer) render() string {
 	}
 	sideLines := strings.Split(sb.View(), "\n")
 
-	// Body column — rendered and scrolled by the Bubbles viewport.
-	padBody := func(content string) string {
-		return v.styles.bodySpace.Inline(true).Width(l.bodyW).MaxWidth(l.bodyW).Render(content)
-	}
+	// Body column — viewport content is already sealed to textWidth; pad out to
+	// bodyW with lipgloss whitespace styling (not a hand-rolled Width pad).
 	bodyLines := strings.Split(v.viewport.View(), "\n")
+	padBody := func(content string) string {
+		return v.styles.fillLine(content, l.bodyW)
+	}
 
 	// Top border row.
 	topBorder := v.styles.frame.Render(strings.Repeat(border.Top, l.sideW)) +
@@ -125,7 +145,13 @@ func (v Viewer) render() string {
 		if row < len(bodyLines) {
 			body = bodyLines[row]
 		}
-		rows = append(rows, sideLines[row]+divider.Render(junction)+padBody(body))
+		side := ""
+		if row < len(sideLines) {
+			side = sideLines[row]
+		} else {
+			side = v.styles.surfaceSpace.Width(l.sideW).Render("")
+		}
+		rows = append(rows, side+divider.Render(junction)+padBody(body))
 	}
 
 	// Status bar — rendered by the statusBarView sub-model.
@@ -139,6 +165,8 @@ func (v Viewer) render() string {
 		maxScroll: maxScroll,
 		section:   section,
 		jumpCount: min(len(v.document.Sections), 9),
+		kind:      v.document.Kind,
+		mode:      v.document.ModeLabel(),
 		styles:    v.styles,
 	}
 	rows = append(rows, stBar.View())

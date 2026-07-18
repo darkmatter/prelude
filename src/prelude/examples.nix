@@ -14,26 +14,21 @@
 # another.
 let
   # Demo commands, ported from the design's lib/devshell.ts + commands.ts.
-  # Exercises: keys, exec-vs-name, details/usage/examples, optional args with
-  # suggestions, boolean flags, required positional args, and free text.
+  # Exercises: colon-derived groups/labels, exec-vs-name, details/usage/examples,
+  # optional args with suggestions, boolean flags, required positional args,
+  # and free text.
   commands = {
-    menu = {
-      description = "open the interactive command menu";
-      group = "general";
-      order = 100;
-    };
-    clean = {
+
+    "general:clean" = {
       description = "remove build artifacts & caches";
       exec = "rm -rf .next .turbo node_modules/.cache";
-      group = "general";
-      order = 200;
+
     };
     dev = {
       description = "start the dev server with hot reload";
       exec = "pnpm dev";
-      group = "develop";
-      key = "d";
-      order = 300;
+      motd = 1;
+
       usage = "menu dev --port 3000";
       details = "Boots a development server that watches the source tree and hot-reloads modules as files change. Binds to 127.0.0.1:3000 by default; override with --port and --host.";
       examples = [
@@ -62,35 +57,28 @@ let
     build = {
       description = "compile an optimized production bundle";
       exec = "pnpm build";
-      group = "develop";
-      key = "b";
-      order = 400;
+
     };
     test = {
       description = "run the unit test suite";
       exec = "pnpm test";
-      group = "develop";
-      key = "t";
-      order = 500;
+      motd = 2;
+
     };
-    "db:up" = {
+    "database:up" = {
       description = "start postgres & redis in the background";
       exec = "docker compose up -d db redis";
-      group = "database";
-      order = 600;
+
     };
-    "db:migrate" = {
+    "database:migrate" = {
       description = "apply pending schema migrations";
       exec = "drizzle-kit migrate";
-      group = "database";
-      key = "m";
-      order = 700;
+
     };
-    deploy = {
+    "ops:deploy" = {
       description = "ship the current build to production";
       exec = "vercel deploy";
-      group = "ops";
-      order = 800;
+
       usage = "menu deploy --alias staging";
       details = "Uploads the most recent production build and promotes it to the live environment. Deploys are atomic: traffic switches only after the new release passes its health checks.";
       examples = [
@@ -113,12 +101,10 @@ let
         }
       ];
     };
-    push = {
+    "ops:push" = {
       description = "publish the current branch to the remote";
       exec = "git push";
-      group = "ops";
-      key = "p";
-      order = 900;
+
       args = [
         {
           token = "<remote>";
@@ -169,11 +155,6 @@ let
         value = "16.3";
       }
     ];
-    commands = [
-      "menu"
-      "dev"
-      "test"
-    ];
     recipes = {
       clean-local-stack = {
         title = "spin up a clean local stack";
@@ -194,16 +175,6 @@ let
         ];
       };
     };
-    shortcuts = [
-      {
-        command = "menu";
-        alias = "m";
-      }
-      {
-        command = "docs";
-        alias = "d";
-      }
-    ];
 
   };
 
@@ -212,6 +183,12 @@ let
   menu = {
     project = "acme-web";
     inherit commands;
+    groupOrder = [
+      "develop"
+      "general"
+      "database"
+      "ops"
+    ];
   };
 
   # --- motd feature demos --------------------------------------------------------
@@ -276,9 +253,8 @@ let
     commandCatalog.build = {
       description = "accent on commands";
       exec = "just build";
-      group = "general";
+      motd = 1;
     };
-    commands = [ "build" ];
   };
 in
 {

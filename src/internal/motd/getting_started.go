@@ -1,10 +1,6 @@
 package motd
 
-import (
-	"charm.land/lipgloss/v2"
-
-	"prelude/pkg/ui"
-)
+import "prelude/pkg/ui"
 
 // GettingStartedView renders the MOTD's unified commands and recipes section
 // under dim sub-labels. It composes MOTD-specific child components from the
@@ -49,11 +45,5 @@ func (x GettingStartedView) Render() []string {
 func (x GettingStartedView) subLabel(text string) string {
 	return x.r.st.blockFill.Width(x.r.contentWidth).Render(
 		ui.Inline(x.r.st.dim).Render(text),
-	)
-}
-
-func (x GettingStartedView) centeredHeading(text string) string {
-	return x.r.st.blockFill.Width(x.r.contentWidth).Align(lipgloss.Center).Render(
-		ui.Inline(x.r.st.fgBold).Render(text),
 	)
 }

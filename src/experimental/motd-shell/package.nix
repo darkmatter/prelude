@@ -1,10 +1,10 @@
 # PROTOTYPE package: the launcher is the only exposed executable; helper scripts
 # are retained in its runtime closure and PATH.
-{
-  pkgs,
-  motd,
-  menu,
-  docs,
+{ pkgs
+, motd
+, menu
+, docs
+,
 }:
 let
   motdPane = pkgs.writeShellApplication {

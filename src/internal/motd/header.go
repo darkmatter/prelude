@@ -34,7 +34,9 @@ func (x HeaderView) Divider() string {
 }
 
 func (x HeaderView) renderGeneratedTitle() []string {
-	lines := strings.Split(strings.TrimRight(x.r.cfg.Title, "\n"), "\n")
+	titleBlock := strings.TrimRight(x.r.cfg.Title, "\n")
+	titleBlock = lipgloss.NewStyle().Width(lipgloss.Width(titleBlock)).Align(lipgloss.Left).Render(titleBlock)
+	lines := strings.Split(titleBlock, "\n")
 	out := make([]string, 0, len(lines)+1)
 	for _, line := range lines {
 		title := ui.Inline(x.r.st.headerAccent).Bold(true).Render(line)

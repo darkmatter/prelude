@@ -13,13 +13,13 @@ type statusBarView struct {
 	maxScroll int
 	section   string
 	jumpCount int
+	kind      Kind
+	mode      string
 	styles    styles
 }
 
 func (sb statusBarView) View() string {
-	foreground := lipgloss.Color(string(sb.styles.pal.Fg))
-	space := lipgloss.NewStyle().Background(foreground)
-	text := lipgloss.NewStyle().Background(foreground).Foreground(sb.styles.bg)
+	space, text := sb.styles.statusChrome(sb.kind)
 
 	position := fmt.Sprintf("%d%%", sb.scroll*100/max(sb.maxScroll, 1))
 	switch {
@@ -31,9 +31,14 @@ func (sb statusBarView) View() string {
 		position = "bot"
 	}
 
-	left := text.Bold(true).PaddingLeft(2).Render("NORMAL") + text.Render(" :" + sb.section)
+	// Mode chip (DOCS / HELP) is the primary differentiator in the footer.
+	left := text.Bold(true).PaddingLeft(2).Render(sb.mode) + text.Render(" :"+sb.section)
 	if sb.jumpCount > 0 {
-		left += text.Faint(true).Render(fmt.Sprintf("  ·  1-%d jump · j/k scroll · q quit", sb.jumpCount))
+		unit := "sections"
+		if sb.kind == KindDocs {
+			unit = "pages"
+		}
+		left += text.Faint(true).Render(fmt.Sprintf("  ·  1-%d %s · j/k scroll · q quit", sb.jumpCount, unit))
 	}
 	right := text.Faint(true).PaddingRight(2).Render(position)
 	remaining := max(sb.width-lipgloss.Width(left), 0)
@@ -43,5 +48,10 @@ func (sb statusBarView) View() string {
 		right,
 		lipgloss.WithWhitespaceStyle(space),
 	)
-	return lipgloss.NewStyle().Inline(true).MaxWidth(sb.width).Render(left + right)
+	return lipgloss.PlaceHorizontal(
+		sb.width,
+		lipgloss.Left,
+		left+right,
+		lipgloss.WithWhitespaceStyle(space),
+	)
 }

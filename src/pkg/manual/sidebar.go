@@ -7,9 +7,11 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// sidebarView renders the CONTENTS sidebar as a self-contained column.
+// sidebarView renders the navigation column as a self-contained panel.
 // The viewer constructs one per render with its current state.
 type sidebarView struct {
+	label    string
+	kind     Kind
 	sections []Section
 	active   int
 	styles   styles
@@ -20,14 +22,31 @@ type sidebarView struct {
 func (s sidebarView) View() string {
 	border := lipgloss.NormalBorder()
 	pad := func(content string) string {
-		return s.styles.surfaceSpace.Inline(true).Width(s.width).MaxWidth(s.width).Render(content)
+		return lipgloss.PlaceHorizontal(
+			s.width,
+			lipgloss.Left,
+			content,
+			lipgloss.WithWhitespaceStyle(s.styles.surfaceSpace),
+		)
 	}
 
+	// Kind-colored label: docs → accent2, help → accent.
+	labelFG := s.styles.pal.Accent
+	if s.kind == KindDocs {
+		labelFG = s.styles.pal.Accent2
+	}
+	label := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(string(labelFG))).
+		Background(s.styles.surface).
+		Bold(true).
+		PaddingLeft(2).
+		Render(s.label)
+
 	lines := make([]string, 0, s.height)
-	// Row 0: breathing room above the CONTENTS label.
+	// Row 0: breathing room above the label.
 	lines = append(lines, pad(""))
-	// Row 1: CONTENTS label.
-	lines = append(lines, pad(s.styles.surfaceMuted.PaddingLeft(2).Render("CONTENTS")))
+	// Row 1: kind label (PAGES / MANUAL).
+	lines = append(lines, pad(label))
 	// Row 2: sidebar internal border separating label from items.
 	lines = append(lines, s.styles.frame.Render(strings.Repeat(border.Top, s.width)))
 
@@ -36,7 +55,7 @@ func (s sidebarView) View() string {
 		lines = append(lines, s.item(i, pad))
 	}
 
-	// Pad to the body height.
+	// Pad to the body height with surface fill.
 	for len(lines) < s.height {
 		lines = append(lines, pad(""))
 	}
@@ -51,13 +70,18 @@ func (s sidebarView) item(index int, pad func(string) string) string {
 	if index == s.active {
 		line := s.styles.onActive(s.styles.pal.Accent).PaddingLeft(2).Render("❯") +
 			s.styles.onActive(s.styles.pal.Fg).PaddingLeft(1).Render(title)
-		return s.styles.activeSpace.Inline(true).Width(s.width).MaxWidth(s.width).Render(line)
+		return lipgloss.PlaceHorizontal(
+			s.width,
+			lipgloss.Left,
+			line,
+			lipgloss.WithWhitespaceStyle(s.styles.activeSpace),
+		)
 	}
-	line := lipgloss.NewStyle().
+	num := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(string(s.styles.pal.Dim))).
 		Background(s.styles.surface).
 		PaddingLeft(2).
-		Render(fmt.Sprintf("%d", index+1)) +
-		s.styles.surfaceMuted.PaddingLeft(1).Render(title)
+		Render(fmt.Sprintf("%d", index+1))
+	line := num + s.styles.surfaceMuted.PaddingLeft(1).Render(title)
 	return pad(line)
 }

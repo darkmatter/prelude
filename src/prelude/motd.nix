@@ -2,17 +2,14 @@
 # normalized JSON file into the Go renderer at link time. Runtime terminal
 # layout, probes, Git state, and styling live in internal/motd — never in generated
 # shell source.
-{
-  lib,
-  writeText,
-  buildGoModule,
-  ...
+{ lib
+, writeText
+, buildGoModule
+, ...
 }:
 
-# Component config: { theme?, palette?, project?, commandCatalog?, title?,
-#                     header?, description?, env?, commands?, recipes?, gettingStarted?,
-#                     shortcuts?, background?, clearScreen?, margin?, padding?,
-#                     align?, width?, maxWidth? }
+# Component config: public MOTD options plus shared theme fields and command
+# data. `shortcuts` is synthesized and injected by the flake-parts module.
 config:
 
 let
@@ -64,6 +61,7 @@ let
     taglineLayout = taglineIn.layout;
     taglineAlign = taglineIn.align;
     statusHintLayout = statusHintIn.layout;
+    statusHintLinks = statusHintIn.links or [ ];
     status = plib.normalizeHeaderStatus (headerIn.status or { });
     background = headerBg.color;
     backgroundRelative = headerBg.relative;
@@ -71,9 +69,11 @@ let
   };
   gettingStarted = d.motd.gettingStarted // (m.gettingStarted or { });
   commandCatalog = plib.flatCommands (
-    plib.normalizeCommandGroups (config.commandCatalog or d.commands)
+    plib.normalizeCommandGroups (config.commandGroupOrder or [ ]) (config.commandCatalog or d.commands)
   );
-  commands = plib.selectCommands (m.commands or [ ]) commandCatalog;
+  # `name` is kept for Nix-side passthru but stripped here so the Go renderer
+  # only sees the { command, description } fields it expects.
+  commands = map (row: { inherit (row) command description; }) (plib.selectCommands commandCatalog);
   recipes = plib.normalizeRecipes (m.recipes or { });
 
   # Split a bg option into concrete color (or null), relative shade, or blend.
@@ -153,26 +153,31 @@ let
   # A probe remains a shell snippet by contract, but only the Go runtime
   # executes it. Empty strings encode the inactive side of the value/probe sum
   # so the JSON boundary contains no nullable scalar fields.
-  env = map (
-    item:
-    let
-      value = item.value or null;
-      probe = item.probe or null;
-    in
-    assert lib.assertMsg (
-      (value == null) != (probe == null)
-    ) "motd: env item \"${item.label or "?"}\" must set exactly one of `value` or `probe`";
-    {
-      label = item.label;
-      value = if value == null then "" else value;
-      probe = if probe == null then "" else probe;
-    }
-  ) m.env;
+  env = map
+    (
+      item:
+      let
+        value = item.value or null;
+        probe = item.probe or null;
+      in
+      assert lib.assertMsg
+        (
+          (value == null) != (probe == null)
+        ) "motd: env item \"${item.label or "?"}\" must set exactly one of `value` or `probe`";
+      {
+        label = item.label;
+        value = if value == null then "" else value;
+        probe = if probe == null then "" else probe;
+      }
+    )
+    m.env;
 
-  shortcuts = map (s: {
-    command = s.command;
-    alias = s.alias or "";
-  }) (m.shortcuts or [ ]);
+  shortcuts = map
+    (s: {
+      command = s.command;
+      alias = s.alias or "";
+    })
+    (m.shortcuts or [ ]);
 
   jsonColor = value: if value == null then "" else toString value;
 
@@ -206,6 +211,7 @@ let
           taglineLayout
           taglineAlign
           statusHintLayout
+          statusHintLinks
           status
           backgroundRelative
           backgroundRaised
@@ -224,6 +230,7 @@ let
         foreground = jsonColor description.foreground;
         background = jsonColor description.background;
       };
+      links = m.links;
       gettingStarted = {
         inherit (gettingStarted) heading commandsLabel examplesLabel;
       };
@@ -279,12 +286,14 @@ assert lib.assertOneOf "motd header.statusHint.layout" header.statusHintLayout [
   "below"
   "inline"
 ];
-assert lib.assertMsg (
-  m.width == "full" || builtins.isInt m.width
-) "motd: width must be an integer or \"full\"";
-assert lib.assertMsg (
-  m.maxWidth == null || builtins.isInt m.maxWidth
-) "motd: maxWidth must be an integer or null";
+assert lib.assertMsg
+  (
+    m.width == "full" || builtins.isInt m.width
+  ) "motd: width must be an integer or \"full\"";
+assert lib.assertMsg
+  (
+    m.maxWidth == null || builtins.isInt m.maxWidth
+  ) "motd: maxWidth must be an integer or null";
 buildGoModule {
   pname = "motd";
   version = "0.1.0";

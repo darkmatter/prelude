@@ -1,7 +1,8 @@
 # TypeScript package-script menu
 
 A copyable Prelude configuration that reads `package.json` and exposes each
-script as an `npm run <name>` menu command.
+script as an `npm run <name>` menu command. An imported `test:unit` script stays
+callable as `x test:unit` and appears as `unit` under the inferred `test` group.
 
 ```nix
 { lib, ... }:
@@ -16,7 +17,6 @@ in
       name: description: {
         inherit description;
         exec = "npm run ${name}";
-        group = "package.json scripts";
       }
     ) (package.scripts or { });
   };

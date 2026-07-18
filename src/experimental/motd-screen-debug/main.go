@@ -56,7 +56,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "motd-screen-debug: no terminal dimensions detected on stdout")
 	}
 
-	paintOverlay(detected, cols, rows, bin, sizeReport{
+	paintOverlay(cols, rows, bin, sizeReport{
 		{"stdout", detected, cols, rows},
 		{"stderr", stderrDetected, stderrCols, stderrRows},
 		{"/dev/tty", ttyDetected, ttyCols, ttyRows},
@@ -72,7 +72,7 @@ type sizeEntry struct {
 
 type sizeReport []sizeEntry
 
-func paintOverlay(detected bool, cols, rows int, binPath string, report sizeReport) {
+func paintOverlay(cols, rows int, binPath string, report sizeReport) {
 	// Write the overlay through shared.ColorWriter so color profile downgrade
 	// matches the motd binary's output path.
 	out := shared.ColorWriter(os.Stdout, os.Environ(), "")
@@ -84,28 +84,28 @@ func paintOverlay(detected bool, cols, rows int, binPath string, report sizeRepo
 	var b strings.Builder
 	b.WriteString("\x1b7") // save cursor
 
-	writeAt(&b, 1, 1, red, clip("XXX  MOTD SCREEN DEBUG — top row reached", cols))
-	writeAt(&b, 2, 1, muted, clip(fmt.Sprintf("selected=stdout  columns=%d  rows=%d  env COLUMNS=%q LINES=%q", cols, rows, os.Getenv("COLUMNS"), os.Getenv("LINES")), cols))
-	writeAt(&b, 3, 1, muted, clip("motd="+binPath, cols))
+	writeAt(&b, 1, red, clip("XXX  MOTD SCREEN DEBUG — top row reached", cols))
+	writeAt(&b, 2, muted, clip(fmt.Sprintf("selected=stdout  columns=%d  rows=%d  env COLUMNS=%q LINES=%q", cols, rows, os.Getenv("COLUMNS"), os.Getenv("LINES")), cols))
+	writeAt(&b, 3, muted, clip("motd="+binPath, cols))
 	for i, e := range report {
-		writeAt(&b, 4+i, 1, muted, clip(formatSize(e), cols))
+		writeAt(&b, 4+i, muted, clip(formatSize(e), cols))
 	}
 
 	instructionRow := min(8, rows)
-	writeAt(&b, instructionRow, 1, red, clip("If only the purple bottom row is painted, SGR + Erase Display failed in this terminal.", cols))
+	writeAt(&b, instructionRow, red, clip("If only the purple bottom row is painted, SGR + Erase Display failed in this terminal.", cols))
 
 	// Explicit cursor-addressed full-width row at the bottom of the detected
 	// viewport. Painted with a distinct background via lipgloss — not via the
 	// erase — so it's a direct BCE-vs-explicit-row comparison.
 	bottom := rows
-	writeAt(&b, bottom, 1, purple, clip("EXPLICIT ROW PAINT  "+strings.Repeat("X", cols), cols))
+	writeAt(&b, bottom, purple, clip("EXPLICIT ROW PAINT  "+strings.Repeat("X", cols), cols))
 
 	b.WriteString("\x1b8") // restore cursor
 	_, _ = fmt.Fprint(out, b.String())
 }
 
-func writeAt(out *strings.Builder, row, column int, style lipgloss.Style, text string) {
-	fmt.Fprintf(out, "\x1b[%d;%dH", row, column)
+func writeAt(out *strings.Builder, row int, style lipgloss.Style, text string) {
+	fmt.Fprintf(out, "\x1b[%d;1H", row)
 	out.WriteString(style.Render(text))
 }
 

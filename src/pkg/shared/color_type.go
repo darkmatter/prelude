@@ -1,9 +1,6 @@
 package shared
 
-import (
-	"encoding/json"
-	"strconv"
-)
+import "encoding/json"
 
 // Color is a palette color value that accepts both JSON strings (hex like
 // "#3ddc84") and JSON numbers (ANSI-256 like 212). The string form is used
@@ -19,14 +16,11 @@ func (c *Color) UnmarshalJSON(data []byte) error {
 		*c = Color(s)
 		return nil
 	}
-	// Fall back to number.
 	var n json.Number
-	if err := json.Unmarshal(data, &n); err == nil {
-		*c = Color(string(n))
-		return nil
+	if err := json.Unmarshal(data, &n); err != nil {
+		return err
 	}
-	// Fall back to raw string of the data (e.g. null → "").
-	*c = Color(strconv.Quote(string(data)))
+	*c = Color(string(n))
 	return nil
 }
 

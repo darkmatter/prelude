@@ -75,6 +75,9 @@ func (c Context) Muted() lipgloss.Style        { return c.Style(c.Palette.Muted)
 func (c Context) Dim() lipgloss.Style          { return c.Style(c.Palette.Dim) }
 func (c Context) Accent() lipgloss.Style       { return c.Style(c.Palette.Accent) }
 func (c Context) Accent2() lipgloss.Style      { return c.Style(c.Palette.Accent2) }
+func (c Context) Success() lipgloss.Style      { return c.Style(c.Palette.Success) }
+func (c Context) Warning() lipgloss.Style      { return c.Style(c.Palette.Warning) }
+func (c Context) Info() lipgloss.Style         { return c.Style(c.Palette.Info) }
 func (c Context) Error() lipgloss.Style        { return c.Style(c.Palette.Error) }
 func (c Context) Border() lipgloss.Style       { return c.Style(c.Palette.Border) }
 func (c Context) AccentBorder() lipgloss.Style { return c.Style(c.Palette.AccentBorder) }

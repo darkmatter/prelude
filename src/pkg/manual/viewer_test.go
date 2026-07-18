@@ -50,18 +50,147 @@ func TestMarkdownPageRendersInViewport(t *testing.T) {
 	}
 }
 
-func TestViewportPaintsBackgroundOnEveryVisibleRow(t *testing.T) {
+func TestH2RendersAsLabeledSectionRule(t *testing.T) {
+	document := Document{Sections: []Section{{
+		Title:    "Guide",
+		Markdown: "# Guide\n\nintro text\n\n## Workflow\n\nbody text\n\n```sh\n## not a heading\n```",
+	}}}
+	viewer := New(document, testPalette())
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 40})
+
+	var ruleLine string
+	for _, line := range strings.Split(viewer.viewport.GetContent(), "\n") {
+		plain := ansi.Strip(line)
+		if strings.Contains(plain, "Workflow") {
+			ruleLine = plain
+			break
+		}
+	}
+	if ruleLine == "" {
+		t.Fatal("H2 title missing from rendered page")
+	}
+	// The code-block header treatment: title inset in a dashed rule.
+	if !strings.Contains(ruleLine, "─") {
+		t.Fatalf("H2 not rendered as a labeled rule: %q", ruleLine)
+	}
+
+	plain := ansi.Strip(viewer.viewport.GetContent())
+	for _, want := range []string{"intro text", "body text", "## not a heading"} {
+		if !strings.Contains(plain, want) {
+			t.Fatalf("rendered page missing %q:\n%s", want, plain)
+		}
+	}
+	// The fenced "## not a heading" must stay inside its code block, not
+	// become a second rule.
+	ruleLines := 0
+	for _, line := range strings.Split(plain, "\n") {
+		if strings.Contains(line, "─────") {
+			ruleLines++
+		}
+	}
+	if ruleLines != 1 {
+		t.Fatalf("expected exactly one section rule, found %d:\n%s", ruleLines, plain)
+	}
+}
+
+func TestTabStepsThroughSectionsAndWraps(t *testing.T) {
 	document := Document{Sections: []Section{
 		{Title: "First"},
 		{Title: "Second"},
 		{Title: "Third"},
 	}}
 	viewer := New(document, testPalette())
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 6})
+
+	viewer, _ = viewer.Handle(tea.KeyPressMsg{Code: tea.KeyTab})
+	if viewer.active != 1 {
+		t.Fatalf("tab: active = %d, want 1", viewer.active)
+	}
+	// The viewport clamps to its max scroll, so assert movement toward the
+	// section rather than an exact offset (digit jumps clamp identically).
+	if viewer.viewport.YOffset() == 0 {
+		t.Fatal("tab did not scroll the viewport toward the section")
+	}
+
+	viewer, _ = viewer.Handle(tea.KeyPressMsg{Code: tea.KeyTab})
+	viewer, _ = viewer.Handle(tea.KeyPressMsg{Code: tea.KeyTab})
+	if viewer.active != 0 {
+		t.Fatalf("tab past the last section did not wrap: active = %d", viewer.active)
+	}
+
+	viewer, _ = viewer.Handle(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+	if viewer.active != 2 {
+		t.Fatalf("shift+tab from the first section did not wrap back: active = %d", viewer.active)
+	}
+}
+
+func TestViewportPaintsBackgroundOnEveryVisibleRow(t *testing.T) {
+	document := Document{Sections: []Section{
+		{Title: "First", Markdown: "# First\n\n## Sub section\n\nprose"},
+		{Title: "Second"},
+		{Title: "Third"},
+	}}
+	viewer := New(document, testPalette())
 	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 8})
 
+	hasBG := func(s string) bool {
+		return strings.Contains(s, ";48;") || strings.Contains(s, "[48;")
+	}
 	for row, line := range strings.Split(viewer.viewport.View(), "\n") {
-		if !strings.Contains(line, "\x1b[48;") {
+		if !hasBG(line) {
 			t.Errorf("viewport row %d has no background color: %q", row, line)
+		}
+	}
+	// Full screen rows (sidebar + body + status) must also carry a bg SGR so
+	// nothing punches through to the terminal default.
+	for row, line := range strings.Split(viewer.render(), "\n") {
+		if !hasBG(line) {
+			t.Errorf("screen row %d has no background color: %q", row, line)
+		}
+	}
+}
+
+func TestKindChromeDifferentiatesDocsFromHelp(t *testing.T) {
+	help := New(Document{Kind: KindHelp, Sections: []Section{{Title: "synopsis"}}}, testPalette())
+	docs := New(Document{Kind: KindDocs, Sections: []Section{{Title: "Welcome"}}}, testPalette())
+	help, _ = help.Handle(tea.WindowSizeMsg{Width: 80, Height: 12})
+	docs, _ = docs.Handle(tea.WindowSizeMsg{Width: 80, Height: 12})
+
+	helpPlain := ansi.Strip(help.render())
+	docsPlain := ansi.Strip(docs.render())
+	for _, want := range []string{"MANUAL", "HELP"} {
+		if !strings.Contains(helpPlain, want) {
+			t.Errorf("help chrome missing %q:\n%s", want, helpPlain)
+		}
+	}
+	for _, want := range []string{"PAGES", "DOCS"} {
+		if !strings.Contains(docsPlain, want) {
+			t.Errorf("docs chrome missing %q:\n%s", want, docsPlain)
+		}
+	}
+	if strings.Contains(helpPlain, "PAGES") || strings.Contains(helpPlain, "DOCS") {
+		t.Errorf("help chrome leaked docs labels:\n%s", helpPlain)
+	}
+	if strings.Contains(docsPlain, "MANUAL") || strings.Contains(docsPlain, "HELP :") {
+		t.Errorf("docs chrome leaked help labels:\n%s", docsPlain)
+	}
+}
+
+func TestMarkdownLinesHaveNoUnstyledLeadingCells(t *testing.T) {
+	document := Document{Kind: KindDocs, Sections: []Section{{
+		Title:    "Welcome",
+		Markdown: "# Welcome\n\n**Prelude** with `code`.\n",
+	}}}
+	viewer := New(document, testPalette())
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 16})
+	for row, line := range strings.Split(viewer.viewport.GetContent(), "\n") {
+		if line == "" {
+			t.Errorf("content row %d is a raw empty string (unpainted hole)", row)
+			continue
+		}
+		// A line that starts with a plain space (no leading CSI) has unstyled cells.
+		if line[0] == ' ' {
+			t.Errorf("content row %d has unstyled leading cells: %q", row, line[:min(40, len(line))])
 		}
 	}
 }

@@ -22,7 +22,7 @@ func (m *model) filter() {
 func (m *model) enterArgMode(t Task) {
 	m.mode = modeArgs
 	m.args = m.args.EnterArg(t)
-	m.prompt = m.prompt.Reset().WithPlaceholder(argPlaceholder(t)).WithContext(t.Name)
+	m.prompt = m.prompt.Reset().WithPlaceholder(argPlaceholder(t)).WithContext(t.displayName())
 }
 
 func (m *model) exitArgMode() {

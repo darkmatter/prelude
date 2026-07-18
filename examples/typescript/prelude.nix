@@ -10,10 +10,11 @@ in
     project = package.name or "typescript-app";
     menu.enable = true;
 
-    commands = lib.mapAttrs (name: description: {
-      inherit description;
-      exec = "npm run ${name}";
-      group = "package.json scripts";
-    }) scripts;
+    commands = lib.mapAttrs
+      (name: description: {
+        inherit description;
+        exec = "npm run ${name}";
+      })
+      scripts;
   };
 }

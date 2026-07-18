@@ -13,11 +13,14 @@
 #               50% over bg so frames stay subtle
 #   accentBorder  accent-tinted border for the motd banner box
 #               (term-green at 25% alpha over the card surface)
-#   accent      primary accent: project name, commands, success, selection bg
+#   accent      primary accent: project name, commands, selection background
 #               (--term-green / --primary)
-#   accent2     secondary accent: group headers, key chips, warnings, prompt
+#   accent2     secondary accent: group headers, key chips, prompt
 #               (--term-amber)
-#   error       destructive / required        (--destructive)
+#   success     positive status and healthy-state indicators
+#   warning     cautionary status and degraded-state indicators
+#   info        neutral/informational status indicators
+#   error       destructive, required, and failed-state indicators
 #   selectionFg text on accent background     (--primary-foreground)
 #   bg          terminal/window background; used for inverted footer bars
 #               and window fills (--background)
@@ -35,6 +38,9 @@
     accentBorder = "#284a2c";
     accent = "#68e371";
     accent2 = "#f9b64f";
+    success = "#68e371";
+    warning = "#f9b64f";
+    info = "#5eb7ff";
     error = "#e6443d";
     selectionFg = "#0c110e";
   };
@@ -55,6 +61,9 @@
     # accent = "#b7ce99";
     # accent2 = "#e979fa";
     accent2 = "#CC99FF";
+    success = "#b7ce99";
+    warning = "#f2c17d";
+    info = "#89b4fa";
     error = "#ee848e";
     selectionFg = "#0c0c13";
   };
@@ -70,6 +79,9 @@
     accentBorder = "#523f23";
     accent = "#ffc761";
     accent2 = "#fadc7d";
+    success = "#a8c66c";
+    warning = "#fadc7d";
+    info = "#7fb4ca";
     error = "#e9523f";
     selectionFg = "#110c08";
   };
@@ -85,6 +97,9 @@
     accentBorder = "#2e4b31";
     accent = "#75a33e";
     accent2 = "#ba9232";
+    success = "#859900";
+    warning = "#b58900";
+    info = "#268bd2";
     error = "#db4241";
     selectionFg = "#031a1a";
   };
@@ -100,6 +115,9 @@
     accentBorder = "#50615d";
     accent = "#96ce9d";
     accent2 = "#e2cc91";
+    success = "#a3be8c";
+    warning = "#ebcb8b";
+    info = "#88c0d0";
     error = "#d55753";
     selectionFg = "#292e38";
   };
@@ -115,6 +133,9 @@
     accentBorder = "#535735";
     accent = "#b2cb52";
     accent2 = "#eebc4a";
+    success = "#b8bb26";
+    warning = "#fabd2f";
+    info = "#83a598";
     error = "#e9483d";
     selectionFg = "#282622";
   };
@@ -132,6 +153,9 @@
     accentBorder = "#484848";
     accent = "#ebebeb";
     accent2 = "#a3a3a3";
+    success = "#ebebeb";
+    warning = "#c7c7c7";
+    info = "#a3a3a3";
     error = "#ffffff";
     selectionFg = "#0a0a0a";
   };
@@ -151,6 +175,9 @@
     # accent = "#c792ea";
     accent = "#77f5c9";
     accent2 = "#ffcb6b";
+    success = "#77f5c9";
+    warning = "#ffcb6b";
+    info = "#82aaff";
     error = "#e61f44";
     selectionFg = "#0e0b13";
   };
@@ -166,6 +193,9 @@
     accentBorder = "#c3d8c1";
     accent = "#1e7729";
     accent2 = "#9f6200";
+    success = "#1e7729";
+    warning = "#9f6200";
+    info = "#2563a6";
     error = "#cc2827";
     selectionFg = "#f7f5f1";
   };
@@ -184,6 +214,9 @@
     accentBorder = "#ff005f"; # was 197
     accent = "#ff87d7"; # was 212
     accent2 = "#afff87"; # was 156
+    success = "#afff87";
+    warning = "#ffd787";
+    info = "#87d7ff";
     error = "#ff005f"; # was 197
     selectionFg = "#0e0b13"; # was 8; use bg for contrast on accent selection
   };

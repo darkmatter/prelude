@@ -15,11 +15,14 @@ type styles struct {
 	secondary color.Color
 	bg        color.Color
 
+	// bodySpace / surfaceSpace are pure fills used with
+	// lipgloss.WithWhitespaceStyle — the project-standard way to paint
+	// placement padding without inventing per-cell background hacks.
 	surfaceSpace lipgloss.Style
-	frame        lipgloss.Style
-	surfaceMuted lipgloss.Style
 	bodySpace    lipgloss.Style
 	activeSpace  lipgloss.Style
+	frame        lipgloss.Style
+	surfaceMuted lipgloss.Style
 }
 
 func newStyles(p shared.Palette) styles {
@@ -33,11 +36,35 @@ func newStyles(p shared.Palette) styles {
 		secondary:    secondary,
 		bg:           bg,
 		surfaceSpace: lipgloss.NewStyle().Background(surface),
-		frame:        h.On(surface, string(p.Border)),
-		surfaceMuted: h.On(surface, string(p.Muted)),
 		bodySpace:    lipgloss.NewStyle().Background(bg),
 		activeSpace:  lipgloss.NewStyle().Background(secondary),
+		frame:        h.On(surface, string(p.Border)),
+		surfaceMuted: h.On(surface, string(p.Muted)),
 	}
+}
+
+// fillLine pads content to width with the body fill, using lipgloss placement
+// whitespace styling so trailing cells always carry the theme background.
+func (s styles) fillLine(content string, width int) string {
+	return lipgloss.PlaceHorizontal(
+		width,
+		lipgloss.Left,
+		content,
+		lipgloss.WithWhitespaceStyle(s.bodySpace),
+	)
+}
+
+// blankLine is one full-width body row with no content.
+func (s styles) blankLine(width int) string {
+	return s.bodySpace.Width(width).Render("")
+}
+
+// indent returns width cells of body fill (styled left padding).
+func (s styles) indent(width int) string {
+	if width <= 0 {
+		return ""
+	}
+	return s.bodySpace.Width(width).Render("")
 }
 
 func (s styles) onBody(role Role, bold bool) lipgloss.Style {
@@ -60,4 +87,16 @@ func (s styles) onBody(role Role, bold bool) lipgloss.Style {
 
 func (s styles) onActive(fg shared.Color) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(string(fg))).Background(s.secondary)
+}
+
+// statusChrome returns inverted status-bar styles. Docs uses accent2 so the
+// footer chip reads differently from the help manual's accent bar.
+func (s styles) statusChrome(kind Kind) (space, text lipgloss.Style) {
+	bar := lipgloss.Color(string(s.pal.Accent))
+	if kind == KindDocs {
+		bar = lipgloss.Color(string(s.pal.Accent2))
+	}
+	space = lipgloss.NewStyle().Background(bar)
+	text = lipgloss.NewStyle().Background(bar).Foreground(s.bg)
+	return space, text
 }

@@ -114,7 +114,7 @@ func (l *ListView) renderRows(flat []Task, matches []int, sel int, expanded bool
 
 	nameW := 4
 	for _, t := range flat {
-		nameW = max(nameW, lipgloss.Width(t.Name))
+		nameW = max(nameW, lipgloss.Width(t.displayName()))
 	}
 	nameW += 2
 
@@ -175,7 +175,7 @@ func (l *ListView) renderRow(t Task, active bool, nameW int, frame Frame) string
 			// the active row's accent background.
 			chip = st.selChip.Render("│" + keyLabel + "│")
 		}
-		name := st.selText.Bold(true).Width(nameW).Render(t.Name)
+		name := st.selText.Bold(true).Width(nameW).Render(t.displayName())
 		used := (padX - 1) + 2 + nameW + 1 + lipgloss.Width(chip) + 1 + padX
 		desc := st.selText.Render(ansi.Truncate(t.Description, max(inner-used, 4), "…"))
 		line := st.selSp.PaddingLeft(padX-1).Render("") + caretCol +
@@ -193,7 +193,7 @@ func (l *ListView) renderRow(t Task, active bool, nameW int, frame Frame) string
 	used := (padX - 1) + 2 + nameW + 1 + lipgloss.Width(chip) + 1 + padX
 	desc := st.sMuted.Render(ansi.Truncate(t.Description, max(inner-used, 4), "…"))
 	line := st.sp.PaddingLeft(padX-1).Render("") + caretCol +
-		st.sFg.Bold(true).Width(nameW).Render(t.Name) + st.sp.Render(" ") + desc
+		st.sFg.Bold(true).Width(nameW).Render(t.displayName()) + st.sp.Render(" ") + desc
 	tail := chip + st.sp.PaddingRight(padX).Render("")
 	line = ui.PlaceRight(inner, line, tail, st.sp)
 	return frame.Paint(line, st.sp)

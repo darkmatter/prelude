@@ -19,7 +19,7 @@ const (
 	contentWidth = cardWidth - 2*paddingX
 )
 
-// Exact `minted` palette selected by nix/dogfood.nix.
+// Exact `minted` palette selected by examples/default/default.nix.
 var palette = shared.Palette{
 	Bg:           "#0c0c13",
 	Surface:      "#161623",
@@ -86,7 +86,7 @@ func title() string {
 
 func header() string {
 	tagline := lipgloss.NewStyle().Foreground(color(palette.Fg)).Render("Dev Shell Activated")
-	hints := lipgloss.NewStyle().Foreground(color(palette.Dim)).Render("[?] help   [m] menu   [d] docs")
+	hints := lipgloss.NewStyle().Foreground(color(palette.Dim)).Render("[?] motd   [m] menu   [d] docs")
 	first := tagline + strings.Repeat(" ", max(contentWidth-lipgloss.Width(tagline)-lipgloss.Width(hints), 1)) + hints
 	subtitle := lipgloss.NewStyle().Foreground(color(palette.Muted)).Render("Your environment is ready")
 	return first + "\n" + subtitle

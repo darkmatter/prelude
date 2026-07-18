@@ -129,6 +129,7 @@ func applyAsyncCache(cfg *Config, store statusCacheStore) []string {
 	cache, err := store.load()
 	if err != nil {
 		cfg.StatusHint = "[r] to reload"
+		cfg.StatusAge = ""
 		for i := range cfg.Header.Status {
 			if cfg.Header.Status[i].Async && cfg.Header.Status[i].Check != "" {
 				cfg.Header.Status[i].Status = "pending"
@@ -154,14 +155,16 @@ func applyAsyncCache(cfg *Config, store statusCacheStore) []string {
 	}
 	if !found {
 		cfg.StatusHint = "[r] to reload"
+		cfg.StatusAge = ""
 		return diagnostics
 	}
 	age := naturalAge(store.now().Sub(cache.CheckedAt))
 	if age == "just now" {
-		cfg.StatusHint = "just now • [r] to reload"
+		cfg.StatusAge = "just now"
 	} else {
-		cfg.StatusHint = fmt.Sprintf("%s ago • [r] to reload", age)
+		cfg.StatusAge = fmt.Sprintf("%s ago", age)
 	}
+	cfg.StatusHint = "[r] to reload"
 	return diagnostics
 }
 
@@ -173,10 +176,10 @@ func naturalAge(age time.Duration) string {
 	case age < time.Minute:
 		return "just now"
 	case age < time.Hour:
-		return fmt.Sprintf("%d m", int(age/time.Minute))
+		return fmt.Sprintf("%dm", int(age/time.Minute))
 	case age < 24*time.Hour:
-		return fmt.Sprintf("%d h", int(age/time.Hour))
+		return fmt.Sprintf("%dh", int(age/time.Hour))
 	default:
-		return fmt.Sprintf("%d d", int(age/(24*time.Hour)))
+		return fmt.Sprintf("%dd", int(age/(24*time.Hour)))
 	}
 }

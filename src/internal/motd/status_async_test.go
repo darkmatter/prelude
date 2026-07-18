@@ -62,8 +62,10 @@ func TestApplyAsyncCacheRendersCachedStatusAndAge(t *testing.T) {
 	if got := cfg.Header.Status[0].Status; got != "healthy" {
 		t.Fatalf("cached status = %q, want healthy", got)
 	}
-	want := "17 m ago • [r] to reload"
-	if cfg.StatusHint != want {
+	if want := "17m ago"; cfg.StatusAge != want {
+		t.Fatalf("age = %q, want %q", cfg.StatusAge, want)
+	}
+	if want := "[r] to reload"; cfg.StatusHint != want {
 		t.Fatalf("hint = %q, want %q", cfg.StatusHint, want)
 	}
 }
@@ -77,9 +79,11 @@ func TestApplyAsyncCacheUsesPendingWithoutCache(t *testing.T) {
 	if got := cfg.Header.Status[0].Status; got != "pending" {
 		t.Fatalf("status = %q, want pending", got)
 	}
-	want := "[r] to reload"
-	if cfg.StatusHint != want {
+	if want := "[r] to reload"; cfg.StatusHint != want {
 		t.Fatalf("hint = %q, want %q", cfg.StatusHint, want)
+	}
+	if cfg.StatusAge != "" {
+		t.Fatalf("age = %q, want empty", cfg.StatusAge)
 	}
 }
 

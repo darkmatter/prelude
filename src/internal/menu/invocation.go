@@ -34,10 +34,46 @@ func resolveInvocation(cfg *Config, selector string, extra []string) (invocation
 	if task == nil {
 		return invocationDecision{}, fmt.Errorf("unknown task %q", selector)
 	}
-	if len(extra) > 0 {
-		return commandDecision(assembleInvocation(*task, strings.Join(extra, " "))), nil
+	return resolveTaskInvocation(*task, extra), nil
+}
+
+// resolveXInvocation resolves the public `x <command-key> [args…]` contract.
+// The complete key is globally unique and remains public; its first colon only
+// derives menu presentation. This is the same Task and assembler used by menu
+// selection, so both paths execute exactly the same canonical command.
+func resolveXInvocation(cfg *Config, args []string) (invocationDecision, error) {
+	if len(args) == 0 {
+		return invocationDecision{}, fmt.Errorf("missing command name")
 	}
-	return beginInvocation(*task), nil
+	name := args[0]
+	task := findXTask(cfg, name)
+	if task == nil {
+		return invocationDecision{}, fmt.Errorf("unknown command %q", name)
+	}
+	extra := args[1:]
+	if len(extra) > 0 && extra[0] == "--" {
+		extra = extra[1:]
+	}
+	return resolveTaskInvocation(*task, extra), nil
+}
+
+func resolveTaskInvocation(task Task, extra []string) invocationDecision {
+	if len(extra) > 0 {
+		return commandDecision(assembleInvocation(task, strings.Join(extra, " ")))
+	}
+	return beginInvocation(task)
+}
+
+func findXTask(cfg *Config, name string) *Task {
+	for groupIndex := range cfg.Groups {
+		for taskIndex := range cfg.Groups[groupIndex].Tasks {
+			task := &cfg.Groups[groupIndex].Tasks[taskIndex]
+			if task.Name == name {
+				return task
+			}
+		}
+	}
+	return nil
 }
 
 // beginInvocation prepares a task selected in the TUI. Declaring any arguments

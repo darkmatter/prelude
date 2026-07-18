@@ -3,6 +3,21 @@
 let
   defaults = import ../defaults.nix;
   t = import ../option-types.nix { inherit lib; };
+
+  # One {label, url} terminal hyperlink; shared by `links` and
+  # `header.statusHint.links`.
+  linkType = lib.types.submodule {
+    options = {
+      label = lib.mkOption {
+        type = lib.types.str;
+        description = "Visible text for the terminal hyperlink.";
+      };
+      url = lib.mkOption {
+        type = lib.types.str;
+        description = "Hyperlink target emitted as an OSC 8 terminal link.";
+      };
+    };
+  };
 in
 {
   options.prelude.motd = {
@@ -147,6 +162,17 @@ in
                 default = defaults.motd.header.statusHint.layout;
                 description = "Render the hint below the lights, or inline with lights left-aligned and the hint right-aligned.";
               };
+              options.links = lib.mkOption {
+                type = lib.types.listOf linkType;
+                default = defaults.motd.header.statusHint.links;
+                description = "Terminal hyperlinks appended after the reload hint (e.g. the repository).";
+                example = [
+                  {
+                    label = "github";
+                    url = "https://github.com/darkmatter/prelude";
+                  }
+                ];
+              };
             };
           };
           status = lib.mkOption {
@@ -165,10 +191,10 @@ in
               `async = false` only when the check should intentionally block
               rendering; synchronous checks show a spinner while running.
 
-              Exit 0 paints a green/accent dot with `ok` (or stdout); non-zero
+              Exit 0 paints a success dot with `ok` (or stdout); non-zero
               paints an error dot with `fail`. Set `failLevel = "warning"` for
-              a non-fatal accent2 dot instead. Empty attrs hide the status
-              region. Tight rows drop labels.
+              a non-fatal warning dot. Static status dots use the info color.
+              Empty attrs hide the status region. Tight rows drop labels.
             '';
             example = {
               nix = {
@@ -198,6 +224,18 @@ in
       }
     );
 
+    links = lib.mkOption {
+      type = lib.types.listOf linkType;
+      default = defaults.motd.links;
+      description = "Terminal hyperlinks rendered beneath the description.";
+      example = [
+        {
+          label = "github.com/darkmatter/prelude";
+          url = "https://github.com/darkmatter/prelude";
+        }
+      ];
+    };
+
     env = lib.mkOption {
       type = lib.types.listOf t.envItemType;
       default = defaults.motd.env;
@@ -214,20 +252,10 @@ in
       ];
     };
 
-    commands = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = defaults.motd.commands;
-      description = "Ordered command names rendered as runnable `$ command` rows with descriptions inherited from the command catalogue.";
-      example = [
-        "dev"
-        "check"
-      ];
-    };
-
     recipes = lib.mkOption {
       type = lib.types.attrsOf t.recipeType;
       default = defaults.motd.recipes;
-      description = "Multi-step workflows keyed by name. Prefer `steps` ({ command } | { comment }); legacy `lines` are normalized into steps.";
+      description = "Project workflows keyed by name for setup, build, test, deploy, and similar work. Prefer `steps` ({ command } | { comment }); legacy `lines` are normalized into steps.";
       example.clean-local-stack = {
         title = "spin up a clean local stack";
         steps = [
@@ -261,18 +289,6 @@ in
           };
         };
       };
-    };
-
-    shortcuts = lib.mkOption {
-      type = lib.types.listOf t.shortcutType;
-      default = defaults.motd.shortcuts;
-      description = "Right-aligned discoverability chips that close the composition (replaces the footer bar).";
-      example = [
-        {
-          command = "menu";
-          alias = "m";
-        }
-      ];
     };
 
     width = lib.mkOption {

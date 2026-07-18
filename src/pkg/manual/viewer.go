@@ -72,9 +72,7 @@ func (v Viewer) Handle(msg tea.Msg) (Viewer, tea.Cmd) {
 			v.click(msg.X, msg.Y)
 		}
 	case tea.MouseWheelMsg:
-		var cmd tea.Cmd
-		v.viewport, cmd = v.viewport.Update(msg)
-		return v, cmd
+		return v.updateViewport(msg)
 	}
 	return v, nil
 }

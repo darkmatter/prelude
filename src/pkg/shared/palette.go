@@ -8,7 +8,8 @@ import (
 
 // Palette is the JSON-bound color theme shared by menu-tui and motd.
 // Nix generates identical palette JSON for both tools from the same
-// theme/options. SelectionFg is only used by menu-tui; motd ignores it.
+// theme/options. Semantic status colors stay distinct from decorative accents;
+// SelectionFg is only used by menu-tui, while motd ignores it.
 type Palette struct {
 	Fg           Color `json:"fg"`
 	Muted        Color `json:"muted"`
@@ -17,6 +18,9 @@ type Palette struct {
 	AccentBorder Color `json:"accentBorder"`
 	Accent       Color `json:"accent"`
 	Accent2      Color `json:"accent2"`
+	Success      Color `json:"success"`
+	Warning      Color `json:"warning"`
+	Info         Color `json:"info"`
 	Error        Color `json:"error"`
 	SelectionFg  Color `json:"selectionFg"`
 	Bg           Color `json:"bg"`

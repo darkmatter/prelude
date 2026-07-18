@@ -10,14 +10,13 @@
 # reverts automatically when direnv unloads. No rc hooks, no PATH-at-rc-time
 # problems; the only requirement is that the user's shell already runs
 # starship (`eval "$(starship init zsh)"` via home-manager or similar).
-{
-  lib,
-  formats,
-  ...
+{ lib
+, formats
+, ...
 }:
 
-# Component config: { theme?, palette?, colorProfile?, project?,
-#                     settings?, shortcuts?, configFile? }
+# Component config: shared theme fields plus settings/configFile options.
+# `shortcuts` is synthesized and injected by the flake-parts module.
 config:
 
 let
@@ -32,9 +31,12 @@ let
   # `palettes.prelude` maps them to the resolved theme hex values, mirroring
   # how a hand-written starship config names its palette.
   #
-  # Layout (two lines, shortcuts right-aligned on the first):
+  # Layout (two blank lines, then a two-line prompt with shortcuts right-aligned
+  # on the Powerline):
   #
-  #   ░▒▓ project  path  branch  status   ···  [?] help  [m] menu  [d] docs
+  #
+  #
+  #   ░▒▓ project  path  branch  status   ···  [?] motd  [m] menu  [d] docs
   #   ❯
   #
   # Each separator inherits the background of the segment on its left as its
@@ -66,9 +68,9 @@ let
   defaultSettings = {
     format =
       if m.shortcuts == [ ] then
-        "${leftSegments}\n$character"
+        "\n\n${leftSegments}\n$character"
       else
-        "${leftSegments}$fill${chips}\n$character";
+        "\n\n${leftSegments}$fill${chips}\n$character";
     add_newline = false;
     palette = "prelude";
     palettes.prelude = pal;
@@ -97,7 +99,7 @@ let
     # Always-on inside the devshell — pure noise there.
     nix_shell.disabled = true;
     character = {
-      success_symbol = "[❯](bold fg:accent2)";
+      success_symbol = "[❯](bold fg:success)";
       error_symbol = "[❯](bold fg:error)";
       vimcmd_symbol = "[❮](bold fg:accent)";
     };

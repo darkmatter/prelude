@@ -65,8 +65,12 @@ func row(content string) string {
 	return content + paint(bg).Render(strings.Repeat(" ", pad))
 }
 
-func frameTop() string { return row(paint(frameC).Render("┌" + strings.Repeat("─", width-2) + "┐")) }
-func frameBot() string { return row(paint(frameC).Render("└" + strings.Repeat("─", width-2) + "┘")) }
+func frameTop() string {
+	return row(paint(frameC).Render("┌" + strings.Repeat("─", width-2) + "┐"))
+}
+func frameBot() string {
+	return row(paint(frameC).Render("└" + strings.Repeat("─", width-2) + "┘"))
+}
 
 // framed wraps content between the vertical bars of the frame.
 func framed(content string) string {

@@ -52,8 +52,8 @@ var (
 	accent2     = lipgloss.Color("#a8cf94")   // sage green counterpoint
 	// accent      = lipgloss.Color("#ff97d7")   // hot pink: selection + primary accent
 	// accent2     = lipgloss.Color("#afff97")
-	errC        = lipgloss.Color("#d94f74")   // softened raspberry error
-	selFg       = lipgloss.Color("#0e0d11")   // bg-on-accent for selection contrast
+	errC  = lipgloss.Color("#d94f74") // softened raspberry error
+	selFg = lipgloss.Color("#0e0d11") // bg-on-accent for selection contrast
 )
 
 const project = "prelude"
@@ -132,12 +132,12 @@ var demoTasks = []task{
 // ══════════════════════════════ STYLES ══════════════════════════════════════
 
 type sty struct {
-	sp, frame, sFg, sMuted, sDim, sAccent, sAccent2, sErr lipgloss.Style
+	sp, frame, sFg, sMuted, sDim, sAccent, sAccent2, sErr       lipgloss.Style
 	openSp, openFg, openMuted, openDim, openAccent, openAccent2 lipgloss.Style
-	barSp, barMuted                                       lipgloss.Style
-	keyChip, kbdChip, optChip                             lipgloss.Style
-	selText, selDim, selChip, selSp                       lipgloss.Style
-	windowBg                                              lipgloss.Style
+	barSp, barMuted                                             lipgloss.Style
+	keyChip, kbdChip, optChip                                   lipgloss.Style
+	selText, selDim, selChip, selSp                             lipgloss.Style
+	windowBg                                                    lipgloss.Style
 }
 
 func newSty() sty {
@@ -162,7 +162,7 @@ func newSty() sty {
 		openAccent:  on(openSurface, accent),
 		openAccent2: on(openSurface, accent2),
 		barSp:       lipgloss.NewStyle().Background(secondary),
-		barMuted: on(secondary, muted),
+		barMuted:    on(secondary, muted),
 		// Prototype keycaps: amber glyphs on the dark surface with left/right
 		// border rails only, keeping each badge to one terminal row.
 		keyChip: on(body, accent2).Bold(true).
@@ -176,8 +176,8 @@ func newSty() sty {
 		selDim:  on(accent, lipgloss.Lighten(bg, 0.18)),
 		// Active keycaps avoid Lip Gloss borders: border cells can fall back to
 		// the terminal background and cut black bars through the green row.
-		selChip: on(accent, bg).Bold(true),
-		selSp: lipgloss.NewStyle().Background(accent),
+		selChip:  on(accent, bg).Bold(true),
+		selSp:    lipgloss.NewStyle().Background(accent),
 		windowBg: lipgloss.NewStyle().Background(bg),
 	}
 }
@@ -627,7 +627,7 @@ func helpSidebarItem(st sty, sections []string, i, active, sideW int, padSide fu
 	}
 	title := sections[i]
 	if i == active {
-			line := st.barSp.Render("  ") + st.bar(accent).Render(icons.selectRow) +
+		line := st.barSp.Render("  ") + st.bar(accent).Render(icons.selectRow) +
 			st.barSp.Render(" ") + st.bar(fg).Render(title)
 		return st.barSp.MaxWidth(sideW).Width(sideW).Render(line)
 	}
@@ -670,16 +670,18 @@ func helpDoc(st sty, textW int) []string {
 		st.inset(accent2).Bold(true).Render(project)+
 		st.inset(fg).Render(" — devshell UI: welcome banner, command menu, and docs"))
 	section("synopsis")
-	cmdline("help | ?")
+	cmdline("motd | ?")
 	cmdline("menu | m [task]")
 	cmdline("docs | d")
+	cmdline("help")
 	section("description")
 	para(muted, 4, "prelude greets you with a static MOTD, then exposes shortcuts for the session. The interactive menu is a fuzzy-filtered picker over tasks declared in Nix.")
 	blank()
 	section("options")
-	entry("help, ?", "Reprint the MOTD welcome banner.")
+	entry("motd, ?", "Reprint the MOTD welcome banner.")
 	entry("menu, m", "Open the interactive command picker.")
-	entry("docs, d", "Open this manual. Digits jump to sections.")
+	entry("docs, d", "Open the project docs viewer.")
+	entry("help", "Show this manual.")
 	section("commands")
 	entry("check (c)", "Build packages and run render smoke tests.")
 	entry("build (b)", "Build a flake output; opens argument entry when no target is given.")

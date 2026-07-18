@@ -26,6 +26,11 @@ type renderer struct {
 }
 
 func newRenderer(cfg Config, terminalWidth, terminalHeight int, runtime Runtime) renderer {
+	height := max(terminalHeight, 1)
+	// Height-gated spacing resolves once here so every consumer (margins,
+	// card padding, offsets) sees the same effective values.
+	cfg.Margin = cfg.Margin.collapseVertical(height)
+	cfg.Padding = cfg.Padding.collapseVertical(height)
 	cardWidth := resolveCardWidth(cfg.Width, cfg.MaxWidth, terminalWidth)
 	padLeft := max(cfg.Padding.Left, 0)
 	padRight := max(cfg.Padding.Right, 0)
@@ -37,7 +42,7 @@ func newRenderer(cfg Config, terminalWidth, terminalHeight int, runtime Runtime)
 		headerUI:       ui.NewContext(cfg.Palette, st.headerBg, st.headerTransparent),
 		windowUI:       ui.NewContext(cfg.Palette, st.windowBg, st.windowTransparent),
 		terminalWidth:  max(terminalWidth, 1),
-		terminalHeight: max(terminalHeight, 1),
+		terminalHeight: height,
 		cardWidth:      cardWidth,
 		contentWidth:   max(cardWidth-padLeft-padRight, 1),
 		runtime:        runtime,

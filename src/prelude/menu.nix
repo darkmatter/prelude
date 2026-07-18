@@ -9,12 +9,12 @@
 #
 # The Go binary is config-independent (one derivation shared by every menu
 # configuration); each config becomes a JSON file baked into a thin wrapper.
-{
-  lib,
-  writeShellApplication,
-  writeText,
-  buildGoModule,
-  ...
+{ lib
+, writeShellApplication
+, writeText
+, buildGoModule
+, symlinkJoin
+, ...
 }:
 
 # Flat config: { theme?, palette?, colorProfile?, project?, commands?,
@@ -28,7 +28,7 @@ let
   pal = plib.resolvePalette (config.theme or d.theme) (config.palette or d.palette);
   colorProfile = config.colorProfile or d.colorProfile;
   project = config.project or d.project;
-  groups = plib.normalizeCommandGroups (config.commands or d.commands);
+  groups = plib.normalizeCommandGroups (config.groupOrder or [ ]) (config.commands or d.commands);
   tasks = plib.flatCommands groups;
 
   m = d.menu // config;
@@ -45,15 +45,16 @@ let
       "menu: command names may only contain [A-Za-z0-9:_.-]";
     assert lib.assertMsg (lib.all safeName keys) "menu: command keys may only contain [A-Za-z0-9:_.-]";
     assert lib.assertMsg (lib.unique keys == keys) "menu: command keys must be unique";
-    assert lib.assertMsg (
-      lib.intersectLists keys names == [ ]
-    ) "menu: command keys must not collide with command names";
-    assert lib.assertMsg (
-      !(lib.elem "list" (names ++ keys))
-    ) "menu: \"list\" is reserved for `menu list`";
-    assert lib.assertMsg (
-      !(lib.elem "help" (names ++ keys))
-    ) "menu: \"help\" is reserved for `menu help`";
+    assert lib.assertMsg
+      (
+        lib.intersectLists keys names == [ ]
+      ) "menu: command keys must not collide with command names";
+    assert lib.assertMsg
+      (
+        !(lib.elem "list" (names ++ keys))
+      ) "menu: \"list\" is reserved for `menu list`";
+    # `help` is intentionally both a Prelude catalogue entry and the built-in
+    # `menu help` fast path. Selecting it interactively executes that same path.
     true;
 
   # --- config payload ----------------------------------------------------------
@@ -69,21 +70,26 @@ let
 
   orEmpty = v: if v == null then "" else v;
 
-  jsonGroups = map (g: {
-    title = g.title;
-    tasks = map (t: {
-      inherit (t)
-        name
-        run
-        description
-        examples
-        args
-        ;
-      key = orEmpty t.key;
-      usage = orEmpty t.usage;
-      details = orEmpty t.details;
-    }) g.tasks;
-  }) groups;
+  jsonGroups = map
+    (g: {
+      title = g.title;
+      tasks = map
+        (t: {
+          inherit (t)
+            name
+            label
+            run
+            description
+            examples
+            args
+            ;
+          key = orEmpty t.key;
+          usage = orEmpty t.usage;
+          details = orEmpty t.details;
+        })
+        g.tasks;
+    })
+    groups;
 
   configFile = writeText "prelude-menu.json" (
     builtins.toJSON {
@@ -114,17 +120,29 @@ let
       mainProgram = "menu";
     };
   };
+  menuWrapper = writeShellApplication {
+    name = "menu";
+    text = ''
+      exec ${lib.getExe menuTui} --config ${configFile} "$@"
+    '';
+  };
+
+  xWrapper = writeShellApplication {
+    name = "x";
+    text = ''
+      exec ${lib.getExe menuTui} --config ${configFile} --x "$@"
+    '';
+  };
 in
 assert checkTasks;
-writeShellApplication {
+symlinkJoin {
   name = "menu";
-
-  text = ''
-    exec ${lib.getExe menuTui} --config ${configFile} "$@"
-  '';
-
+  paths = [
+    menuWrapper
+    xWrapper
+  ];
   meta = {
-    description = "Interactive devshell command menu (themed bubbletea TUI, configured by Nix)";
+    description = "Interactive devshell command menu and x dispatcher (themed bubbletea TUI, configured by Nix)";
     mainProgram = "menu";
   };
 }

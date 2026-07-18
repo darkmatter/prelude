@@ -19,13 +19,19 @@
   # Project identity, shared by motd and menu.
   project = "devshell";
 
-  # Runnable commands keyed by invocation name for the interactive menu.
+  # Project commands keyed by invocation name for the interactive menu. The
+  # flake-parts module contributes menu/help/docs when those components exist.
   # Commands sort by `order ? 1000`, then name; groups follow the first command.
   # Command: { exec ? commandKey, group ? "general", order ? 1000,
   #            description ? "", key ? null, usage ? null, details ? null,
   #            examples ? [ ], args ? [ { token, description ? "",
   #            required ? false, boolean ? false, options ? [ ] } ] }
   commands = { };
+
+  # Inferred presentation-group order. The first colon in a command key names
+  # its group; ungrouped commands fall under develop. Prelude navigation stays
+  # first; unlisted groups follow alphabetically.
+  sort.groups = [ "develop" ];
 
   # --- motd --------------------------------------------------------------------
   # Layout matches dev/playground/motd-playground: header bar → description → env →
@@ -65,6 +71,9 @@
       bottom = null;
       left = null;
       right = null;
+      # Vertical sides apply only at or above this terminal height (rows);
+      # 0 always applies. Horizontal sides are unaffected.
+      minHeight = 0;
     };
 
     # Horizontal placement of the motd block against the terminal window
@@ -82,6 +91,7 @@
       bottom = null;
       left = null;
       right = null;
+      minHeight = 0;
     };
 
     # Hero bar: wordmark, status, and activation copy.
@@ -100,6 +110,8 @@
       statusHint = {
         # below = separate row; inline = lights left, hint right.
         layout = "below";
+        # Hyperlinks appended after the reload hint. Item: { label; url; }
+        links = [ ];
       };
       # Keyed lights: static { status } or live { check, ok?, fail? }.
       status = {
@@ -115,14 +127,15 @@
       text = "";
     };
 
+    # Terminal hyperlinks rendered beneath the description.
+    # Item: { label; url; }
+    links = [ ];
+
     # Env info chips, rendered in order. Each item sets exactly one of:
     #   { label; value; }  — static chip
     #   { label; probe; }  — command run at render time; first output line
     #                        becomes the value, skipped on failure
     env = [ ];
-
-    # Ordered command names shown as runnable rows with dotted leaders.
-    commands = [ ];
 
     # Multi-step workflows keyed by name. Prefer `steps`; legacy `lines`
     # are normalized into steps at the Nix boundary.
@@ -134,10 +147,6 @@
       commandsLabel = "commands";
       examplesLabel = "examples";
     };
-
-    # Quiet discoverability chips on the right side of the footer.
-    # Item: { command; alias ? ""; }
-    shortcuts = [ ];
 
     width = "full";
     maxWidth = 96;
@@ -167,7 +176,6 @@
 
   prompt = {
     settings = { };
-    shortcuts = [ ];
     configFile = null;
   };
 

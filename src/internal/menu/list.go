@@ -71,7 +71,7 @@ func listRow(st styles, t Task, width int) string {
 		shortcut = st.accent2.Bold(true).Render(" " + keyLabel + " ")
 	}
 	shortcut = lipgloss.PlaceHorizontal(max(3, lipgloss.Width(shortcut)), lipgloss.Left, shortcut)
-	name := st.fg.Bold(true).Render(t.Name)
+	name := st.fg.Bold(true).Render(t.displayName())
 	desc := t.Description
 
 	used := lipgloss.Width(leftPad) + lipgloss.Width(shortcut) + 1 + lipgloss.Width(name) + 1 +

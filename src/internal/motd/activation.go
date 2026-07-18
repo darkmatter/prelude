@@ -64,6 +64,9 @@ func (x Activation) Render(tagline, subtitle, shortcuts string) []string {
 		}
 	}
 	if sub != "" {
+		if layout != "inline" {
+			out = append(out, place(""))
+		}
 		out = append(out, place(sub))
 	}
 	return out

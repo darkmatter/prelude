@@ -5,11 +5,10 @@
 #     └ checks.nix     build + render smoke tests
 #         └ previews.nix   utility that builds render checks and shows them
 #             └ packages.nix / apps.nix / shell.nix
-{
-  pkgs,
-  lib,
-  config,
-  ...
+{ pkgs
+, lib
+, config
+, ...
 }:
 let
   args = { inherit pkgs lib config; };
@@ -25,6 +24,16 @@ in
   packages = import ./packages.nix (args // { inherit demos docsAutomation previews; });
   apps = import ./apps.nix (args // { inherit demos docsAutomation previews; });
   devShells.default = import ./shell.nix (args // { inherit docsAutomation previews; });
-  formatter = pkgs.nixfmt;
+  # formatter = pkgs.nixfmt;
   inherit checks;
+  treefmt = {
+    programs.nixpkgs-fmt.enable = true;
+    # Go formatting via dedicated file-scoped formatters. golangci-lint is NOT
+    # here on purpose: it is a package-scoped linter that typechecks whole
+    # packages, so it cannot handle treefmt batching files from multiple
+    # packages (or files outside any module, like dev/playground/*) into one
+    # invocation. Run `golangci-lint run` from src/ separately.
+    programs.gofmt.enable = true;
+    programs.goimports.enable = true;
+  };
 }

@@ -17,8 +17,8 @@ type StatusItems struct {
 }
 
 // Render paints resolved status badges. compact drops labels and keeps only the
-// indicator + status text. Dot color reflects Level: success/static → accent,
-// warning → accent2, error → error.
+// indicator + status text. Dot colors use semantic palette roles: unresolved
+// static items are informational; checks resolve to success, warning, or error.
 func (x StatusItems) Render(items []HeaderStatus, compact bool) string {
 	var parts []string
 	for _, it := range items {
@@ -26,13 +26,7 @@ func (x StatusItems) Render(items []HeaderStatus, compact bool) string {
 		if label == "" && status == "" {
 			continue
 		}
-		dot := x.r.st.headerAccent
-		switch it.Level {
-		case "error":
-			dot = x.r.st.headerErr
-		case "warning":
-			dot = x.r.st.headerAmber
-		}
+		dot := x.dot(it.Level)
 		var chip string
 		if compact {
 			if status != "" {
@@ -60,19 +54,51 @@ func (x StatusItems) Render(items []HeaderStatus, compact bool) string {
 	if len(parts) == 0 {
 		return ""
 	}
-	sep := ui.Inline(x.r.st.headerDim).Render("  ·  ")
-	return strings.Join(parts, sep)
+	sep := ui.Inline(x.r.st.headerDim).Render(" / ")
+	result := strings.Join(parts, sep)
+	if age := x.r.cfg.StatusAge; age != "" {
+		result += ui.Inline(x.r.st.headerDim).Render("  ") + ui.Inline(x.r.st.headerMuted).Render(age)
+	}
+	return result
 }
 
-func (x StatusItems) Hint(header bool) string {
-	if x.r.cfg.StatusHint == "" {
-		return ""
+// dot keeps status semantics independent from decorative accent colors.
+func (x StatusItems) dot(level string) lipgloss.Style {
+	switch level {
+	case "success":
+		return x.r.st.headerSuccess
+	case "warning":
+		return x.r.st.headerWarning
+	case "error":
+		return x.r.st.headerError
+	default:
+		return x.r.st.headerInfo
 	}
+}
+
+// Hint renders the asynchronous refresh hint plus any configured hint links
+// (e.g. the repository), joined by the standard dot separator. Links render
+// even when no async hint exists so a configured link always surfaces.
+func (x StatusItems) Hint(header bool) string {
 	style := x.r.st.dim
+	linkContext := x.r.blockUI
 	if header {
 		style = x.r.st.headerDim
+		linkContext = x.r.headerUI
 	}
-	return ui.Inline(style).Render(x.r.cfg.StatusHint)
+	var parts []string
+	if x.r.cfg.StatusHint != "" {
+		parts = append(parts, ui.Inline(style).Render(x.r.cfg.StatusHint))
+	}
+	for _, link := range x.r.cfg.Header.StatusHintLinks {
+		if rendered := (ui.Link{Context: linkContext, Label: link.Label, URL: link.URL}).Render(); rendered != "" {
+			parts = append(parts, rendered)
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, ui.Inline(style).Render("  ·  "))
 }
 
 // InlineHint renders a fixed-width status row with lights flush left and the
