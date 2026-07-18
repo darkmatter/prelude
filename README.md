@@ -17,6 +17,17 @@ with just the information shown on your MOTD.
 Of course, not all details relevant to your project could fit on the MOTD — for that,
 use the command menu and the docs:
 
+## Quickstart (Setup Wizard)
+
+<img src="docs/recording.gif" alt="prelude recording" /><br />
+
+Prelude ships with a setup wizard that generates the initial configuration for you. It writes a ready-to-use config and a sibling FIGlet title file (default `prelude.nix` + `title.txt`):
+
+```bash
+$ nix run github:darkmatter/prelude#setup
+# or: nix run github:darkmatter/prelude#setup -- -o path/to/prelude.nix
+```
+
 ### Command Menu
 
 ![menu](docs/media/shots/menu.png)
@@ -33,7 +44,7 @@ so the command menu doesn't drift.
 
 ![docs](docs/media/shots/docs.png)
 
-Docs are incredibly sinmple to use, since they just parse markdown in your repo:
+Docs are incredibly simple to use, since they just parse markdown in your repo:
 
 ```nix
 {
@@ -45,17 +56,6 @@ Docs are incredibly sinmple to use, since they just parse markdown in your repo:
     ];
   };
 }
-```
-
-## Quickstart (Setup Wizard)
-
-<img src="docs/recording.gif" alt="prelude recording" /><br />
-
-Prelude ships with a setup wizard that generates the initial configuration for you. It writes a ready-to-use config and a sibling FIGlet title file (default `prelude.nix` + `title.txt`):
-
-```bash
-$ nix run github:darkmatter/prelude#setup
-# or: nix run github:darkmatter/prelude#setup -- -o path/to/prelude.nix
 ```
 
 ## Usage
@@ -435,31 +435,7 @@ project-name fallback used only when `motd.title.text` is null.
 `description` is a styled text item (`{ text, foreground, background,
 bold, italic, faint }`; null foreground uses the theme fg role).
 
-| Option                    | Default                              | Description                                                                                                                                                                                                                               |
-| ------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `enable`                  | `false`                              | Expose `packages.motd` / `apps.motd` and the `prelude-title` generator.                                                                                                                                                                   |
-| `title.text`              | `null`                               | Multiline title file rendered by `prelude-title`; null uses the styled project name.                                                                                                                                                      |
-| `title.align`             | `"left"`                             | Alignment of custom title lines within the MOTD card/content width: `left`, `center`, or `right`.                                                                                                                                         |
-| `title.style`             | `"spine"`                            | Project-name fallback wordmark used when `title.text` is null: `plain` / `spine` / `bracketed` / `label` / `inline` / `inverted`.                                                                                                         |
-| `clearScreen`             | `true`                               | Clear the terminal before rendering.                                                                                                                                                                                                      |
-| `background`              | `null`                               | Block fill: `true` = theme `bg`, a color, `{ relative = ±n; }`, or `{ blend = n; }` from terminal bg toward theme `bg` (`0..1`). Falls back to `windowBackground`.                                                                        |
-| `windowBackground`        | `null`                               | With `clearScreen`, paints the entire cleared terminal; otherwise fills emitted rows across the full terminal width. `true` = theme `bg`, a color, `{ relative = ±n; }`, or `{ blend = n; }` from terminal bg toward theme `bg` (`0..1`). |
-| `margin`                  | `{ top = 10; }`                      | `top`/`bottom` blank lines, `left`/`right` offset columns; sides supersede `x`/`y`.                                                                                                                                                       |
-| `align`                   | `"center"`                           | Placement of the motd block against the terminal window.                                                                                                                                                                                  |
-| `padding`                 | `{ }`                                | Inner padding: sides inset tagline, middle, and footer (header bar edge-to-edge); top/bottom pad the whole card outside title and shortcuts. Sides supersede `x`/`y`.                                                                     |
-| `header.tagline.text`     | `"Dev Shell Activated"`              | Bold accent2 activation title under the header rule.                                                                                                                                                                                      |
-| `header.tagline.subtitle` | `"Your environment is ready"`        | Faint muted supporting text under the tagline.                                                                                                                                                                                            |
-| `header.tagline.layout`   | `"stack"`                            | `stack` = two lines; `inline` = `text · subtitle` on one row.                                                                                                                                                                             |
-| `header.tagline.align`    | `"left"`                             | `left` or `center` alignment of the tagline/subtitle block.                                                                                                                                                                               |
-| `header.background`       | `true`                               | Header bar fill: `true` = raised lightened bar, `null`/`false` = transparent, color / `{ relative }` = explicit.                                                                                                                          |
-| `header.status`           | `{ ready = { status = "ready"; }; }` | Keyed badges: static `{ label?; status }` or live `{ label?; check; ok?; fail?; failLevel? }`. Static lights use `info`; checks resolve to `success`, `warning`, or `error`.                                                              |
-| `description`             | `{ text = ""; }`                     | Styled text beneath the header (`text`, colors, `bold`/`italic`/`faint`, `tips`). `background` may be `{ relative = ±n; }` vs the card. Empty text hides.                                                                                 |
-| `env`                     | `[ ]`                                | Chips in order; each `{ label; value; }` (static) **or** `{ label; probe; }` (runtime command, first output line, skipped on fail).                                                                                                       |
-| `commands`                | `[ ]`                                | Ordered project command selectors shown as runnable next steps. When the menu is enabled, `menu` is always included bare (no `x` prefix).                                                                                                 |
-| `recipes`                 | `{ }`                                | Keyed multi-step workflows with `steps` (or legacy `lines`).                                                                                                                                                                              |
-| `gettingStarted`          | see defaults                         | Labels for the unified commands + examples region (`heading`, `commandsLabel`, `examplesLabel`).                                                                                                                                          |
-| `width`                   | `"full"`                             | Content width, or `"full"`.                                                                                                                                                                                                               |
-| `maxWidth`                | `96`                                 | Width cap.                                                                                                                                                                                                                                |
+See the [options reference](docs/reference/options.md) for the complete list of `prelude.motd.*` fields, types, and defaults.
 
 Navigation shortcuts are internal: enabled MOTD, menu, and docs components add
 `[?] motd`, `[m] menu`, and `[d] docs` respectively. Their aliases are installed
@@ -469,14 +445,7 @@ on `PATH`; consumers cannot hide a shortcut while its component is enabled.
 
 The filter and argument-entry prompt uses a blinking terminal bar cursor.
 
-| Option        | Default                      | Description                                     |
-| ------------- | ---------------------------- | ----------------------------------------------- |
-| `enable`      | `false`                      | Expose `packages.menu` / `apps.menu`.           |
-| `placeholder` | `"type to filter commands…"` | Filter input placeholder.                       |
-| `height`      | `12`                         | Filter list height (rows).                      |
-| `execute`     | `true`                       | `exec` the selected command; `false` prints it. |
-| `width`       | `"full"`                     | Menu width, or `"full"`.                        |
-| `maxWidth`    | `96`                         | Width cap.                                      |
+See the [options reference](docs/reference/options.md) for the complete list of `prelude.menu.*` fields, types, and defaults.
 
 Group order is configured separately with top-level `sort.groups` (default:
 `[ "develop" ]`). Prelude's own navigation group remains first.
@@ -509,11 +478,7 @@ failure. Styles reference palette tokens by name — the config carries
 theme, so `settings` overrides can use the same names (e.g.
 `style = "fg:success"`).
 
-| Option       | Default | Description                                                |
-| ------------ | ------- | ---------------------------------------------------------- |
-| `enable`     | `false` | Expose `packages.prompt` (a starship.toml).                |
-| `settings`   | `{ }`   | Starship settings merged over the themed defaults.         |
-| `configFile` | `null`  | Use this starship.toml verbatim instead of generating one. |
+See the [options reference](docs/reference/options.md) for the complete list of `prelude.prompt.*` fields, types, and defaults.
 
 Wiring is one line — starship re-resolves `$STARSHIP_CONFIG` on every prompt
 render, and direnv propagates env vars (only `PS1` itself is stripped):
