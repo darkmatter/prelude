@@ -28,7 +28,6 @@ func (cb Codeblock) Render(recipe Recipe) []string {
 			Frame: cb.r.st.frameC,
 			Fade:  true,
 		},
-		HeaderTransparent: true,
 	}.Render()
 }
 

@@ -155,14 +155,14 @@ in
             ;
         };
 
-        motdBin = mkMotd deps (
+        motdRenderConfig =
           generatorConfig cfg.motd
           // {
             commandCatalog = commands;
             commandGroupOrder = sortCfg.groups;
             shortcuts = internalShortcuts;
-          }
-        );
+          };
+        motdBin = mkMotd deps motdRenderConfig;
         titlePkg = mkTitle deps;
         titlePreviewsPkg = mkTitlePreviews deps;
         setupPkg = pkgs.writeShellApplication {
@@ -202,6 +202,7 @@ in
           ++ lib.optional cfg.menu.enable menuPkg
           ++ lib.optionals (!cfg.menu.enable) shortcutWrappers;
           passthru = {
+            inherit motdRenderConfig;
             commandNames = map (command: command.name) selectedMotdCommands;
             commandInvocations = map (command: command.command) selectedMotdCommands;
             commandWrappers = lib.optionals cfg.menu.enable menuPkg.commandWrappers;

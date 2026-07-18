@@ -5,8 +5,8 @@
 #   nix run .#example-minimal
 #
 # The acme-web motd/menu demos back `nix run .#example-motd` and
-# `nix run .#example-menu`, and `nix run .#example-themes` renders a mini
-# motd per theme. Render everything:
+# `nix run .#example-menu`; the current module-produced MOTD supplies the
+# separate `nix run .#example-themes` pager. Render everything:
 #
 #   nix run .#examples
 #
@@ -233,29 +233,6 @@ let
       description.text = "Every cell, gutter, and line remainder carries the background.";
     };
   };
-
-  # `nix run .#example-themes` — a mini motd per theme, background-filled
-  # so the palettes read as intended.
-  themeMotd = theme: {
-    inherit theme;
-    project = theme;
-    header = {
-      tagline.text = "theme ${theme}";
-      status.ready = {
-        status = "ok";
-      };
-    };
-    clearScreen = false;
-    margin.y = 2;
-    maxWidth = 60;
-    windowBackground = true;
-    description.text = "The quick brown fox jumps over the lazy dog.";
-    commandCatalog.build = {
-      description = "accent on commands";
-      exec = "just build";
-      motd = 1;
-    };
-  };
 in
 {
   inherit
@@ -263,6 +240,5 @@ in
     motd
     menu
     motdDemos
-    themeMotd
     ;
 }

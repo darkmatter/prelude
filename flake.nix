@@ -61,10 +61,6 @@
           inherit flake-parts-lib;
           localFlake = self;
         };
-        # PROTOTYPE: parallel module, intentionally not part of preludeModule.
-        motdShellExperimentModule = flake-parts-lib.importApply ./src/experimental/motd-shell/module.nix {
-          localFlake = self;
-        };
         preludeLib = import ./nix/lib.nix { lib = inputs.nixpkgs.lib; };
       in
       {
@@ -78,7 +74,6 @@
         # Dogfood like a consumer: module + prelude.nix next to it.
         imports = [
           preludeModule
-          motdShellExperimentModule
           ./prelude.nix
           inputs.treefmt-nix.flakeModule
         ];
@@ -87,7 +82,6 @@
           # Canonical flake-parts module output plus the previous compatibility name.
           flakeModules.default = preludeModule;
           flakeModules.prelude = preludeModule;
-          flakeModules.motd-shell-experiment = motdShellExperimentModule;
 
           overlays.default = import ./nix/overlay.nix;
           lib = preludeLib;

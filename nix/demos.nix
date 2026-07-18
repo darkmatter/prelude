@@ -1,8 +1,11 @@
 # Feature-demo builders shared by packages.nix, apps.nix, and checks.nix.
 # Evaluated once per system in flake.nix and passed down as `demos`.
-{ pkgs, lib, ... }:
+{ pkgs, lib, config, ... }:
 let
-  motdDemos = import ./motd-demo-builder.nix { inherit pkgs lib; };
+  motdDemos = import ./motd-demo-builder.nix {
+    inherit pkgs lib;
+    currentMotdConfig = config.packages.motd.motdRenderConfig;
+  };
   menuDemo = import ./menu-demo-builder.nix { inherit pkgs lib; };
   ex = import ../src/prelude/examples.nix;
   typescriptPrelude = (import ../examples/typescript/prelude.nix { inherit lib; }).prelude;

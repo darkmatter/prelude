@@ -9,9 +9,9 @@
 {
 
   prelude = {
-    theme = "minted";
+    theme = "prelude";
     colorProfile = "truecolor";
-    project = "prelude";
+    project = "acme";
 
     prompt.enable = true;
     menu.enable = true;
@@ -97,20 +97,21 @@
       enable = true;
       title = {
         text = self + /nix/internal/title.txt;
-        align = "center";
+        align = "left";
         style = "spine";
       };
-      maxWidth = 120;
-      windowBackground = false;
+      maxWidth = 80;
+      windowBackground = true;
       background = false;
       clearScreen = true;
       # Bottom breathing room only when the terminal can afford it; short
       # windows drop it instead of scrolling the card away.
       margin = {
         bottom = 8;
+        x= 4;
         minHeight = 40;
       };
-      padding.x = 4;
+      # padding.x = 4;
       # padding.bottom = 2;
       padding.top = 1;
 

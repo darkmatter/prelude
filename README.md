@@ -1,3 +1,9 @@
+```
+              █▀▀▀▄ █▀▀▀▄ █▀▀▀▀ █     █   █ █▀▀▀▄ █▀▀▀▀
+              █▀▀▀  █▀▀▀▄ █▀▀   █     █   █ █   █ █▀▀
+              ▀     ▀   ▀ ▀▀▀▀▀ ▀▀▀▀▀  ▀▀▀  ▀▀▀▀  ▀▀▀▀▀
+```
+
 <div align="center">
   <img width="584" height="110" alt="image" src="https://github.com/user-attachments/assets/95281deb-ca09-4953-8c5d-9a41c4612ba1" />
   <br/><strong>A fancy entrypoint for your devshell</strong><br/>
@@ -8,7 +14,7 @@ Prelude is a DX-focused utility that provides a consistent, beautiful interface 
 
 With prelude, the only command anyone would need to remember is `nix develop`. At shell entry, they are greeted with a nice MOTD:
 
-![motd.png](docs/media/shots/motd.png)
+![motd.png](docs/media/shots/wide.png)
 
 This should contain an overview of what your project is, and clear instructions for
 the most common tasks. Ideally, the user should be able to go from clone to running
@@ -199,7 +205,8 @@ step through them, `j`/`k` to scroll, and `q` to quit.
 with sage + rose), `amber`, `solarized`, `nord`, `gruvbox`, and `paper` (light)
 — ported from the cli-menu-design demo — plus `mono` (strict dark grayscale)
 and `apathy` (ported from czxtm/apathy-theme: purple-tinted darks, lavender +
-butterscotch accents). Preview them all with `nix run .#example-themes`.
+butterscotch accents). Page through the current MOTD in every theme with
+`nix run .#example-themes`.
 
 Tokens: `fg`, `muted`, `dim`, `border`, `accentBorder`, `accent`,
 `accent2`, `success`, `warning`, `info`, `error`, `selectionFg`, `bg`,
@@ -572,7 +579,7 @@ nix run .#previews -- motd-renders   # …or just specific checks
 nix run .#example-motd        # acme-web welcome banner demo
 nix run .#example-menu        # acme-web command menu demo (arg entry)
 nix run .#examples            # render every demo in sequence
-nix run .#example-themes      # a mini motd per theme (background-filled)
+nix run .#example-themes      # page through the current motd in every theme
 nix run .#example-minimal     # standalone banner + styled description (the old card look)
 nix run .#example-surface     # background fill, status chips, thick border
 ```

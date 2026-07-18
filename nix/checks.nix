@@ -491,6 +491,9 @@ in
   examples-render = pkgs.runCommand "examples-render" { } ''
     ${lib.getExe demos.examplesRunner} > "$out"
     test -s "$out"
+    grep -q 'theme amber' "$out"
+    grep -q 'theme solarized' "$out"
+    grep -q 'Devshell UI for Nix flakes' "$out"
   '';
 
   # Generated documentation and its media fingerprints must match the repo.

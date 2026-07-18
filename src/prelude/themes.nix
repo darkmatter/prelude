@@ -213,8 +213,8 @@
     border = "#444444"; # was 238
     accentBorder = "#ff005f"; # was 197
     accent = "#ff87d7"; # was 212
-    accent2 = "#afff87"; # was 156
-    success = "#afff87";
+    accent2 = "#c1f98e"; # was 156
+    success = "#c1f98e";
     warning = "#ffd787";
     info = "#87d7ff";
     error = "#ff005f"; # was 197
