@@ -1,6 +1,10 @@
 package motd
 
-import "prelude/pkg/ui"
+import (
+	"strings"
+
+	"prelude/pkg/ui"
+)
 
 // Commands renders the MOTD's next-step command list with dotted leaders by
 // mapping MOTD command data and resolved styles into the shared ui.CommandRow.
@@ -20,8 +24,14 @@ func (x Commands) Render() []string {
 }
 
 func (x Commands) commandRow(command, description string) string {
+	prefix := ""
+	if remainder, ok := strings.CutPrefix(command, "x "); ok {
+		prefix = "x "
+		command = remainder
+	}
 	return ui.CommandRow{
 		Context:     x.r.blockUI,
+		Prefix:      prefix,
 		Command:     command,
 		Description: description,
 		Width:       x.r.contentWidth,

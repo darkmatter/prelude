@@ -8,7 +8,7 @@
 , ...
 }:
 {
-  default = config.packages.motd;
+  default = config.packages.setup;
   inherit previews;
   docs-record = docsAutomation.record;
   docs-sync = docsAutomation.sync;

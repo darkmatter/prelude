@@ -32,9 +32,11 @@ let
   mkRunnableCheck =
     checkName: surface: invocations:
     let
-      executables = lib.unique (
-        map (invocation: builtins.head (lib.splitString " " invocation)) invocations
-      );
+      executableForLine = line:
+        builtins.head (lib.filter (token: token != "") (lib.splitString " " line));
+      invocationExecutables = invocation:
+        map executableForLine (lib.filter (line: line != "") (lib.splitString "\n" invocation));
+      executables = lib.unique (lib.concatMap invocationExecutables invocations);
     in
     pkgs.runCommand checkName { nativeBuildInputs = devshellCommandPackages; } ''
       for cmd in ${lib.concatMapStringsSep " " lib.escapeShellArg executables}; do
@@ -437,18 +439,17 @@ in
   # Group prefixes are parsed into menu metadata and never become PATH names.
   # Canonical package invocations remain the native CLI syntax.
   grouped-commands-use-canonical-invocations =
-    assert lib.elem "go:test" config.packages.menu.commandNames;
-    assert lib.elem "go test -C src ./..." config.packages.menu.commandInvocations;
-    assert lib.elem "x go:test" config.packages.menu.xInvocations;
-    assert lib.elem "x go:test" config.packages.motd.commandInvocations;
-    assert !lib.elem "go:test" config.packages.menu.commandWrapperNames;
-    assert !lib.elem "go-test" config.packages.menu.commandWrapperNames;
+    assert lib.elem "go:vet" config.packages.menu.commandNames;
+    assert lib.elem "go vet -C src ./..." config.packages.menu.commandInvocations;
+    assert lib.elem "x go:vet" config.packages.menu.xInvocations;
+    assert !lib.elem "go:vet" config.packages.menu.commandWrapperNames;
+    assert !lib.elem "go-vet" config.packages.menu.commandWrapperNames;
     pkgs.runCommand "grouped-commands-use-canonical-invocations"
       { nativeBuildInputs = [ config.packages.menu ]; }
       ''
         command -v go >/dev/null
-        ! command -v go:test >/dev/null
-        ! command -v go-test >/dev/null
+        ! command -v go:vet >/dev/null
+        ! command -v go-vet >/dev/null
         touch "$out"
       '';
 
@@ -478,7 +479,7 @@ in
     ${lib.getExe config.packages.menu} list > "$out"
     test -s "$out"
     grep -q '^DEMOS$' "$out"
-    grep -q "acme-web command menu demo" "$out"
+    grep -q "tour every feature demo" "$out"
   '';
 
   # Every feature demo (motd variants, themes, acme-web motd + menu list)

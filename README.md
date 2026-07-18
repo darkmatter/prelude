@@ -313,7 +313,12 @@ into steps at the Nix boundary.
 ### Generated FIGlet title
 
 See the [title rendering guide](docs/guides/title-rendering.md) for the complete
-interactive, stdout, recipe, and MOTD integration workflow.
+interactive, stdout, recipe, and MOTD integration workflow. For a complete new
+project configuration, run the setup flow:
+
+```console
+nix run .#setup > prelude.nix
+```
 
 Prelude ships 23 selectable fonts: `3d-ascii`, `ansi-shadow`, `calvin-s`,
 `computer`, `cricket`, `cybermedium`, `dos-rebel`, `dr-pepper`, `fender`,

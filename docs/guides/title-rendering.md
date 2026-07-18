@@ -27,20 +27,21 @@ Pager keys:
 | `Esc` / `Backspace`                | Return to the title field  |
 | `q` / `Ctrl-C`                     | Cancel                     |
 
-## Setup wizard
+## Setup
 
-`--wizard` extends the chooser into a project setup wizard: after the title
-and style pages it collects the project name, theme (with live palette
-preview), color depth, component toggles (each previewed in your theme),
-initial project commands (name, exec, description), and the config shape,
-then prints a ready-to-use config to stdout:
+`setup` opens the project setup flow. After the title and style pages it
+collects the project name, theme (with live palette preview), color depth,
+component toggles (each previewed in your theme), initial project commands
+(name, exec, description), and the config shape, then prints a ready-to-use
+config to stdout:
 
 ```sh
-nix run .#title -- --wizard > prelude.nix
+nix run .#setup > prelude.nix
 ```
 
-The wizard UI renders on stderr, so redirecting stdout captures only the
-config. The rendered wordmark is written to `docs/title.txt` (override with
+The setup UI renders on stderr, so redirecting stdout captures only the
+config. The previous `nix run .#title -- --wizard` invocation remains available
+for compatibility. The rendered wordmark is written to `docs/title.txt` (override with
 `-o`; an existing file at that path is replaced). Enabling the docs viewer
 also writes a starter `docs/getting-started.md`, but an existing page is
 kept untouched.

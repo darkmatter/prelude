@@ -17,6 +17,11 @@
     commands.previews = {
       description = "build the render checks and show their output";
     };
+    commands.wizard = {
+      description = "run the interactive setup wizard";
+      exec = "nix run .#setup";
+      motd = 0;
+    };
     commands.build = {
       description = "build a flake output";
       exec = "nix build";
@@ -49,7 +54,7 @@
       description = "inspect rendered titles";
       exec = "prelude-title-previews prelude";
     };
-    commands."demos:all" = {
+    commands."demos" = {
       description = "tour every feature demo";
       exec = "nix run .#examples";
       motd = 3;
@@ -58,8 +63,8 @@
       description = "render a mini motd per theme";
       exec = "nix run .#example-themes";
     };
-    commands."ci:all" = {
-      description = "run all CI tasks";
+    commands."gen" = {
+      description = "run generation tasks";
       exec = ''
         sync-docs
         record-docs
@@ -84,7 +89,7 @@
         # The first colon derives menu group/label while the complete key stays
         # public (`x go:test`). fromPkg derives the canonical `go test …`
         # invocation and carries Go onto PATH; no extra executable is generated.
-        "go:test" = self.lib.fromPkg pkgs.go {
+        "test" = self.lib.fromPkg pkgs.go {
 
           arguments = [
             "test"

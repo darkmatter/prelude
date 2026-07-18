@@ -165,6 +165,26 @@ in
         );
         titlePkg = mkTitle deps;
         titlePreviewsPkg = mkTitlePreviews deps;
+        setupPkg = pkgs.writeShellApplication {
+          name = "setup";
+          runtimeInputs = [ titlePkg ];
+          text = ''
+            if [ "''${1:-}" = "--help" ] || [ "''${1:-}" = "-h" ]; then
+              cat <<'EOF'
+            usage: setup [--recipe path] [-o path]
+
+            Interactively generate a ready-to-use Prelude configuration.
+            The UI renders on stderr and the generated Nix config on stdout.
+
+              -o, --output path  write the generated title (default: docs/title.txt)
+              --recipe path      prefill title text and font from a Nix recipe
+            EOF
+              exit 0
+            fi
+            exec prelude-title --wizard "$@"
+          '';
+          meta.description = "Interactively generate a Prelude project configuration";
+        };
 
         motdPkg = pkgs.symlinkJoin {
           name = "motd";
@@ -176,6 +196,7 @@ in
             motdBin
             titlePkg
             titlePreviewsPkg
+            setupPkg
           ]
           ++ lib.optional cfg.menu.enable menuPkg
           ++ lib.optionals (!cfg.menu.enable) shortcutWrappers;
@@ -352,9 +373,11 @@ in
           packages.motd = motdPkg;
           packages.title = titlePkg;
           packages.title-previews = titlePreviewsPkg;
+          packages.setup = setupPkg;
           apps.motd = mkApp motdPkg;
           apps.title = mkApp titlePkg;
           apps.title-previews = mkApp titlePreviewsPkg;
+          apps.setup = mkApp setupPkg;
         })
         (lib.mkIf cfg.menu.enable {
           packages.menu = menuPkg;

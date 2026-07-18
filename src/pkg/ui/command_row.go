@@ -7,10 +7,12 @@ import "charm.land/lipgloss/v2"
 // overridden by callers for deliberate local exceptions.
 type CommandRow struct {
 	Context          Context
+	Prefix           string
 	Command          string
 	Description      string
 	Width            int
 	Prompt           *lipgloss.Style
+	PrefixStyle      *lipgloss.Style
 	CommandStyle     *lipgloss.Style
 	DescriptionStyle *lipgloss.Style
 	Leader           *lipgloss.Style
@@ -22,6 +24,13 @@ func (x CommandRow) promptStyle() lipgloss.Style {
 		return *x.Prompt
 	}
 	return x.Context.Accent()
+}
+
+func (x CommandRow) prefixStyle() lipgloss.Style {
+	if x.PrefixStyle != nil {
+		return *x.PrefixStyle
+	}
+	return x.Context.Dim()
 }
 
 func (x CommandRow) commandStyle() lipgloss.Style {
@@ -56,6 +65,7 @@ func (x CommandRow) fillStyle() lipgloss.Style {
 // either side of the dotted leaders and fill to Width.
 func (x CommandRow) Render() string {
 	left := Inline(x.promptStyle()).Render("$ ") +
+		Inline(x.prefixStyle()).Render(x.Prefix) +
 		Inline(x.commandStyle()).Render(x.Command)
 	right := Inline(x.descriptionStyle()).Render(x.Description)
 
