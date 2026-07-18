@@ -1,7 +1,7 @@
 <div align="center">
-  <h1>prelude</h1><br/>
+  <h1>prelude</h1>
   <strong>A fancy entrypoint for your devshell</strong><br/>
-  <sub>Conventional commands • Documentation TUI • Powerful command menu • Highly customizable • Beautiful themes</sub><br />
+  <sub>Conventional commands • Documentation TUI • Powerful command menu • Highly customizable • Beautiful themes</sub><br /><br />
   <img src="docs/recording.gif" alt="prelude recording" /><br />
 </div>
 
