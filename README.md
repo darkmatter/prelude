@@ -1,6 +1,6 @@
 <div align="center">
-  <h1>prelude</h1>
-  <strong>A fancy entrypoint for your devshell</strong><br/>
+  <img width="584" height="110" alt="image" src="https://github.com/user-attachments/assets/95281deb-ca09-4953-8c5d-9a41c4612ba1" />
+  <br/><strong>A fancy entrypoint for your devshell</strong><br/>
   <sub>Conventional commands • Documentation TUI • Powerful command menu • Highly customizable • Beautiful themes</sub><br /><br />
   <img src="docs/recording.gif" alt="prelude recording" /><br />
 </div>
