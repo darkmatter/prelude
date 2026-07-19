@@ -36,3 +36,9 @@ Thumbs.db
 src/.tmp-motd-region-test/
 .omo/run-continuation/
 .omo
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/
