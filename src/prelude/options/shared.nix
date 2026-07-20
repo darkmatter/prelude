@@ -76,17 +76,17 @@ in
           };
         };
       };
-    };
 
-    sort.groups = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = defaults.sort.groups;
-      description = "Preferred command-group order. Groups omitted from this list follow alphabetically; Prelude's own group remains first.";
-      example = [
-        "develop"
-        "database"
-        "deploy"
-      ];
+      sort.groups = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = defaults.sort.groups;
+        description = "Preferred command-group order. Groups omitted from this list follow alphabetically; Prelude's own group remains first.";
+        example = [
+          "develop"
+          "database"
+          "deploy"
+        ];
+      };
     };
   };
 }

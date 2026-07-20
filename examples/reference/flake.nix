@@ -111,11 +111,7 @@
           };
 
           devShells.default = pkgs.mkShell {
-            packages = [
-              config.packages.motd
-              config.packages.docs
-              pkgs.starship
-            ];
+            packages = [ config.packages.prelude ];
             shellHook = ''
               export STARSHIP_CONFIG=${config.packages.prompt}
               motd >&2

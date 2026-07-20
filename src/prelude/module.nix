@@ -36,11 +36,7 @@
 #
 #       perSystem = { pkgs, config, ... }: {
 #         devShells.default = pkgs.mkShell {
-#           packages = [
-#             config.packages.motd
-#             config.packages.menu
-#             config.packages.docs
-#           ];
+#           packages = [ config.packages.prelude ];
 #           shellHook = ''
 #             motd
 #           '';
@@ -60,7 +56,7 @@ let
   _unusedLocalFlake = localFlake;
 
   cfg = config.prelude;
-  sortCfg = config.sort;
+  sortCfg = cfg.sort;
   docsEnabled = cfg.docs.pages != [ ];
   internalShortcuts = plib.componentShortcuts {
     motd = cfg.motd.enable;
@@ -365,12 +361,60 @@ in
             };
         promptPkg = mkPrompt deps (generatorConfig cfg.prompt // { shortcuts = internalShortcuts; });
 
+        # Canonical devshell package. Component packages already compose their
+        # enabled descendants (motd -> menu -> docs), so select only the
+        # outermost enabled component and add prompt runtimes when requested.
+        preludeComponentPaths =
+          lib.optional cfg.motd.enable motdPkg
+          ++ lib.optional (!cfg.motd.enable && cfg.menu.enable) menuPkg
+          ++ lib.optional (!cfg.motd.enable && !cfg.menu.enable && docsEnabled) docsPkg;
+        promptRuntimePackages = lib.optionals cfg.prompt.enable [
+          pkgs.starship
+          pkgs.blesh
+        ];
+        preludePkg = pkgs.symlinkJoin {
+          name = "prelude";
+          paths = preludeComponentPaths ++ promptRuntimePackages;
+          postBuild = lib.optionalString cfg.prompt.enable ''
+            mkdir -p "$out/nix-support"
+            cat > "$out/nix-support/setup-hook" <<'EOF'
+            # Initialize Prelude's enhanced prompt only in the interactive Bash
+            # process created by `nix develop`; direnv evaluation stays inert.
+            case "$-" in
+              *i*)
+                if [ -n "''${BASH_VERSION-}" ]; then
+                  source ${pkgs.blesh}/share/blesh/ble.sh
+                  eval "$(${lib.getExe pkgs.starship} init bash)"
+                fi
+                ;;
+            esac
+            EOF
+          '';
+          passthru = {
+            inherit preludeComponentPaths promptRuntimePackages;
+          }
+          // lib.optionalAttrs cfg.prompt.enable {
+            prompt = promptPkg;
+          };
+          meta = {
+            description = "Prelude devshell UI and its enabled runtime dependencies";
+          }
+          // lib.optionalAttrs cfg.motd.enable {
+            mainProgram = "motd";
+          };
+        };
+
         mkApp = pkg: {
           type = "app";
           program = pkgs.lib.getExe pkg;
         };
       in
       lib.mkMerge [
+        {
+          # Add this single package to a devshell to receive every enabled
+          # Prelude component and its runtime dependencies.
+          packages.prelude = preludePkg;
+        }
         (lib.mkIf cfg.motd.enable {
           packages.motd = motdPkg;
           packages.title = titlePkg;

@@ -14,9 +14,7 @@ let
 
   # The command-providing packages of the dogfood devshell (shell.nix).
   devshellCommandPackages = [
-    config.packages.motd
-    config.packages.menu
-    config.packages.docs
+    config.packages.prelude
     pkgs.nix
     docsAutomation.sync
     docsAutomation.record
@@ -54,6 +52,20 @@ in
   motd-default = config.packages.motd;
   title-default = config.packages.title;
   menu-default = config.packages.menu;
+  prelude-default = pkgs.runCommand "prelude-default"
+    { nativeBuildInputs = [ config.packages.prelude ]; }
+    ''
+      command -v motd >/dev/null
+      command -v menu >/dev/null
+      command -v docs >/dev/null
+      command -v starship >/dev/null
+      command -v blesh-share >/dev/null
+      test -f ${config.packages.prelude}/share/blesh/ble.sh
+      test -f ${config.packages.prelude}/nix-support/setup-hook
+      grep -Fq 'source ${pkgs.blesh}/share/blesh/ble.sh' ${config.packages.prelude}/nix-support/setup-hook
+      grep -Fq '${lib.getExe pkgs.starship} init bash' ${config.packages.prelude}/nix-support/setup-hook
+      touch "$out"
+    '';
 
   title-previews = pkgs.runCommand "title-previews" { } ''
     ${lib.getExe config.packages.title-previews} "choose me" > "$out"
@@ -129,7 +141,7 @@ in
         modules = [
           ../src/prelude/options/shared.nix
           {
-            sort.groups = [
+            prelude.sort.groups = [
               "docs"
               "develop"
               "demos"
@@ -147,7 +159,7 @@ in
           }
         ];
       };
-      normalized = plib.normalizeCommandGroups evaluated.config.sort.groups evaluated.config.prelude.commands;
+      normalized = plib.normalizeCommandGroups evaluated.config.prelude.sort.groups evaluated.config.prelude.commands;
       actual = map
         (group: {
           inherit (group) title;
@@ -211,6 +223,8 @@ in
       ];
       docsGroup = builtins.elemAt normalized 1;
     in
+    assert !(evaluated.options ? sort);
+    assert evaluated.options.prelude.sort ? groups;
     assert actual == expected;
     assert (builtins.head docsGroup.tasks).description == "merged";
     pkgs.runCommand "command-ordering" { } "touch $out";
@@ -489,11 +503,13 @@ in
   # Every feature demo (motd variants, themes, acme-web motd + menu list)
   # builds (shellcheck) and renders.
   examples-render = pkgs.runCommand "examples-render" { } ''
-    ${lib.getExe demos.examplesRunner} > "$out"
+    CLICOLOR_FORCE=1 ${lib.getExe demos.examplesRunner} > "$out"
     test -s "$out"
     grep -q 'theme amber' "$out"
     grep -q 'theme solarized' "$out"
     grep -q 'Devshell UI for Nix flakes' "$out"
+    grep -Fq '38;2;255;199;97' "$out"
+    grep -Fq '38;2;119;245;201' "$out"
   '';
 
   # Generated documentation and its media fingerprints must match the repo.

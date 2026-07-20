@@ -3,12 +3,16 @@
 # bytes are produced outside the Nix sandbox because VHS needs a browser/TTY.
 { pkgs
 , lib
+, config
 , ...
 }:
 let
   ex = import ../src/prelude/examples.nix;
 
-  motdDemos = import ./motd-demo-builder.nix { inherit pkgs lib; };
+  motdDemos = import ./motd-demo-builder.nix {
+    inherit pkgs lib;
+    currentMotdConfig = config.packages.motd.motdRenderConfig;
+  };
   menuDemo = import ./menu-demo-builder.nix { inherit pkgs lib; };
 
   motdProgram = lib.getExe motdDemos.examplePackages.example-motd;
@@ -315,7 +319,7 @@ let
       ];
   optionsDoc = pkgs.nixosOptionsDoc {
     options = {
-      inherit (evaluatedOptions.options) prelude sort;
+      inherit (evaluatedOptions.options) prelude;
     };
     # Store-path declarations make generated Markdown change whenever the dirty
     # flake source path changes. The option names already identify their source.

@@ -7,9 +7,10 @@
 #   export STARSHIP_CONFIG=${config.packages.prompt}
 #
 # re-themes the user's existing starship prompt while inside the project and
-# reverts automatically when direnv unloads. No rc hooks, no PATH-at-rc-time
-# problems; the only requirement is that the user's shell already runs
-# starship (`eval "$(starship init zsh)"` via home-manager or similar).
+# reverts automatically when direnv unloads. `packages.prelude` supplies
+# Starship and ble.sh when the prompt is enabled and initializes both in an
+# interactive Bash `nix develop` shell. Non-interactive direnv evaluation stays
+# inert so the user's existing login-shell prompt remains in control.
 { lib
 , formats
 , ...

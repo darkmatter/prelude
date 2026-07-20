@@ -11,8 +11,7 @@
 }:
 pkgs.mkShell {
   packages = [
-    config.packages.motd
-    config.packages.docs
+    config.packages.prelude
     docsAutomation.record
     docsAutomation.sync
     previews
@@ -20,7 +19,6 @@ pkgs.mkShell {
   ++ (with pkgs; [
     shellcheck
     nixfmt
-    starship
   ]);
   shellHook = ''
     r() { exec nix develop "$@"; }
@@ -28,19 +26,13 @@ pkgs.mkShell {
     # Starship re-resolves this path on every prompt render.
     export STARSHIP_CONFIG=${config.packages.prompt}
 
+    # `config.packages.prelude` initializes ble.sh and Starship for interactive
+    # Bash through its setup hook. Keeping that logic out of this shellHook
+    # ensures this repository exercises the same package contract as consumers.
     if [ -n "''${BASH_VERSION-}" ]; then
       export -f r 2>/dev/null || true
-      # Under `nix develop` this hook runs inside the interactive bash itself,
-      # which has no starship init of its own (rc-based inits are zsh-only on
-      # most setups) — wire it here. In direnv's non-interactive eval shell
-      # $- has no `i`, so this is skipped and the user's zsh init plus the
-      # STARSHIP_CONFIG export above do the theming.
-      case "$-" in *i*)
-        if command -v starship >/dev/null 2>&1; then
-          eval "$(starship init bash)"
-        fi
-      ;; esac
     fi
+
 
     # Keep Nix diagnostics and the welcome card ordered on the same stream.
     motd >&2

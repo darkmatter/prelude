@@ -1,0 +1,2 @@
+{"id":"int-effcc834430527e52bdf5a18483c0fed","kind":"field_change","created_at":"2026-07-19T06:11:43.979063Z","actor":"cooper","issue_id":"prelude-oyj","extra":{"field":"status","new_value":"in_progress","old_value":"open"}}
+{"id":"int-350c042c39d916646aee6066a300eb9e","kind":"field_change","created_at":"2026-07-19T06:13:20.165534Z","actor":"cooper","issue_id":"prelude-oyj","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Implemented Config+Cache Preflight/Render; tests pass"}}

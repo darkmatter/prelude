@@ -10,9 +10,9 @@ import (
 )
 
 // Env is a React-style, one-component-per-file presentation of the motd env
-// section. It renders tool versions as one flowing row of chips. The component
-// is stateless and uses the resolved renderer context for config, styles,
-// dimensions, and runtime probes.
+// section. It renders tool versions as one flowing row of chips. Live probe
+// values are filled by applyCache from the Cache (Preflight); this paint path
+// is pure.
 type Env struct {
 	r renderer
 }
@@ -34,12 +34,15 @@ func (x Env) Render() []string {
 
 func (x Env) renderEnvItem(item EnvItem) (string, bool) {
 	value := item.Value
-	if item.Probe != "" {
-		probed, err := x.r.runtime.Probe(item.Probe)
-		if err != nil || probed == "" {
-			return "", false
-		}
-		value = probed
+	// Probe-backed chips require a non-empty resolved value (from Cache).
+	if item.Probe != "" && value == "" {
+		return "", false
+	}
+	if value == "" && item.Label == "" {
+		return "", false
+	}
+	if value == "" {
+		return "", false
 	}
 	return ui.Inline(x.r.st.dim).Render(item.Label+" ") +
 		ui.Inline(x.r.st.fgBold).Render(value+"   "), true

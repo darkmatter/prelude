@@ -12,7 +12,7 @@
 { ... }:
 {
   prelude = {
-    theme = "apathy";  # color theme for all components; default "phosphor"
+    theme = "apathy"; # color theme for all components; default "phosphor"
 
     # Per-token overrides on top of the theme (null keeps the theme token).
     # Values: null | hex string | ANSI-256 index.
@@ -32,9 +32,9 @@
     # palette.surface = null;
     # palette.secondary = null;
 
-    colorProfile = "auto";  # "auto" | "truecolor" | "ansi256"; default "auto"
+    colorProfile = "auto"; # "auto" | "truecolor" | "ansi256"; default "auto"
 
-    project = "acme";  # shown in the MOTD banner and menu header; default "devshell"
+    project = "acme"; # shown in the MOTD banner and menu header; default "devshell"
 
     # Project commands keyed by public `x` name. The first colon infers the
     # menu group; the complete key stays callable (e.g. `x db:migrate`).
@@ -60,8 +60,8 @@
 
 
       title = {
-        text = ./title.txt;  # multiline title file; null uses the project-name wordmark
-        align = "left";  # left|center|right; default "left"
+        text = ./title.txt; # multiline title file; null uses the project-name wordmark
+        align = "left"; # left|center|right; default "left"
         # style = "spine";  # wordmark when text is null: plain|spine|bracketed|label|inline|inverted
       };
 
@@ -186,9 +186,9 @@
     #   # { text = ./docs/commands.md; }
     # ];
     docs.pages = [ ];
-  };
 
-  # Preferred command-group order. Groups omitted follow alphabetically;
-  # the built-in "prelude" group (menu/help/docs) stays first.
-  # sort.groups = [ "develop" ];
+    # Preferred command-group order. Groups omitted follow alphabetically;
+    # the built-in "prelude" group (menu/help/docs) stays first.
+    # sort.groups = [ "develop" ];
+  };
 }

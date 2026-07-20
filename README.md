@@ -1,6 +1,6 @@
 <div align="center">
   <img width="584" height="110" alt="image" src="https://github.com/user-attachments/assets/95281deb-ca09-4953-8c5d-9a41c4612ba1" />
-  <br/><strong>A fancy entrypoint for your devshell</strong><br/>
+  <br/><strong>Make your devshell easy to use and nice to look at</strong><br/>
   <sub>Conventional commands • Documentation TUI • Powerful command menu • Highly customizable • Beautiful themes</sub><br /><br />
 </div>
 
@@ -19,7 +19,7 @@ use the command menu and the docs:
 
 ## Quickstart (Setup Wizard)
 
-<img src="docs/recording.gif" alt="prelude recording" /><br />
+![demo](docs/recording.gif)
 
 Prelude ships with a setup wizard that generates the initial configuration for you. It writes a ready-to-use config and a sibling FIGlet title file (default `prelude.nix` + `title.txt`):
 
@@ -112,10 +112,7 @@ Docs are incredibly simple to use, since they just parse markdown in your repo:
           };
 
           devShells.default = pkgs.mkShell {
-            packages = [
-              config.packages.motd
-              config.packages.docs
-            ];
+            packages = [ config.packages.prelude ];
             shellHook = "motd";
           };
         };
@@ -269,7 +266,7 @@ prelude.commands."quality:lint" = prelude.lib.fromPkg pkgs.eslint {
   description = "lint the project";
 };
 
-sort.groups = [
+prelude.sort.groups = [
   "develop"
   "quality"
 ];
@@ -447,7 +444,7 @@ The filter and argument-entry prompt uses a blinking terminal bar cursor.
 
 See the [options reference](docs/reference/options.md) for the complete list of `prelude.menu.*` fields, types, and defaults.
 
-Group order is configured separately with top-level `sort.groups` (default:
+Group order is configured with `prelude.sort.groups` (default:
 `[ "develop" ]`). Prelude's own navigation group remains first.
 
 > MOTD guidance is authored independently with exact runnable `commands` and
@@ -480,22 +477,26 @@ theme, so `settings` overrides can use the same names (e.g.
 
 See the [options reference](docs/reference/options.md) for the complete list of `prelude.prompt.*` fields, types, and defaults.
 
-Wiring is one line — starship re-resolves `$STARSHIP_CONFIG` on every prompt
-render, and direnv propagates env vars (only `PS1` itself is stripped):
+Add the canonical aggregate package and point Starship at the generated config:
 
 ```nix
 devShells.default = pkgs.mkShell {
+  packages = [ config.packages.prelude ];
   shellHook = ''
     export STARSHIP_CONFIG=${config.packages.prompt}
   '';
 };
 ```
 
-Entering the project re-themes your prompt; leaving it (direnv unload) reverts
-to your own starship config automatically. Requires starship to already be
-your shell's prompt (`eval "$(starship init zsh)"` via home-manager or
-similar); add `pkgs.starship` to the devshell packages for environments that
-don't have it.
+`packages.prelude` contains every enabled Prelude component. When the prompt is
+enabled it also contains Starship and ble.sh, so consumers do not need to add
+those dependencies separately. Starship re-resolves `$STARSHIP_CONFIG` on every
+prompt render, and direnv propagates env vars (only `PS1` itself is stripped).
+Entering the project therefore re-themes the prompt and leaving it reverts to
+the user's own config. In an interactive Bash `nix develop` shell, Prelude's
+package setup hook sources ble.sh and initializes Starship automatically. The
+hook remains inert during non-interactive direnv evaluation, where the user's
+existing login-shell prompt remains in control.
 
 ## Without flake-parts
 

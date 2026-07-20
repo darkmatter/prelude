@@ -9,9 +9,9 @@
 {
 
   prelude = {
-    theme = "prelude";
+    theme = "minted";
     colorProfile = "truecolor";
-    project = "acme";
+    project = "prelude";
 
     prompt.enable = true;
     menu.enable = true;
@@ -97,18 +97,18 @@
       enable = true;
       title = {
         text = self + /nix/internal/title.txt;
-        align = "left";
+        align = "center";
         style = "spine";
       };
-      maxWidth = 80;
-      windowBackground = true;
+      maxWidth = 120;
+      windowBackground = false;
       background = false;
       clearScreen = true;
       # Bottom breathing room only when the terminal can afford it; short
       # windows drop it instead of scrolling the card away.
       margin = {
         bottom = 8;
-        x= 4;
+        x = 4;
         minHeight = 40;
       };
       # padding.x = 4;
@@ -120,7 +120,7 @@
           text = "Devshell UI for Nix flakes";
           subtitle = "MOTD, command menu, docs viewer, and prompt from one flake-parts module";
           layout = "stack";
-          align = "left";
+          align = "center";
         };
         background = false;
         statusHint = {
@@ -164,15 +164,16 @@
         ];
       };
     };
-  };
 
-  # Sorting
-  sort.groups = [
-    "develop"
-    "go"
-    "docs"
-    "demos"
-  ];
+    # Preferred command-group order. Unlisted groups follow alphabetically;
+    # Prelude's built-in navigation group remains first.
+    sort.groups = [
+      "develop"
+      "go"
+      "docs"
+      "demos"
+    ];
+  };
 
   # Package-backed commands derive both their executable and runtime closure.
   perSystem =

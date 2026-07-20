@@ -29,7 +29,7 @@ func TestWindowBackgroundPaintsScreenErase(t *testing.T) {
 		},
 	}
 
-	got := (MOTDView{r: newRenderer(cfg, 40, 24, systemRuntime{})}).Render()
+	got := (MOTDView{r: newRenderer(cfg, 40, 24)}).Render()
 	// Total newlines must be terminalHeight-1 (23) so the body ends on the
 	// second-to-last row and the prompt lands on the bottom row without
 	// scrolling.
@@ -97,7 +97,7 @@ func TestWindowBackgroundTransparentSkipsScrollFill(t *testing.T) {
 		},
 	}
 
-	got := (MOTDView{r: newRenderer(cfg, 40, 24, systemRuntime{})}).Render()
+	got := (MOTDView{r: newRenderer(cfg, 40, 24)}).Render()
 	const clearScreen = "\x1b[2J\x1b[H"
 	// Transparent window: clear screen must NOT have a background SGR.
 	clearAt := strings.Index(got, clearScreen)

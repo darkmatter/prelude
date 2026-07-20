@@ -245,7 +245,7 @@ func TestRenderWizardConfigEmitsReadyToUseModule(t *testing.T) {
 		"# settings = {",
 		"# configFile = null;",
 		"docs.pages = [ ];",
-		"# sort.groups = [ \"develop\" ];",
+		"    # sort.groups = [ \"develop\" ];\n  };",
 	} {
 		if !strings.Contains(config, fragment) {
 			t.Fatalf("config missing fragment %q:\n%s", fragment, config)
@@ -473,7 +473,7 @@ func TestRenderWizardConfigDocumentsAllMajorOptionGroups(t *testing.T) {
 		"# settings = {",
 		"# configFile = null;",
 		"docs.pages = [ { text = ./docs/getting-started.md; } ];",
-		"# sort.groups = [ \"develop\" ];",
+		"    # sort.groups = [ \"develop\" ];\n  };",
 	}
 	for _, group := range groups {
 		if !strings.Contains(config, group) {

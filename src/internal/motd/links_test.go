@@ -20,7 +20,7 @@ func TestLinksPreserveOSC8HyperlinksThroughMOTDLayout(t *testing.T) {
 		}},
 		Width: 40,
 	}
-	r := newRenderer(cfg, 40, 20, nil)
+	r := newRenderer(cfg, 40, 20)
 
 	component := strings.Join((Links{r: r}).Render(), "\n")
 	assertOSC8Link(t, "links component", component, url)

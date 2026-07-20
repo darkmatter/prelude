@@ -2,12 +2,14 @@
 #
 # `packages.prompt` is a starship.toml themed from the palette. Starship
 # re-resolves $STARSHIP_CONFIG on every prompt render and direnv propagates
-# env vars, so the devshell only needs:
+# env vars, so the devshell only needs `packages.prelude` plus:
 #
 #   shellHook = ''export STARSHIP_CONFIG=${config.packages.prompt}'';
 #
-# The prompt re-themes on entry and reverts when direnv unloads. Requires the
-# user's shell to already run starship.
+# The aggregate package supplies Starship and ble.sh when this is enabled and
+# initializes both in interactive Bash `nix develop` shells. The prompt
+# re-themes on entry and reverts when direnv unloads; non-interactive direnv
+# evaluation leaves the user's login-shell prompt initialization untouched.
 { lib, ... }:
 let
   defaults = import ../defaults.nix;

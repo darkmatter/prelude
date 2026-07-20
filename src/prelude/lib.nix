@@ -203,10 +203,10 @@ let
         let
           order = entry.raw.motd or null;
         in
+        # Menu shortcuts default ahead of project next-steps unless explicitly ordered.
         if order != null then
           order
         else if isMenu entry then
-          # Default ahead of project next-steps unless an explicit order is set.
           0
         else
           null;

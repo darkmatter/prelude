@@ -22,7 +22,7 @@ func TestConfiguredShortcutsRenderWithoutGeneratedTitle(t *testing.T) {
 		Width: 80,
 	}
 
-	output := (MOTDView{r: newRenderer(cfg, 80, 20, nil)}).Render()
+	output := (MOTDView{r: newRenderer(cfg, 80, 20)}).Render()
 	for _, want := range []string{"motd", "menu", "docs"} {
 		if count := strings.Count(output, want); count != 1 {
 			t.Errorf("MOTD output contains shortcut %q %d times, want once: %q", want, count, output)

@@ -13,7 +13,7 @@ func TestActivationAddsBlankLineBeforeFullWidthSubtitle(t *testing.T) {
 	r := newRenderer(Config{
 		Header: Header{TaglineAlign: "left"},
 		Width:  80,
-	}, 80, 20, nil)
+	}, 80, 20)
 	lines := (Activation{r: r}).Render("Dev Shell Activated", subtitle, "")
 
 	if len(lines) < 3 {

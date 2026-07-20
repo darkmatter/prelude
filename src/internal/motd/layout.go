@@ -9,8 +9,8 @@ const (
 )
 
 // renderer is immutable render context for one MOTD pass. It carries resolved
-// configuration, palette styles, geometry, and runtime dependencies; named UI
-// components receive this context and own presentation in their own files.
+// configuration, palette styles, and geometry; named UI components receive this
+// context and own presentation in their own files.
 type renderer struct {
 	cfg              Config
 	st               styles
@@ -22,10 +22,9 @@ type renderer struct {
 	cardWidth        int
 	contentWidth     int
 	horizontalOffset int
-	runtime          Runtime
 }
 
-func newRenderer(cfg Config, terminalWidth, terminalHeight int, runtime Runtime) renderer {
+func newRenderer(cfg Config, terminalWidth, terminalHeight int) renderer {
 	height := max(terminalHeight, 1)
 	// Height-gated spacing resolves once here so every consumer (margins,
 	// card padding, offsets) sees the same effective values.
@@ -45,7 +44,6 @@ func newRenderer(cfg Config, terminalWidth, terminalHeight int, runtime Runtime)
 		terminalHeight: height,
 		cardWidth:      cardWidth,
 		contentWidth:   max(cardWidth-padLeft-padRight, 1),
-		runtime:        runtime,
 	}
 	r.horizontalOffset = r.resolveHorizontalOffset()
 	return r

@@ -6,9 +6,9 @@ import (
 	"strings"
 )
 
-// Runtime isolates the only effectful values in an otherwise deterministic
-// renderer. Probe/Check commands remain shell snippets because they are
-// authored as such in configuration.
+// Runtime isolates shell effects used only by Preflight.
+// Probe/Check commands remain shell snippets because they are authored as such
+// in configuration. Pure Render never uses Runtime.
 type Runtime interface {
 	// Probe runs a command and returns its first stdout line (env chips).
 	Probe(command string) (string, error)

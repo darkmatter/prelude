@@ -10,7 +10,7 @@ func TestSpacingCollapsesVerticalSidesBelowMinHeight(t *testing.T) {
 		Padding: Spacing{Top: 1, Bottom: 2, Left: 4, MinHeight: 40},
 	}
 
-	short := newRenderer(cfg, 80, 30, systemRuntime{})
+	short := newRenderer(cfg, 80, 30)
 	if short.cfg.Margin.Top != 0 || short.cfg.Margin.Bottom != 0 {
 		t.Fatalf("short margin = %+v, want collapsed vertical sides", short.cfg.Margin)
 	}
@@ -21,12 +21,12 @@ func TestSpacingCollapsesVerticalSidesBelowMinHeight(t *testing.T) {
 		t.Fatalf("short padding = %+v, want collapsed vertical sides", short.cfg.Padding)
 	}
 
-	tall := newRenderer(cfg, 80, 40, systemRuntime{})
+	tall := newRenderer(cfg, 80, 40)
 	if tall.cfg.Margin.Bottom != 10 || tall.cfg.Padding.Bottom != 2 {
 		t.Fatalf("at-threshold spacing collapsed: margin=%+v padding=%+v", tall.cfg.Margin, tall.cfg.Padding)
 	}
 
-	ungated := newRenderer(Config{Margin: Spacing{Bottom: 10}}, 80, 5, systemRuntime{})
+	ungated := newRenderer(Config{Margin: Spacing{Bottom: 10}}, 80, 5)
 	if ungated.cfg.Margin.Bottom != 10 {
 		t.Fatalf("MinHeight=0 must never collapse: %+v", ungated.cfg.Margin)
 	}
