@@ -8,14 +8,12 @@ Prelude is a DX-focused utility that provides a consistent, beautiful interface 
 
 With prelude, the only command anyone would need to remember is `nix develop`. At shell entry, they are greeted with a nice MOTD:
 
-![motd.png](docs/media/shots/wide.png)
+<br />
+<div align="center">
+<img align="center" width="800" src="https://github.com/darkmatter/prelude/raw/main/docs/media/shots/motd.png" />
+</div>
+<br />
 
-This should contain an overview of what your project is, and clear instructions for
-the most common tasks. Ideally, the user should be able to go from clone to running
-with just the information shown on your MOTD.
-
-Of course, not all details relevant to your project could fit on the MOTD — for that,
-use the command menu and the docs:
 
 ## Quickstart (Setup Wizard)
 
@@ -28,7 +26,15 @@ $ nix run github:darkmatter/prelude#setup
 # or: nix run github:darkmatter/prelude#setup -- -o path/to/prelude.nix
 ```
 
+
+Your MOTD should contain an overview of what your project is, and clear instructions for
+the most common tasks. Ideally, the user should be able to go from clone to running
+with just the information shown on your MOTD.
+
 ### Command Menu
+
+Of course, not all information is going to fit on an MOTD. The command menu which is
+automatically generated for you should contain the rest of the relevant commands for your project:
 
 ![menu](docs/media/shots/menu.png)
 
