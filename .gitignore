@@ -46,3 +46,4 @@ src/.tmp-motd-region-test/
 .agents/skills/beads/
 .claude/
 .codex/
+.envrc.local
