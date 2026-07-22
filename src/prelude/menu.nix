@@ -5,7 +5,6 @@
 #                        tab-to-expand details, argument entry with chips
 #   menu <name|key> …    fast path: run a command directly, extra args appended
 #   menu list            print the grouped command table (non-interactive)
-#   menu help            man-style manual generated from the config
 #
 # The Go binary is config-independent (one derivation shared by every menu
 # configuration); each config becomes a JSON file baked into a thin wrapper.
@@ -28,8 +27,12 @@ let
   pal = plib.resolvePalette (config.theme or d.theme) (config.palette or d.palette);
   colorProfile = config.colorProfile or d.colorProfile;
   project = config.project or d.project;
-  groups = plib.normalizeCommandGroups (config.groupOrder or [ ]) (config.commands or d.commands);
-  tasks = plib.flatCommands groups;
+  groupOrder = config.groupOrder or [ ];
+  commands = config.commands or d.commands;
+  # Domain groups for validation (null keys preserved); projected groups for JSON.
+  domainGroups = plib.normalizeCommandGroups groupOrder commands;
+  groups = plib.projectMenuGroups groupOrder commands;
+  tasks = plib.flatCommands domainGroups;
 
   m = d.menu // config;
 
@@ -53,8 +56,6 @@ let
       (
         !(lib.elem "list" (names ++ keys))
       ) "menu: \"list\" is reserved for `menu list`";
-    # `help` is intentionally both a Prelude catalogue entry and the built-in
-    # `menu help` fast path. Selecting it interactively executes that same path.
     true;
 
   # --- config payload ----------------------------------------------------------
@@ -68,28 +69,7 @@ let
     else
       0;
 
-  orEmpty = v: if v == null then "" else v;
-
-  jsonGroups = map
-    (g: {
-      title = g.title;
-      tasks = map
-        (t: {
-          inherit (t)
-            name
-            label
-            run
-            description
-            examples
-            args
-            ;
-          key = orEmpty t.key;
-          usage = orEmpty t.usage;
-          details = orEmpty t.details;
-        })
-        g.tasks;
-    })
-    groups;
+  jsonGroups = groups;
 
   configFile = writeText "prelude-menu.json" (
     builtins.toJSON {
@@ -110,7 +90,7 @@ let
     src = ../.;
     subPackages = [ "cmd/menu" ];
     doCheck = false;
-    vendorHash = "sha256-hKvYlJqQUQ3NrBRgWPZyvYhsCvceW1HbDRlzltKyCxQ=";
+    vendorHash = "sha256-qHpXE7MVG06KxY/2eLnqUva3/FHjAdQceH6A/5sn7mU=";
     ldflags = [
       "-s"
       "-w"

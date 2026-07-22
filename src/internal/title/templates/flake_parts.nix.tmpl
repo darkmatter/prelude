@@ -87,13 +87,14 @@
 {{- else }}
     # docs.pages = [
     #   { text = ./docs/getting-started.md; }
-    #   # { text = ./docs/commands.md; }
+    #   # Or split one file into H2 leaves (bind the flake's lib):
+    #   # (inputs.prelude.lib.mdSplit ./README.md)
     # ];
     docs.pages = [ ];
 {{- end }}
 
     # Preferred command-group order. Groups omitted follow alphabetically;
-    # the built-in "prelude" group (menu/help/docs) stays first.
+    # the built-in "prelude" group (menu/docs) stays first.
     # sort.groups = [ "develop" ];
   };
 }

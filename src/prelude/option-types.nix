@@ -310,7 +310,7 @@ let
       key = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
-        description = "Single-key accelerator (menu fast path: `menu <key>`).";
+        description = "Single-key accelerator (`x <key>` / menu fast path).";
       };
       usage = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
@@ -341,7 +341,7 @@ let
           sort order (ascending, ties broken by command name). When null/undefined
           the command is hidden from the MOTD, except `menu` which is always
           listed (bare, without the `x` prefix) whenever the menu is enabled.
-          Other navigation commands (`help`, `docs`) stay off this list.
+          Other navigation commands (`docs`) stay off this list.
         '';
       };
     };

@@ -26,8 +26,11 @@ func Run(defaultConfigPath string) {
 	cfgPath := flag.String("config", configPathDefault, "path to the menu config JSON")
 	xMode := flag.Bool("x", false, "dispatch using x command names")
 	xList := flag.Bool("list", false, "list x commands")
-	xHelp := flag.Bool("help", false, "show x command help")
+	showHelp := flag.Bool("help", false, "print usage and exit")
 	flag.Parse()
+	if *showHelp {
+		usage()
+	}
 
 	cfg, err := loadConfig(*cfgPath)
 	if err != nil {
@@ -48,17 +51,11 @@ func Run(defaultConfigPath string) {
 	case *xMode && *xList:
 		printList(cfg, st)
 
-	case *xMode && *xHelp:
-		runHelp(cfg, st)
-
 	case *xMode && len(args) > 0:
 		xFastPath(cfg, st, args)
 
 	case !*xMode && len(args) > 0 && args[0] == "list":
 		printList(cfg, st)
-
-	case !*xMode && len(args) > 0 && args[0] == "help":
-		runHelp(cfg, st)
 
 	case len(args) > 0:
 		fastPath(cfg, st, args[0], args[1:])
@@ -98,11 +95,13 @@ func runTUI(cfg *Config, st styles, argTask *Task) {
 	runProgram(cfg, st, newModel(cfg, st, argTask))
 }
 
-// runHelp opens the TUI directly in the manual viewer.
-func runHelp(cfg *Config, st styles) {
-	m := newModel(cfg, st, nil)
-	m.mode = modeHelp
-	runProgram(cfg, st, m)
+// usage prints a short command synopsis to stderr and exits 0 without
+// entering the TUI. Replaces the former menu-help manual viewer.
+func usage() {
+	fmt.Fprintln(os.Stderr, "usage: menu [--config path] [list | <task|key> [args…]]")
+	fmt.Fprintln(os.Stderr, "       x [--config path] [--list | <command-key> [args…]]")
+	fmt.Fprintln(os.Stderr, "shortcuts: motd|?  menu|m  docs|d")
+	os.Exit(0)
 }
 
 func runProgram(cfg *Config, st styles, m model) {

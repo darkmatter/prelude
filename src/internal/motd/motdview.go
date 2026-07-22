@@ -53,53 +53,88 @@ func (v MOTDView) Render() string {
 	return clearScreen + fillAbove + output
 }
 
-// renderBody composes three sibling surfaces at one shared card width:
-// header → divider on window/default → content container.
+// renderBody collapses the MOTD into three sibling sections at one shared
+// card width: Header → Body → Footer. Empty sections are omitted entirely so
+// spacing never shells around absent content; a single blank separates live
+// sections. Outer card padding still wraps the whole stack.
 func (v MOTDView) renderBody() string {
-	var sections []string
 	card := ui.Surface{Context: v.r.blockUI, Width: v.r.cardWidth}
-	header := HeaderView{r: v.r}
 
+	var sections []string
 	for range max(v.r.cfg.Padding.Top, 0) {
-		sections = append(sections, header.BlankLine())
-	}
-	if content := header.Render(); content != "" {
-		sections = append(sections, content)
-	}
-
-	// Give a generated title's divider one painted row of breathing room on
-	// each side. Other header variants retain their existing spacing.
-	if v.r.cfg.Title != "" {
-		sections = append(sections, header.BlankLine(), header.Divider(), card.Blank())
-	} else {
-		sections = append(sections, header.Divider())
-	}
-
-	h := v.r.cfg.Header
-	shortcuts := (Shortcuts{r: v.r}).Render()
-	if h.Tagline != "" || h.Subtitle != "" || shortcuts != "" {
-		sections = append(sections, strings.Join((Activation{r: v.r}).Render(h.Tagline, h.Subtitle, shortcuts), "\n"))
-	}
-
-	// Newline after the tagline/subtitle when a generated title is active.
-	if v.r.cfg.Title != "" && (h.Tagline != "" || h.Subtitle != "") {
 		sections = append(sections, card.Blank())
 	}
 
-	if middle := v.renderMiddle(); middle != "" {
-		sections = append(sections, middle)
+	// Collapse empty sections: only paint Header/Body/Footer when they have
+	// content, and insert one blank between consecutive live sections.
+	live := []string{
+		v.renderHeaderSection(),
+		v.renderBodySection(),
+		v.renderFooterSection(),
+	}
+	first := true
+	for _, section := range live {
+		if section == "" {
+			continue
+		}
+		if !first {
+			sections = append(sections, card.Blank())
+		}
+		sections = append(sections, section)
+		first = false
 	}
 
-	if footer := (FooterView{r: v.r}).Render(); footer != "" {
-		sections = append(sections, card.Blank(), footer)
-	}
-
-	// Bottom padding is under the whole card.
 	for range max(v.r.cfg.Padding.Bottom, 0) {
 		sections = append(sections, card.Blank())
 	}
 
 	return card.JoinVertical(sections...)
+}
+
+// renderHeaderSection owns the wordmark/title chrome, divider, and activation
+// strip (tagline/subtitle/shortcuts). Returns "" when nothing would paint.
+func (v MOTDView) renderHeaderSection() string {
+	header := HeaderView{r: v.r}
+	card := ui.Surface{Context: v.r.blockUI, Width: v.r.cardWidth}
+	var parts []string
+
+	if content := header.Render(); content != "" {
+		parts = append(parts, content)
+	}
+
+	// Give a generated title's divider one painted row of breathing room on
+	// each side. Other header variants retain their existing spacing.
+	if v.r.cfg.Title != "" {
+		parts = append(parts, header.BlankLine(), header.Divider(), card.Blank())
+	} else if div := header.Divider(); div != "" {
+		parts = append(parts, div)
+	}
+
+	h := v.r.cfg.Header
+	shortcuts := (Shortcuts{r: v.r}).Render()
+	if h.Tagline != "" || h.Subtitle != "" || shortcuts != "" {
+		parts = append(parts, strings.Join((Activation{r: v.r}).Render(h.Tagline, h.Subtitle, shortcuts), "\n"))
+	}
+
+	// Newline after the tagline/subtitle when a generated title is active.
+	if v.r.cfg.Title != "" && (h.Tagline != "" || h.Subtitle != "") {
+		parts = append(parts, card.Blank())
+	}
+
+	return joinNonEmpty(parts)
+}
+
+// renderBodySection owns description + env + getting-started with side
+// padding. Returns "" when the middle is empty so Footer can sit directly
+// under Header without a hollow shell.
+func (v MOTDView) renderBodySection() string {
+	return v.renderMiddle()
+}
+
+// renderFooterSection owns status badges and terminal links. Returns "" when
+// FooterView has nothing to paint.
+func (v MOTDView) renderFooterSection() string {
+	return (FooterView{r: v.r}).Render()
 }
 
 // renderMiddle builds description + env + getting-started, then applies
@@ -120,11 +155,26 @@ func (v MOTDView) renderMiddle() string {
 		content.WriteLines(started)
 	}
 
+	body := strings.TrimSuffix(content.String(), "\n")
+	if body == "" {
+		return ""
+	}
+
 	return ui.PadBlock(
-		strings.TrimSuffix(content.String(), "\n"),
+		body,
 		v.r.cardWidth,
 		v.r.cfg.Padding.Left,
 		v.r.cfg.Padding.Right,
 		v.r.st.blockFill,
 	)
+}
+
+func joinNonEmpty(parts []string) string {
+	var out []string
+	for _, p := range parts {
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return strings.Join(out, "\n")
 }

@@ -20,7 +20,7 @@
   project = "devshell";
 
   # Project commands keyed by invocation name for the interactive menu. The
-  # flake-parts module contributes menu/help/docs when those components exist.
+  # flake-parts module contributes menu/docs when those components exist.
   # Commands sort by `order ? 1000`, then name; groups follow the first command.
   # Command: { exec ? commandKey, group ? "general", order ? 1000,
   #            description ? "", key ? null, usage ? null, details ? null,
@@ -185,5 +185,9 @@
 
   docs = {
     pages = [ ];
+    rootReadme = null;
+    nixosOptions = {
+      options = { };
+    };
   };
 }

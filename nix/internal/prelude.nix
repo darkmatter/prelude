@@ -5,7 +5,20 @@
 #
 # Component-specific detail lives under nix/ so this file stays the thin
 # identity + catalogue surface users expect.
-{ self, ... }:
+{ self, lib, ... }:
+let
+  # Side-eval Prelude's public options so docs generation does not close over
+  # the live flake-parts option tree (cycles / noise). Same modules as docs-sync.
+  preludeOptionsEval = lib.evalModules {
+    modules = [
+      (self + /src/prelude/options/shared.nix)
+      (self + /src/prelude/options/motd.nix)
+      (self + /src/prelude/options/menu.nix)
+      (self + /src/prelude/options/docs.nix)
+      (self + /src/prelude/options/prompt.nix)
+    ];
+  };
+in
 {
 
   prelude = {
@@ -37,7 +50,7 @@
       description = "build a flake output";
       exec = "nix build";
 
-      usage = "menu build .#motd";
+      usage = "x build .#motd";
       args = [
         {
           token = "<target>";
@@ -83,13 +96,26 @@
     };
 
     docs = {
+      nixosOptions = {
+        options = {
+          inherit (preludeOptionsEval.options) prelude;
+        };
+        transformOptions = option: option // { declarations = [ ]; };
+      };
+      # mdSplit → { title = "README"; text; children }; docs.nix names the
+      # preamble child after project and attaches FIGlet via rootReadme.
+      rootReadme = self + /README.md;
       pages = [
-        { text = self + /docs/welcome.md; }
+        (self.lib.mdSplit (self + /README.md))
         { text = self + /docs/this-shell.md; }
         { text = self + /docs/commands.md; }
         { text = self + /docs/your-own-repo.md; }
         { text = self + /docs/configuration.md; }
         { text = self + /docs/see-also.md; }
+        {
+          generate = "nixosOptions";
+          title = "Options";
+        }
       ];
     };
 
@@ -120,7 +146,7 @@
           text = "Devshell UI for Nix flakes";
           subtitle = "MOTD, command menu, docs viewer, and prompt from one flake-parts module";
           layout = "stack";
-          align = "center";
+          align = "left";
         };
         background = false;
         statusHint = {

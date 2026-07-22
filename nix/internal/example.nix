@@ -43,7 +43,7 @@
     #     exec = "pnpm dev";  # defaults to the key suffix after the first colon
     #     description = "start the dev server";
 
-    #     # key = null;  # single-key accelerator (`menu <key>`)
+    #     # key = null;  # single-key accelerator (`x <key>`)
     #     # usage = null;  # usage form shown in menu details
     #     # details = null;  # extended description before arg entry
     #     # examples = [ ];  # worked example invocations
@@ -183,12 +183,12 @@
     # level-one heading labels the entry.
     # docs.pages = [
     #   { text = ./docs/getting-started.md; }
-    #   # { text = ./docs/commands.md; }
+    #   # (inputs.prelude.lib.mdSplit ./README.md)
     # ];
     docs.pages = [ ];
 
     # Preferred command-group order. Groups omitted follow alphabetically;
-    # the built-in "prelude" group (menu/help/docs) stays first.
+    # the built-in "prelude" group (menu/docs) stays first.
     # sort.groups = [ "develop" ];
   };
 }

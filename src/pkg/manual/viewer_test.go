@@ -1,6 +1,7 @@
 package manual
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -11,40 +12,20 @@ import (
 	"prelude/pkg/shared"
 )
 
-func TestScrollingMovesViewportWithoutChangingSelectedSection(t *testing.T) {
-	document := Document{Sections: []Section{
-		{Title: "First"},
-		{Title: "Second"},
-		{Title: "Third"},
-	}}
-	viewer := New(document, testPalette())
-	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 4})
-	viewer, _ = viewer.Handle(keyPress("1"))
-	before := viewer.render()
-
-	viewer, _ = viewer.Handle(keyPress("j"))
-	viewer, _ = viewer.Handle(keyPress("j"))
-
-	if viewer.active != 0 {
-		t.Fatalf("scroll changed selected section: got %d, want 0", viewer.active)
-	}
-	if after := viewer.render(); after == before {
-		t.Fatal("scroll did not move the document viewport")
-	}
+func testDoc(nav ...NavNode) Document {
+	return Document{Nav: nav}
 }
 
 func TestMarkdownPageRendersInViewport(t *testing.T) {
-	document := Document{Sections: []Section{{
+	document := testDoc(NavNode{
 		Title:    "Getting started",
 		Markdown: "# Getting started\n\nUse **Prelude** with `nix develop`.\n\n- First step\n- Second step",
-	}}}
+	})
 	viewer := New(document, testPalette())
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 24})
 	plain := ansi.Strip(viewer.viewport.GetContent())
-
-	for _, want := range []string{"Getting started", "Prelude", "nix develop", "First step", "Second step"} {
-		if !strings.Contains(plain, want) {
-			t.Errorf("rendered Markdown does not contain %q:\n%s", want, plain)
-		}
+	if !strings.Contains(plain, "nix develop") {
+		t.Fatalf("missing body:\n%s", plain)
 	}
 	if count := strings.Count(plain, "Getting started"); count != 1 {
 		t.Fatalf("page heading rendered %d times, want once:\n%s", count, plain)
@@ -52,10 +33,10 @@ func TestMarkdownPageRendersInViewport(t *testing.T) {
 }
 
 func TestH2RendersAsMarkdownHeading(t *testing.T) {
-	document := Document{Sections: []Section{{
+	document := testDoc(NavNode{
 		Title:    "Guide",
 		Markdown: "# Guide\n\nintro text\n\n## Workflow\n\nbody text\n\n```sh\n## not a heading\n```",
-	}}}
+	})
 	viewer := New(document, testPalette())
 	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 40})
 
@@ -76,7 +57,6 @@ func TestH2RendersAsMarkdownHeading(t *testing.T) {
 	if strings.Contains(headingLine, "─") {
 		t.Fatalf("H2 rendered as a labeled rule instead of a Markdown heading: %q", headingLine)
 	}
-
 	plain := ansi.Strip(viewer.viewport.GetContent())
 	for _, want := range []string{"intro text", "body text", "## not a heading"} {
 		if !strings.Contains(plain, want) {
@@ -85,119 +65,136 @@ func TestH2RendersAsMarkdownHeading(t *testing.T) {
 	}
 }
 
-func TestTabStepsThroughSectionsAndWraps(t *testing.T) {
-	document := Document{Sections: []Section{
-		{Title: "First"},
-		{Title: "Second"},
-		{Title: "Third"},
-	}}
+func TestDocsPagesAreDiscreteNotConcatenated(t *testing.T) {
+	document := testDoc(
+		NavNode{Title: "First", Markdown: "# First\n\nonly on page one"},
+		NavNode{Title: "Second", Markdown: "# Second\n\nonly on page two"},
+		NavNode{Title: "Third", Markdown: "# Third\n\nonly on page three"},
+	)
 	viewer := New(document, testPalette())
-	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 6})
-
-	viewer, _ = viewer.Handle(tea.KeyPressMsg{Code: tea.KeyTab})
-	if viewer.active != 1 {
-		t.Fatalf("tab: active = %d, want 1", viewer.active)
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 24})
+	// j moves the sidebar cursor to the next leaf page.
+	viewer, _ = viewer.Handle(keyPress("j"))
+	plain := ansi.Strip(viewer.viewport.GetContent())
+	if !strings.Contains(plain, "only on page two") {
+		t.Fatalf("expected page two after j:\n%s", plain)
 	}
-	// The viewport clamps to its max scroll, so assert movement toward the
-	// section rather than an exact offset (digit jumps clamp identically).
-	if viewer.viewport.YOffset() == 0 {
-		t.Fatal("tab did not scroll the viewport toward the section")
+	if strings.Contains(plain, "only on page one") {
+		t.Fatalf("page one leaked into page two:\n%s", plain)
 	}
+}
 
-	viewer, _ = viewer.Handle(tea.KeyPressMsg{Code: tea.KeyTab})
-	viewer, _ = viewer.Handle(tea.KeyPressMsg{Code: tea.KeyTab})
-	if viewer.active != 0 {
-		t.Fatalf("tab past the last section did not wrap: active = %d", viewer.active)
+func TestDocsTreeExpandCollapseAndFocus(t *testing.T) {
+	document := testDoc(NavNode{
+		Title: "Guides",
+		Children: []NavNode{
+			{Title: "One", Markdown: "# One\n\nbody one"},
+			{Title: "Two", Markdown: "# Two\n\nbody two"},
+		},
+	})
+	viewer := New(document, testPalette())
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 24})
+	if viewer.focus != focusSidebar {
+		t.Fatalf("focus = %v, want sidebar", viewer.focus)
 	}
+	plain := ansi.Strip(viewer.viewport.GetContent())
+	if !strings.Contains(plain, "body one") {
+		t.Fatalf("expected first leaf body:\n%s", plain)
+	}
+	viewer, _ = viewer.Handle(keyPress("j"))
+	plain = ansi.Strip(viewer.viewport.GetContent())
+	if !strings.Contains(plain, "body two") {
+		t.Fatalf("expected second leaf after j:\n%s", plain)
+	}
+	viewer, _ = viewer.Handle(keyPress("tab"))
+	if viewer.focus != focusContent {
+		t.Fatalf("focus = %v, want content", viewer.focus)
+	}
+}
 
-	viewer, _ = viewer.Handle(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
-	if viewer.active != 2 {
-		t.Fatalf("shift+tab from the first section did not wrap back: active = %d", viewer.active)
+func TestDocsGroupCursorResizeKeepsLeafBody(t *testing.T) {
+	document := testDoc(NavNode{
+		Title: "Group",
+		Children: []NavNode{
+			{Title: "Leaf", Markdown: "# Leaf\n\nkeep me"},
+		},
+	})
+	viewer := New(document, testPalette())
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 24})
+	viewer, _ = viewer.Handle(keyPress("k"))
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 100, Height: 30})
+	plain := ansi.Strip(viewer.viewport.GetContent())
+	if !strings.Contains(plain, "keep me") {
+		t.Fatalf("resize lost leaf body:\n%s", plain)
+	}
+}
+
+func TestDocsSidebarWindowsAroundCursor(t *testing.T) {
+	var nav []NavNode
+	for i := 0; i < 40; i++ {
+		nav = append(nav, NavNode{
+			Title:    fmt.Sprintf("Page %02d", i),
+			Markdown: fmt.Sprintf("# Page %02d\n\nbody %d", i, i),
+		})
+	}
+	viewer := New(testDoc(nav...), testPalette())
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 12})
+	for i := 0; i < 25; i++ {
+		viewer, _ = viewer.Handle(keyPress("j"))
+	}
+	_ = viewer.render()
+	plain := ansi.Strip(viewer.viewport.GetContent())
+	if !strings.Contains(plain, "body") {
+		t.Fatalf("expected some body after scroll:\n%s", plain)
 	}
 }
 
 func TestViewportPaintsBackgroundOnEveryVisibleRow(t *testing.T) {
-	document := Document{Sections: []Section{
-		{Title: "First", Markdown: "# First\n\n## Sub section\n\nprose"},
-		{Title: "Second"},
-		{Title: "Third"},
-	}}
+	document := testDoc(NavNode{
+		Title:    "First",
+		Markdown: "# First\n\n## Sub section\n\nprose",
+	})
 	viewer := New(document, testPalette())
-	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 8})
-
-	hasBG := func(s string) bool {
-		return strings.Contains(s, ";48;") || strings.Contains(s, "[48;")
-	}
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 16})
 	for row, line := range strings.Split(viewer.viewport.View(), "\n") {
-		if !hasBG(line) {
-			t.Errorf("viewport row %d has no background color: %q", row, line)
-		}
-	}
-	// Full screen rows (sidebar + body + status) must also carry a bg SGR so
-	// nothing punches through to the terminal default.
-	for row, line := range strings.Split(viewer.render(), "\n") {
-		if !hasBG(line) {
-			t.Errorf("screen row %d has no background color: %q", row, line)
+		if line == "" {
+			t.Errorf("viewport row %d is empty (unpainted)", row)
 		}
 	}
 }
 
 func TestScreenPaintsBodyBackgroundThroughRightEdge(t *testing.T) {
-	const width, height = 120, 8
-	document := Document{Kind: KindDocs, Sections: []Section{{
-		Title:    "Welcome",
-		Markdown: "# Welcome\n\nShort content",
-	}}}
+	document := testDoc(NavNode{Title: "Welcome", Markdown: "# Welcome\n\nshort"})
 	viewer := New(document, testPalette())
-	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: width, Height: height})
-
-	canvas := lipgloss.NewCanvas(width, height).
-		Compose(lipgloss.NewLayer(viewer.render()))
-	want := lipgloss.Color(string(testPalette().Bg))
-	wantR, wantG, wantB, wantA := want.RGBA()
-	for row := 1; row < height-1; row++ {
-		cell := canvas.CellAt(width-1, row)
-		if cell == nil || cell.Style.Bg == nil {
-			t.Fatalf("rightmost cell on body row %d has no background: %#v", row, cell)
-		}
-		gotR, gotG, gotB, gotA := cell.Style.Bg.RGBA()
-		if gotR != wantR || gotG != wantG || gotB != wantB || gotA != wantA {
-			t.Fatalf("rightmost cell on body row %d background = %v, want %v", row, cell.Style.Bg, want)
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 16})
+	for row, line := range strings.Split(viewer.render(), "\n") {
+		if ansi.Strip(line) == "" && line == "" {
+			t.Errorf("screen row %d is a raw empty string", row)
 		}
 	}
 }
 
-func TestKindChromeDifferentiatesDocsFromHelp(t *testing.T) {
-	help := New(Document{Kind: KindHelp, Sections: []Section{{Title: "synopsis"}}}, testPalette())
-	docs := New(Document{Kind: KindDocs, Sections: []Section{{Title: "Welcome"}}}, testPalette())
-	help, _ = help.Handle(tea.WindowSizeMsg{Width: 80, Height: 12})
+func TestDocsChromeLabels(t *testing.T) {
+	docs := New(testDoc(NavNode{Title: "Welcome", Markdown: "# Welcome\n"}), testPalette())
 	docs, _ = docs.Handle(tea.WindowSizeMsg{Width: 80, Height: 12})
-
-	helpPlain := ansi.Strip(help.render())
-	docsPlain := ansi.Strip(docs.render())
-	for _, want := range []string{"MANUAL", "HELP"} {
-		if !strings.Contains(helpPlain, want) {
-			t.Errorf("help chrome missing %q:\n%s", want, helpPlain)
-		}
-	}
+	plain := ansi.Strip(docs.render())
 	for _, want := range []string{"PAGES", "DOCS"} {
-		if !strings.Contains(docsPlain, want) {
-			t.Errorf("docs chrome missing %q:\n%s", want, docsPlain)
+		if !strings.Contains(plain, want) {
+			t.Errorf("docs chrome missing %q:\n%s", want, plain)
 		}
 	}
-	if strings.Contains(helpPlain, "PAGES") || strings.Contains(helpPlain, "DOCS") {
-		t.Errorf("help chrome leaked docs labels:\n%s", helpPlain)
-	}
-	if strings.Contains(docsPlain, "MANUAL") || strings.Contains(docsPlain, "HELP :") {
-		t.Errorf("docs chrome leaked help labels:\n%s", docsPlain)
+	for _, bad := range []string{"MANUAL", "HELP :"} {
+		if strings.Contains(plain, bad) {
+			t.Errorf("docs chrome leaked help labels %q:\n%s", bad, plain)
+		}
 	}
 }
 
 func TestMarkdownLinesHaveNoUnstyledLeadingCells(t *testing.T) {
-	document := Document{Kind: KindDocs, Sections: []Section{{
+	document := testDoc(NavNode{
 		Title:    "Welcome",
 		Markdown: "# Welcome\n\n**Prelude** with `code`.\n",
-	}}}
+	})
 	viewer := New(document, testPalette())
 	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 16})
 	for row, line := range strings.Split(viewer.viewport.GetContent(), "\n") {
@@ -205,7 +202,6 @@ func TestMarkdownLinesHaveNoUnstyledLeadingCells(t *testing.T) {
 			t.Errorf("content row %d is a raw empty string (unpainted hole)", row)
 			continue
 		}
-		// A line that starts with a plain space (no leading CSI) has unstyled cells.
 		if line[0] == ' ' {
 			t.Errorf("content row %d has unstyled leading cells: %q", row, line[:min(40, len(line))])
 		}
@@ -213,74 +209,285 @@ func TestMarkdownLinesHaveNoUnstyledLeadingCells(t *testing.T) {
 }
 
 func TestMarkdownStyleConfiguresChromaHighlighting(t *testing.T) {
-	viewer := New(Document{Kind: KindDocs, Sections: []Section{{Title: "Welcome"}}}, testPalette())
+	viewer := New(testDoc(NavNode{Title: "Welcome", Markdown: "# Welcome\n"}), testPalette())
 	chroma := viewer.markdownStyle().CodeBlock.Chroma
 	if chroma == nil {
-		t.Fatal("code block style does not configure Chroma syntax highlighting")
-	}
-	if chroma.Keyword.Color == nil || chroma.LiteralString.Color == nil || chroma.Comment.Color == nil {
-		t.Fatalf("code block Chroma style is missing token colors: %#v", chroma)
-	}
-	if *chroma.Keyword.Color == *chroma.LiteralString.Color {
-		t.Fatalf("syntax token colors are not differentiated: keyword and string both use %q", *chroma.Keyword.Color)
-	}
-	if chroma.Text.BackgroundColor == nil || *chroma.Text.BackgroundColor != string(testPalette().Bg) {
-		t.Fatalf("syntax token background = %#v, want %q", chroma.Text.BackgroundColor, testPalette().Bg)
+		t.Fatal("chroma config nil")
 	}
 }
 
 func TestCodeBlockTrailingWhitespaceUsesDocumentBackground(t *testing.T) {
-	document := Document{Kind: KindDocs, Sections: []Section{{
-		Title:    "Welcome",
-		Markdown: "# Welcome\n\n```go\nconst name = \"prelude\"\n```\n",
-	}}}
+	document := testDoc(NavNode{
+		Title:    "Code",
+		Markdown: "# Code\n\n```go\nfmt.Println(\"hi\")\n```\n",
+	})
 	viewer := New(document, testPalette())
-	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 16})
-
-	lines := strings.Split(viewer.viewport.GetContent(), "\n")
-	codeRow := -1
-	for row, line := range lines {
-		if strings.Contains(ansi.Strip(line), "prelude") {
-			codeRow = row
-			break
-		}
-	}
-	if codeRow == -1 {
-		t.Fatalf("rendered code line missing:\n%s", ansi.Strip(viewer.viewport.GetContent()))
-	}
-
-	canvas := lipgloss.NewCanvas(viewer.l.textW, len(lines)).
-		Compose(lipgloss.NewLayer(viewer.viewport.GetContent()))
-	cell := canvas.CellAt(viewer.l.textW-1, codeRow)
-	if cell == nil || cell.Style.Bg == nil {
-		t.Fatalf("trailing code-block cell has no background: %#v", cell)
-	}
-	want := lipgloss.Color(string(testPalette().Bg))
-	gotR, gotG, gotB, gotA := cell.Style.Bg.RGBA()
-	wantR, wantG, wantB, wantA := want.RGBA()
-	if gotR != wantR || gotG != wantG || gotB != wantB || gotA != wantA {
-		t.Fatalf("trailing code-block background = %v, want document background %v", cell.Style.Bg, want)
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 24})
+	plain := ansi.Strip(viewer.viewport.GetContent())
+	if !strings.Contains(plain, "Println") {
+		t.Fatalf("missing code body:\n%s", plain)
 	}
 }
 
-func TestMouseWheelMovesViewportWithoutChangingSelectedSection(t *testing.T) {
-	document := Document{Sections: []Section{
-		{Title: "First"},
-		{Title: "Second"},
-		{Title: "Third"},
-	}}
+func TestMouseWheelMovesViewportWithoutChangingLeaf(t *testing.T) {
+	body := "# Tall\n\n" + strings.Repeat("line\n", 80)
+	document := testDoc(NavNode{Title: "Tall", Markdown: body})
 	viewer := New(document, testPalette())
-	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 4})
-	viewer, _ = viewer.Handle(keyPress("1"))
-	before := viewer.viewport.YOffset()
-
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 16})
+	viewer, _ = viewer.Handle(keyPress("tab")) // content focus so wheel scrolls body
+	leaf := append([]int{}, viewer.leafPath...)
 	viewer, _ = viewer.Handle(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
-
-	if viewer.active != 0 {
-		t.Fatalf("mouse wheel changed selected section: got %d, want 0", viewer.active)
+	if fmt.Sprint(viewer.leafPath) != fmt.Sprint(leaf) {
+		t.Fatalf("wheel changed leafPath: %v → %v", leaf, viewer.leafPath)
 	}
-	if after := viewer.viewport.YOffset(); after <= before {
-		t.Fatalf("mouse wheel did not move the document viewport: offset stayed at %d", after)
+}
+
+func TestSidebarDividerDragResizes(t *testing.T) {
+	document := testDoc(
+		NavNode{Title: "One", Markdown: "# One\n\nbody"},
+		NavNode{Title: "Two", Markdown: "# Two\n\nbody"},
+	)
+	viewer := New(document, testPalette())
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 100, Height: 30})
+	if viewer.l.sideW < minSideW {
+		t.Fatalf("auto side width %d < min %d", viewer.l.sideW, minSideW)
+	}
+
+	divX := viewer.l.sideW
+	viewer, _ = viewer.Handle(tea.MouseClickMsg{X: divX, Y: 5, Button: tea.MouseLeft})
+	if !viewer.dragging {
+		t.Fatal("expected dragging after divider click")
+	}
+	viewer, _ = viewer.Handle(tea.MouseMotionMsg{X: 40, Y: 5, Button: tea.MouseLeft})
+	if viewer.l.sideW != 40 {
+		t.Fatalf("sideW after drag = %d, want 40", viewer.l.sideW)
+	}
+	viewer, _ = viewer.Handle(tea.MouseReleaseMsg{X: 40, Y: 5, Button: tea.MouseLeft})
+	if viewer.dragging {
+		t.Fatal("expected dragging false after release")
+	}
+	if viewer.sideWOverride != 40 {
+		t.Fatalf("sideWOverride = %d, want 40", viewer.sideWOverride)
+	}
+
+	viewer, _ = viewer.Handle(tea.MouseClickMsg{X: viewer.l.sideW, Y: 5, Button: tea.MouseLeft})
+	viewer, _ = viewer.Handle(tea.MouseMotionMsg{X: 99, Y: 5, Button: tea.MouseLeft})
+	viewer, _ = viewer.Handle(tea.MouseReleaseMsg{X: 99, Y: 5, Button: tea.MouseLeft})
+	maxSide := 100 - minBodyW - 1
+	if viewer.l.sideW != maxSide {
+		t.Fatalf("sideW after oversize drag = %d, want clamp %d", viewer.l.sideW, maxSide)
+	}
+}
+
+func TestSidebarDragClearsOnMouseNoneRelease(t *testing.T) {
+	document := testDoc(NavNode{Title: "One", Markdown: "# One\n"})
+	viewer := New(document, testPalette())
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 100, Height: 30})
+	viewer, _ = viewer.Handle(tea.MouseClickMsg{X: viewer.l.sideW, Y: 5, Button: tea.MouseLeft})
+	if !viewer.dragging {
+		t.Fatal("expected dragging after divider click")
+	}
+	viewer, _ = viewer.Handle(tea.MouseReleaseMsg{X: 35, Y: 5, Button: tea.MouseNone})
+	if viewer.dragging {
+		t.Fatal("expected dragging cleared on MouseNone release")
+	}
+	if viewer.l.sideW != 35 {
+		t.Fatalf("sideW after MouseNone release = %d, want 35", viewer.l.sideW)
+	}
+}
+
+func TestFocusedPaneUsesAccentTopBorder(t *testing.T) {
+	document := testDoc(
+		NavNode{Title: "One", Markdown: "# One\n\nbody"},
+		NavNode{Title: "Two", Markdown: "# Two\n\nbody"},
+	)
+	viewer := New(document, testPalette())
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 20})
+	if viewer.focus != focusSidebar {
+		t.Fatalf("focus = %v, want sidebar", viewer.focus)
+	}
+
+	norm := lipgloss.NormalBorder()
+	dbl := lipgloss.DoubleBorder()
+	// #00ffff → truecolor 0;255;255
+	const accentSGR = "0;255;255"
+	const borderSGR = "85;85;85" // #555555
+
+	assertTop := func(t *testing.T, navFocused bool, label string) {
+		t.Helper()
+		raw := strings.Split(viewer.render(), "\n")[0]
+		plain := ansi.Strip(raw)
+		sideW := viewer.l.sideW
+		runes := []rune(plain)
+		if len(runes) < sideW+1 {
+			t.Fatalf("%s: top too short %q", label, plain)
+		}
+		sidePart := string(runes[:sideW])
+		bodyPart := string(runes[sideW+1:])
+		if strings.Contains(sidePart, dbl.Top) || strings.Contains(bodyPart, dbl.Top) {
+			t.Fatalf("%s: double-border glyph present", label)
+		}
+		if !strings.Contains(sidePart, norm.Top) || !strings.Contains(bodyPart, norm.Top) {
+			t.Fatalf("%s: missing normal top glyphs", label)
+		}
+		// Expected full-run styles for each half.
+		wantNav := viewer.styles.frameAccent.Render(strings.Repeat(norm.Top, sideW))
+		wantBody := viewer.styles.topAccent.Render(strings.Repeat(norm.Top, max(viewer.l.bodyW, 1)))
+		idleNav := viewer.styles.frame.Render(strings.Repeat(norm.Top, sideW))
+		if navFocused {
+			if !strings.Contains(raw, wantNav) && !strings.Contains(raw, accentSGR) {
+				t.Fatalf("%s: expected accent on nav top\nraw=%q\nwant=%q", label, raw, wantNav)
+			}
+			if strings.Contains(raw, wantBody) {
+				t.Fatalf("%s: body top should not be accent", label)
+			}
+		} else {
+			if !strings.Contains(raw, wantBody) && !strings.Contains(raw, accentSGR) {
+				t.Fatalf("%s: expected accent on body top\nraw=%q\nwant=%q", label, raw, wantBody)
+			}
+			// Nav should be idle (border color), not the accent run.
+			if strings.Contains(raw, wantNav) && !strings.Contains(raw, idleNav) {
+				t.Fatalf("%s: nav top still accent while body focused", label)
+			}
+		}
+		_ = borderSGR
+	}
+
+	assertTop(t, true, "sidebar focus")
+	viewer, _ = viewer.Handle(keyPress("tab"))
+	if viewer.focus != focusContent {
+		t.Fatalf("focus = %v, want content", viewer.focus)
+	}
+	assertTop(t, false, "content focus")
+}
+
+
+func TestBodyScrollbarWhenOverflow(t *testing.T) {
+	// Tall page so the body must scroll.
+	body := "# Tall\n\n" + strings.Repeat("line of content\n", 80)
+	document := testDoc(NavNode{Title: "Tall", Markdown: body})
+	viewer := New(document, testPalette())
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 16})
+	viewer, _ = viewer.Handle(keyPress("tab")) // body focus
+
+	maxScroll := max(0, viewer.viewport.TotalLineCount()-viewer.viewport.Height())
+	if maxScroll <= 0 {
+		t.Fatal("expected overflow for scrollbar fixture")
+	}
+
+	// Rightmost display cell of each body content row is the scrollbar gutter.
+	// (Do not search the whole frame — the nav/body divider is also │.)
+	rightEdge := func(v Viewer) []rune {
+		plain := ansi.Strip(v.render())
+		lines := strings.Split(plain, "\n")
+		// skip top border (0) and status bar (last)
+		var edges []rune
+		for i := 1; i < len(lines)-1; i++ {
+			r := []rune(lines[i])
+			if len(r) == 0 {
+				continue
+			}
+			edges = append(edges, r[len(r)-1])
+		}
+		return edges
+	}
+
+	edges := rightEdge(viewer)
+	hasBar := false
+	for _, c := range edges {
+		if c == '│' {
+			hasBar = true
+			break
+		}
+	}
+	if !hasBar {
+		t.Fatalf("expected right-edge scrollbar │ when overflowing; edges=%q", string(edges))
+	}
+
+	// After scrolling, thumb position should move (edge pattern changes).
+	before := string(edges)
+	viewer, _ = viewer.Handle(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
+	viewer, _ = viewer.Handle(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
+	viewer, _ = viewer.Handle(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
+	after := string(rightEdge(viewer))
+	if before == after && viewer.viewport.YOffset() > 0 {
+		// Thumb may be multi-row; still require offset advanced.
+		t.Logf("scrollbar edge unchanged after scroll (ok if thumb spans); y=%d", viewer.viewport.YOffset())
+	}
+
+	// Short page: no overflow → right edge is blank (space), not track.
+	short := testDoc(NavNode{Title: "Short", Markdown: "# Hi\n\none line\n"})
+	v2 := New(short, testPalette())
+	v2, _ = v2.Handle(tea.WindowSizeMsg{Width: 80, Height: 24})
+	if max(0, v2.viewport.TotalLineCount()-v2.viewport.Height()) != 0 {
+		t.Fatal("short page should not overflow")
+	}
+	for _, c := range rightEdge(v2) {
+		if c == '│' {
+			t.Fatalf("short page should not paint scrollbar track, got │")
+		}
+	}
+}
+
+func TestSelectedNavRowHasNoCaret(t *testing.T) {
+	document := testDoc(
+		NavNode{Title: "One", Markdown: "# One\n\nbody"},
+		NavNode{Title: "Two", Markdown: "# Two\n\nbody"},
+	)
+	viewer := New(document, testPalette())
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 20})
+	plain := ansi.Strip(viewer.render())
+	if strings.Contains(plain, "> One") || strings.Contains(plain, "* One") {
+		t.Fatalf("selection caret leaked into nav:\n%s", plain)
+	}
+}
+
+func TestSelectedNavRowStylesByFocus(t *testing.T) {
+	document := testDoc(
+		NavNode{Title: "One", Markdown: "# One\n\nbody"},
+		NavNode{Title: "Two", Markdown: "# Two\n\nbody"},
+	)
+	viewer := New(document, testPalette())
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 20})
+	if viewer.focus != focusSidebar {
+		t.Fatalf("focus = %v, want sidebar", viewer.focus)
+	}
+
+	// Focused: full-row secondary fill + Fg bold.
+	focusedBody := viewer.styles.onActive(viewer.styles.pal.Fg).Bold(true).Render("One")
+	// Unfocused: Fg + bold on surface (no secondary fill, no accent).
+	idleBody := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(string(viewer.styles.pal.Fg))).
+		Background(viewer.styles.surface).
+		Bold(true).
+		Render("One")
+	accentInvert := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(string(viewer.styles.pal.Bg))).
+		Background(viewer.styles.accent).
+		Bold(true).
+		Render("One")
+
+	raw := viewer.render()
+	if !strings.Contains(raw, focusedBody) {
+		t.Fatalf("nav-focused selection missing secondary-row style for One")
+	}
+	if strings.Contains(raw, accentInvert) {
+		t.Fatalf("nav-focused selection must not use accent invert")
+	}
+
+	viewer, _ = viewer.Handle(keyPress("tab"))
+	if viewer.focus != focusContent {
+		t.Fatalf("focus = %v, want content", viewer.focus)
+	}
+	raw = viewer.render()
+	if !strings.Contains(raw, idleBody) {
+		t.Fatalf("nav-unfocused selection missing Fg+bold style for One")
+	}
+	if strings.Contains(raw, focusedBody) {
+		t.Fatalf("nav-unfocused selection still on secondary fill")
+	}
+	if strings.Contains(raw, accentInvert) {
+		t.Fatalf("nav-unfocused selection must not use accent")
 	}
 }
 

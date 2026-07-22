@@ -12,12 +12,47 @@
 {{- else }}
 {{ .Pad }}  # description = "";
 {{- end }}
-{{ .Pad }}  # key = null;  # single-key accelerator (`menu <key>`)
-{{ .Pad }}  # usage = null;  # usage form shown in menu details
+{{- if .Group }}
+{{ .Pad }}  # group inferred from key: {{ .Group }}  # first colon segment; builtins land in "prelude"
+{{- end }}
+{{- if .KeyAccel }}
+{{ .Pad }}  key = {{ nixString .KeyAccel }};  # single-key accelerator (`x <key>`)
+{{- else }}
+{{ .Pad }}  # key = null;  # single-key accelerator (`x <key>`)
+{{- end }}
+{{- if .Usage }}
+{{ .Pad }}  usage = {{ nixString .Usage }};  # usage form shown in menu details
+{{- else }}
+{{ .Pad }}  # usage = {{ nixString .InferredUsage }};  # usage form shown in menu details
+{{- end }}
+{{- if .Details }}
+{{ .Pad }}  details = {{ nixString .Details }};  # extended description before arg entry
+{{- else }}
 {{ .Pad }}  # details = null;  # extended description before arg entry
-{{ .Pad }}  # examples = [ ];  # worked example invocations
+{{- end }}
+{{- if .Examples }}
+{{ .Pad }}  examples = [
+{{- range .Examples }}
+{{ $.Pad }}    {{ nixString . }}
+{{- end }}
+{{ .Pad }}  ];  # worked example invocations
+{{- else }}
+{{ .Pad }}  # examples = [ {{ nixString .InferredUsage }} ];  # worked example invocations
+{{- end }}
+{{- if .Args }}
+{{ .Pad }}  args = [
+{{- range .Args }}
+{{ $.Pad }}    { token = {{ nixString .Token }};{{ if .Description }} description = {{ nixString .Description }};{{ end }}{{ if .Required }} required = true;{{ end }}{{ if .Boolean }} boolean = true;{{ end }} }
+{{- end }}
+{{ .Pad }}  ];  # arg-entry mode
+{{- else }}
 {{ .Pad }}  # args = [ ];  # arg-entry mode: { token, description?, required?, boolean?, options? }
+{{- end }}
+{{- if .Invocation }}
+{{ .Pad }}  invocation = {{ nixString .Invocation }};  # canonical shell text for duplicate detection
+{{- else }}
 {{ .Pad }}  # invocation = null;  # canonical shell text for duplicate detection; defaults to exec
+{{- end }}
 {{- if .MotdOrder }}
 {{ .Pad }}  motd = {{ .MotdOrder }};  # MOTD Getting Started sort order; null hides from MOTD
 {{- else }}
@@ -28,7 +63,7 @@
 
 {{/* Example command fields when the catalogue is empty (already under `# ` lines). */}}
 {{define "commandFieldsCommented"}}
-    #     # key = null;  # single-key accelerator (`menu <key>`)
+    #     # key = null;  # single-key accelerator (`x <key>`)
     #     # usage = null;  # usage form shown in menu details
     #     # details = null;  # extended description before arg entry
     #     # examples = [ ];  # worked example invocations

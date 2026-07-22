@@ -20,6 +20,10 @@ const (
 
 // styles holds every lipgloss style derived from the theme palette.
 // Presentation only — no layout widths or content decisions live here.
+//
+// Semantic styles come from a surface → ui.Context map (block / header /
+// window). Fills and exceptional colors (codeBg, frame, divider peaks) stay
+// explicit because they are blended surfaces, not palette tokens.
 type styles struct {
 	pal shared.Palette
 	h   shared.PaletteHelper
@@ -34,6 +38,10 @@ type styles struct {
 	frameC            color.Color
 	dividerPk         color.Color
 	headerUnderlinePk color.Color // dimmed accent peak for the ━ hero rule
+
+	// surfaces maps layer name → render context. Named *UI fields on the
+	// renderer are built from these; styles keeps the map for derivation.
+	surfaces map[string]ui.Context
 
 	blockFill  lipgloss.Style
 	windowFill lipgloss.Style
@@ -88,37 +96,27 @@ func newStyles(cfg Config) styles {
 	dividerPk := lipgloss.Darken(accentC, dividerPeakDark)
 	headerUnderlinePk := lipgloss.Darken(accentC, headerUnderlineDarken)
 
-	onBlock := func(fg shared.Color) lipgloss.Style {
-		if !hasBlockBg {
-			return h.Plain(string(fg))
-		}
-		return h.On(blockBg, string(fg))
-	}
-	onHeader := func(fg shared.Color) lipgloss.Style {
-		if headerTransparent {
-			return onBlock(fg)
-		}
-		return h.On(headerBg, string(fg))
-	}
-
-	blockFill := lipgloss.NewStyle()
-	if hasBlockBg {
-		blockFill = blockFill.Background(blockBg)
-	}
 	windowTransparent := cfg.WindowBackground == ""
 	windowBg := h.Color(string(p.Bg))
-	windowFill := lipgloss.NewStyle()
 	if !windowTransparent {
 		windowBg = h.Color(cfg.WindowBackground)
-		windowFill = windowFill.Background(windowBg)
 	}
-	headerFill := lipgloss.NewStyle()
-	switch {
-	case !headerTransparent:
-		headerFill = headerFill.Background(headerBg)
-	case hasBlockBg:
-		headerFill = headerFill.Background(blockBg)
+
+	// Surface map owns semantic styles. Header falls through to block when
+	// transparent so raised/transparent headers share one derivation path.
+	headerCtxBg := headerBg
+	headerCtxTransparent := headerTransparent && !hasBlockBg
+	if headerTransparent && hasBlockBg {
+		headerCtxBg = blockBg
+		headerCtxTransparent = false
 	}
+	surfaces := map[string]ui.Context{
+		"block":  blockContext,
+		"header": ui.NewContext(p, headerCtxBg, headerCtxTransparent),
+		"window": ui.NewContext(p, windowBg, windowTransparent),
+	}
+	blockUI := surfaces["block"]
+	headerUI := surfaces["header"]
 
 	return styles{
 		pal: p,
@@ -135,26 +133,36 @@ func newStyles(cfg Config) styles {
 		dividerPk:         dividerPk,
 		headerUnderlinePk: headerUnderlinePk,
 
-		blockFill:  blockFill,
-		windowFill: windowFill,
-		headerFill: headerFill,
+		surfaces: surfaces,
 
-		dim:    onBlock(p.Dim),
-		muted:  onBlock(p.Muted),
-		fg:     onBlock(p.Fg),
-		fgBold: onBlock(p.Fg).Bold(true),
-		accent: onBlock(p.Accent),
-		amber:  onBlock(p.Accent2),
+		blockFill:  blockUI.Fill(),
+		windowFill: surfaces["window"].Fill(),
+		headerFill: headerUI.Fill(),
 
-		headerDim:     onHeader(p.Dim),
-		headerMuted:   onHeader(p.Muted),
-		headerFg:      onHeader(p.Fg),
-		headerAccent:  onHeader(p.Accent),
-		headerSuccess: onHeader(p.Success),
-		headerWarning: onHeader(p.Warning),
-		headerInfo:    onHeader(p.Info),
-		headerError:   onHeader(p.Error),
+		dim:    blockUI.Dim(),
+		muted:  blockUI.Muted(),
+		fg:     blockUI.Foreground(),
+		fgBold: blockUI.Foreground().Bold(true),
+		accent: blockUI.Accent(),
+		amber:  blockUI.Accent2(),
+
+		headerDim:     headerUI.Dim(),
+		headerMuted:   headerUI.Muted(),
+		headerFg:      headerUI.Foreground(),
+		headerAccent:  headerUI.Accent(),
+		headerSuccess: headerUI.Success(),
+		headerWarning: headerUI.Warning(),
+		headerInfo:    headerUI.Info(),
+		headerError:   headerUI.Error(),
 	}
+}
+
+// surface returns the named surface Context from the derivation map.
+func (s styles) surface(name string) ui.Context {
+	if c, ok := s.surfaces[name]; ok {
+		return c
+	}
+	return s.surfaces["block"]
 }
 
 // on returns a style with background then foreground (playground order).
@@ -163,11 +171,10 @@ func (s styles) on(bg, fg color.Color) lipgloss.Style {
 }
 
 func (s styles) onWindow(fg color.Color) lipgloss.Style {
-	style := lipgloss.NewStyle().Foreground(fg)
-	if !s.windowTransparent {
-		style = style.Background(s.windowBg)
+	if s.windowTransparent {
+		return lipgloss.NewStyle().Foreground(fg)
 	}
-	return style
+	return s.on(s.windowBg, fg)
 }
 
 // fill is a background-only style. No-op background when c is unused by caller.

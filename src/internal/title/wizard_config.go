@@ -31,13 +31,32 @@ type configData struct {
 }
 
 // commandData is one prelude.commands entry for the template.
+// Deeper catalogue fields are populated from wizard selections when known,
+// otherwise left empty so the template emits documented commented defaults
+// (inferred usage/group) without changing the step UI.
 type commandData struct {
-	Key          string // Nix attr key (quoted when needed)
-	Pad          string // leading indent for the entry block
-	Exec         string // empty → emit commented inferred default
-	InferredExec string
-	Description  string
-	MotdOrder    int // 0 → commented null; else active sort order
+	Key           string // Nix attr key (quoted when needed)
+	Pad           string // leading indent for the entry block
+	Exec          string // empty → emit commented inferred default
+	InferredExec  string
+	Description   string
+	Group         string // inferred menu group from the public key
+	KeyAccel      string // single-key accelerator when set
+	Usage         string // active usage override
+	InferredUsage string // commented default usage form
+	Details       string
+	Examples      []string
+	Args          []wizardArgData
+	Invocation    string
+	MotdOrder     int // 0 → commented null; else active sort order
+}
+
+// wizardArgData is one args[] entry for deeper emission.
+type wizardArgData struct {
+	Token       string
+	Description string
+	Required    bool
+	Boolean     bool
 }
 
 // paletteTokens matches options/shared.nix palette submodule fields.
@@ -97,12 +116,24 @@ func newConfigData(r wizardResult, titlePath string, flakeParts bool) configData
 	}
 	commands := make([]commandData, len(r.Commands))
 	for i, command := range r.Commands {
+		inferred := inferredCommandExec(command.Name)
+		// Usage form shown in menu details defaults to the runnable text the
+		// catalogue would execute (explicit exec, else inferred label).
+		run := command.Exec
+		if run == "" {
+			run = inferred
+		}
 		entry := commandData{
-			Key:          nixAttrKey(command.Name),
-			Pad:          pad,
-			Exec:         command.Exec,
-			InferredExec: inferredCommandExec(command.Name),
-			Description:  command.Description,
+			Key:           nixAttrKey(command.Name),
+			Pad:           pad,
+			Exec:          command.Exec,
+			InferredExec:  inferred,
+			Description:   command.Description,
+			Group:         inferredCommandGroup(command.Name),
+			InferredUsage: run,
+			// Deeper fields stay empty from the current step UI; the template
+			// emits them as documented comments with inferred defaults so the
+			// generated config teaches the full catalogue surface.
 		}
 		// Advertise the first few commands on the MOTD Getting Started list.
 		if r.Motd && i < 3 {
@@ -131,6 +162,19 @@ func inferredCommandExec(name string) string {
 		return name[i+1:]
 	}
 	return name
+}
+
+// inferredCommandGroup mirrors prelude's catalogue identity: builtins land in
+// "prelude", colon keys use the first segment, everything else is "develop".
+func inferredCommandGroup(name string) string {
+	switch name {
+	case "menu", "docs":
+		return "prelude"
+	}
+	if i := strings.IndexByte(name, ':'); i > 0 {
+		return name[:i]
+	}
+	return "develop"
 }
 
 // commentLines prefixes every line with "# " so a whole block can be shipped

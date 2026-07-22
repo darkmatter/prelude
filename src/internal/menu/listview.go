@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
@@ -11,92 +13,104 @@ import (
 )
 
 // ListView is the scrolling command list body — the central pane of the menu
-// panel. It owns the vertical scroll offset and caches the visible rows
-// computed at Sync time; View is a pure return of that cache.
+// panel. It owns a bubbles viewport for scroll state and caches the visible
+// window at Sync time; View is a pure return of that cache.
 //
 // Like the other menu components, ListView has a focused ownership boundary.
-// It is stateful: it owns the scroll offset and cached row window. The root
-// model owns the match indices, selection index, expanded flag, and filter
-// query, and passes them to Sync; ListView does not reach back into the root.
+// It is stateful: it owns the viewport (offset + content). The root model owns
+// the match indices, selection index, expanded flag, and filter query, and
+// passes them to Sync; ListView does not reach back into the root.
 type ListView struct {
-	st     styles
-	inner  int      // framed body width (set via WithSize)
-	offset int      // scroll offset
-	rows   []string // cached visible window, populated by Sync, returned by View
+	st       styles
+	inner    int // framed body width (set via WithSize)
+	height   int // configured viewport height from the last Sync
+	viewport viewport.Model
 }
 
 // newListView builds the list body element with the given styles and initial
 // inner width.
 func newListView(st styles, inner int) *ListView {
-	return &ListView{st: st, inner: inner}
+	vp := viewport.New(
+		viewport.WithWidth(max(inner+2, 1)), // rails add one cell each side
+		viewport.WithHeight(4),
+	)
+	vp.MouseWheelEnabled = true
+	vp.SoftWrap = false
+	vp.FillHeight = true
+	// Selection movement is owned by the root model; the viewport only scrolls
+	// content. Disable its own key bindings so ↑/↓ never double-move.
+	vp.KeyMap.Down.SetEnabled(false)
+	vp.KeyMap.Up.SetEnabled(false)
+	vp.KeyMap.PageDown.SetEnabled(false)
+	vp.KeyMap.PageUp.SetEnabled(false)
+	vp.KeyMap.HalfPageDown.SetEnabled(false)
+	vp.KeyMap.HalfPageUp.SetEnabled(false)
+	return &ListView{st: st, inner: inner, viewport: vp}
 }
 
 // WithSize sets the panel's inner width and returns the receiver. Called on
 // WindowSizeMsg so the list stays sized without reaching back into the root.
 func (l *ListView) WithSize(inner int) *ListView {
 	l.inner = inner
+	// Frame rails are painted into each content line, so the viewport width is
+	// the framed row width (inner + 2).
+	l.viewport.SetWidth(max(inner+2, 1))
 	return l
 }
 
 // Sync recomputes the list rows and scroll offset from the root-owned state
 // (match indices, selection, expanded flag, filter query) and the panel
-// geometry (height, frame). The result is cached; View returns it without
-// recomputing. This fixes the bubbletea anti-pattern where the old renderRows
-// mutated the scroll offset inside View — Sync is the update-time home for
-// that computation.
+// geometry (height, frame). The result is cached in the viewport; View returns
+// it without recomputing. This keeps scroll mutation out of View.
 //
 // flat is the full flattened task list; matches are indices into flat; sel is
 // the index into matches; filter is the prompt's current value (used for the
 // "no commands match %q" message); frame provides Paint/Blank for the panel
 // rails.
 func (l *ListView) Sync(flat []Task, matches []int, sel int, expanded bool, height int, filter string, frame Frame) *ListView {
-	l.rows = l.renderRows(flat, matches, sel, expanded, height, filter, frame)
+	lines, selLine := l.renderRows(flat, matches, sel, expanded, height, filter, frame)
+
+	// Expanded menus grow past the configured height so the full disclosure
+	// stays on screen — same contract as the pre-viewport implementation.
+	targetH := height
+	if expanded {
+		targetH = max(targetH, len(lines))
+	}
+	l.height = targetH
+	l.viewport.SetHeight(max(targetH, 1))
+	l.viewport.SetWidth(max(l.inner+2, 1))
+	l.viewport.SetContentLines(lines)
+	// Keep the selected command row in view; EnsureVisible clamps for us.
+	l.viewport.EnsureVisible(selLine, 0, 0)
 	return l
 }
 
-// View returns the cached visible window as a single newline-joined string.
-// Pure: it does not recompute or mutate state.
+// Update forwards Bubble Tea messages the viewport owns (mouse wheel).
+func (l *ListView) Update(msg tea.Msg) (*ListView, tea.Cmd) {
+	var cmd tea.Cmd
+	l.viewport, cmd = l.viewport.Update(msg)
+	return l, cmd
+}
+
+// View returns the viewport's visible window. Pure: it does not recompute or
+// mutate state.
 func (l ListView) View() string {
-	return strings.Join(l.rows, "\n")
+	return l.viewport.View()
 }
 
-// Height returns the number of cached visible rows. The root model uses this
-// to position the status layer below the list.
+// Height returns the configured list height (not the content length). The root
+// model uses this to position the status layer below the list.
 func (l ListView) Height() int {
-	return len(l.rows)
+	if l.height > 0 {
+		return l.height
+	}
+	return l.viewport.Height()
 }
 
-// scrollTo adjusts the offset so that line is visible within height, given
-// the total number of lines. When total fits within height, the offset
-// resets to zero.
-func (l *ListView) scrollTo(line, total, height int) {
-	if total <= height {
-		l.offset = 0
-		return
-	}
-	if line < l.offset {
-		l.offset = line
-	}
-	if line >= l.offset+height {
-		l.offset = line - height + 1
-	}
-	l.offset = max(0, min(l.offset, total-height))
-}
-
-// visible returns the visible portion of lines, padded with blank to height.
-func (l *ListView) visible(lines []string, height int, blank string) []string {
-	end := min(l.offset+height, len(lines))
-	vis := append([]string{}, lines[l.offset:end]...)
-	for len(vis) < height {
-		vis = append(vis, blank)
-	}
-	return vis
-}
-
-// renderRows builds the scrolling grouped result list, padded to the list
-// height. Geometry comes from l.inner, styles from l.st, and root-owned state
-// from the parameters.
-func (l *ListView) renderRows(flat []Task, matches []int, sel int, expanded bool, height int, filter string, frame Frame) []string {
+// renderRows builds the full grouped result list (not yet windowed). Geometry
+// comes from l.inner, styles from l.st, and root-owned state from the
+// parameters. Returns the lines and the selected command's line index.
+func (l *ListView) renderRows(flat []Task, matches []int, sel int, expanded bool, height int, filter string, frame Frame) ([]string, int) {
 	inner := l.inner
 	h := height
 
@@ -109,7 +123,7 @@ func (l *ListView) renderRows(flat []Task, matches []int, sel int, expanded bool
 			l.st.sFg.Render(fmt.Sprintf("%q", filter)) +
 			l.st.sMuted.Render(" — press ") + l.st.sAccent2.Render("esc") + l.st.sMuted.Render(" to reset")
 		lines[h/2] = frame.Paint(lipgloss.PlaceHorizontal(inner, lipgloss.Center, msg, lipgloss.WithWhitespaceStyle(l.st.sp)), l.st.sp)
-		return lines
+		return lines, 0
 	}
 
 	nameW := 4
@@ -143,16 +157,7 @@ func (l *ListView) renderRows(flat []Task, matches []int, sel int, expanded bool
 		}
 	}
 	lines = append(lines, frame.Blank())
-
-	// Scroll to keep the selected row visible. Expanded menus grow past the
-	// configured height so the full disclosure stays on screen.
-	targetH := h
-	if expanded {
-		targetH = max(targetH, len(lines))
-	}
-
-	l.scrollTo(selLine, len(lines), targetH)
-	return l.visible(lines, targetH, frame.Blank())
+	return lines, selLine
 }
 
 // renderRow renders one command row; frame provides Paint for the panel rails.

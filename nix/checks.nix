@@ -79,12 +79,10 @@ in
 
   title-generates =
     let
-      recipe = pkgs.writeText "title.nix" ''
-        {
-          text = "prelude";
-          font = "calvin-s";
-        }
-      '';
+      # JSON, not Nix: nix-instantiate cannot write to /nix/var/nix/profiles
+      # inside the build sandbox, so the title tool's Nix-recipe path is
+      # unusable here. The tool accepts JSON recipes directly.
+      recipe = pkgs.writeText "title.json" ''{"text":"prelude","font":"calvin-s"}'';
     in
     pkgs.runCommand "title-generates" { } ''
       ${lib.getExe config.packages.title} --recipe ${recipe} --output "$out"
@@ -109,26 +107,22 @@ in
     pkgs.runCommand "from-pkg" { } "touch $out";
 
   # Prelude owns navigation commands. `menu` is always advertised on the MOTD
-  # (bare, no `x` prefix); help/docs stay menu-only. Project Getting Started
-  # rows remain focused on explicitly selected lifecycle commands.
+  # (bare, no `x` prefix); docs stays menu-only. Project Getting Started rows
+  # remain focused on explicitly selected lifecycle commands.
   prelude-command-defaults =
     assert lib.all (name: lib.elem name config.packages.menu.commandNames) [
       "menu"
-      "help"
       "docs"
     ];
     assert lib.elem "menu" config.packages.motd.commandNames;
     assert lib.elem "menu" config.packages.motd.commandInvocations;
     assert !lib.elem "x menu" config.packages.motd.commandInvocations;
-    assert lib.all (name: !lib.elem name config.packages.motd.commandNames) [
-      "help"
-      "docs"
-    ];
+    assert !lib.elem "docs" config.packages.motd.commandNames;
     pkgs.runCommand "prelude-command-defaults" { nativeBuildInputs = [ config.packages.menu ]; } ''
       command -v x >/dev/null
       command -v menu >/dev/null
-      command -v help >/dev/null
       command -v docs >/dev/null
+      ! command -v help >/dev/null
       touch "$out"
     '';
 
@@ -358,6 +352,124 @@ in
     ];
     pkgs.runCommand "component-shortcuts" { } "touch $out";
 
+  # prelude.lib.mdSplit → { title = "README"; text; children = [preamble, H2…] }.
+  # docs.nix renames first child to project + rootReadme when text matches.
+  mdSplit-pages =
+    let
+      sample = ''
+        <div align="center">badge</div>
+
+        # Guide
+
+        intro before any H2
+
+        ## First section
+
+        first body
+
+        ```md
+        ## not a real heading
+        ```
+
+        ## Second section
+
+        second body
+
+        ## motd options (`prelude.motd.*`)
+
+        punct body
+      '';
+      node = preludeLib.mdSplit sample;
+      children = node.children;
+      titles = map (l: l.title) children;
+      bodies = map (l: builtins.readFile l.text) children;
+      fromPath = preludeLib.mdSplit ../README.md;
+      # H1 immediately followed by H2 — preamble body empty but still index 0.
+      thin = preludeLib.mdSplit ''
+        # Thin
+
+        ## Alpha
+
+        alpha body
+      '';
+      thinTitles = map (l: l.title) thin.children;
+    in
+    assert node.title == "README";
+    assert node ? text; # always set (toFile for string src)
+    assert builtins.length children == 4;
+    # Pure mdSplit keeps H1-derived preamble title; docs.nix renames to project.
+    assert titles == [
+      "Guide"
+      "First section"
+      "Second section"
+      "motd options (`prelude.motd.*`)"
+    ];
+    assert lib.hasInfix "badge" (builtins.elemAt bodies 0);
+    assert lib.hasInfix "intro before any H2" (builtins.elemAt bodies 0);
+    assert !(lib.hasInfix "# Guide" (builtins.elemAt bodies 0));
+    assert lib.hasInfix "first body" (builtins.elemAt bodies 1);
+    assert !(lib.hasInfix "## First section" (builtins.elemAt bodies 1));
+    assert lib.hasInfix "## not a real heading" (builtins.elemAt bodies 1);
+    assert lib.hasInfix "second body" (builtins.elemAt bodies 2);
+    assert lib.hasInfix "punct body" (builtins.elemAt bodies 3);
+    assert fromPath.title == "README";
+    assert fromPath ? text;
+    assert builtins.length fromPath.children > 1;
+    # Empty preamble still occupies children[0]; Alpha is not promoted.
+    assert thin.title == "README";
+    assert thinTitles == [
+      "Thin"
+      "Alpha"
+    ];
+    assert lib.hasInfix "alpha body" (builtins.readFile (builtins.elemAt thin.children 1).text);
+    pkgs.runCommand "mdSplit-pages" { } "touch $out";
+
+  # docs.nix nav: README → <project> → first original H2 … + FIGlet flag.
+  mdSplit-readme-nav =
+    let
+      docsPkg = import ../src/prelude/docs.nix {
+        inherit (pkgs)
+          lib
+          writeText
+          buildGoModule
+          runCommand
+          nixosOptionsDoc
+          figlet
+          ;
+      } {
+        theme = "phosphor";
+        colorProfile = "auto";
+        project = "myproj";
+        rootReadme = ../README.md;
+        pages = [
+          (preludeLib.mdSplit ../README.md)
+        ];
+        nixosOptions = {
+          options = { };
+        };
+      };
+      cfg = builtins.fromJSON (builtins.readFile "${docsPkg.passthru.config}/config.json");
+      root = builtins.head cfg.nav;
+      kids = root.children;
+      first = builtins.head kids;
+      second = builtins.elemAt kids 1;
+    in
+    assert root.kind == "group";
+    assert root.title == "README";
+    assert first.kind == "leaf";
+    assert first.title == "myproj";
+    assert first.rootReadme == true;
+    assert second.kind == "leaf";
+    assert second.title == "Quickstart (Setup Wizard)";
+    assert (cfg.heroFile or "") != "";
+    pkgs.runCommand "mdSplit-readme-nav" { } "touch $out";
+
+
+
+
+
+
+
   # Dogfood surfaces must render every enable-derived navigation shortcut.
   motd-renders = pkgs.runCommand "motd-renders" { } ''
     NO_COLOR=1 ${lib.getExe config.packages.motd} > "$out"
@@ -471,9 +583,20 @@ in
         touch "$out"
       '';
 
-  # Docs options accept Markdown page paths in declaration order.
+  # Docs options accept nested nav nodes and full nixosOptionsDoc arg pass-through.
   docs-options =
     let
+      tiny = lib.evalModules {
+        modules = [
+          {
+            options.demo = lib.mkOption {
+              type = lib.types.str;
+              default = "x";
+              description = "demo option";
+            };
+          }
+        ];
+      };
       evaluated = lib.evalModules {
         modules = [
           ../src/prelude/options/shared.nix
@@ -481,16 +604,350 @@ in
           {
             prelude.docs.pages = [
               { text = ../docs/welcome.md; }
-              { text = ../docs/commands.md; }
+              {
+                title = "Guides";
+                children = [
+                  { text = ../docs/commands.md; }
+                ];
+              }
+              {
+                generate = "nixosOptions";
+                title = "Options";
+              }
             ];
+            # Full nixosOptionsDoc argument set, including a non-transform field.
+            prelude.docs.nixosOptions = {
+              inherit (tiny) options;
+              documentType = "none";
+              warningsAreErrors = false;
+              revision = "check-rev";
+            };
           }
         ];
       };
       pages = evaluated.config.prelude.docs.pages;
+      nixos = evaluated.config.prelude.docs.nixosOptions;
+      # Exercise pass-through: builder must accept non-transform args unchanged.
+      docsPkg = import ../src/prelude/docs.nix {
+        inherit (pkgs)
+          lib
+          writeText
+          buildGoModule
+          runCommand
+          nixosOptionsDoc
+          figlet
+          ;
+      } {
+        theme = "phosphor";
+        colorProfile = "auto";
+        project = "check";
+        pages = [
+          {
+            generate = "nixosOptions";
+            title = "Options";
+          }
+        ];
+        nixosOptions = {
+          inherit (tiny) options;
+          documentType = "none";
+          warningsAreErrors = false;
+          revision = "check-rev";
+        };
+      };
     in
-    assert builtins.length pages == 2;
+    assert builtins.length pages == 3;
     assert (builtins.head pages).text == ../docs/welcome.md;
-    pkgs.runCommand "docs-options" { } "touch $out";
+    assert (builtins.elemAt pages 1).title == "Guides";
+    assert (builtins.elemAt pages 2).generate == "nixosOptions";
+    assert nixos.options ? demo;
+    assert nixos.documentType == "none";
+    assert nixos.warningsAreErrors == false;
+    assert nixos.revision == "check-rev";
+    # Building the docs package forces nixosOptionsDoc with the pass-through args.
+    pkgs.runCommand "docs-options"
+      {
+        inherit (docsPkg.passthru) config;
+      }
+      ''
+        test -f "$config/config.json"
+        test -d "$config/pages"
+        # Options leaf must exist and mention the demo option from tiny eval.
+        grep -q demo "$config"/pages/*.md
+        # Config must not embed option-record material.
+        ! grep -q mkOption "$config/config.json"
+        touch "$out"
+      '';
+
+  # allLeaves must terminate on the real Prelude option tree (pages.children is
+  # visible="shallow"), preserve deep option paths, and never emit blank pages
+  # for internal/hidden options (nav built from filtered docList).
+  docs-allLeaves-prelude =
+    let
+      preludeEval = lib.evalModules {
+        modules = [
+          ../src/prelude/options/shared.nix
+          ../src/prelude/options/motd.nix
+          ../src/prelude/options/menu.nix
+          ../src/prelude/options/docs.nix
+          ../src/prelude/options/prompt.nix
+        ];
+      };
+      docsPkg = import ../src/prelude/docs.nix {
+        inherit (pkgs)
+          lib
+          writeText
+          buildGoModule
+          runCommand
+          nixosOptionsDoc
+          figlet
+          ;
+      } {
+        theme = "phosphor";
+        colorProfile = "auto";
+        project = "check";
+        pages = [
+          {
+            generate = "nixosOptions";
+            title = "Options";
+            # default split is allLeaves — omit to exercise the default
+          }
+        ];
+        nixosOptions = {
+          options = {
+            inherit (preludeEval.options) prelude;
+          };
+          transformOptions = o: o // { declarations = [ ]; };
+          warningsAreErrors = false;
+        };
+      };
+    in
+    pkgs.runCommand "docs-allLeaves-prelude"
+      {
+        inherit (docsPkg.passthru) config;
+      }
+      ''
+        test -f "$config/config.json"
+        test -d "$config/pages"
+        count=$(find "$config/pages" -name '*.md' | wc -l | tr -d ' ')
+        echo "allLeaves page count: $count"
+        test "$count" -gt 20
+
+        grep -R -q 'prelude\.motd' "$config/pages"
+        grep -R -q 'motd\.env' "$config/pages"
+
+        empty=0
+        for f in "$config"/pages/*.md; do
+          if ! grep -q '[^[:space:]]' "$f"; then
+            echo "empty page: $f" >&2
+            empty=$((empty + 1))
+          fi
+        done
+        test "$empty" -eq 0
+
+        if grep -R -q 'pages\.\*\.children\.\*\.children\.\*\.children' "$config/pages"; then
+          echo "visible=shallow not honored — recursive children exploded" >&2
+          exit 1
+        fi
+        touch "$out"
+      '';
+
+  # internal + transformOptions-hidden options must not leave nav/page entries.
+  docs-allLeaves-filters-internal =
+    let
+      tiny = lib.evalModules {
+        modules = [
+          {
+            options.visibleOpt = lib.mkOption {
+              type = lib.types.str;
+              default = "ok";
+              description = "visible option";
+            };
+            options.hiddenInternal = lib.mkOption {
+              type = lib.types.str;
+              default = "nope";
+              description = "internal option";
+              internal = true;
+            };
+            options.hiddenByTransform = lib.mkOption {
+              type = lib.types.str;
+              default = "nope";
+              description = "hidden via transformOptions";
+            };
+          }
+        ];
+      };
+      docsPkg = import ../src/prelude/docs.nix {
+        inherit (pkgs)
+          lib
+          writeText
+          buildGoModule
+          runCommand
+          nixosOptionsDoc
+          figlet
+          ;
+      } {
+        theme = "phosphor";
+        colorProfile = "auto";
+        project = "check";
+        pages = [
+          {
+            generate = "nixosOptions";
+            title = "Options";
+          }
+        ];
+        nixosOptions = {
+          inherit (tiny) options;
+          transformOptions =
+            o:
+            if o.name == "hiddenByTransform" then
+              o // { visible = false; }
+            else
+              o;
+          warningsAreErrors = false;
+        };
+      };
+    in
+    pkgs.runCommand "docs-allLeaves-filters-internal"
+      {
+        inherit (docsPkg.passthru) config;
+      }
+      ''
+        test -f "$config/config.json"
+        grep -q visibleOpt "$config/config.json"
+        grep -R -q visibleOpt "$config/pages"
+        if grep -q hiddenInternal "$config/config.json"; then
+          echo "internal option leaked into nav" >&2
+          exit 1
+        fi
+        if grep -q hiddenByTransform "$config/config.json"; then
+          echo "transform-hidden option leaked into nav" >&2
+          exit 1
+        fi
+        ! grep -R -q hiddenInternal "$config/pages"
+        ! grep -R -q hiddenByTransform "$config/pages"
+        touch "$out"
+      '';
+
+  # transformOptions may rewrite name/loc for display; lookup must still use
+  # the raw loc so optionAt/nestPath succeed.
+  docs-allLeaves-rename-transform =
+    let
+      tiny = lib.evalModules {
+        modules = [
+          {
+            options.demo = lib.mkOption {
+              type = lib.types.str;
+              default = "x";
+              description = "demo option renamed by transform";
+            };
+          }
+        ];
+      };
+      docsPkg = import ../src/prelude/docs.nix {
+        inherit (pkgs)
+          lib
+          writeText
+          buildGoModule
+          runCommand
+          nixosOptionsDoc
+          figlet
+          ;
+      } {
+        theme = "phosphor";
+        colorProfile = "auto";
+        project = "check";
+        pages = [
+          {
+            generate = "nixosOptions";
+            title = "Options";
+          }
+        ];
+        nixosOptions = {
+          inherit (tiny) options;
+          transformOptions = o: o // {
+            name = "renamed.demo";
+            loc = [ "renamed" "demo" ];
+          };
+          warningsAreErrors = false;
+        };
+      };
+    in
+    pkgs.runCommand "docs-allLeaves-rename-transform"
+      {
+        inherit (docsPkg.passthru) config;
+      }
+      ''
+        test -f "$config/config.json"
+        grep -q 'renamed.demo' "$config/config.json"
+        empty=0
+        for f in "$config"/pages/*.md; do
+          if ! grep -q '[^[:space:]]' "$f"; then
+            echo "empty page after rename transform: $f" >&2
+            empty=$((empty + 1))
+          fi
+        done
+        test "$empty" -eq 0
+        count=$(find "$config/pages" -name '*.md' | wc -l | tr -d ' ')
+        test "$count" -ge 1
+        touch "$out"
+      '';
+
+  # shallow = one pass-through page (full nixosOptionsDoc).
+  docs-shallow-passthrough =
+    let
+      tiny = lib.evalModules {
+        modules = [
+          {
+            options.demo = lib.mkOption {
+              type = lib.types.str;
+              default = "x";
+              description = "demo option";
+            };
+          }
+        ];
+      };
+      docsPkg = import ../src/prelude/docs.nix {
+        inherit (pkgs)
+          lib
+          writeText
+          buildGoModule
+          runCommand
+          nixosOptionsDoc
+          figlet
+          ;
+      } {
+        theme = "phosphor";
+        colorProfile = "auto";
+        project = "check";
+        pages = [
+          {
+            generate = "nixosOptions";
+            title = "Options";
+            split = "shallow";
+          }
+        ];
+        nixosOptions = {
+          inherit (tiny) options;
+          warningsAreErrors = false;
+        };
+      };
+    in
+    pkgs.runCommand "docs-shallow-passthrough"
+      {
+        inherit (docsPkg.passthru) config;
+      }
+      ''
+        test -f "$config/config.json"
+        count=$(find "$config/pages" -name '*.md' | wc -l | tr -d ' ')
+        # One options page (+ nothing else in this fixture).
+        test "$count" -eq 1
+        grep -q demo "$config"/pages/*.md
+        touch "$out"
+      '';
+
+
+
+
 
   # Our own `menu list` renders the grouped command table.
   menu-list-renders = pkgs.runCommand "menu-list-renders" { } ''

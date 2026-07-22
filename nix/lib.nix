@@ -7,6 +7,9 @@
 #
 # mkMenu additionally takes { writeShellApplication, symlinkJoin }.
 { lib }:
+let
+  internal = import ../src/prelude/lib.nix { inherit lib; };
+in
 {
   fromPkg = import ../src/prelude/from-pkg.nix { inherit lib; };
   mkCommand = import ../src/prelude/task.nix { inherit lib; };
@@ -16,4 +19,6 @@
   mkMenu = import ../src/prelude/menu.nix;
   mkDocs = import ../src/prelude/docs.nix;
   themes = import ../src/prelude/themes.nix;
+  # Markdown → docs page leaves ({ title, text = path }) at H2 boundaries.
+  inherit (internal) mdSplit;
 }

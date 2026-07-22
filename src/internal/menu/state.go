@@ -3,15 +3,29 @@ package menu
 import (
 	"strings"
 
+	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 )
 
 func (m *model) filter() {
-	q := strings.ToLower(strings.TrimSpace(m.prompt.Value()))
+	// Trim only — sahilm/fuzzy (via bubbles list.DefaultFilter) is already
+	// case-insensitive. Empty query means the full catalogue.
+	q := strings.TrimSpace(m.prompt.Value())
 	m.matches = m.matches[:0]
-	for i, t := range m.flat {
-		if q == "" || strings.Contains(t.haystack, q) {
+	if q == "" {
+		for i := range m.flat {
 			m.matches = append(m.matches, i)
+		}
+	} else {
+		targets := make([]string, len(m.flat))
+		for i, t := range m.flat {
+			targets[i] = t.haystack
+		}
+		// UnsortedFilter uses the same sahilm/fuzzy engine as DefaultFilter but
+		// keeps catalogue/group order so grouped headers stay stable while
+		// typing. Ranked reordering would scatter groups mid-list.
+		for _, rank := range list.UnsortedFilter(q, targets) {
+			m.matches = append(m.matches, rank.Index)
 		}
 	}
 	if m.sel >= len(m.matches) {

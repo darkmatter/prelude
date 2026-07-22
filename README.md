@@ -148,15 +148,16 @@ closure. The returned value is an ordinary Prelude command, so it composes with
 literal command definitions and future collection adapters without introducing
 a second output schema.
 
-### The menu
+### Running commands
+
+The public catalogue entrypoint is **`x`**. Bare `menu` opens the interactive picker.
 
 ```
-menu              # fuzzy-filter picker over all commands
-menu dev          # run a command by name
-menu d            # …or by its single-key accelerator
-menu dev --port 80  # extra CLI args skip argument entry
+x                 # open the interactive menu (same as `menu`)
+x dev             # run a command by catalogue key
+x d               # …or by its single-key accelerator
+x dev --port 80   # extra CLI args skip argument entry
 menu list         # print the command table (non-interactive)
-menu help         # man-style manual generated from the config
 ```
 
 The interactive picker is a Go/bubbletea TUI (config baked to JSON at build
@@ -242,8 +243,8 @@ terminal profile. For tmux, the cleaner global fix is advertising truecolor:
 ## Command schema
 
 `prelude.commands` is keyed by the public command name used by `x`. Prelude adds
-`menu` and `help` whenever the menu is enabled, plus `docs` whenever documentation
-pages exist.
+`menu` whenever the menu is enabled, plus `docs` whenever documentation pages
+exist.
 
 The first colon derives menu presentation while the complete key remains public:
 `go:test` appears as `test` under `go` and runs as `x go:test`. Additional colons
@@ -258,7 +259,7 @@ convenience executables:
 | `description` | str         | `""`       | One-line description.                                                    |
 | `exec`        | str / null  | key suffix | Shell command executed by the menu.                                      |
 | `invocation`  | str / null  | `exec`     | Canonical underlying command metadata; exact duplicates fail evaluation. |
-| `key`         | str / null  | `null`     | Single-key accelerator (`menu <key>`).                                   |
+| `key`         | str / null  | `null`     | Single-key accelerator (`x <key>` / menu fast path).                     |
 | `usage`       | str / null  | `null`     | Usage form shown in the menu details.                                    |
 | `details`     | str / null  | `null`     | Extended description shown before argument entry.                        |
 | `examples`    | list of str | `[ ]`      | Worked example invocations.                                              |
@@ -308,8 +309,8 @@ A command appears on the MOTD Getting Started list when its `motd` field is
 set to an integer sort order. Commands with `motd = null` (the default) are
 hidden, except `menu`: when the menu is enabled it is always listed first
 (override with an explicit `motd` order) as the bare command `menu` — no `x`
-prefix — so newcomers can open the command palette. Other navigation commands
-(`help`, `docs`) stay off this list. Displayed commands and descriptions are
+prefix — so newcomers can open the command palette. `docs` stays off this list.
+Displayed commands and descriptions are
 derived from `prelude.commands`, so they cannot drift from the runnable menu
 commands.
 

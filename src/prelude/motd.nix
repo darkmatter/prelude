@@ -68,12 +68,11 @@ let
     backgroundRaised = headerBg.raised;
   };
   gettingStarted = d.motd.gettingStarted // (m.gettingStarted or { });
-  commandCatalog = plib.flatCommands (
-    plib.normalizeCommandGroups (config.commandGroupOrder or [ ]) (config.commandCatalog or d.commands)
+  # Catalogue domain → flat entries → reduced MOTD rows. The Go renderer only
+  # sees { command, description }; richer metadata stays on the Nix side.
+  commands = plib.projectMotdRows (config.commandGroupOrder or [ ]) (
+    config.commandCatalog or d.commands
   );
-  # `name` is kept for Nix-side passthru but stripped here so the Go renderer
-  # only sees the { command, description } fields it expects.
-  commands = map (row: { inherit (row) command description; }) (plib.selectCommands commandCatalog);
   recipes = plib.normalizeRecipes (m.recipes or { });
 
   # Split a bg option into concrete color (or null), relative shade, or blend.
@@ -301,7 +300,7 @@ buildGoModule {
   subPackages = [ "cmd/motd" ];
   # Banner layout is still in flux — don't block package builds on render tests.
   doCheck = false;
-  vendorHash = "sha256-hKvYlJqQUQ3NrBRgWPZyvYhsCvceW1HbDRlzltKyCxQ=";
+  vendorHash = "sha256-qHpXE7MVG06KxY/2eLnqUva3/FHjAdQceH6A/5sn7mU=";
   ldflags = [
     "-s"
     "-w"

@@ -3,8 +3,6 @@ package menu
 import (
 	"log"
 
-	"prelude/pkg/manual"
-
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -13,7 +11,6 @@ type mode int
 const (
 	modeList mode = iota
 	modeArgs
-	modeHelp
 )
 
 // chip is one selectable suggested value in argument-entry mode.
@@ -40,7 +37,6 @@ type model struct {
 	title  titleBar      // chrome title bar (presentational)
 	status statusBar     // chrome status footer (presentational)
 	frame  Frame         // rounded panel border decorator (presentational)
-	help   manual.Viewer // help/manual viewer sub-model
 
 	width, height int
 	execCmd       string // consumed by main after the TUI quits
@@ -58,7 +54,6 @@ func newModel(cfg *Config, st styles, argTask *Task) model {
 		title:  titleBar{st: st},
 		status: statusBar{st: st},
 		frame:  Frame{st: st},
-		help:   manual.New(helpDocument(cfg), cfg.Palette),
 		width:  80,
 		height: 24,
 	}
@@ -79,19 +74,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m.resizeChrome()
 		m.syncList()
-		if m.mode == modeHelp {
-			m.help, _ = m.help.Handle(msg)
-		}
 		return m, nil
 
 	case tea.KeyPressMsg:
 		if debugLog {
 			log.Printf("key=%q mode=%d sel=%d matches=%d", msg.String(), m.mode, m.sel, len(m.matches))
-		}
-		if m.mode == modeHelp {
-			var cmd tea.Cmd
-			m.help, cmd = m.help.Handle(msg)
-			return m, cmd
 		}
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
@@ -103,14 +90,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateList(msg)
 
 	case tea.MouseClickMsg:
-		if m.mode == modeHelp {
-			m.help, _ = m.help.Handle(msg)
-		}
 		return m, nil
 
 	case tea.MouseWheelMsg:
-		if m.mode == modeHelp {
-			m.help, _ = m.help.Handle(msg)
+		if m.mode == modeList {
+			var cmd tea.Cmd
+			m.list, cmd = m.list.Update(msg)
+			return m, cmd
 		}
 		return m, nil
 	}

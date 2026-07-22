@@ -58,8 +58,11 @@ func (v Viewer) markdownStyle() gansi.StyleConfig {
 
 	style.Document.StylePrimitive = base
 	style.Document.Margin = manualUintPtr(0)
+	// Indent + Margin: Indent alone only pads the first line in some glamour
+	// paths; Margin keeps wrapped continuation lines aligned (chip/prose wrap).
 	style.Paragraph.StylePrimitive = base
-	style.Paragraph.Indent = manualUintPtr(2)
+	style.Paragraph.Indent = manualUintPtr(0)
+	style.Paragraph.Margin = manualUintPtr(2)
 	style.BlockQuote.StylePrimitive.Color = muted
 	style.BlockQuote.StylePrimitive.BackgroundColor = bg
 	style.BlockQuote.StylePrimitive.Italic = manualBoolPtr(true)
@@ -67,6 +70,7 @@ func (v Viewer) markdownStyle() gansi.StyleConfig {
 	style.BlockQuote.IndentToken = manualStringPtr("  │ ")
 	style.List.StyleBlock.StylePrimitive = base
 	style.List.StyleBlock.Indent = manualUintPtr(2)
+	style.List.StyleBlock.Margin = manualUintPtr(2)
 	style.List.LevelIndent = 2
 	style.Heading.StylePrimitive.Color = accent2
 	style.Heading.StylePrimitive.BackgroundColor = bg

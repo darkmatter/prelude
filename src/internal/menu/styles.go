@@ -20,6 +20,11 @@ import (
 //	secondary   option chips
 //	accent      selection bar
 //
+// Semantic styles (fg/muted/dim/…) are derived from a surface → ui.Context
+// map so each layer reuses Context.Style/Fill instead of hand-rolling on()/
+// plain() pairs. Exceptional styles (chips, selection bar, plain no-bg
+// output) stay explicit.
+//
 // lipgloss does not re-apply a parent background after a child style's
 // reset, so every segment style carries its own background. The plain
 // (background-free) styles serve non-TUI output: `menu list` and the
@@ -35,10 +40,15 @@ type styles struct {
 	accentC     color.Color
 	borderC     color.Color
 
+	// surfaces maps layer name → render context. Looked up once in newStyles;
+	// the named *UI fields below are convenience aliases for existing callers.
+	surfaces map[string]ui.Context
+
 	bodyUI   ui.Context
 	openUI   ui.Context
 	chromeUI ui.Context
 	windowUI ui.Context
+	plainUI  ui.Context // transparent surface for non-TUI output
 
 	windowBg lipgloss.Style // fills the terminal canvas outside the panel
 
@@ -97,17 +107,29 @@ func newStyles(cfg *Config) styles {
 	borderC := h.Color(string(p.Border))
 	selFg := h.Color(string(p.SelectionFg))
 
-	plain := func(fg shared.Color) lipgloss.Style { return h.Plain(string(fg)) }
-	on := func(bg color.Color, fg shared.Color) lipgloss.Style {
-		return h.On(bg, string(fg))
+	// Surface map is the single source for semantic styles. Transparent
+	// "plain" is the no-background export surface used by `menu list`.
+	surfaces := map[string]ui.Context{
+		"window": ui.NewContext(p, bgColor, false),
+		"body":   ui.NewContext(p, body, false),
+		"open":   ui.NewContext(p, open, false),
+		"chrome": ui.NewContext(p, chrome, false),
+		"plain":  ui.NewContext(p, nil, true),
 	}
+	windowUI := surfaces["window"]
+	bodyUI := surfaces["body"]
+	openUI := surfaces["open"]
+	chromeUI := surfaces["chrome"]
+	plainUI := surfaces["plain"]
 
 	return styles{
 		pal:         p,
-		bodyUI:      ui.NewContext(p, body, false),
-		openUI:      ui.NewContext(p, open, false),
-		chromeUI:    ui.NewContext(p, chrome, false),
-		windowUI:    ui.NewContext(p, bgColor, false),
+		surfaces:    surfaces,
+		bodyUI:      bodyUI,
+		openUI:      openUI,
+		chromeUI:    chromeUI,
+		windowUI:    windowUI,
+		plainUI:     plainUI,
 		bodyColor:   body,
 		openColor:   open,
 		chromeColor: chrome,
@@ -115,49 +137,62 @@ func newStyles(cfg *Config) styles {
 		bgColor:     bgColor,
 		accentC:     accentC,
 		borderC:     borderC,
-		windowBg:    lipgloss.NewStyle().Background(bgColor),
+		windowBg:    windowUI.Fill(),
 
-		fg:      plain(p.Fg),
-		muted:   plain(p.Muted),
-		dim:     plain(p.Dim),
-		accent:  plain(p.Accent),
-		accent2: plain(p.Accent2),
-		errText: plain(p.Error),
+		// plain export surface
+		fg:      plainUI.Foreground(),
+		muted:   plainUI.Muted(),
+		dim:     plainUI.Dim(),
+		accent:  plainUI.Accent(),
+		accent2: plainUI.Accent2(),
+		errText: plainUI.Error(),
 
-		sFg:      on(body, p.Fg),
-		sMuted:   on(body, p.Muted),
-		sDim:     on(body, p.Dim),
-		sAccent:  on(body, p.Accent),
-		sAccent2: on(body, p.Accent2),
-		sErr:     on(body, p.Error),
-		sp:       lipgloss.NewStyle().Background(body),
-		frame:    on(body, p.Border),
+		// body surface
+		sFg:      bodyUI.Foreground(),
+		sMuted:   bodyUI.Muted(),
+		sDim:     bodyUI.Dim(),
+		sAccent:  bodyUI.Accent(),
+		sAccent2: bodyUI.Accent2(),
+		sErr:     bodyUI.Error(),
+		sp:       bodyUI.Fill(),
+		frame:    bodyUI.Border(),
 
-		openSp:      lipgloss.NewStyle().Background(open),
-		openFg:      on(open, p.Fg),
-		openMuted:   on(open, p.Muted),
-		openDim:     on(open, p.Dim),
-		openAccent:  on(open, p.Accent),
-		openAccent2: on(open, p.Accent2),
+		// open surface
+		openSp:      openUI.Fill(),
+		openFg:      openUI.Foreground(),
+		openMuted:   openUI.Muted(),
+		openDim:     openUI.Dim(),
+		openAccent:  openUI.Accent(),
+		openAccent2: openUI.Accent2(),
 
-		chromeSp:    lipgloss.NewStyle().Background(chrome),
-		chromeMuted: on(chrome, p.Muted),
+		// chrome surface
+		chromeSp:    chromeUI.Fill(),
+		chromeMuted: chromeUI.Muted(),
 
 		// Amber glyphs on body with left/right border rails only (one terminal row).
-		keyChip: on(body, p.Accent2).Bold(true).
+		keyChip: bodyUI.Accent2().Bold(true).
 			Border(lipgloss.RoundedBorder(), false, true, false, true).
 			BorderForeground(borderC),
-		kbdChip: on(bgColor, p.Accent2).Bold(true),
-		optChip: on(secondary, p.Fg),
+		kbdChip: windowUI.Accent2().Bold(true),
+		optChip: lipgloss.NewStyle().Foreground(h.Color(string(p.Fg))).Background(secondary),
 
-		// High-contrast selection: bright row, dark foreground.
-		selText: on(accentC, p.SelectionFg),
+		// High-contrast selection: bright row, dark foreground. Selection is
+		// its own accent-bg surface, not a palette Context layer.
+		selText: lipgloss.NewStyle().Foreground(selFg).Background(accentC),
 		selDim:  lipgloss.NewStyle().Foreground(lipgloss.Lighten(selFg, 0.18)).Background(accentC),
 		// Active keycaps avoid Lip Gloss borders: border cells can fall back to
 		// the terminal background and cut bars through the accent row.
-		selChip: on(accentC, p.SelectionFg).Bold(true),
+		selChip: lipgloss.NewStyle().Foreground(selFg).Background(accentC).Bold(true),
 		selSp:   lipgloss.NewStyle().Background(accentC),
 	}
+}
+
+// surface returns the named surface Context from the derivation map.
+func (s styles) surface(name string) ui.Context {
+	if c, ok := s.surfaces[name]; ok {
+		return c
+	}
+	return s.bodyUI
 }
 
 // inset returns an arbitrary foreground on the bg (details inset) background.

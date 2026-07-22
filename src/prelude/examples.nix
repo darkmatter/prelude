@@ -29,11 +29,11 @@ let
       exec = "pnpm dev";
       motd = 1;
 
-      usage = "menu dev --port 3000";
+      usage = "x dev --port 3000";
       details = "Boots a development server that watches the source tree and hot-reloads modules as files change. Binds to 127.0.0.1:3000 by default; override with --port and --host.";
       examples = [
-        "menu dev --port 8080"
-        "menu dev --host 0.0.0.0"
+        "x dev --port 8080"
+        "x dev --host 0.0.0.0"
       ];
       args = [
         {

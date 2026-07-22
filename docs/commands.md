@@ -2,11 +2,12 @@
 
 Prelude supplies these whenever the components are enabled:
 
-- **`menu`** (`m`) — fuzzy-filter picker over the catalogue; `menu list`
-  prints the table, `menu help` renders a man-style manual.
+- **`x`** — public catalogue entrypoint. `x` alone opens the menu; `x <key>`
+  runs a catalogue command (e.g. `x go:test`, `x docs`).
+- **`menu`** (`m`) — interactive picker; `menu list` prints the table.
+  Prefer `x` for day-to-day runs.
 - **`motd`** (`?`) — reprints the welcome banner.
-- **`help`** (`h`) — command help (`menu help`).
-- **`docs`** (`d`) — this viewer.
+- **`docs`** (`d`) — this viewer (`x docs`).
 
 Project commands declared in `nix/prelude-menu.nix`:
 

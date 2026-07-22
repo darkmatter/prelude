@@ -295,7 +295,7 @@ null
 
 
 
-Single-key accelerator (menu fast path: ` menu <key> `)\.
+Single-key accelerator (` x <key> ` / menu fast path)\.
 
 
 
@@ -320,7 +320,7 @@ When set, this command appears on the MOTD Getting Started list at this
 sort order (ascending, ties broken by command name)\. When null/undefined
 the command is hidden from the MOTD, except ` menu ` which is always
 listed (bare, without the ` x ` prefix) whenever the menu is enabled\.
-Other navigation commands (` help `, ` docs `) stay off this list\.
+Other navigation commands (` docs `) stay off this list\.
 
 
 
@@ -358,13 +358,79 @@ null
 
 
 
+## prelude\.docs\.nixosOptions
+
+
+
+Arguments passed through to pkgs\.nixosOptionsDoc when a pages node has
+generate = “nixosOptions”\. Same shape as the public tutorial:
+
+prelude\.docs\.nixosOptions = { inherit (eval) options; };
+
+or with any other nixosOptionsDoc parameter:
+
+prelude\.docs\.nixosOptions = {
+inherit (eval) options;
+transformOptions = o: o // { declarations = \[ ]; };
+documentType = “none”;
+warningsAreErrors = false;
+};
+
+Never JSON-serialize this value; the docs package builder feeds it to
+nixosOptionsDoc and only embeds Markdown store paths in the bundle\.
+
+
+
+*Type:*
+open submodule of attribute set of raw value
+
+
+
+*Default:*
+
+```nix
+{ options = { }; }
+```
+
+
+
+*Example:*
+
+```nix
+{ inherit (eval) options; }
+
+```
+
+
+
+## prelude\.docs\.nixosOptions\.options
+
+
+
+Module options attrset; same as nixosOptionsDoc’s options argument\.
+
+
+
+*Type:*
+lazy attribute set of raw value
+
+
+
+*Default:*
+
+```nix
+{ }
+```
+
+
+
 ## prelude\.docs\.pages
 
 
 
-Markdown pages shown in declaration order\. Each file becomes one CONTENTS
-sidebar entry; digits 1–9 jump between pages\. The first level-one heading
-labels the entry and the complete file is rendered as Markdown\.
+Documentation nav tree shown in declaration order\. Each node is a leaf
+Markdown page, a titled group of children, or a generate selector that
+expands prelude\.docs\.nixosOptions via pkgs\.nixosOptionsDoc\.
 
 
 
@@ -386,9 +452,84 @@ list of (submodule)
 ```nix
 [
   { text = ./docs/getting-started.md; }
-  { text = ./docs/commands.md; }
+  {
+    title = "Guides";
+    children = [
+      { text = ./docs/guides/a.md; }
+    ];
+  }
+  { generate = "nixosOptions"; title = "Options"; }
 ]
 
+```
+
+
+
+## prelude\.docs\.pages\.\*\.children
+
+
+
+Child nodes for a group\. Non-empty implies this node is a group\.
+
+
+
+*Type:*
+list of (submodule)
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+
+
+## prelude\.docs\.pages\.\*\.generate
+
+
+
+When set to “nixosOptions”, expand using prelude\.docs\.nixosOptions
+(a pkgs\.nixosOptionsDoc argument set)\. The node does not carry option records\.
+
+
+
+*Type:*
+null or value “nixosOptions” (singular enum)
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+
+
+## prelude\.docs\.pages\.\*\.split
+
+
+
+Only for generate = “nixosOptions”\.
+“allLeaves” (default): nested sidebar tree of every terminal option,
+preserving full paths (prelude\.motd\.env\.\*\.label, …)\.
+“shallow”: one leaf — full nixosOptionsDoc pass-through\. Want a
+different partition? Pass a narrower options attrset or multiple
+generate nodes\.
+
+
+
+*Type:*
+one of “allLeaves”, “shallow”
+
+
+
+*Default:*
+
+```nix
+"allLeaves"
 ```
 
 
@@ -397,12 +538,73 @@ list of (submodule)
 
 
 
-Path to a Markdown file\. Its first level-one heading labels the sidebar entry\.
+Markdown file for a leaf node\. First H1 labels the sidebar when title is null\.
 
 
 
 *Type:*
-absolute path
+null or absolute path
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+
+
+## prelude\.docs\.pages\.\*\.title
+
+
+
+Sidebar label for groups and generate nodes; optional override for leaves\.
+
+
+
+*Type:*
+null or string
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+
+
+## prelude\.docs\.rootReadme
+
+
+
+Path to the consumer’s root README\.md\. When a pages leaf’s ` text ` is
+exactly this path, the docs TUI treats it as the project README (hero
+title from prelude\.project)\. Match is by path equality in Nix before
+pages are renamed into the docs bundle — never by basename inference\.
+
+
+
+*Type:*
+null or absolute path
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+
+
+*Example:*
+
+```nix
+self + /README.md
+```
 
 
 
@@ -2103,8 +2305,6 @@ string
 
 ## prelude\.motd\.recipes\.\<name>\.title
 
-
-
 Displayed recipe title; defaults to the recipe name\.
 
 
@@ -2260,6 +2460,8 @@ null
 
 
 ## prelude\.palette
+
+
 
 Per-token overrides applied on top of the theme\.
 

@@ -12,17 +12,42 @@ import (
 )
 
 func manualDocument(cfg *Config) manual.Document {
-	document := manual.Document{
-		Kind:     manual.KindDocs,
-		Sections: make([]manual.Section, 0, len(cfg.Pages)),
+	return manual.Document{
+		Project: cfg.Project,
+		Hero:    cfg.Hero,
+		Nav:     convertNav(cfg.Nav),
 	}
-	for index, page := range cfg.Pages {
-		document.Sections = append(document.Sections, manual.Section{
-			Title:    markdownTitle(page.Text, index),
-			Markdown: page.Text,
-		})
+}
+
+func convertNav(nodes []NavNode) []manual.NavNode {
+	out := make([]manual.NavNode, 0, len(nodes))
+	for i, n := range nodes {
+		out = append(out, convertNode(n, i))
 	}
-	return document
+	return out
+}
+
+func convertNode(n NavNode, index int) manual.NavNode {
+	if len(n.Children) > 0 || n.Kind == "group" {
+		return manual.NavNode{
+			Title:     n.Title,
+			Children:  convertNav(n.Children),
+			GapBefore: n.GapBefore,
+		}
+	}
+	title := strings.TrimSpace(n.Title)
+	if title == "" {
+		title = markdownTitle(n.Markdown, index)
+	}
+	if n.RootReadme && title == "" {
+		title = "README"
+	}
+	return manual.NavNode{
+		Title:      title,
+		Markdown:   n.Markdown,
+		GapBefore:  n.GapBefore,
+		RootReadme: n.RootReadme,
+	}
 }
 
 func markdownTitle(source string, index int) string {

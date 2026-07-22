@@ -16,9 +16,9 @@ const (
 	keyTerminalSize = "terminal:size"
 	keyTerminalBG   = "terminal:bg"
 
-	ttlEveryRun     = time.Duration(0)
-	ttlAsyncStatus  = 5 * time.Minute
-	ttlEnv          = 5 * time.Minute
+	ttlEveryRun    = time.Duration(0)
+	ttlAsyncStatus = 5 * time.Minute
+	ttlEnv         = 5 * time.Minute
 )
 
 // Cache is the single JSON map of live MOTD facts written by Preflight.

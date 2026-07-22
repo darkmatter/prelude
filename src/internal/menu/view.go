@@ -48,10 +48,6 @@ func (m *model) syncList() {
 }
 
 func (m model) View() tea.View {
-	if m.mode == modeHelp {
-		return m.help.View()
-	}
-
 	var body string
 	if m.mode == modeArgs {
 		body = m.viewArgs()

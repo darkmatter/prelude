@@ -11,61 +11,42 @@ const (
 	Accent2
 )
 
-// Kind distinguishes the two surfaces that share this viewer so chrome can
-// label them differently. Content sources stay separate: authored Markdown
-// pages (docs) versus the generated command manual (help).
-type Kind uint8
-
-const (
-	// KindHelp is menu help — a generated man-style command manual.
-	KindHelp Kind = iota
-	// KindDocs is the project docs viewer — Markdown from prelude.docs.pages.
-	KindDocs
-)
-
-// Span is one styled fragment in a document block.
-type Span struct {
-	Role Role
-	Text string
-	Bold bool
+// NavNode is one entry in the docs tree. Leaves hold Markdown; groups hold
+// children. Groups never render a body.
+type NavNode struct {
+	Title      string
+	Markdown   string
+	Children   []NavNode
+	GapBefore  bool // blank separator above this row (Options group)
+	RootReadme bool // leaf path matched prelude.docs.rootReadme in Nix
 }
 
-// Block is one semantic content row. Wrapped blocks should contain one span.
-type Block struct {
-	Indent     int
-	Wrap       bool
-	BlankAfter bool
-	Spans      []Span
-}
-
-// Section is one sidebar entry and its content. Markdown is used by the docs
-// viewer; Blocks remain available for structured manuals such as menu help.
-type Section struct {
-	Title    string
-	Markdown string
-	Blocks   []Block
+// IsGroup reports whether the node is a non-leaf.
+func (n NavNode) IsGroup() bool {
+	return len(n.Children) > 0
 }
 
 // Document is the presentation model consumed by the viewer.
 type Document struct {
-	Kind     Kind
-	Sections []Section
+	// Project is prelude.project; used for the root-README hero title when
+	// no FIGlet hero is present, or as a fallback when the hero won't fit.
+	Project string
+	// Hero is the build-time FIGlet wordmark for the root-README page, or
+	// empty when none was baked. The viewer renders it when it fits the
+	// text width, else falls back to Project.
+	Hero string
+	// Nav is the docs tree. Leaves carry Markdown; groups carry children.
+	Nav []NavNode
 }
 
-// SidebarLabel is the CONTENTS-column heading for this document kind.
+// SidebarLabel is the CONTENTS-column heading for the docs viewer.
 func (d Document) SidebarLabel() string {
-	if d.Kind == KindDocs {
-		return "PAGES"
-	}
-	return "MANUAL"
+	return "PAGES"
 }
 
-// ModeLabel is the status-bar mode chip for this document kind.
+// ModeLabel is the status-bar mode chip for the docs viewer.
 func (d Document) ModeLabel() string {
-	if d.Kind == KindDocs {
-		return "DOCS"
-	}
-	return "HELP"
+	return "DOCS"
 }
 
 // SidebarItemsTop is the terminal row occupied by the first sidebar item.

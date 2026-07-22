@@ -289,9 +289,13 @@ func TestRenderWizardConfigEmitsCommandsAndMotdNextSteps(t *testing.T) {
 		"motd = 100;",
 		"motd = 200;",
 		"motd = 300;",
-		// Optional command fields are documented as comments.
+		// Optional command fields are documented as comments with inferred defaults.
 		"# key = null;",
 		"# args = [ ];",
+		"# group inferred from key: develop",
+		"# group inferred from key: db",
+		"# usage = \"pnpm dev\";",
+		"# examples = [ \"pnpm dev\" ];",
 	} {
 		if !strings.Contains(config, fragment) {
 			t.Fatalf("config missing fragment %q:\n%s", fragment, config)
@@ -626,5 +630,28 @@ func TestNixPathLiteralPatternRejectsUnrepresentablePaths(t *testing.T) {
 	}
 	if !nixPathLiteralPattern.MatchString("assets/title-v2.txt") {
 		t.Fatal("plain relative path rejected")
+	}
+}
+
+func TestDeepEmissionSample(t *testing.T) {
+	config := renderWizardConfig(wizardResult{
+		Recipe: Recipe{Text: "acme", Font: "thin"}, Project: "acme", Theme: "nord", ColorProfile: "auto",
+		Motd: true, Menu: true, FlakeParts: true,
+		Commands: []wizardCommand{
+			{Name: "dev", Exec: "pnpm dev", Description: "start the dev server"},
+			{Name: "db:migrate", Description: "apply pending migrations"},
+		},
+	}, "title.txt")
+	for _, want := range []string{
+		"# group inferred from key: develop",
+		"# group inferred from key: db",
+		"# usage = \"pnpm dev\";",
+		"# examples = [ \"pnpm dev\" ];",
+		"# usage = \"migrate\";",
+		"# invocation = null;",
+	} {
+		if !strings.Contains(config, want) {
+			t.Fatalf("missing %q in:\n%s", want, config)
+		}
 	}
 }

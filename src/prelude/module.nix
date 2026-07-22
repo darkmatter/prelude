@@ -118,11 +118,6 @@ in
           exec = lib.mkDefault "menu";
           key = lib.mkDefault "m";
         };
-        help = {
-          description = lib.mkDefault "show Prelude command help";
-          exec = lib.mkDefault "menu help";
-          key = lib.mkDefault "h";
-        };
       })
       (lib.mkIf docsEnabled {
         docs = {
@@ -143,6 +138,8 @@ in
             writeShellApplication
             writeText
             buildGoModule
+            runCommand
+            nixosOptionsDoc
             symlinkJoin
             figlet
             jq
@@ -372,22 +369,72 @@ in
           pkgs.starship
           pkgs.blesh
         ];
+        # Resolve palette once for ble.sh face theming (hex roles interpolated
+        # into the setup-hook at build time — the hook itself stays a quoted
+        # heredoc so shell $-expansion is untouched).
+        pal = plib.resolvePalette cfg.theme cfg.palette;
+        # ble.sh completion/menu faces themed from the palette:
+        #   auto_complete        — inline ghost suggestion: dim fg on surface bg
+        #   menu_complete_match  — bold matched portion (emphasis only)
+        #   menu_complete_selected — selected menu row: accent bg, selectionFg text
+        bleFaceTheme = ''
+          ble-face auto_complete=fg=${pal.dim},bg=${pal.surface}
+          ble-face menu_complete_match=bold
+          ble-face menu_complete_selected=fg=${pal.selectionFg},bg=${pal.accent}
+        '';
         preludePkg = pkgs.symlinkJoin {
           name = "prelude";
           paths = preludeComponentPaths ++ promptRuntimePackages;
           postBuild = lib.optionalString cfg.prompt.enable ''
             mkdir -p "$out/nix-support"
             cat > "$out/nix-support/setup-hook" <<'EOF'
-            # Initialize Prelude's enhanced prompt only in the interactive Bash
-            # process created by `nix develop`; direnv evaluation stays inert.
-            case "$-" in
-              *i*)
-                if [ -n "''${BASH_VERSION-}" ]; then
-                  source ${pkgs.blesh}/share/blesh/ble.sh
-                  eval "$(${lib.getExe pkgs.starship} init bash)"
-                fi
-                ;;
-            esac
+            # Sourced by stdenv during nix-shell-env build. Nix develop.cc
+            # serializes setup-time state then evals "${shellHook:-}" — it does
+            # NOT re-source setup-hooks interactively. So a bare call here
+            # would only run at non-interactive build time (gate skips it) and
+            # never at interactive launch. Append a guarded preludePromptInit
+            # invocation to shellHook so it runs AFTER the consumer's
+            # `export STARSHIP_CONFIG` (starship reads $STARSHIP_CONFIG at init),
+            # once, at interactive nix develop launch. A marker guards duplicate
+            # registration if the hook is sourced more than once.
+            # Detect the active shell from its own version variable, not $SHELL
+            # (which may be a login-shell path or a different shell than the one
+            # nix develop spawned). Direnv/`nix develop -c` stay inert via the
+            # *i* gate inside the function.
+            preludePromptInit() {
+              case "$-" in
+                *i*) ;;
+                *) return 0 ;;
+              esac
+              if [ -n "''${BASH_VERSION-}" ]; then
+                source ${pkgs.blesh}/share/blesh/ble.sh
+              ${
+                lib.optionalString pkgs.stdenv.isDarwin ''
+                  # ble.sh's ble/bin/stty/.instantiate only swaps GNU
+                  # */coreutils/libexec/gnubin/stty → /bin/stty, but Nix's
+                  # coreutils stty lives at /nix/store/...-coreutils/bin/stty
+                  # which evades that glob. On Darwin, force the BSD /bin/stty
+                  # so tty termios (echo/canonical mode) stay in the native
+                  # kernel's vocabulary — before ble.sh's first attach probes
+                  # Override ble.sh's stty wrapper to BSD /bin/stty before the
+                  # first attach (deferred to PROMPT_COMMAND) probes stdin.
+                  function ble/bin/stty { command /bin/stty "$@"; }
+                  function ble/bin/stty/.instantiate { return 0; }
+                ''
+              }
+                ${bleFaceTheme}
+                eval "$(${lib.getExe pkgs.starship} init bash)"
+              elif [ -n "''${ZSH_VERSION-}" ]; then
+                # ble.sh is Bash-only; zsh gets the themed Starship prompt
+                # without the ble.sh readline layer.
+                eval "$(${lib.getExe pkgs.starship} init zsh)"
+              fi
+            }
+            if [ -z "''${preludePromptInitRegistered:-}" ]; then
+              export preludePromptInitRegistered=1
+              shellHook="''${shellHook-}
+            preludePromptInit"
+            fi
             EOF
           '';
           passthru = {

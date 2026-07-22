@@ -16,7 +16,20 @@ type Recipe struct {
 	Font string `json:"font"`
 }
 
+// loadRecipe reads a title recipe from path. JSON recipes are parsed
+// directly; Nix recipes fall back to nix-instantiate. The JSON path matters
+// inside the Nix build sandbox, where nix-instantiate cannot write to
+// /nix/var/nix/profiles and so Nix-form recipes are unusable.
 func loadRecipe(path string) (Recipe, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Recipe{}, fmt.Errorf("read %s: %w", path, err)
+	}
+	var recipe Recipe
+	if err := json.Unmarshal(data, &recipe); err == nil {
+		return validateRecipe(path, recipe)
+	}
+	// Not JSON — evaluate as Nix. This only works outside the build sandbox.
 	cmd := exec.Command("nix-instantiate", "--eval", "--strict", "--json", path)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -28,10 +41,13 @@ func loadRecipe(path string) (Recipe, error) {
 		}
 		return Recipe{}, fmt.Errorf("evaluate %s: %s", path, message)
 	}
-	var recipe Recipe
 	if err := json.Unmarshal(output, &recipe); err != nil {
 		return Recipe{}, fmt.Errorf("decode %s: %w", path, err)
 	}
+	return validateRecipe(path, recipe)
+}
+
+func validateRecipe(path string, recipe Recipe) (Recipe, error) {
 	if strings.TrimSpace(recipe.Text) == "" {
 		return Recipe{}, fmt.Errorf("%s must define a non-empty text string", path)
 	}

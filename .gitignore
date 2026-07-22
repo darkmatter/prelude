@@ -42,3 +42,7 @@ src/.tmp-motd-region-test/
 *.db
 .beads-credential-key
 .beads/proxieddb/
+.beads/
+.agents/skills/beads/
+.claude/
+.codex/
