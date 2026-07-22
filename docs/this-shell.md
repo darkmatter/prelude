@@ -2,8 +2,8 @@
 
 ## Layout
 
-- `prelude.nix` — dogfood flake-parts config (theme, project, imports)
-- `nix/prelude-*.nix` — MOTD, menu/commands, and docs page list
+- `nix/internal/prelude.nix` — dogfood flake-parts config (theme, project, imports)
+- `nix/internal/` — MOTD, menu/commands, and docs page list
 - `docs/` — this viewer’s pages, guides, generated references, recorded showcases
 - `src/` — Go renderers: Lip Gloss for the static MOTD, Bubble Tea for the menu and this viewer
 - `src/prelude/` — the flake-parts modules and option declarations

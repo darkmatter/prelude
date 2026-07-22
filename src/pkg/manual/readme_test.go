@@ -35,7 +35,7 @@ Prelude is a DX-focused utility.
 
 func TestRenderRootReadmeShowsProjectTitleAndIndentedIntro(t *testing.T) {
 	doc := Document{
-			Project: "prelude",
+		Project: "prelude",
 		Nav: []NavNode{{
 			Title:      "README",
 			RootReadme: true,
@@ -74,7 +74,7 @@ Body paragraph here.
 func TestRenderRootReadmeShowsFigletHero(t *testing.T) {
 	hero := "  _  _ \n / \\/ \\ \n/_/\\_/\\_\n"
 	doc := Document{
-			Project: "prelude",
+		Project: "prelude",
 		Hero:    hero,
 		Nav: []NavNode{{
 			Title:      "README",
@@ -104,7 +104,7 @@ func TestRenderRootReadmeShowsFigletHero(t *testing.T) {
 // falls back to rendering the bold project name — the pre-hero behavior.
 func TestRenderRootReadmeFallsBackToBoldNameWhenNoHero(t *testing.T) {
 	doc := Document{
-			Project: "prelude",
+		Project: "prelude",
 		Hero:    "",
 		Nav: []NavNode{{
 			Title:      "README",

@@ -32,11 +32,11 @@ type model struct {
 	expanded bool
 	mode     mode
 
-	list   *ListView     // list body sub-model: owns scroll offset + cached rows
-	args   *ArgsView     // arg-entry sub-model: owns chips/chipFocus/argErr/argTask
-	title  titleBar      // chrome title bar (presentational)
-	status statusBar     // chrome status footer (presentational)
-	frame  Frame         // rounded panel border decorator (presentational)
+	list   *ListView // list body sub-model: owns scroll offset + cached rows
+	args   *ArgsView // arg-entry sub-model: owns chips/chipFocus/argErr/argTask
+	title  titleBar  // chrome title bar (presentational)
+	status statusBar // chrome status footer (presentational)
+	frame  Frame     // rounded panel border decorator (presentational)
 
 	width, height int
 	execCmd       string // consumed by main after the TUI quits

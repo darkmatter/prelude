@@ -310,7 +310,7 @@ let
       key = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
-        description = "Single-key accelerator (`x <key>` / menu fast path).";
+        description = "Single-key accelerator (`x <key>` fast path).";
       };
       usage = lib.mkOption {
         type = lib.types.nullOr lib.types.str;

@@ -276,12 +276,14 @@ let
         else
           acc // { lines = acc.lines ++ [ line ]; };
 
-      folded = lib.foldl' step {
-        inFence = false;
-        title = null;
-        lines = [ ];
-        sections = [ ];
-      } lineList;
+      folded = lib.foldl' step
+        {
+          inFence = false;
+          title = null;
+          lines = [ ];
+          sections = [ ];
+        }
+        lineList;
 
       rawSections =
         folded.sections
@@ -343,32 +345,34 @@ let
         in
         go false ls;
 
-      prepared = map (
-        s:
-        let
-          isPreamble = s.title == null;
-          rawLines = if isPreamble then stripFirstH1 s.lines else s.lines;
-          bodyLines = trimBlankEdges rawLines;
-          title =
-            if s.title != null then
-              s.title
-            else
-              let
-                h1line = firstNonFencedH1 s.lines;
-              in
-              if h1line == null then
-                "Overview"
+      prepared = map
+        (
+          s:
+          let
+            isPreamble = s.title == null;
+            rawLines = if isPreamble then stripFirstH1 s.lines else s.lines;
+            bodyLines = trimBlankEdges rawLines;
+            title =
+              if s.title != null then
+                s.title
               else
                 let
-                  t = h1Title h1line;
+                  h1line = firstNonFencedH1 s.lines;
                 in
-                if t != "" then t else "Overview";
-        in
-        {
-          inherit isPreamble title;
-          lines = bodyLines;
-        }
-      ) rawSections;
+                if h1line == null then
+                  "Overview"
+                else
+                  let
+                    t = h1Title h1line;
+                  in
+                  if t != "" then t else "Overview";
+          in
+          {
+            inherit isPreamble title;
+            lines = bodyLines;
+          }
+        )
+        rawSections;
 
       # Always materialize index 0 as the preamble leaf (even if empty body),
       # so docs.nix can rename it to project + rootReadme without stealing an H2.
@@ -386,9 +390,11 @@ let
           };
 
       # Drop empty H2 sections only — never drop the preamble slot.
-      h2Children = builtins.filter (
-        s: (!s.isPreamble) && lib.any (line: lib.trim line != "") s.lines
-      ) prepared;
+      h2Children = builtins.filter
+        (
+          s: (!s.isPreamble) && lib.any (line: lib.trim line != "") s.lines
+        )
+        prepared;
 
       slug =
         index: title:

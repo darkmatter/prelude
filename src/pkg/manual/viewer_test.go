@@ -361,7 +361,6 @@ func TestFocusedPaneUsesAccentTopBorder(t *testing.T) {
 	assertTop(t, false, "content focus")
 }
 
-
 func TestBodyScrollbarWhenOverflow(t *testing.T) {
 	// Tall page so the body must scroll.
 	body := "# Tall\n\n" + strings.Repeat("line of content\n", 80)

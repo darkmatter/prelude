@@ -64,4 +64,4 @@ authoritative catalogue.
 
 ## License
 
-The parent Prelude repository does not currently declare a license.
+Licensed under the MIT License — see the parent Prelude repository's `LICENSE` file.

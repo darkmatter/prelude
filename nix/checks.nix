@@ -427,27 +427,29 @@ in
   # docs.nix nav: README → <project> → first original H2 … + FIGlet flag.
   mdSplit-readme-nav =
     let
-      docsPkg = import ../src/prelude/docs.nix {
-        inherit (pkgs)
-          lib
-          writeText
-          buildGoModule
-          runCommand
-          nixosOptionsDoc
-          figlet
-          ;
-      } {
-        theme = "phosphor";
-        colorProfile = "auto";
-        project = "myproj";
-        rootReadme = ../README.md;
-        pages = [
-          (preludeLib.mdSplit ../README.md)
-        ];
-        nixosOptions = {
-          options = { };
+      docsPkg = import ../src/prelude/docs.nix
+        {
+          inherit (pkgs)
+            lib
+            writeText
+            buildGoModule
+            runCommand
+            nixosOptionsDoc
+            figlet
+            ;
+        }
+        {
+          theme = "phosphor";
+          colorProfile = "auto";
+          project = "myproj";
+          rootReadme = ../README.md;
+          pages = [
+            (preludeLib.mdSplit ../README.md)
+          ];
+          nixosOptions = {
+            options = { };
+          };
         };
-      };
       cfg = builtins.fromJSON (builtins.readFile "${docsPkg.passthru.config}/config.json");
       root = builtins.head cfg.nav;
       kids = root.children;
@@ -628,32 +630,34 @@ in
       pages = evaluated.config.prelude.docs.pages;
       nixos = evaluated.config.prelude.docs.nixosOptions;
       # Exercise pass-through: builder must accept non-transform args unchanged.
-      docsPkg = import ../src/prelude/docs.nix {
-        inherit (pkgs)
-          lib
-          writeText
-          buildGoModule
-          runCommand
-          nixosOptionsDoc
-          figlet
-          ;
-      } {
-        theme = "phosphor";
-        colorProfile = "auto";
-        project = "check";
-        pages = [
-          {
-            generate = "nixosOptions";
-            title = "Options";
-          }
-        ];
-        nixosOptions = {
-          inherit (tiny) options;
-          documentType = "none";
-          warningsAreErrors = false;
-          revision = "check-rev";
+      docsPkg = import ../src/prelude/docs.nix
+        {
+          inherit (pkgs)
+            lib
+            writeText
+            buildGoModule
+            runCommand
+            nixosOptionsDoc
+            figlet
+            ;
+        }
+        {
+          theme = "phosphor";
+          colorProfile = "auto";
+          project = "check";
+          pages = [
+            {
+              generate = "nixosOptions";
+              title = "Options";
+            }
+          ];
+          nixosOptions = {
+            inherit (tiny) options;
+            documentType = "none";
+            warningsAreErrors = false;
+            revision = "check-rev";
+          };
         };
-      };
     in
     assert builtins.length pages == 3;
     assert (builtins.head pages).text == ../docs/welcome.md;
@@ -692,34 +696,36 @@ in
           ../src/prelude/options/prompt.nix
         ];
       };
-      docsPkg = import ../src/prelude/docs.nix {
-        inherit (pkgs)
-          lib
-          writeText
-          buildGoModule
-          runCommand
-          nixosOptionsDoc
-          figlet
-          ;
-      } {
-        theme = "phosphor";
-        colorProfile = "auto";
-        project = "check";
-        pages = [
-          {
-            generate = "nixosOptions";
-            title = "Options";
-            # default split is allLeaves — omit to exercise the default
-          }
-        ];
-        nixosOptions = {
-          options = {
-            inherit (preludeEval.options) prelude;
+      docsPkg = import ../src/prelude/docs.nix
+        {
+          inherit (pkgs)
+            lib
+            writeText
+            buildGoModule
+            runCommand
+            nixosOptionsDoc
+            figlet
+            ;
+        }
+        {
+          theme = "phosphor";
+          colorProfile = "auto";
+          project = "check";
+          pages = [
+            {
+              generate = "nixosOptions";
+              title = "Options";
+              # default split is allLeaves — omit to exercise the default
+            }
+          ];
+          nixosOptions = {
+            options = {
+              inherit (preludeEval.options) prelude;
+            };
+            transformOptions = o: o // { declarations = [ ]; };
+            warningsAreErrors = false;
           };
-          transformOptions = o: o // { declarations = [ ]; };
-          warningsAreErrors = false;
         };
-      };
     in
     pkgs.runCommand "docs-allLeaves-prelude"
       {
@@ -776,36 +782,38 @@ in
           }
         ];
       };
-      docsPkg = import ../src/prelude/docs.nix {
-        inherit (pkgs)
-          lib
-          writeText
-          buildGoModule
-          runCommand
-          nixosOptionsDoc
-          figlet
-          ;
-      } {
-        theme = "phosphor";
-        colorProfile = "auto";
-        project = "check";
-        pages = [
-          {
-            generate = "nixosOptions";
-            title = "Options";
-          }
-        ];
-        nixosOptions = {
-          inherit (tiny) options;
-          transformOptions =
-            o:
-            if o.name == "hiddenByTransform" then
-              o // { visible = false; }
-            else
-              o;
-          warningsAreErrors = false;
+      docsPkg = import ../src/prelude/docs.nix
+        {
+          inherit (pkgs)
+            lib
+            writeText
+            buildGoModule
+            runCommand
+            nixosOptionsDoc
+            figlet
+            ;
+        }
+        {
+          theme = "phosphor";
+          colorProfile = "auto";
+          project = "check";
+          pages = [
+            {
+              generate = "nixosOptions";
+              title = "Options";
+            }
+          ];
+          nixosOptions = {
+            inherit (tiny) options;
+            transformOptions =
+              o:
+              if o.name == "hiddenByTransform" then
+                o // { visible = false; }
+              else
+                o;
+            warningsAreErrors = false;
+          };
         };
-      };
     in
     pkgs.runCommand "docs-allLeaves-filters-internal"
       {
@@ -843,34 +851,36 @@ in
           }
         ];
       };
-      docsPkg = import ../src/prelude/docs.nix {
-        inherit (pkgs)
-          lib
-          writeText
-          buildGoModule
-          runCommand
-          nixosOptionsDoc
-          figlet
-          ;
-      } {
-        theme = "phosphor";
-        colorProfile = "auto";
-        project = "check";
-        pages = [
-          {
-            generate = "nixosOptions";
-            title = "Options";
-          }
-        ];
-        nixosOptions = {
-          inherit (tiny) options;
-          transformOptions = o: o // {
-            name = "renamed.demo";
-            loc = [ "renamed" "demo" ];
+      docsPkg = import ../src/prelude/docs.nix
+        {
+          inherit (pkgs)
+            lib
+            writeText
+            buildGoModule
+            runCommand
+            nixosOptionsDoc
+            figlet
+            ;
+        }
+        {
+          theme = "phosphor";
+          colorProfile = "auto";
+          project = "check";
+          pages = [
+            {
+              generate = "nixosOptions";
+              title = "Options";
+            }
+          ];
+          nixosOptions = {
+            inherit (tiny) options;
+            transformOptions = o: o // {
+              name = "renamed.demo";
+              loc = [ "renamed" "demo" ];
+            };
+            warningsAreErrors = false;
           };
-          warningsAreErrors = false;
         };
-      };
     in
     pkgs.runCommand "docs-allLeaves-rename-transform"
       {
@@ -906,31 +916,33 @@ in
           }
         ];
       };
-      docsPkg = import ../src/prelude/docs.nix {
-        inherit (pkgs)
-          lib
-          writeText
-          buildGoModule
-          runCommand
-          nixosOptionsDoc
-          figlet
-          ;
-      } {
-        theme = "phosphor";
-        colorProfile = "auto";
-        project = "check";
-        pages = [
-          {
-            generate = "nixosOptions";
-            title = "Options";
-            split = "shallow";
-          }
-        ];
-        nixosOptions = {
-          inherit (tiny) options;
-          warningsAreErrors = false;
+      docsPkg = import ../src/prelude/docs.nix
+        {
+          inherit (pkgs)
+            lib
+            writeText
+            buildGoModule
+            runCommand
+            nixosOptionsDoc
+            figlet
+            ;
+        }
+        {
+          theme = "phosphor";
+          colorProfile = "auto";
+          project = "check";
+          pages = [
+            {
+              generate = "nixosOptions";
+              title = "Options";
+              split = "shallow";
+            }
+          ];
+          nixosOptions = {
+            inherit (tiny) options;
+            warningsAreErrors = false;
+          };
         };
-      };
     in
     pkgs.runCommand "docs-shallow-passthrough"
       {

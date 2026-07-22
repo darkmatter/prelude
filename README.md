@@ -43,8 +43,9 @@ include very detailed documentation, since pressing tab will expand the detail s
 which has plenty of room for prose.
 
 To avoid prelude becoming an extra thing you have to maintain, we include utilities such
-as `prelude.lib.fromPackageJson` which will import any scripts in your `package.json`,
-so the command menu doesn't drift.
+as `prelude.lib.fromPkg` which adapt existing packages — and the pattern in
+`examples/typescript/` reads `package.json` scripts straight into the command
+catalogue — so the menu doesn't drift.
 
 ### Docs
 
@@ -55,10 +56,9 @@ Docs are incredibly simple to use, since they just parse markdown in your repo:
 ```nix
 {
   prelude.docs = {
-    enabled = true;
     pages = [
-      { text = import ./README.md; title = "README"; }
-      { text = import ./docs/foo.md; title = "Foo"; }
+      { text = ./README.md; }
+      { text = ./docs/foo.md; }
     ];
   };
 }
@@ -157,7 +157,7 @@ x                 # open the interactive menu (same as `menu`)
 x dev             # run a command by catalogue key
 x d               # …or by its single-key accelerator
 x dev --port 80   # extra CLI args skip argument entry
-menu list         # print the command table (non-interactive)
+x --list          # print the command table (non-interactive)
 ```
 
 The interactive picker is a Go/bubbletea TUI (config baked to JSON at build
@@ -259,7 +259,7 @@ convenience executables:
 | `description` | str         | `""`       | One-line description.                                                    |
 | `exec`        | str / null  | key suffix | Shell command executed by the menu.                                      |
 | `invocation`  | str / null  | `exec`     | Canonical underlying command metadata; exact duplicates fail evaluation. |
-| `key`         | str / null  | `null`     | Single-key accelerator (`x <key>` / menu fast path).                     |
+| `key`         | str / null  | `null`     | Single-key accelerator (`x <key>` fast path).                            |
 | `usage`       | str / null  | `null`     | Usage form shown in the menu details.                                    |
 | `details`     | str / null  | `null`     | Extended description shown before argument entry.                        |
 | `examples`    | list of str | `[ ]`      | Worked example invocations.                                              |
@@ -540,7 +540,7 @@ from inside the shell. `.#motd` and `.#menu` are this repo's real UI;
 ```sh
 nix develop                   # our own motd + menu, built by our own module
 nix run .#motd                # this repo's welcome banner
-nix run .#menu                # this repo's command menu (try: nix run .#menu -- list)
+nix run .#menu                # this repo's command menu
 nix run .#previews            # build the render checks and show their output
 nix run .#previews -- motd-renders   # …or just specific checks
 nix run .#example-motd        # acme-web welcome banner demo
@@ -570,16 +570,19 @@ auto-commits changes under `docs/` when regeneration is needed.
 
 ## Layout
 
-```
-flake.nix              # canonical outputs + flakeModules.default
-prelude.nix            # dogfood config (same shape as setup output)
-nix/prelude-*.nix      # MOTD / menu / docs imports used by prelude.nix
+flake.nix              # canonical outputs + flakeModules.default + templates.default
+nix/internal/prelude.nix # dogfood config (same shape as setup output)
+nix/*.nix              # per-system composition, demos, checks, apps, overlay, lib
 nix/docs-automation.nix # VHS tapes, fingerprints, docs apps + freshness checks
 nix/*-demo-builder.nix  # final demo packages shared by apps and recordings
 examples/reference/    # standalone downstream consumer example
+examples/typescript/   # package.json-script menu pattern
+templates/default/     # `nix flake init -t github:darkmatter/prelude#default` scaffold
 docs/                  # docs-viewer pages, guides, generated references, media
-src/motd/              # Go source for the static MOTD renderer (Lip Gloss)
-src/menu-tui/          # Go source for the menu TUI (Bubble Tea)
+src/cmd/               # Go entrypoints (motd, menu, docs, title)
+src/internal/          # Go renderers: motd (Lip Gloss), menu (Bubble Tea),
+                       #   docs, title (setup wizard)
+src/pkg/               # shared Go packages (manual, shared, ui)
 src/prelude/
   themes.nix           # palettes (oklch → hex, CSS gamut-mapped)
   defaults.nix         # shared defaults for module + direct consumers
@@ -587,7 +590,7 @@ src/prelude/
   option-types.nix     # option types/builders shared by options/*.nix
   options/             # prelude.* option declarations
     shared.nix         #   theme, palette, colorProfile, project, groups
-    motd.nix menu.nix
+    motd.nix menu.nix docs.nix prompt.nix
   motd.nix             # mkMotd — Go renderer + normalized JSON config
   menu.nix             # mkMenu — Bubble Tea renderer + normalized JSON config
   module.nix           # flake-parts module: imports options/, wires perSystem

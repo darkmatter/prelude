@@ -14,9 +14,9 @@ type layout struct {
 }
 
 const (
-	minSideW     = 12
-	minBodyW     = 20
-	scrollBarW   = 1 // subtle right-edge overflow indicator
+	minSideW   = 12
+	minBodyW   = 20
+	scrollBarW = 1 // subtle right-edge overflow indicator
 )
 
 func (v Viewer) computeLayout() layout {
@@ -229,4 +229,3 @@ func (v Viewer) scrollBarColumn(height, yOffset, maxScroll, totalLines int) []st
 	}
 	return out
 }
-

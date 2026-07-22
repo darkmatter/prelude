@@ -177,7 +177,7 @@ in
       env = [ ];
 
       # Commands shown in Getting Started are selected via `commands.<name>.motd`
-      # (sort order) — see nix/prelude-menu.nix. `menu` is always listed bare when
+      # (sort order) — see nix/internal/prelude.nix. `menu` is always listed bare when
       # enabled. Recipes are separate multi-step workflows.
 
       recipes.your-own-repo = {

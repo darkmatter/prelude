@@ -85,7 +85,7 @@
 
           overlays.default = import ./nix/overlay.nix;
           lib = preludeLib;
-          # `nix flake init -t prelude#default` scaffolds a starter consumer.
+          # `nix flake init -t github:darkmatter/prelude#default` scaffolds a starter consumer.
           templates.default = {
             path = ./templates/default;
             description = "Minimal Prelude devshell — MOTD, command menu, docs viewer";

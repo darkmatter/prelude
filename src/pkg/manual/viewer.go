@@ -21,8 +21,8 @@ type Viewer struct {
 	document Document
 	styles   styles
 
-	width  int
-	height int
+	width    int
+	height   int
 	viewport viewport.Model
 
 	// cursorPath is the sidebar highlight (may be a group).

@@ -83,11 +83,11 @@ prelude = {
       description = "ship the current build to production";
       details = "Uploads the most recent production build and promotes it to the live environment. Deploys are atomic: traffic switches only after the new release passes its health checks.";
       examples = [
-        "menu deploy --dry-run"
-        "menu deploy --alias staging"
+        "x ops:deploy --dry-run"
+        "x ops:deploy --alias staging"
       ];
       exec = "vercel deploy";
-      usage = "menu deploy --alias staging";
+      usage = "x ops:deploy --alias staging";
     };
     "ops:push" = {
       args = [
@@ -350,11 +350,11 @@ prelude = {
       description = "ship the current build to production";
       details = "Uploads the most recent production build and promotes it to the live environment. Deploys are atomic: traffic switches only after the new release passes its health checks.";
       examples = [
-        "menu deploy --dry-run"
-        "menu deploy --alias staging"
+        "x ops:deploy --dry-run"
+        "x ops:deploy --alias staging"
       ];
       exec = "vercel deploy";
-      usage = "menu deploy --alias staging";
+      usage = "x ops:deploy --alias staging";
     };
     "ops:push" = {
       args = [

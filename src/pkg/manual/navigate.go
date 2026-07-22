@@ -17,7 +17,6 @@ func (v Viewer) handleKey(msg tea.KeyPressMsg) (Viewer, tea.Cmd) {
 		return v, nil
 	}
 
-
 	if v.focus == focusSidebar {
 		return v.handleSidebarKey(key)
 	}

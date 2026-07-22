@@ -295,7 +295,7 @@ null
 
 
 
-Single-key accelerator (` x <key> ` / menu fast path)\.
+Single-key accelerator (` x <key> ` fast path)\.
 
 
 
