@@ -570,6 +570,7 @@ auto-commits changes under `docs/` when regeneration is needed.
 
 ## Layout
 
+```
 flake.nix              # canonical outputs + flakeModules.default + templates.default
 nix/internal/prelude.nix # dogfood config (same shape as setup output)
 nix/*.nix              # per-system composition, demos, checks, apps, overlay, lib
