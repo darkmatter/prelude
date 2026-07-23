@@ -54,22 +54,21 @@ func Run(defaultConfigPath string) {
 	case *xMode && len(args) > 0:
 		xFastPath(cfg, st, args)
 
-	case !*xMode && len(args) > 0 && args[0] == "list":
-		printList(cfg, st)
+	case *xMode:
+		// Bare `x` opens the same picker as bare `menu`.
+		runTUI(cfg, st, nil)
 
 	case len(args) > 0:
-		fastPath(cfg, st, args[0], args[1:])
+		// `menu` only opens the interactive picker. Execution and listing
+		// belong to the public `x` dispatcher.
+		w := shared.ColorWriter(os.Stderr, os.Environ(), cfg.ColorProfile)
+		fmt.Fprintln(w, st.errText.Render("menu: opens the interactive picker only"))
+		fmt.Fprintln(w, st.dim.Render("hint: run commands with `x <key>`; list with `x --list`"))
+		os.Exit(1)
 
 	default:
 		runTUI(cfg, st, nil)
 	}
-}
-
-// fastPath resolves direct CLI task invocations. Tasks with declared args
-// and no explicit extras open the TUI in argument-entry mode.
-func fastPath(cfg *Config, st styles, selector string, extra []string) {
-	decision, err := resolveInvocation(cfg, selector, extra)
-	finishDecision(cfg, st, "menu", decision, err)
 }
 
 func xFastPath(cfg *Config, st styles, args []string) {
@@ -96,9 +95,9 @@ func runTUI(cfg *Config, st styles, argTask *Task) {
 }
 
 // usage prints a short command synopsis to stderr and exits 0 without
-// entering the TUI. Replaces the former menu-help manual viewer.
+// entering the TUI.
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: menu [--config path] [list | <task|key> [args…]]")
+	fmt.Fprintln(os.Stderr, "usage: menu [--config path]")
 	fmt.Fprintln(os.Stderr, "       x [--config path] [--list | <command-key> [args…]]")
 	fmt.Fprintln(os.Stderr, "shortcuts: motd|?  menu|m  docs|d")
 	os.Exit(0)
@@ -114,7 +113,7 @@ func runProgram(cfg *Config, st styles, m model) {
 	if err != nil {
 		w := shared.ColorWriter(os.Stderr, os.Environ(), cfg.ColorProfile)
 		fmt.Fprintln(w, "menu:", err)
-		fmt.Fprintln(w, st.dim.Render("hint: `menu list` prints the tasks non-interactively"))
+		fmt.Fprintln(w, st.dim.Render("hint: `x --list` prints the tasks non-interactively"))
 		os.Exit(1)
 	}
 	if fm, ok := final.(model); ok && fm.hasExecCmd {

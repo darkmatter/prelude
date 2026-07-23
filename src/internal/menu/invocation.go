@@ -24,19 +24,6 @@ type invocationDecision struct {
 	task    Task
 }
 
-// resolveInvocation prepares a direct CLI selection. The length check is
-// intentional: an explicitly supplied empty argv element still counts as an
-// argument and must bypass interactive argument collection. Argument strings
-// are joined without quoting because Prelude's existing contract is shell text,
-// not an argv-preserving process invocation.
-func resolveInvocation(cfg *Config, selector string, extra []string) (invocationDecision, error) {
-	task := findInvocationTask(cfg, selector)
-	if task == nil {
-		return invocationDecision{}, fmt.Errorf("unknown task %q", selector)
-	}
-	return resolveTaskInvocation(*task, extra), nil
-}
-
 // resolveXInvocation resolves the public `x <command-key> [args…]` contract.
 // The complete key is globally unique and remains public; its first colon only
 // derives menu presentation. This is the same Task and assembler used by menu
@@ -64,11 +51,21 @@ func resolveTaskInvocation(task Task, extra []string) invocationDecision {
 	return beginInvocation(task)
 }
 
+// findXTask resolves the public x selector. Exact catalogue name always wins;
+// single-key accelerators are a second pass so a key never shadows a name.
 func findXTask(cfg *Config, name string) *Task {
 	for groupIndex := range cfg.Groups {
 		for taskIndex := range cfg.Groups[groupIndex].Tasks {
 			task := &cfg.Groups[groupIndex].Tasks[taskIndex]
 			if task.Name == name {
+				return task
+			}
+		}
+	}
+	for groupIndex := range cfg.Groups {
+		for taskIndex := range cfg.Groups[groupIndex].Tasks {
+			task := &cfg.Groups[groupIndex].Tasks[taskIndex]
+			if task.Key != "" && task.Key == name {
 				return task
 			}
 		}
@@ -108,29 +105,6 @@ func completeInvocation(task Task, argumentLine string) (invocationDecision, err
 // This preserves empty commands instead of collapsing them into "no action".
 func commandDecision(command string) invocationDecision {
 	return invocationDecision{kind: commandInvocation, command: command}
-}
-
-// findInvocationTask uses two full passes so an exact name in any group always
-// outranks a key in any group. Combining the checks per group would make group
-// order incorrectly affect name-versus-key precedence.
-func findInvocationTask(cfg *Config, selector string) *Task {
-	for groupIndex := range cfg.Groups {
-		for taskIndex := range cfg.Groups[groupIndex].Tasks {
-			task := &cfg.Groups[groupIndex].Tasks[taskIndex]
-			if task.Name == selector {
-				return task
-			}
-		}
-	}
-	for groupIndex := range cfg.Groups {
-		for taskIndex := range cfg.Groups[groupIndex].Tasks {
-			task := &cfg.Groups[groupIndex].Tasks[taskIndex]
-			if task.Key != "" && task.Key == selector {
-				return task
-			}
-		}
-	}
-	return nil
 }
 
 // assembleInvocation trims only the complete command. Interactive callers pass

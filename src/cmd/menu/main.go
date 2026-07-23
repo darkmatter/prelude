@@ -2,14 +2,14 @@
 // cli-menu-design demo's command palette.
 //
 //	prelude-menu --config cfg.json               interactive picker
-//	prelude-menu --config cfg.json list          print the task table
-//	prelude-menu --config cfg.json help          sectioned manual viewer
-//	prelude-menu --config cfg.json <name|key> …  run a task directly
-//	prelude-menu --config cfg.json --x <key> …    dispatch through the public x catalogue
+//	prelude-menu --config cfg.json --x <key> …   dispatch through the public x catalogue
+//	prelude-menu --config cfg.json --x --list    print the command table
 //
-// Tasks with declared args open argument-entry mode (option chips, boolean
-// flags, required validation, live preview) unless extra CLI args are given.
-// The selected command is exec'd via bash -c (or printed when execute=false).
+// Bare `menu` opens the picker only. Execution and listing go through `--x`
+// (the public `x` wrapper). Tasks with declared args open argument-entry mode
+// (option chips, boolean flags, required validation, live preview) unless
+// extra CLI args are given. The selected command is exec'd via bash -c (or
+// printed when execute=false).
 package main
 
 import (

@@ -226,8 +226,8 @@ in
         # Menu entries are devshell commands too. A command whose `exec` starts
         # with its own name asserts "this command already exists on PATH"
         # (motd, docs, previews…); every other command gets a generated wrapper
-        # that delegates to the menu fast path (`menu <name> …`) so direct and
-        # interactive invocation share one execution contract.
+        # that delegates to the public `x` dispatcher so direct and interactive
+        # invocation share one execution contract. `menu` is picker-only.
         needsWrapper = entry: builtins.head (lib.splitString " " entry.run) != entry.name;
         # Colon-grouped entries are catalogue identity only. Never turn them
         # into shell executables: the complete key stays public through x while
@@ -236,6 +236,7 @@ in
         commandWrappers =
           let
             wrapped = wrappedCommandEntries;
+            xBin = lib.getExe' menuBin "x";
           in
           assert lib.assertMsg
             (
@@ -261,7 +262,7 @@ in
                 destination = "/bin/${entry.name}";
                 text = ''
                   #!${pkgs.runtimeShell}
-                  exec ${lib.getExe menuBin} ${lib.escapeShellArg entry.name} "$@"
+                  exec ${xBin} ${lib.escapeShellArg entry.name} "$@"
                 '';
               }
             )

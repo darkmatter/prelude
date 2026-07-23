@@ -26,5 +26,6 @@ in
 From the Prelude repository, inspect the generated command list with:
 
 ```sh
-nix run path:.#example-typescript-menu -- list
+nix build path:.#example-typescript-menu
+./result/bin/x --list
 ```

@@ -474,9 +474,9 @@ func (m wizardModel) commitCommandField() (tea.Model, tea.Cmd) {
 			m.err = "command name must use [A-Za-z0-9_.:-] with no empty colon segments"
 			return m, nil
 		}
-		// `list` is reserved by `menu list`; a `menu` command with a custom
-		// exec would shadow the menu itself and fail the module assertion.
-		if value == "list" || value == "menu" {
+		// `menu` and `x` are Prelude-owned entrypoints; a custom exec would
+		// shadow them and fail the module assertion.
+		if value == "menu" || value == "x" {
 			m.err = fmt.Sprintf("command name %q is reserved by prelude", value)
 			return m, nil
 		}

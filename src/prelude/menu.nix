@@ -1,10 +1,9 @@
 # Command menu builder: a bubbletea TUI (internal/menu) fed a JSON config
 # generated from the Nix options.
 #
-#   menu                 interactive picker: fuzzy filter, grouped results,
-#                        tab-to-expand details, argument entry with chips
-#   menu <name|key> …    fast path: run a command directly, extra args appended
-#   menu list            print the grouped command table (non-interactive)
+#   menu                 interactive picker only (rejects args)
+#   x <key> …            public catalogue dispatcher
+#   x --list             print the grouped command table (non-interactive)
 #
 # The Go binary is config-independent (one derivation shared by every menu
 # configuration); each config becomes a JSON file baked into a thin wrapper.
@@ -52,10 +51,6 @@ let
       (
         lib.intersectLists keys names == [ ]
       ) "menu: command keys must not collide with command names";
-    assert lib.assertMsg
-      (
-        !(lib.elem "list" (names ++ keys))
-      ) "menu: \"list\" is reserved for `menu list`";
     true;
 
   # --- config payload ----------------------------------------------------------
@@ -103,7 +98,14 @@ let
   menuWrapper = writeShellApplication {
     name = "menu";
     text = ''
-      exec ${lib.getExe menuTui} --config ${configFile} "$@"
+      # Public contract: `menu` opens the interactive picker only. Execution
+      # and listing belong to the `x` dispatcher.
+      if [ "$#" -gt 0 ]; then
+        echo "menu: opens the interactive picker only" >&2
+        echo "hint: run commands with \`x <key>\`; list with \`x --list\`" >&2
+        exit 1
+      fi
+      exec ${lib.getExe menuTui} --config ${configFile}
     '';
   };
 

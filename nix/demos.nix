@@ -46,14 +46,14 @@ let
             cmd = lib.getExe examplePackages.example-themes;
           }
           {
-            label = "example-menu list";
-            hint = "nix run .#example-menu -- list";
-            cmd = "${lib.getExe examplePackages.example-menu} list";
+            label = "example-menu x --list";
+            hint = "x --list  # from the example-menu package";
+            cmd = "${lib.getExe' examplePackages.example-menu "x"} --list";
           }
           {
-            label = "example-typescript-menu list";
-            hint = "nix run .#example-typescript-menu -- list";
-            cmd = "${lib.getExe examplePackages.example-typescript-menu} list";
+            label = "example-typescript-menu x --list";
+            hint = "x --list  # from the example-typescript-menu package";
+            cmd = "${lib.getExe' examplePackages.example-typescript-menu "x"} --list";
           }
         ];
       bashArray =

@@ -957,19 +957,36 @@ in
         touch "$out"
       '';
 
-
-
-
-
-  # Our own `menu list` renders the grouped command table.
+  # Our own `x --list` renders the grouped command table.
   menu-list-renders = pkgs.runCommand "menu-list-renders" { } ''
-    ${lib.getExe config.packages.menu} list > "$out"
+    ${lib.getExe' config.packages.menu "x"} --list > "$out"
     test -s "$out"
     grep -q '^DEMOS$' "$out"
     grep -q "tour every feature demo" "$out"
   '';
 
-  # Every feature demo (motd variants, themes, acme-web motd + menu list)
+  # Public contract: bare `menu` opens the picker only. Task/list args must
+  # fail before any command executes.
+  menu-rejects-execution = pkgs.runCommand "menu-rejects-execution" { } ''
+    menu=${lib.getExe config.packages.menu}
+    if "$menu" list >"$out" 2>"$out.err"; then
+      echo "menu list unexpectedly succeeded" >&2
+      cat "$out.err" >&2
+      exit 1
+    fi
+    grep -q 'opens the interactive picker only' "$out.err"
+    if "$menu" check >"$out" 2>"$out.err"; then
+      echo "menu check unexpectedly succeeded" >&2
+      cat "$out.err" >&2
+      exit 1
+    fi
+    grep -q 'opens the interactive picker only' "$out.err"
+    # Positive control: x still dispatches.
+    ${lib.getExe' config.packages.menu "x"} --list > "$out"
+    test -s "$out"
+  '';
+
+  # Every feature demo (motd variants, themes, acme-web motd + x --list)
   # builds (shellcheck) and renders.
   examples-render = pkgs.runCommand "examples-render" { } ''
     CLICOLOR_FORCE=1 ${lib.getExe demos.examplesRunner} > "$out"

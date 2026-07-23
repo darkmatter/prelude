@@ -27,7 +27,7 @@ import (
 //
 // lipgloss does not re-apply a parent background after a child style's
 // reset, so every segment style carries its own background. The plain
-// (background-free) styles serve non-TUI output: `menu list` and the
+// (background-free) styles serve non-TUI output: `x --list` and the
 // post-quit `$ command` preview.
 type styles struct {
 	pal shared.Palette
@@ -108,7 +108,7 @@ func newStyles(cfg *Config) styles {
 	selFg := h.Color(string(p.SelectionFg))
 
 	// Surface map is the single source for semantic styles. Transparent
-	// "plain" is the no-background export surface used by `menu list`.
+	// "plain" is the no-background export surface used by `x --list`.
 	surfaces := map[string]ui.Context{
 		"window": ui.NewContext(p, bgColor, false),
 		"body":   ui.NewContext(p, body, false),

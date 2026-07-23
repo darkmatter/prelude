@@ -178,7 +178,7 @@ let
 
   };
 
-  # `nix run .#example-menu` — the interactive command menu (`menu list`
+  # `nix run .#example-menu` — the interactive command menu (`x --list`
   # for CI).
   menu = {
     project = "acme-web";
