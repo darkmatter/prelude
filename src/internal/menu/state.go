@@ -63,6 +63,9 @@ func (m model) submitArgs() (model, tea.Cmd) {
 		m.args = m.args.SetErr(err.Error())
 		return m, nil
 	}
+	if m.cfg.Execute {
+		return m, execCommandCmd(decision.command)
+	}
 	m.execCmd = decision.command
 	m.hasExecCmd = true
 	return m, tea.Quit

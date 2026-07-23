@@ -122,7 +122,9 @@ func runProgram(cfg *Config, st styles, m model) {
 }
 
 // finish either execs the assembled command (replacing this process) or
-// prints it, per the execute option.
+// prints it, per the execute option. This is the non-TUI (x fast path)
+// exit: syscall.Exec replaces the menu process so there is nothing to
+// return to.
 func finish(cfg *Config, st styles, cmd string) {
 	if !cfg.Execute {
 		fmt.Println(cmd)
@@ -133,15 +135,39 @@ func finish(cfg *Config, st styles, cmd string) {
 	fmt.Fprintln(w, st.accent.Render("$ ")+st.fg.Render(cmd))
 	fmt.Fprintln(w)
 
-	sh, err := exec.LookPath("bash")
+	sh, err := shellPath()
 	if err != nil {
-		if sh, err = exec.LookPath("sh"); err != nil {
-			fmt.Fprintln(os.Stderr, "menu: no shell found on PATH")
-			os.Exit(1)
-		}
+		fmt.Fprintln(os.Stderr, "menu:", err)
+		os.Exit(1)
 	}
 	if err := syscall.Exec(sh, []string{sh, "-c", cmd}, os.Environ()); err != nil {
 		fmt.Fprintln(os.Stderr, "menu: exec:", err)
 		os.Exit(1)
 	}
 }
+
+// shellPath returns the path to bash (preferred) or sh for command execution.
+func shellPath() (string, error) {
+	if sh, err := exec.LookPath("bash"); err == nil {
+		return sh, nil
+	}
+	return exec.LookPath("sh")
+}
+
+// execCommandCmd builds a tea.Cmd that runs the assembled command as a child
+// process via the Program's ExecProcess facility. The Program pauses, releases
+// the terminal to the child shell, and resumes on completion — so the menu
+// survives the execution and returns to its prior filter/selection state.
+// The callback maps the child's exit error (if any) to execFinishedMsg.
+func execCommandCmd(cmd string) tea.Cmd {
+	sh, err := shellPath()
+	if err != nil {
+		return func() tea.Msg { return execFinishedMsg{err: err} }
+	}
+	c := exec.Command(sh, "-c", cmd)
+	c.Env = os.Environ()
+	return tea.ExecProcess(c, func(err error) tea.Msg {
+		return execFinishedMsg{err: err}
+	})
+}
+

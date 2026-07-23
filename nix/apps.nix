@@ -15,7 +15,7 @@ let
   };
 in
 {
-  default = config.apps.setup;
+  default = config.apps.menu;
   examples = mkApp demos.examplesRunner;
   previews = mkApp previews;
   docs-record = mkApp docsAutomation.record;
