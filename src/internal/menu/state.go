@@ -36,13 +36,17 @@ func (m *model) filter() {
 func (m *model) enterArgMode(t Task) {
 	m.mode = modeArgs
 	m.args = m.args.EnterArg(t)
-	m.prompt = m.prompt.Reset().WithPlaceholder(argPlaceholder(t)).WithContext(t.displayName())
+	m.promptCtx = t.displayName()
+	m.promptPlaceholder = argPlaceholder(t)
+	m.prompt = m.prompt.Reset().WithSize(m.layout.inner, m.promptCtx)
 }
 
 func (m *model) exitArgMode() {
 	m.mode = modeList
 	m.args = m.args.ExitArg()
-	m.prompt = m.prompt.Reset().WithPlaceholder(m.cfg.Placeholder).WithContext("~/" + m.cfg.Project)
+	m.promptCtx = "~/" + m.cfg.Project
+	m.promptPlaceholder = m.cfg.Placeholder
+	m.prompt = m.prompt.Reset().WithSize(m.layout.inner, m.promptCtx)
 	m.filter()
 	m.syncList()
 }
@@ -58,15 +62,15 @@ func (m *model) appendChip(c chip) {
 }
 
 func (m model) submitArgs() (model, tea.Cmd) {
-	decision, err := completeInvocation(*m.args.Task(), m.prompt.Value())
+	cmd, err := m.args.Submit(m.prompt.Value())
 	if err != nil {
 		m.args = m.args.SetErr(err.Error())
 		return m, nil
 	}
 	if m.cfg.Execute {
-		return m, execCommandCmd(decision.command)
+		return m, execCommandCmd(cmd)
 	}
-	m.execCmd = decision.command
+	m.execCmd = cmd
 	m.hasExecCmd = true
 	return m, tea.Quit
 }

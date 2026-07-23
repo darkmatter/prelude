@@ -17,10 +17,6 @@ const (
 	frameRows  = 1 // frameTop
 )
 
-func (m model) listHeight() int {
-	return max(min(m.cfg.Height, m.height-chromeRows), 4)
-}
-
 func (m model) viewList() string {
 	title := fmt.Sprintf("%s — command menu — %d of %d", m.cfg.Project, len(m.matches), len(m.flat))
 
@@ -38,7 +34,7 @@ func (m model) viewList() string {
 	listY := titleRows + promptRows + frameRows
 	return lipgloss.NewCompositor(
 		lipgloss.NewLayer(m.title.View(title)).Y(0),
-		lipgloss.NewLayer(m.prompt.View()).Y(titleRows),
+		lipgloss.NewLayer(m.prompt.View(m.promptCtx, m.promptPlaceholder)).Y(titleRows),
 		lipgloss.NewLayer(m.frame.Top()).Y(titleRows+promptRows),
 		lipgloss.NewLayer(m.list.View()).Y(listY),
 		lipgloss.NewLayer(m.status.View([][2]string{

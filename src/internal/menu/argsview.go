@@ -1,6 +1,7 @@
 package menu
 
 import (
+	"fmt"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -154,6 +155,29 @@ func (a *ArgsView) HasChips() bool {
 func (a *ArgsView) WithSize(inner int) *ArgsView {
 	a.inner = inner
 	return a
+}
+
+// Submit assembles the final shell command from the stored task and the
+// user-supplied argument line. It validates that required arguments are present
+// and returns the assembled command string. This keeps command assembly behind
+// the arg-entry seam instead of leaking it into the root model.
+func (a *ArgsView) Submit(promptValue string) (string, error) {
+	if a.argTask == nil {
+		return "", fmt.Errorf("no task in argument-entry mode")
+	}
+	argumentLine := strings.TrimSpace(promptValue)
+	if argumentLine == "" {
+		for _, arg := range a.argTask.Args {
+			if arg.Required {
+				return "", fmt.Errorf(
+					"%s: missing required argument %s",
+					a.argTask.Name,
+					arg.Token,
+				)
+			}
+		}
+	}
+	return assembleInvocation(*a.argTask, argumentLine), nil
 }
 
 // View renders the complete argument-entry panel body: the framed arg list

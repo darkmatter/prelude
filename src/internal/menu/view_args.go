@@ -16,10 +16,10 @@ import (
 func (m model) viewArgs() string {
 	t := *m.args.Task()
 	title := fmt.Sprintf("%s %s — enter arguments", m.cfg.Project, t.displayName())
-	argsBody := m.args.View(m.prompt.Value(), m.frame, m.listHeight()-3)
+	argsBody := m.args.View(m.prompt.Value(), m.frame, m.layout.listHeight-3)
 	return strings.Join([]string{
 		m.title.View(title),
-		m.prompt.View(),
+		m.prompt.View(m.promptCtx, m.promptPlaceholder),
 		argsBody,
 		m.status.View([][2]string{
 			{"⇥", "chips"}, {"↵", "run"}, {"esc", "back"},

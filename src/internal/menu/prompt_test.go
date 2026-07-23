@@ -26,9 +26,7 @@ func TestModelViewPlacesBarCursorAtPromptInput(t *testing.T) {
 		{width: 81, height: 25},
 	} {
 		t.Run(fmt.Sprintf("%dx%d", size.width, size.height), func(t *testing.T) {
-			m.width = size.width
-			m.height = size.height
-			m.resizeChrome()
+			m.applyLayout(size.width, size.height)
 			m.syncList()
 
 			view := m.View()
@@ -71,11 +69,11 @@ func TestModelViewPlacesBarCursorAtPromptInput(t *testing.T) {
 
 func TestPromptKeepsLongInputCursorInsideRow(t *testing.T) {
 	const inner = 40
-	prompt := newPrompt(styles{}, "prelude", "", inner).
+	prompt := newPrompt(styles{}, inner).
 		WithValue(strings.Repeat("x", 200)).
 		WithCursorEnd()
 
-	cursor := prompt.Cursor()
+	cursor := prompt.Cursor("~/prelude")
 	if cursor == nil {
 		t.Fatal("prompt cursor is nil")
 	}

@@ -43,26 +43,30 @@ type model struct {
 	status statusBar // chrome status footer (presentational)
 	frame  Frame     // rounded panel border decorator (presentational)
 
-	width, height int
-	execCmd       string // consumed by main after the TUI quits
-	hasExecCmd    bool   // distinguishes a valid empty command from no selection
+	layout Layout // terminal and panel geometry (single source of truth)
+
+	promptCtx         string // context label left of the caret
+	promptPlaceholder string // current placeholder text
+
+	execCmd    string // consumed by main after the TUI quits
+	hasExecCmd bool   // distinguishes a valid empty command from no selection
 }
 
 func newModel(cfg *Config, st styles, argTask *Task) model {
 	m := model{
-		cfg:    cfg,
-		st:     st,
-		flat:   cfg.flatten(),
-		prompt: newPrompt(st, cfg.Project, cfg.Placeholder, 80),
-		list:   newListView(st, 80),
-		args:   newArgsView(st),
-		title:  titleBar{st: st},
-		status: statusBar{st: st},
-		frame:  Frame{st: st},
-		width:  80,
-		height: 24,
+		cfg:               cfg,
+		st:                st,
+		flat:              cfg.flatten(),
+		prompt:            newPrompt(st, 80),
+		list:              newListView(st, 80),
+		args:              newArgsView(st),
+		title:             titleBar{st: st},
+		status:            statusBar{st: st},
+		frame:             Frame{st: st},
+		promptCtx:         "~/" + cfg.Project,
+		promptPlaceholder: cfg.Placeholder,
 	}
-	m.resizeChrome()
+	m.applyLayout(80, 24)
 	m.filter()
 	m.syncList()
 	if argTask != nil {
@@ -76,8 +80,7 @@ func (m model) Init() tea.Cmd { return m.prompt.Init() }
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width, m.height = msg.Width, msg.Height
-		m.resizeChrome()
+		m.applyLayout(msg.Width, msg.Height)
 		m.syncList()
 		return m, nil
 
