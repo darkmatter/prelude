@@ -15,7 +15,7 @@ func TestActivationAddsBlankLineBeforeFullWidthSubtitle(t *testing.T) {
 		Header: Header{TaglineAlign: "left"},
 		Width:  80,
 	}, Cache{}, 80, 20, time.Now()))
-	lines := (Activation{r: r}).Render("Dev Shell Activated", subtitle, "")
+	lines := sections{r: r}.activation("Dev Shell Activated", subtitle, "")
 
 	if len(lines) < 3 {
 		t.Fatalf("subtitle layout is missing the blank line: %q", lines)

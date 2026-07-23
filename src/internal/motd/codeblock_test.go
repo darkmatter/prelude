@@ -20,7 +20,7 @@ func TestCodeblockTitleRuleUsesBottomRuleSurface(t *testing.T) {
 		},
 	}
 	r := newRenderer(Resolve(cfg, Cache{}, 12, 10, time.Now()))
-	rows := (Codeblock{r: r}).Render(Recipe{Title: "build"})
+	rows := sections{r: r}.codeblock(Recipe{Title: "build"})
 	top := lipgloss.NewCanvas(r.contentWidth, 1).
 		Compose(lipgloss.NewLayer(rows[0]))
 	bottom := lipgloss.NewCanvas(r.contentWidth, 1).

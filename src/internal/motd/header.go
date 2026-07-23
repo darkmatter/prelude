@@ -8,6 +8,16 @@ import (
 	"prelude/pkg/ui"
 )
 
+// Title style variants for the header wordmark.
+const (
+	titleStylePlain     = "plain"
+	titleStyleSpine     = "spine"
+	titleStyleBracketed = "bracketed"
+	titleStyleLabel     = "label"
+	titleStyleInline    = "inline"   // project name centered in the accent gradient rule
+	titleStyleInverted  = "inverted" // solid accent chip, selectionFg text
+)
+
 // HeaderView renders the MOTD header chrome. React-style, one component per
 // file: it owns title, divider, and header-status presentation.
 type HeaderView struct{ r renderer }
@@ -64,7 +74,7 @@ func (x HeaderView) titleHeaderLine(content string) string {
 // renderRowHeader is the header-owned title/status row plus its trailing space.
 // The divider and lower spacing are composed separately.
 func (x HeaderView) renderRowHeader(style string) []string {
-	title := (HeaderTitle{r: x.r}).Render(style)
+	title := sections{r: x.r}.headerTitle(style)
 
 	contentWidth := x.r.cardWidth - headerRightPad
 	statusItems := StatusItems{r: x.r}

@@ -81,29 +81,20 @@ func (x FooterView) statusRows() []string {
 // label line, joined directly (no blank line between consecutive links).
 // Returns "" when there are no links so Render can skip appending it.
 func (x FooterView) linksRow() string {
-	if len(x.r.model.Config.Links) == 0 {
+	linkLines := sections{r: x.r}.links()
+	if len(linkLines) == 0 {
 		return ""
 	}
 	var lines []string
-	for _, link := range x.r.model.Config.Links {
-		for _, labelLine := range ui.WrapText(link.Label, x.r.contentWidth) {
-			rendered := (ui.Link{
-				Context: x.r.blockUI,
-				Label:   labelLine,
-				URL:     link.URL,
-			}).Render()
-			if rendered == "" {
-				continue
-			}
-			lines = append(lines, ui.PlaceContentLine(
-				rendered,
-				x.r.cardWidth,
-				x.r.contentWidth,
-				x.r.model.Padding.Left,
-				lipgloss.Center,
-				x.r.st.blockFill,
-			))
-		}
+	for _, rendered := range linkLines {
+		lines = append(lines, ui.PlaceContentLine(
+			rendered,
+			x.r.cardWidth,
+			x.r.contentWidth,
+			x.r.model.Padding.Left,
+			lipgloss.Center,
+			x.r.st.blockFill,
+		))
 	}
 	return strings.Join(lines, "\n")
 }

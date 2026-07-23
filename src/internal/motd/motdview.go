@@ -6,9 +6,9 @@ import (
 	"prelude/pkg/ui"
 )
 
-// MOTDView is the top-level presentational composer, following React-style
-// one-component-per-file composition: it assembles named child components
-// without owning rendering state.
+// MOTDView is the top-level presentational composer. It assembles header,
+// middle, and footer sections through shallow adapters in sections.go, keeping
+// layout policy in one place.
 type MOTDView struct{ r renderer }
 
 // Render paints the MOTD in its terminal window.
@@ -95,6 +95,7 @@ func (v MOTDView) renderBody() string {
 // strip (tagline/subtitle/shortcuts). Returns "" when nothing would paint.
 func (v MOTDView) renderHeaderSection() string {
 	header := HeaderView{r: v.r}
+	sec := sections{r: v.r}
 	card := ui.Surface{Context: v.r.blockUI, Width: v.r.cardWidth}
 	var parts []string
 
@@ -111,9 +112,9 @@ func (v MOTDView) renderHeaderSection() string {
 	}
 
 	h := v.r.model.Config.Header
-	shortcuts := (Shortcuts{r: v.r}).Render()
+	shortcuts := sec.shortcuts()
 	if h.Tagline != "" || h.Subtitle != "" || shortcuts != "" {
-		parts = append(parts, strings.Join((Activation{r: v.r}).Render(h.Tagline, h.Subtitle, shortcuts), "\n"))
+		parts = append(parts, strings.Join(sec.activation(h.Tagline, h.Subtitle, shortcuts), "\n"))
 	}
 
 	// Newline after the tagline/subtitle when a generated title is active.
@@ -141,17 +142,18 @@ func (v MOTDView) renderFooterSection() string {
 // side padding. Vertical padding is applied around the whole card in renderBody.
 // Links are rendered separately by FooterView so they land at the very bottom.
 func (v MOTDView) renderMiddle() string {
+	sec := sections{r: v.r}
 	var content ui.Block
 
-	if desc := (Description{r: v.r}).Render(); len(desc) > 0 {
+	if desc := sec.description(); len(desc) > 0 {
 		content.WriteSection(desc)
 	}
 
-	if env := (Env{r: v.r}).Render(); len(env) > 0 {
+	if env := sec.env(); len(env) > 0 {
 		content.WriteSection(env)
 	}
 
-	if started := (GettingStartedView{r: v.r}).Render(); len(started) > 0 {
+	if started := sec.gettingStarted(); len(started) > 0 {
 		content.WriteLines(started)
 	}
 
