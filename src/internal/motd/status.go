@@ -1,42 +1,42 @@
 package motd
 
-// resolveStatusItem sets Level and Status on a badge from a check outcome.
-// Diagnostics for post-banner lines are no longer collected (D2).
-func resolveStatusItem(item *HeaderStatus, ok bool, out string) []string {
+// resolveStatusItem turns a check outcome into the status text and level that
+// would be cached or rendered. It is pure: no mutation of the HeaderStatus.
+func resolveStatusItem(item HeaderStatus, ok bool, out string) (status, level string) {
 	if ok {
-		item.Level = "success"
+		level = "success"
 		switch item.Output {
 		case "light":
-			item.Status = ""
+			status = ""
 		default:
 			switch {
 			case item.Ok != "":
-				item.Status = item.Ok
+				status = item.Ok
 			case out != "":
-				item.Status = firstLine([]byte(out))
+				status = firstLine([]byte(out))
 			default:
-				item.Status = "ok"
+				status = "ok"
 			}
 		}
-		return nil
+		return status, level
 	}
 
-	item.Level = "error"
+	level = "error"
 	if item.FailLevel == "warning" {
-		item.Level = "warning"
+		level = "warning"
 	}
 	switch item.Output {
 	case "light":
-		item.Status = ""
+		status = ""
 	default:
 		switch {
 		case item.Fail != "":
-			item.Status = item.Fail
+			status = item.Fail
 		case out != "":
-			item.Status = firstLine([]byte(out))
+			status = firstLine([]byte(out))
 		default:
-			item.Status = "fail"
+			status = "fail"
 		}
 	}
-	return nil
+	return status, level
 }

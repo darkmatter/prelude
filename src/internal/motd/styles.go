@@ -66,23 +66,23 @@ type styles struct {
 	headerError   lipgloss.Style
 }
 
-func newStyles(cfg Config) styles {
-	p := cfg.Palette
+func newStyles(model PaintModel) styles {
+	p := model.Config.Palette
 	h := shared.NewPaletteHelper(p)
 
-	hasBlockBg := cfg.Background != ""
+	hasBlockBg := model.Background != ""
 	blockBg := h.Color(string(p.Bg))
 	if hasBlockBg {
-		blockBg = h.Color(cfg.Background)
+		blockBg = h.Color(model.Background)
 	}
 	baseBg := blockBg
 
 	headerTransparent := false
 	var headerBg color.Color
 	switch {
-	case cfg.Header.Background != "":
-		headerBg = h.Color(cfg.Header.Background)
-	case cfg.Header.BackgroundRaised:
+	case model.HeaderBackground != "":
+		headerBg = h.Color(model.HeaderBackground)
+	case model.Config.Header.BackgroundRaised:
 		headerBg = lipgloss.Lighten(baseBg, headerLighten)
 	default:
 		headerTransparent = true
@@ -96,10 +96,10 @@ func newStyles(cfg Config) styles {
 	dividerPk := lipgloss.Darken(accentC, dividerPeakDark)
 	headerUnderlinePk := lipgloss.Darken(accentC, headerUnderlineDarken)
 
-	windowTransparent := cfg.WindowBackground == ""
+	windowTransparent := model.WindowBackground == ""
 	windowBg := h.Color(string(p.Bg))
 	if !windowTransparent {
-		windowBg = h.Color(cfg.WindowBackground)
+		windowBg = h.Color(model.WindowBackground)
 	}
 
 	// Surface map owns semantic styles. Header falls through to block when

@@ -3,6 +3,7 @@ package motd
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"prelude/pkg/shared"
 )
@@ -22,7 +23,7 @@ func TestConfiguredShortcutsRenderWithoutGeneratedTitle(t *testing.T) {
 		Width: 80,
 	}
 
-	output := (MOTDView{r: newRenderer(cfg, 80, 20)}).Render()
+	output := (MOTDView{r: newRenderer(Resolve(cfg, Cache{}, 80, 20, time.Now()))}).Render()
 	for _, want := range []string{"motd", "menu", "docs"} {
 		if count := strings.Count(output, want); count != 1 {
 			t.Errorf("MOTD output contains shortcut %q %d times, want once: %q", want, count, output)

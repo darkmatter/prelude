@@ -64,7 +64,7 @@ func (x Markdown) markdownStyle(d StyledText) gansi.StyleConfig {
 	switch {
 	case d.Background != "":
 		bg = new(d.Background)
-	case x.r.cfg.Background != "":
+	case x.r.model.Background != "":
 		bg = new(colorHex(x.r.st.blockBg))
 	}
 

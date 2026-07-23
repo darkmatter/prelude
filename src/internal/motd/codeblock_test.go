@@ -2,6 +2,7 @@ package motd
 
 import (
 	"testing"
+	"time"
 
 	"charm.land/lipgloss/v2"
 
@@ -18,7 +19,7 @@ func TestCodeblockTitleRuleUsesBottomRuleSurface(t *testing.T) {
 			Surface: "#203040",
 		},
 	}
-	r := newRenderer(cfg, 12, 10)
+	r := newRenderer(Resolve(cfg, Cache{}, 12, 10, time.Now()))
 	rows := (Codeblock{r: r}).Render(Recipe{Title: "build"})
 	top := lipgloss.NewCanvas(r.contentWidth, 1).
 		Compose(lipgloss.NewLayer(rows[0]))

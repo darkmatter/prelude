@@ -83,7 +83,7 @@ func TestPreflightBlockingSkipsAsyncChecks(t *testing.T) {
 	}
 }
 
-func TestApplyCacheRendersCachedAsyncAndAge(t *testing.T) {
+func TestResolveRendersCachedAsyncAndAge(t *testing.T) {
 	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
 	cache := Cache{Entries: map[string]CacheEntry{
 		statusKey("slow"): {
@@ -95,9 +95,9 @@ func TestApplyCacheRendersCachedAsyncAndAge(t *testing.T) {
 	}}
 	cfg := Config{Header: Header{Status: []HeaderStatus{{Label: "service", Check: "slow", Async: true}}}}
 
-	got := applyCache(cfg, cache, now)
-	if got.Header.Status[0].Status != "healthy" {
-		t.Fatalf("cached status = %q, want healthy", got.Header.Status[0].Status)
+	got := Resolve(cfg, cache, 0, 0, now)
+	if got.Status[0].Status != "healthy" {
+		t.Fatalf("cached status = %q, want healthy", got.Status[0].Status)
 	}
 	if want := "17m ago"; got.StatusAge != want {
 		t.Fatalf("age = %q, want %q", got.StatusAge, want)
@@ -107,11 +107,11 @@ func TestApplyCacheRendersCachedAsyncAndAge(t *testing.T) {
 	}
 }
 
-func TestApplyCachePendingWithoutCache(t *testing.T) {
+func TestResolvePendingWithoutCache(t *testing.T) {
 	cfg := Config{Header: Header{Status: []HeaderStatus{{Label: "service", Check: "slow", Async: true}}}}
-	got := applyCache(cfg, Cache{}, time.Now())
-	if got.Header.Status[0].Status != "pending" {
-		t.Fatalf("status = %q, want pending", got.Header.Status[0].Status)
+	got := Resolve(cfg, Cache{}, 0, 0, time.Now())
+	if got.Status[0].Status != "pending" {
+		t.Fatalf("status = %q, want pending", got.Status[0].Status)
 	}
 	if got.StatusHint != "[r] to reload" {
 		t.Fatalf("hint = %q", got.StatusHint)
@@ -180,30 +180,31 @@ func TestCacheWriteAtomic(t *testing.T) {
 }
 
 func TestResolveTerminalSizeDefaults(t *testing.T) {
-	w, h := resolveTerminalSize(RenderInput{})
+	w, h := resolveTerminalSize(Cache{}, 0, 0)
 	if w != 80 || h != 24 {
 		t.Fatalf("defaults = %dx%d, want 80x24", w, h)
 	}
-	w, h = resolveTerminalSize(RenderInput{
-		Cache: Cache{Entries: map[string]CacheEntry{
+	w, h = resolveTerminalSize(
+		Cache{Entries: map[string]CacheEntry{
 			keyTerminalSize: {Width: 100, Height: 40},
 		}},
-	})
+		0, 0,
+	)
 	if w != 100 || h != 40 {
 		t.Fatalf("from cache = %dx%d", w, h)
 	}
-	w, h = resolveTerminalSize(RenderInput{TerminalWidth: 50, TerminalHeight: 10})
+	w, h = resolveTerminalSize(Cache{}, 50, 10)
 	if w != 50 || h != 10 {
 		t.Fatalf("override = %dx%d", w, h)
 	}
 }
 
-func TestApplyCacheFillsEnvFromCache(t *testing.T) {
+func TestResolveFillsEnvFromCache(t *testing.T) {
 	cfg := Config{Env: []EnvItem{{Label: "node", Probe: "node -v"}}}
 	cache := Cache{Entries: map[string]CacheEntry{
 		envKey("node -v"): {Value: "v22", CheckedAt: time.Now(), TTL: ttlEnv},
 	}}
-	got := applyCache(cfg, cache, time.Now())
+	got := Resolve(cfg, cache, 0, 0, time.Now())
 	if got.Env[0].Value != "v22" {
 		t.Fatalf("env value = %q", got.Env[0].Value)
 	}

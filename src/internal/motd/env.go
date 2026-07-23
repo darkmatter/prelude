@@ -11,8 +11,7 @@ import (
 
 // Env is a React-style, one-component-per-file presentation of the motd env
 // section. It renders tool versions as one flowing row of chips. Live probe
-// values are filled by applyCache from the Cache (Preflight); this paint path
-// is pure.
+// values are filled by Resolve from the Cache; this paint path is pure.
 type Env struct {
 	r renderer
 }
@@ -20,7 +19,7 @@ type Env struct {
 // Render builds tool versions as one flowing row of chips.
 func (x Env) Render() []string {
 	var row strings.Builder
-	for _, item := range x.r.cfg.Env {
+	for _, item := range x.r.model.Env {
 		if rendered, ok := x.renderEnvItem(item); ok {
 			row.WriteString(rendered)
 		}
@@ -32,15 +31,9 @@ func (x Env) Render() []string {
 	return x.WrapAndFill(row.String(), x.r.contentWidth)
 }
 
-func (x Env) renderEnvItem(item EnvItem) (string, bool) {
+func (x Env) renderEnvItem(item ResolvedEnv) (string, bool) {
 	value := item.Value
 	// Probe-backed chips require a non-empty resolved value (from Cache).
-	if item.Probe != "" && value == "" {
-		return "", false
-	}
-	if value == "" && item.Label == "" {
-		return "", false
-	}
 	if value == "" {
 		return "", false
 	}

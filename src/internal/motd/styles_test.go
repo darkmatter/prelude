@@ -10,16 +10,16 @@ import (
 )
 
 func TestNewStylesBlendsCodeBackgroundWithPaletteSurface(t *testing.T) {
-	cfg := Config{
+	model := PaintModel{
 		Background: "#000000",
-		Palette: shared.Palette{
+		Config: Config{Palette: shared.Palette{
 			Bg:      "#000000",
 			Surface: "#ffffff",
-		},
+		}},
 	}
 
-	got := newStyles(cfg).codeBg
-	want := lipgloss.Blend1D(101, lipgloss.Color(cfg.Background), lipgloss.Color(cfg.Palette.Surface.String()))[50]
+	got := newStyles(model).codeBg
+	want := lipgloss.Blend1D(101, lipgloss.Color(model.Background), lipgloss.Color(model.Config.Palette.Surface.String()))[50]
 	if !colorsEqual(got, want) {
 		t.Fatalf("code background = %v, want weighted surface blend %v", got, want)
 	}

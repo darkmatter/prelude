@@ -10,13 +10,13 @@ type GettingStartedView struct{ r renderer }
 // Render unifies commands + recipes under dim sub-labels only (no top-level
 // "Getting Started" heading — keeps the banner quieter).
 func (x GettingStartedView) Render() []string {
-	hasCommands := len(x.r.cfg.Commands) > 0
-	hasRecipes := len(x.r.cfg.Recipes) > 0
+	hasCommands := len(x.r.model.Config.Commands) > 0
+	hasRecipes := len(x.r.model.Config.Recipes) > 0
 	if !hasCommands && !hasRecipes {
 		return nil
 	}
 
-	gs := x.r.cfg.GettingStarted
+	gs := x.r.model.Config.GettingStarted
 	commandsLabel := gs.CommandsLabel
 	if commandsLabel == "" {
 		commandsLabel = "commands"

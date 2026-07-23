@@ -19,7 +19,7 @@ type StatusItems struct {
 // Render paints resolved status badges. compact drops labels and keeps only the
 // indicator + status text. Dot colors use semantic palette roles: unresolved
 // static items are informational; checks resolve to success, warning, or error.
-func (x StatusItems) Render(items []HeaderStatus, compact bool) string {
+func (x StatusItems) Render(items []ResolvedStatus, compact bool) string {
 	var parts []string
 	for _, it := range items {
 		label, status := it.Label, it.Status
@@ -56,7 +56,7 @@ func (x StatusItems) Render(items []HeaderStatus, compact bool) string {
 	}
 	sep := ui.Inline(x.r.st.headerDim).Render(" / ")
 	result := strings.Join(parts, sep)
-	if age := x.r.cfg.StatusAge; age != "" {
+	if age := x.r.model.StatusAge; age != "" {
 		result += ui.Inline(x.r.st.headerDim).Render("  ") + ui.Inline(x.r.st.headerMuted).Render(age)
 	}
 	return result
@@ -87,10 +87,10 @@ func (x StatusItems) Hint(header bool) string {
 		linkContext = x.r.headerUI
 	}
 	var parts []string
-	if x.r.cfg.StatusHint != "" {
-		parts = append(parts, ui.Inline(style).Render(x.r.cfg.StatusHint))
+	if x.r.model.StatusHint != "" {
+		parts = append(parts, ui.Inline(style).Render(x.r.model.StatusHint))
 	}
-	for _, link := range x.r.cfg.Header.StatusHintLinks {
+	for _, link := range x.r.model.Config.Header.StatusHintLinks {
 		if rendered := (ui.Link{Context: linkContext, Label: link.Label, URL: link.URL}).Render(); rendered != "" {
 			parts = append(parts, rendered)
 		}
@@ -105,7 +105,7 @@ func (x StatusItems) Hint(header bool) string {
 // asynchronous refresh hint flush right. It compacts the lights when needed and
 // returns an empty string when even the compact row cannot fit, allowing callers
 // to retain the stacked layout as a narrow-terminal fallback.
-func (x StatusItems) InlineHint(items []HeaderStatus, width int, header bool) string {
+func (x StatusItems) InlineHint(items []ResolvedStatus, width int, header bool) string {
 	hint := x.Hint(header)
 	status := x.Render(items, false)
 	if hint == "" || status == "" || width <= 0 {

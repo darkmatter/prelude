@@ -16,10 +16,10 @@ type HeaderView struct{ r renderer }
 // to the window/default surface, while activation text and everything below it
 // belong to the container surface.
 func (x HeaderView) Render() string {
-	if x.r.cfg.Title != "" {
+	if x.r.model.Config.Title != "" {
 		return strings.Join(x.renderGeneratedTitle(), "\n")
 	}
-	style := strings.ToLower(x.r.cfg.Header.TitleStyle)
+	style := strings.ToLower(x.r.model.Config.Header.TitleStyle)
 	if style == titleStyleInline {
 		return strings.Join(x.renderInlineHeader(), "\n")
 	}
@@ -27,14 +27,14 @@ func (x HeaderView) Render() string {
 }
 
 func (x HeaderView) Divider() string {
-	if x.r.cfg.Title == "" && strings.ToLower(x.r.cfg.Header.TitleStyle) == titleStyleInline {
-		return x.inlineTitleRule(x.r.cfg.Project)
+	if x.r.model.Config.Title == "" && strings.ToLower(x.r.model.Config.Header.TitleStyle) == titleStyleInline {
+		return x.inlineTitleRule(x.r.model.Config.Project)
 	}
 	return x.headerUnderline()
 }
 
 func (x HeaderView) renderGeneratedTitle() []string {
-	titleBlock := strings.TrimRight(x.r.cfg.Title, "\n")
+	titleBlock := strings.TrimRight(x.r.model.Config.Title, "\n")
 	titleBlock = lipgloss.NewStyle().Width(lipgloss.Width(titleBlock)).Align(lipgloss.Left).Render(titleBlock)
 	lines := strings.Split(titleBlock, "\n")
 	out := make([]string, 0, len(lines)+1)
@@ -47,7 +47,7 @@ func (x HeaderView) renderGeneratedTitle() []string {
 
 func (x HeaderView) titleHeaderLine(content string) string {
 	position := lipgloss.Left
-	switch strings.ToLower(x.r.cfg.TitleAlign) {
+	switch strings.ToLower(x.r.model.Config.TitleAlign) {
 	case "center":
 		position = lipgloss.Center
 	case "right":
@@ -68,8 +68,8 @@ func (x HeaderView) renderRowHeader(style string) []string {
 
 	contentWidth := x.r.cardWidth - headerRightPad
 	statusItems := StatusItems{r: x.r}
-	if x.r.cfg.Header.StatusHintLayout == "inline" {
-		if statusRow := statusItems.InlineHint(x.r.cfg.Header.Status, contentWidth, true); statusRow != "" {
+	if x.r.model.Config.Header.StatusHintLayout == "inline" {
+		if statusRow := statusItems.InlineHint(x.r.model.Status, contentWidth, true); statusRow != "" {
 			return []string{
 				x.fillHeaderLine(title, x.r.cardWidth),
 				x.BlankLine(),
@@ -78,9 +78,9 @@ func (x HeaderView) renderRowHeader(style string) []string {
 			}
 		}
 	}
-	info := statusItems.Render(x.r.cfg.Header.Status, false)
+	info := statusItems.Render(x.r.model.Status, false)
 	if info != "" && lipgloss.Width(title)+2+lipgloss.Width(info) > contentWidth {
-		info = statusItems.Render(x.r.cfg.Header.Status, true)
+		info = statusItems.Render(x.r.model.Status, true)
 	}
 
 	var row string
@@ -107,9 +107,9 @@ func (x HeaderView) renderRowHeader(style string) []string {
 func (x HeaderView) renderInlineHeader() []string {
 	var parts []string
 	statusItems := StatusItems{r: x.r}
-	if info := statusItems.Render(x.r.cfg.Header.Status, false); info != "" {
-		if x.r.cfg.Header.StatusHintLayout == "inline" {
-			if row := statusItems.InlineHint(x.r.cfg.Header.Status, x.r.cardWidth, true); row != "" {
+	if info := statusItems.Render(x.r.model.Status, false); info != "" {
+		if x.r.model.Config.Header.StatusHintLayout == "inline" {
+			if row := statusItems.InlineHint(x.r.model.Status, x.r.cardWidth, true); row != "" {
 				return []string{row, x.BlankLine()}
 			}
 		}

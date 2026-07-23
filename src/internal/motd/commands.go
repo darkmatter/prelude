@@ -13,11 +13,11 @@ type Commands struct{ r renderer }
 // Render paints next-step commands with dotted leaders to a right-aligned
 // description (playground CommandsLeaders).
 func (x Commands) Render() []string {
-	if len(x.r.cfg.Commands) == 0 {
+	if len(x.r.model.Config.Commands) == 0 {
 		return nil
 	}
 	var out []string
-	for _, cmd := range x.r.cfg.Commands {
+	for _, cmd := range x.r.model.Config.Commands {
 		out = append(out, x.commandRow(cmd.Command, cmd.Description))
 	}
 	return out

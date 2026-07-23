@@ -3,6 +3,7 @@ package motd
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"prelude/pkg/shared"
 )
@@ -20,7 +21,7 @@ func TestLinksPreserveOSC8HyperlinksThroughMOTDLayout(t *testing.T) {
 		}},
 		Width: 40,
 	}
-	r := newRenderer(cfg, 40, 20)
+	r := newRenderer(Resolve(cfg, Cache{}, 40, 20, time.Now()))
 
 	component := strings.Join((Links{r: r}).Render(), "\n")
 	assertOSC8Link(t, "links component", component, url)

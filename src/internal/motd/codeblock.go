@@ -19,7 +19,7 @@ func (cb Codeblock) Render(recipe Recipe) []string {
 	}
 
 	return ui.CodeBlock{
-		Context: ui.NewContext(cb.r.cfg.Palette, surface, false),
+		Context: ui.NewContext(cb.r.model.Config.Palette, surface, false),
 		Title:   recipe.Title,
 		Lines:   lines,
 		Indent:  cb.r.st.fill(surface).Render("  "),

@@ -24,7 +24,7 @@ type HeaderTitle struct{ r renderer }
 
 // Render renders the project wordmark for the given style variant.
 func (x HeaderTitle) Render(style string) string {
-	name := x.r.cfg.Project
+	name := x.r.model.Config.Project
 	dim, fg, accent := x.r.st.headerDim, x.r.st.headerFg, x.r.st.headerAccent
 	switch strings.ToLower(style) {
 	case titleStylePlain:

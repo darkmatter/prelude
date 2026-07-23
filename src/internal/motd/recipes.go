@@ -10,12 +10,12 @@ type Recipes struct{ r renderer }
 // (playground CodeblockTopRuleFade). Chrome is accent-free; the title is
 // the sole accented element.
 func (x Recipes) Render() []string {
-	if len(x.r.cfg.Recipes) == 0 {
+	if len(x.r.model.Config.Recipes) == 0 {
 		return nil
 	}
 	content := ui.Surface{Context: x.r.blockUI, Width: x.r.contentWidth}
 	var out []string
-	for i, recipe := range x.r.cfg.Recipes {
+	for i, recipe := range x.r.model.Config.Recipes {
 		if i > 0 {
 			out = append(out, content.Blank())
 		}

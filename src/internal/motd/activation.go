@@ -19,12 +19,12 @@ type Activation struct {
 // lane beside the tagline; when the row cannot fit, the tagline wraps first and
 // the shortcut lane remains right-aligned on its own row.
 func (x Activation) Render(tagline, subtitle, shortcuts string) []string {
-	layout := strings.ToLower(x.r.cfg.Header.TaglineLayout)
+	layout := strings.ToLower(x.r.model.Config.Header.TaglineLayout)
 	if layout == "" {
 		layout = "stack"
 	}
 	align := lipgloss.Left
-	switch strings.ToLower(x.r.cfg.Header.TaglineAlign) {
+	switch strings.ToLower(x.r.model.Config.Header.TaglineAlign) {
 	case "center":
 		align = lipgloss.Center
 	case "right":
@@ -41,7 +41,7 @@ func (x Activation) Render(tagline, subtitle, shortcuts string) []string {
 	}
 
 	place := func(content string) string {
-		return ui.PlaceContentLine(content, x.r.cardWidth, x.r.contentWidth, x.r.cfg.Padding.Left, align, x.r.st.blockFill)
+		return ui.PlaceContentLine(content, x.r.cardWidth, x.r.contentWidth, x.r.model.Padding.Left, align, x.r.st.blockFill)
 	}
 	inline := title
 	if layout == "inline" && sub != "" {
@@ -60,7 +60,7 @@ func (x Activation) Render(tagline, subtitle, shortcuts string) []string {
 			out = append(out, place(line))
 		}
 		for _, line := range x.wrapInline(shortcuts) {
-			out = append(out, ui.PlaceContentLine(line, x.r.cardWidth, x.r.contentWidth, x.r.cfg.Padding.Left, lipgloss.Right, x.r.blockUI.Fill()))
+			out = append(out, ui.PlaceContentLine(line, x.r.cardWidth, x.r.contentWidth, x.r.model.Padding.Left, lipgloss.Right, x.r.st.blockFill))
 		}
 	}
 	if sub != "" {

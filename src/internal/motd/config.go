@@ -39,16 +39,6 @@ type Config struct {
 	Shortcuts      []Shortcut     `json:"shortcuts"`
 	Width          int            `json:"width"`    // 0 tracks the terminal width
 	MaxWidth       int            `json:"maxWidth"` // 0 is unbounded
-
-	// TerminalBackground is resolved at startup (OSC query with a palette bg
-	// fallback), not read from JSON. It anchors the window background fade.
-	TerminalBackground string `json:"-"`
-	// StatusHint is derived from the async status cache for this render.
-	StatusHint string `json:"-"`
-	// StatusAge is the age of the cached async status (e.g. "2m ago",
-	// "just now"), derived alongside StatusHint. It is rendered on the left,
-	// appended to the status items, so the reload hint on the right stays clean.
-	StatusAge string `json:"-"`
 }
 
 type Spacing struct {
@@ -112,8 +102,6 @@ type HeaderStatus struct {
 	//   "light"   — colored dot + label only; discard text and diagnostics.
 	//   "diagnostic" — ok/fail text, plus captured output rendered below the MOTD.
 	Output string `json:"output"`
-	// Level is resolved at runtime: "success", "warning", "error", or "static".
-	Level string `json:"-"`
 }
 
 type StyledText struct {

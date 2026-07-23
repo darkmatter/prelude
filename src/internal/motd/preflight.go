@@ -97,13 +97,12 @@ func preflightSyncStatuses(cfg Config, cache *Cache, runtime Runtime, now func()
 		if stop != nil {
 			stop()
 		}
-		resolved := item
-		_ = resolveStatusItem(&resolved, ok, out)
+		status, level := resolveStatusItem(item, ok, out)
 		cache.set(key, CacheEntry{
 			CheckedAt: now(),
 			TTL:       ttlEveryRun,
-			Status:    resolved.Status,
-			Level:     resolved.Level,
+			Status:    status,
+			Level:     level,
 		})
 	}
 }
@@ -119,13 +118,12 @@ func preflightAsyncStatuses(cfg Config, cache *Cache, runtime Runtime, now func(
 			continue
 		}
 		ok, out := runtime.Check(item.Check)
-		resolved := item
-		_ = resolveStatusItem(&resolved, ok, out)
+		status, level := resolveStatusItem(item, ok, out)
 		cache.set(key, CacheEntry{
 			CheckedAt: now(),
 			TTL:       ttlAsyncStatus,
-			Status:    resolved.Status,
-			Level:     resolved.Level,
+			Status:    status,
+			Level:     level,
 		})
 	}
 }

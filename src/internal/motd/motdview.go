@@ -17,10 +17,10 @@ func (v MOTDView) Render() string {
 		Context:      v.r.windowUI,
 		Width:        v.r.terminalWidth,
 		Offset:       v.r.horizontalOffset,
-		TopMargin:    v.r.cfg.Margin.Top,
-		BottomMargin: v.r.cfg.Margin.Bottom,
+		TopMargin:    v.r.model.Margin.Top,
+		BottomMargin: v.r.model.Margin.Bottom,
 	}.Render(v.renderBody())
-	if !v.r.cfg.ClearScreen {
+	if !v.r.model.Config.ClearScreen {
 		return output
 	}
 	// Count emitted rows so the scroll-fill can paint exactly the remaining
@@ -61,7 +61,7 @@ func (v MOTDView) renderBody() string {
 	card := ui.Surface{Context: v.r.blockUI, Width: v.r.cardWidth}
 
 	var sections []string
-	for range max(v.r.cfg.Padding.Top, 0) {
+	for range max(v.r.model.Padding.Top, 0) {
 		sections = append(sections, card.Blank())
 	}
 
@@ -84,7 +84,7 @@ func (v MOTDView) renderBody() string {
 		first = false
 	}
 
-	for range max(v.r.cfg.Padding.Bottom, 0) {
+	for range max(v.r.model.Padding.Bottom, 0) {
 		sections = append(sections, card.Blank())
 	}
 
@@ -104,20 +104,20 @@ func (v MOTDView) renderHeaderSection() string {
 
 	// Give a generated title's divider one painted row of breathing room on
 	// each side. Other header variants retain their existing spacing.
-	if v.r.cfg.Title != "" {
+	if v.r.model.Config.Title != "" {
 		parts = append(parts, header.BlankLine(), header.Divider(), card.Blank())
 	} else if div := header.Divider(); div != "" {
 		parts = append(parts, div)
 	}
 
-	h := v.r.cfg.Header
+	h := v.r.model.Config.Header
 	shortcuts := (Shortcuts{r: v.r}).Render()
 	if h.Tagline != "" || h.Subtitle != "" || shortcuts != "" {
 		parts = append(parts, strings.Join((Activation{r: v.r}).Render(h.Tagline, h.Subtitle, shortcuts), "\n"))
 	}
 
 	// Newline after the tagline/subtitle when a generated title is active.
-	if v.r.cfg.Title != "" && (h.Tagline != "" || h.Subtitle != "") {
+	if v.r.model.Config.Title != "" && (h.Tagline != "" || h.Subtitle != "") {
 		parts = append(parts, card.Blank())
 	}
 
@@ -163,8 +163,8 @@ func (v MOTDView) renderMiddle() string {
 	return ui.PadBlock(
 		body,
 		v.r.cardWidth,
-		v.r.cfg.Padding.Left,
-		v.r.cfg.Padding.Right,
+		v.r.model.Padding.Left,
+		v.r.model.Padding.Right,
 		v.r.st.blockFill,
 	)
 }

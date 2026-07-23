@@ -11,8 +11,8 @@ import (
 )
 
 func TestStatusItemsInlineHintAlignsStatusAndHint(t *testing.T) {
-	r := renderer{cfg: Config{StatusAge: "17m ago", StatusHint: "[r] to reload"}}
-	items := []HeaderStatus{{Label: "dev server", Status: "ready"}}
+	r := renderer{model: PaintModel{StatusAge: "17m ago", StatusHint: "[r] to reload"}}
+	items := []ResolvedStatus{{Label: "dev server", Status: "ready"}}
 	statusItems := StatusItems{r: r}
 	status := statusItems.Render(items, false)
 	hint := statusItems.Hint(false)
@@ -32,11 +32,11 @@ func TestStatusItemsInlineHintAlignsStatusAndHint(t *testing.T) {
 }
 
 func TestStatusItemsHintAppendsHyperlinksAfterReloadHint(t *testing.T) {
-	r := renderer{cfg: Config{
+	r := renderer{model: PaintModel{
 		StatusHint: "[r] to reload",
-		Header: Header{StatusHintLinks: []Link{
+		Config: Config{Header: Header{StatusHintLinks: []Link{
 			{Label: "github", URL: "https://github.com/darkmatter/prelude"},
-		}},
+		}}},
 	}}
 	hint := StatusItems{r: r}.Hint(false)
 
@@ -56,8 +56,8 @@ func TestStatusItemsHintAppendsHyperlinksAfterReloadHint(t *testing.T) {
 }
 
 func TestStatusItemsHintRendersLinksWithoutReloadHint(t *testing.T) {
-	r := renderer{cfg: Config{
-		Header: Header{StatusHintLinks: []Link{{Label: "github", URL: "https://example.com"}}},
+	r := renderer{model: PaintModel{
+		Config: Config{Header: Header{StatusHintLinks: []Link{{Label: "github", URL: "https://example.com"}}}},
 	}}
 	plain := ansi.Strip(StatusItems{r: r}.Hint(false))
 	if !strings.Contains(plain, "github") || strings.Contains(plain, "·") {
@@ -66,8 +66,8 @@ func TestStatusItemsHintRendersLinksWithoutReloadHint(t *testing.T) {
 }
 
 func TestStatusItemsInlineHintCompactsBeforeFallingBack(t *testing.T) {
-	r := renderer{cfg: Config{StatusHint: "[r] to reload"}}
-	items := []HeaderStatus{{Label: "dev server", Status: "ready"}}
+	r := renderer{model: PaintModel{StatusHint: "[r] to reload"}}
+	items := []ResolvedStatus{{Label: "dev server", Status: "ready"}}
 	statusItems := StatusItems{r: r}
 	compact := statusItems.Render(items, true)
 	hint := statusItems.Hint(false)
@@ -90,7 +90,7 @@ func TestStatusItemsUseSemanticStatusColors(t *testing.T) {
 		Info:    "#2277cc",
 		Error:   "#cc2233",
 	}
-	statusItems := StatusItems{r: renderer{st: newStyles(Config{Palette: palette})}}
+	statusItems := StatusItems{r: renderer{st: newStyles(PaintModel{Config: Config{Palette: palette}})}}
 
 	tests := []struct {
 		level string

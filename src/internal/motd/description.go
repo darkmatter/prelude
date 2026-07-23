@@ -21,7 +21,7 @@ type Description struct {
 // (plus the section's style overrides). Tips may wrap `command` spans in
 // backticks for accent highlighting (playground description tips).
 func (x Description) Render() []string {
-	d := x.r.cfg.Description
+	d := x.r.model.Config.Description
 	if d.Text == "" && len(d.Tips) == 0 {
 		return nil
 	}
@@ -49,10 +49,10 @@ func (x Description) Render() []string {
 
 func (x Description) descFill(d StyledText) lipgloss.Style {
 	fillStyle := lipgloss.NewStyle().Width(x.r.contentWidth).MaxWidth(x.r.contentWidth)
-	if d.Background != "" {
-		return fillStyle.Background(lipgloss.Color(d.Background))
+	if x.r.model.DescriptionBackground != "" {
+		return fillStyle.Background(lipgloss.Color(x.r.model.DescriptionBackground))
 	}
-	if x.r.cfg.Background != "" {
+	if x.r.model.Background != "" {
 		return fillStyle.Background(x.r.st.blockBg)
 	}
 	return fillStyle

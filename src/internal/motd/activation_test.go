@@ -3,6 +3,7 @@ package motd
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 )
@@ -10,10 +11,10 @@ import (
 func TestActivationAddsBlankLineBeforeFullWidthSubtitle(t *testing.T) {
 	const subtitle = "This subtitle stays on one full-width line after the activation heading."
 
-	r := newRenderer(Config{
+	r := newRenderer(Resolve(Config{
 		Header: Header{TaglineAlign: "left"},
 		Width:  80,
-	}, 80, 20)
+	}, Cache{}, 80, 20, time.Now()))
 	lines := (Activation{r: r}).Render("Dev Shell Activated", subtitle, "")
 
 	if len(lines) < 3 {

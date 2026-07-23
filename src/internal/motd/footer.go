@@ -28,13 +28,13 @@ func (x FooterView) Render() string {
 // previous single-string Render output without the links row, returning a
 // slice so links can be appended unconditionally by Render.
 func (x FooterView) statusRows() []string {
-	if x.r.cfg.Title != "" && x.r.cfg.Header.StatusHintLayout == "inline" {
-		if row := (StatusItems{r: x.r}).InlineHint(x.r.cfg.Header.Status, x.r.contentWidth, false); row != "" {
+	if x.r.model.Config.Title != "" && x.r.model.Config.Header.StatusHintLayout == "inline" {
+		if row := (StatusItems{r: x.r}).InlineHint(x.r.model.Status, x.r.contentWidth, false); row != "" {
 			return []string{ui.PlaceContentLine(
 				row,
 				x.r.cardWidth,
 				x.r.contentWidth,
-				x.r.cfg.Padding.Left,
+				x.r.model.Padding.Left,
 				lipgloss.Left,
 				x.r.st.blockFill,
 			)}
@@ -42,7 +42,7 @@ func (x FooterView) statusRows() []string {
 	}
 
 	content, align := "", lipgloss.Center
-	if x.r.cfg.Title != "" {
+	if x.r.model.Config.Title != "" {
 		content = x.statusItems()
 	}
 	if content == "" {
@@ -53,11 +53,11 @@ func (x FooterView) statusRows() []string {
 		content,
 		x.r.cardWidth,
 		x.r.contentWidth,
-		x.r.cfg.Padding.Left,
+		x.r.model.Padding.Left,
 		align,
 		x.r.st.blockFill,
 	)
-	if x.r.cfg.Title == "" {
+	if x.r.model.Config.Title == "" {
 		return []string{line}
 	}
 	hint := (StatusItems{r: x.r}).Hint(false)
@@ -70,7 +70,7 @@ func (x FooterView) statusRows() []string {
 			hint,
 			x.r.cardWidth,
 			x.r.contentWidth,
-			x.r.cfg.Padding.Left,
+			x.r.model.Padding.Left,
 			lipgloss.Center,
 			x.r.st.blockFill,
 		),
@@ -81,11 +81,11 @@ func (x FooterView) statusRows() []string {
 // label line, joined directly (no blank line between consecutive links).
 // Returns "" when there are no links so Render can skip appending it.
 func (x FooterView) linksRow() string {
-	if len(x.r.cfg.Links) == 0 {
+	if len(x.r.model.Config.Links) == 0 {
 		return ""
 	}
 	var lines []string
-	for _, link := range x.r.cfg.Links {
+	for _, link := range x.r.model.Config.Links {
 		for _, labelLine := range ui.WrapText(link.Label, x.r.contentWidth) {
 			rendered := (ui.Link{
 				Context: x.r.blockUI,
@@ -99,7 +99,7 @@ func (x FooterView) linksRow() string {
 				rendered,
 				x.r.cardWidth,
 				x.r.contentWidth,
-				x.r.cfg.Padding.Left,
+				x.r.model.Padding.Left,
 				lipgloss.Center,
 				x.r.st.blockFill,
 			))
@@ -109,9 +109,9 @@ func (x FooterView) linksRow() string {
 }
 
 func (x FooterView) statusItems() string {
-	status := (StatusItems{r: x.r}).Render(x.r.cfg.Header.Status, false)
+	status := (StatusItems{r: x.r}).Render(x.r.model.Status, false)
 	if lipgloss.Width(status) <= x.r.contentWidth {
 		return status
 	}
-	return (StatusItems{r: x.r}).Render(x.r.cfg.Header.Status, true)
+	return (StatusItems{r: x.r}).Render(x.r.model.Status, true)
 }

@@ -8,13 +8,13 @@ type Links struct {
 }
 
 func (x Links) Render() []string {
-	if len(x.r.cfg.Links) == 0 {
+	if len(x.r.model.Config.Links) == 0 {
 		return nil
 	}
 
 	surface := ui.Surface{Context: x.r.blockUI, Width: x.r.contentWidth}
 	var lines []string
-	for _, link := range x.r.cfg.Links {
+	for _, link := range x.r.model.Config.Links {
 		for _, labelLine := range ui.WrapText(link.Label, x.r.contentWidth) {
 			rendered := (ui.Link{
 				Context: x.r.blockUI,
