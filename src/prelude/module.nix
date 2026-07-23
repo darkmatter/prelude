@@ -283,11 +283,11 @@ in
             in
             if needsWrapper entry then
               "${lib.getExe menuBin} ${lib.escapeShellArg entry.name}"
-            else if head == "menu" && cfg.menu.enable then
+            else if entry.builtinSurface == "menu" && cfg.menu.enable then
               lib.getExe menuBin
-            else if head == "docs" && docsEnabled then
+            else if entry.builtinSurface == "docs" && docsEnabled then
               lib.getExe docsBin
-            else if head == "motd" && cfg.motd.enable then
+            else if entry.builtinSurface == "motd" && cfg.motd.enable then
               lib.getExe motdBin
             else
               lib.escapeShellArg head

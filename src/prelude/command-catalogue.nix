@@ -60,10 +60,26 @@ let
         ;
     };
 
+  # Built-in Prelude entrypoints that have their own store-path binaries.
+  # Commands named menu/docs/motd with no explicit exec, or with an exec equal
+  # to their name, are the surface binaries — not user commands that happen to
+  # share the name.
+  builtinSurface =
+    name: exec:
+    if name == "menu" && (exec == null || exec == "menu") then
+      "menu"
+    else if name == "docs" && (exec == null || exec == "docs") then
+      "docs"
+    else if name == "motd" && (exec == null || exec == "motd") then
+      "motd"
+    else
+      null;
+
   normalizeCommand =
     sourceName: command:
     let
       identity = commandIdentity sourceName;
+      exec = command.exec or null;
     in
     identity
     // {
@@ -71,21 +87,16 @@ let
       # derives presentation only; it remains part of the key (`x go:test`).
       name = sourceName;
       # The Go menu still calls executable shell text `run` at its JSON boundary.
-      run =
-        let
-          value = command.exec or null;
-        in
-        if value == null then identity.label else value;
+      run = if exec == null then identity.label else exec;
       # Human-facing command text is independent from identity/group metadata.
       invocation =
         let
           value = command.invocation or null;
-          run = command.exec or null;
         in
         if value != null then
           value
-        else if run != null then
-          run
+        else if exec != null then
+          exec
         else
           identity.label;
       description = command.description or "";
@@ -94,6 +105,7 @@ let
       details = command.details or null;
       examples = command.examples or [ ];
       args = map normalizeArg (command.args or [ ]);
+      builtinSurface = builtinSurface sourceName exec;
     };
 
   normalizeCommandEntries =
