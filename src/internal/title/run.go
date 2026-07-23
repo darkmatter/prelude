@@ -186,6 +186,16 @@ func titlePathBesideConfig(configPath string) string {
 	return filepath.ToSlash(filepath.Join(dir, "title.txt"))
 }
 
+// jsonPathBesideConfig returns prelude.json in the same directory as configPath.
+func jsonPathBesideConfig(configPath string) string {
+	dir := filepath.Dir(configPath)
+	name := "prelude.json"
+	if dir == "." || dir == "" {
+		return name
+	}
+	return filepath.ToSlash(filepath.Join(dir, name))
+}
+
 // finishWizard materializes a completed wizard: the rendered title file beside
 // the config, the starter docs page when the docs viewer was enabled, and the
 // config at -o. Split from runWizard so the file contract is testable without
@@ -220,8 +230,15 @@ func finishWizard(cfg Config, render renderFunc, result wizardResult, configPath
 
 	// Config always references the sibling title by name so the path is valid
 	// relative to the config file, regardless of directory.
-	config := renderWizardConfig(result, "title.txt")
-	if err := writeAtomic(configPath, []byte(config)); err != nil {
+	jsonPath := jsonPathBesideConfig(configPath)
+	jsonData := renderWizardJSON(result)
+	if err := writeAtomic(jsonPath, []byte(jsonData)); err != nil {
+		return fail(fmt.Errorf("write %s: %w", jsonPath, err))
+	}
+	fmt.Fprintf(stderr, "wrote %s\n", jsonPath)
+
+	nixData := renderWizardNix(filepath.Base(jsonPath))
+	if err := writeAtomic(configPath, []byte(nixData)); err != nil {
 		return fail(fmt.Errorf("write %s: %w", configPath, err))
 	}
 	fmt.Fprintf(stderr, "wrote %s\n", configPath)

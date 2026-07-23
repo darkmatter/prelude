@@ -170,4 +170,3 @@ func execCommandCmd(cmd string) tea.Cmd {
 		return execFinishedMsg{err: err}
 	})
 }
-

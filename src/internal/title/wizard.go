@@ -25,7 +25,6 @@ const (
 	stepProfile
 	stepComponents
 	stepCommands
-	stepIntegration
 	stepConfirm
 	wizardStepCount = int(stepConfirm) + 1
 )
@@ -86,10 +85,6 @@ type wizardModel struct {
 	commandInput   textinput.Model
 	pendingCommand wizardCommand
 
-	// integrationIndex selects the emitted config shape:
-	// 0 = flake-parts module, 1 = standalone prelude.lib builders.
-	integrationIndex int
-
 	width  int
 	height int
 	err    string
@@ -110,9 +105,6 @@ type wizardResult struct {
 	Prompt       bool
 	Docs         bool
 	Commands     []wizardCommand
-	// FlakeParts selects the emission shape: a flake-parts module when true,
-	// standalone prelude.lib builder calls when false.
-	FlakeParts bool
 }
 
 func newWizard(cfg Config, recipe Recipe, render renderFunc) wizardModel {
@@ -192,8 +184,6 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateComponents(msg)
 		case stepCommands:
 			return m.updateCommands(msg)
-		case stepIntegration:
-			return m.updateIntegration(msg)
 		case stepConfirm:
 			return m.updateConfirm(msg)
 		}
@@ -368,21 +358,6 @@ func (m wizardModel) updateConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.done = true
 		return m, tea.Quit
 	case "esc", "backspace":
-		m.step = stepIntegration
-	case "q":
-		m.canceled = true
-		return m, tea.Quit
-	}
-	return m, nil
-}
-
-func (m wizardModel) updateIntegration(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "up", "k", "shift+tab", "down", "j", "tab":
-		m.integrationIndex = 1 - m.integrationIndex
-	case "enter":
-		m.step = stepConfirm
-	case "esc", "backspace":
 		m.step = stepCommands
 		m.commandPhase = commandList
 	case "q":
@@ -418,7 +393,7 @@ func (m wizardModel) updateCommands(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				m.commandCursor = wrap(m.commandCursor+1, len(m.commands))
 			}
 		case "enter":
-			m.step = stepIntegration
+			m.step = stepConfirm
 		case "esc", "backspace":
 			m.step = stepComponents
 		case "q":
@@ -551,7 +526,6 @@ func (m wizardModel) result() wizardResult {
 		Prompt:       m.components[2],
 		Docs:         m.components[3],
 		Commands:     m.commands,
-		FlakeParts:   m.integrationIndex == 0,
 	}
 }
 
@@ -639,23 +613,6 @@ func (m wizardModel) View() tea.View {
 		)
 	case stepCommands:
 		body = m.commandsBody(s, step)
-	case stepIntegration:
-		options := [2]string{"flake-parts", "standalone"}
-		hints := [2]string{
-			"import as a flake-parts module (recommended)",
-			"prelude.lib builder calls — no flake-parts",
-		}
-		rows := make([]string, len(options))
-		for i, option := range options {
-			rows[i] = listRow(s, i == m.integrationIndex, fmt.Sprintf("%-12s", option)+s.muted.Render(hints[i]))
-		}
-		body = s.listBody(
-			"Choose the config shape",
-			"How the printed config plugs into your flake.  ·  "+step,
-			rows,
-			m.err,
-			"j/k switch  ·  enter choose  ·  esc back  ·  q cancel",
-		)
 	case stepConfirm:
 		body = s.listBody(
 			"Review",
@@ -911,7 +868,6 @@ func (m wizardModel) summaryRows(s formStyles) []string {
 		line("theme", result.Theme),
 		line("colors", result.ColorProfile),
 		line("commands", commands),
-		line("output", map[bool]string{true: "flake-parts module", false: "standalone builders"}[result.FlakeParts]),
 		line("motd", onOff(result.Motd)),
 		line("menu", onOff(result.Menu)),
 		line("prompt", onOff(result.Prompt)),
