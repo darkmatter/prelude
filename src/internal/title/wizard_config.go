@@ -94,6 +94,13 @@ in
     motd = {
       enable = wizard.motd;
       title.text = ./title.txt;
+      # Footer link back to Prelude; replace with your own repository.
+      header.statusHint.links = [
+        {
+          label = "github";
+          url = "https://github.com/darkmatter/prelude";
+        }
+      ];
     };
 
     menu.enable = wizard.menu;

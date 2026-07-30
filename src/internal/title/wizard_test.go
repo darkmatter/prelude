@@ -236,6 +236,8 @@ func TestRenderWizardNixReadsSiblingJSON(t *testing.T) {
 		"motd = {",
 		"enable = wizard.motd;",
 		"title.text = ./title.txt;",
+		"header.statusHint.links",
+		`url = "https://github.com/darkmatter/prelude";`,
 		"menu.enable = wizard.menu;",
 		"prompt.enable = wizard.prompt;",
 		"docs.pages = lib.optional wizard.docs",
