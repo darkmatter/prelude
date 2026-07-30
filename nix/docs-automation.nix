@@ -407,8 +407,10 @@ let
         echo 'recording motd showcase'
         vhs --quiet ${motdTape}
         gifsicle -O3 --batch docs/media/motd.gif
-        ffmpeg -y -v error -sseof -0.5 -i docs/media/motd.gif \
-          -frames:v 1 docs/media/motd.png
+        # `-update 1` overwrites the still per decoded frame, leaving the last
+        # frame. `-sseof` seeks silently produce no frames on gifsicle output.
+        ffmpeg -y -v error -i docs/media/motd.gif \
+          -update 1 docs/media/motd.png
       else
         echo 'motd showcase is current'
       fi
@@ -423,8 +425,8 @@ let
         echo 'recording menu showcase'
         vhs --quiet ${menuTape}
         gifsicle -O3 --batch docs/media/menu.gif
-        ffmpeg -y -v error -sseof -0.5 -i docs/media/menu.gif \
-          -frames:v 1 docs/media/menu.png
+        ffmpeg -y -v error -i docs/media/menu.gif \
+          -update 1 docs/media/menu.png
       else
         echo 'menu showcase is current'
       fi
