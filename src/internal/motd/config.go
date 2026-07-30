@@ -155,6 +155,9 @@ type GettingStarted struct {
 	Heading       string `json:"heading"`
 	CommandsLabel string `json:"commandsLabel"`
 	ExamplesLabel string `json:"examplesLabel"`
+	// CommandNote is a dim line under the commands list (backtick accent),
+	// e.g. pointing at the `x` dispatcher as the anti-shadowing fallback.
+	CommandNote string `json:"commandNote"`
 }
 
 func loadConfig(path string) (Config, error) {

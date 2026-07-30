@@ -156,6 +156,7 @@
       #   heading = "Getting Started";
       #   commandsLabel = "commands";
       #   examplesLabel = "examples";
+      #   commandNote = "prefix with `x` if a command is shadowed";  # "" hides it
       # };
     };
 

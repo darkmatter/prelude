@@ -322,8 +322,12 @@ prelude.commands.check = {
 };
 ```
 
-Rows sort ascending by `motd`, ties broken by command name. Project rows render
-as `x <name>` (the catalogue dispatch form); `menu` renders bare. When the
+Rows sort ascending by `motd`, ties broken by command name. Ungrouped rows
+render bare — each one is on PATH through a generated wrapper or a first-class
+entrypoint — while grouped keys (`go:test`) keep the `x <key>` dispatch form
+because only `x` can call them. A dim note under the list points at `x` as the
+fallback when another command shadows a bare name
+(`prelude.motd.gettingStarted.commandNote`; empty string hides it). When the
 menu is enabled, `packages.motd` carries the menu, runtime packages, and
 deliberate ungrouped wrappers; grouped commands remain available through their
 canonical executable.

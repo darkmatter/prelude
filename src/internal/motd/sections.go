@@ -152,6 +152,10 @@ func (s sections) gettingStarted() []string {
 	if hasCommands {
 		out = append(out, s.subLabel(commandsLabel), content.Blank())
 		out = append(out, s.commands()...)
+		if gs.CommandNote != "" {
+			out = append(out, content.Blank())
+			out = append(out, s.renderTipLine(gs.CommandNote)...)
+		}
 	}
 	if hasCommands && hasRecipes {
 		out = append(out, content.Blank())

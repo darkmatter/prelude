@@ -164,8 +164,11 @@ let
   # Select commands for the MOTD Getting Started list.
   # - Commands with `motd` set appear at that sort order.
   # - `menu` is always included when present (opens the command palette).
-  # - Most rows render as `x <name>`; `menu` is bare so it does not show the
-  #   `x` prefix (it is a first-class PATH entrypoint, not an x dispatch).
+  # - Ungrouped commands render bare: each one is on PATH (generated wrapper
+  #   or first-class entrypoint), so the row matches what the user types. The
+  #   `x` dispatcher remains the fallback when another command shadows them.
+  # - Grouped commands (`go:test`) have no PATH entry — the complete key is
+  #   only callable through `x`, so those rows keep the `x` dispatch form.
   # Returns `{ name, command, description }` rows in display order.
   selectCommands =
     commands:
@@ -198,8 +201,9 @@ let
     map
       (entry: {
         name = entry.name;
-        # Bare `menu` (no `x` prefix); every other MOTD row is an x dispatch.
-        command = if isMenu entry then entry.name else entry.xInvocation;
+        # Ungrouped commands run bare from PATH; grouped keys only run
+        # through the `x` dispatcher, so they keep the dispatch form.
+        command = if entry.grouped then entry.xInvocation else entry.name;
         description = entry.description;
       })
       sorted;

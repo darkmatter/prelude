@@ -11,7 +11,8 @@ Everything is a `prelude.*` option, validated at build time.
   description, advertised commands, and multi-step recipes.
 - **`prelude.commands`** — the shared catalogue keyed by public `x` command.
   The first colon derives menu group/name while the complete key remains
-  callable; MOTD rows use that same `x <key>` form.
+  callable through `x`; MOTD rows show ungrouped commands bare (they are on
+  PATH) and grouped keys in their `x <key>` dispatch form.
 - **`prelude.docs.pages`** — nav tree of Markdown leaves, groups, and optional
   `{ generate = "nixosOptions"; split?; }` selectors. Generate `split`:
   `allLeaves` (default, nested tree of every terminal option) or `shallow`

@@ -231,7 +231,7 @@ let
       };
       links = m.links;
       gettingStarted = {
-        inherit (gettingStarted) heading commandsLabel examplesLabel;
+        inherit (gettingStarted) heading commandsLabel examplesLabel commandNote;
       };
       width =
         if m.fullscreen or false then

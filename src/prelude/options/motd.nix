@@ -287,6 +287,11 @@ in
             default = defaults.motd.gettingStarted.examplesLabel;
             description = "Dim sub-label above the recipe codeblocks.";
           };
+          commandNote = lib.mkOption {
+            type = lib.types.str;
+            default = defaults.motd.gettingStarted.commandNote;
+            description = "Dim note under the commands list. Empty string hides it. Wrap commands in backticks for accent.";
+          };
         };
       };
     };

@@ -1151,6 +1151,27 @@ submodule
 
 
 
+## prelude\.motd\.gettingStarted\.commandNote
+
+
+
+Dim note under the commands list\. Empty string hides it\. Wrap commands in backticks for accent\.
+
+
+
+*Type:*
+string
+
+
+
+*Default:*
+
+````nix
+"prefix with `x` if a command is shadowed"
+````
+
+
+
 ## prelude\.motd\.gettingStarted\.commandsLabel
 
 
@@ -2284,8 +2305,6 @@ string
 
 ## prelude\.motd\.recipes\.\<name>\.steps\.\*\.comment
 
-
-
 Caption rendered as a \# comment\. Mutually exclusive with command in practice\.
 
 
@@ -2304,6 +2323,8 @@ string
 
 
 ## prelude\.motd\.recipes\.\<name>\.title
+
+
 
 Displayed recipe title; defaults to the recipe name\.
 
