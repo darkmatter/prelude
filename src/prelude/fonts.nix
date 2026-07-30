@@ -5,6 +5,7 @@
   computer = ./fonts/computer.flf;
   cricket = ./fonts/cricket.flf;
   cybermedium = ./fonts/cybermedium.flf;
+  delta-corps-priest-1 = ./fonts/delta-corps-priest-1.flf;
   dos-rebel = ./fonts/dos-rebel.flf;
   dr-pepper = ./fonts/dr-pepper.flf;
   fender = ./fonts/fender.flf;
@@ -14,6 +15,7 @@
   kompaktblk = ./fonts/kompaktblk.flf;
   larry3d = ./fonts/larry3d.flf;
   mini = ./fonts/mini.flf;
+  nancyj-improved = ./fonts/nancyj-improved.flf;
   roman = ./fonts/roman.flf;
   slant = ./fonts/slant.flf;
   small-slant = ./fonts/small-slant.flf;
