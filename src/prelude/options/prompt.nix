@@ -6,10 +6,12 @@
 #
 #   shellHook = ''export STARSHIP_CONFIG=${config.packages.prompt}'';
 #
-# The aggregate package supplies Starship and ble.sh when this is enabled and
-# initializes both in interactive Bash `nix develop` shells. The prompt
-# re-themes on entry and reverts when direnv unloads; non-interactive direnv
-# evaluation leaves the user's login-shell prompt initialization untouched.
+# The aggregate package supplies Starship, ble.sh, and bash-completion when
+# this is enabled. Its setup hook sources one idempotent `prelude-init` file in
+# the interactive shell that `nix develop` already started. That file renders
+# the MOTD, installs catalogue completion, initializes Starship's native ble.sh
+# hooks, and moves the generated right prompt into ble.sh's status line.
+# Non-interactive direnv evaluation remains inert.
 { lib, ... }:
 let
   defaults = import ../defaults.nix;
@@ -36,7 +38,10 @@ in
     configFile = lib.mkOption {
       type = lib.types.nullOr lib.types.path;
       default = defaults.prompt.configFile;
-      description = "Use this starship.toml verbatim instead of the generated themed config.";
+      description = ''
+        Use this starship.toml verbatim instead of the generated themed config.
+        Prelude leaves its right prompt and ble.sh status line fully user-owned.
+      '';
     };
   };
 }

@@ -1,12 +1,13 @@
 # Flake checks. Checks whose $out is a rendered preview use the `-render(s)`
 # suffix — the previews utility (previews.nix) discovers them by name.
-{ pkgs
-, lib
-, config
-, demos
-, docsAutomation
-, previews
-, ...
+{
+  pkgs,
+  lib,
+  config,
+  demos,
+  docsAutomation,
+  previews,
+  ...
 }:
 let
   preludeLib = import ./lib.nix { inherit lib; };
@@ -30,10 +31,10 @@ let
   mkRunnableCheck =
     checkName: surface: invocations:
     let
-      executableForLine = line:
-        builtins.head (lib.filter (token: token != "") (lib.splitString " " line));
-      invocationExecutables = invocation:
-        map executableForLine (lib.filter (line: line != "") (lib.splitString "\n" invocation));
+      executableForLine =
+        line: builtins.head (lib.filter (token: token != "") (lib.splitString " " line));
+      invocationExecutables =
+        invocation: map executableForLine (lib.filter (line: line != "") (lib.splitString "\n" invocation));
       executables = lib.unique (lib.concatMap invocationExecutables invocations);
     in
     pkgs.runCommand checkName { nativeBuildInputs = devshellCommandPackages; } ''
@@ -52,20 +53,81 @@ in
   motd-default = config.packages.motd;
   title-default = config.packages.title;
   menu-default = config.packages.menu;
-  prelude-default = pkgs.runCommand "prelude-default"
-    { nativeBuildInputs = [ config.packages.prelude ]; }
-    ''
-      command -v motd >/dev/null
-      command -v menu >/dev/null
-      command -v docs >/dev/null
-      command -v starship >/dev/null
-      command -v blesh-share >/dev/null
-      test -f ${config.packages.prelude}/share/blesh/ble.sh
-      test -f ${config.packages.prelude}/nix-support/setup-hook
-      grep -Fq 'source ${pkgs.blesh}/share/blesh/ble.sh' ${config.packages.prelude}/nix-support/setup-hook
-      grep -Fq '${lib.getExe pkgs.starship} init bash' ${config.packages.prelude}/nix-support/setup-hook
-      touch "$out"
-    '';
+  prelude-default =
+    pkgs.runCommand "prelude-default"
+      {
+        nativeBuildInputs = [
+          config.packages.prelude
+          pkgs.shellcheck
+        ];
+      }
+      ''
+        command -v motd >/dev/null
+        command -v menu >/dev/null
+        command -v docs >/dev/null
+        command -v pin >/dev/null
+        command -v prelude-shell >/dev/null
+        command -v starship >/dev/null
+        command -v blesh-share >/dev/null
+        test -f ${config.packages.prelude}/share/blesh/ble.sh
+        test -f ${config.packages.prelude}/share/prelude/zellij/config.kdl
+        test -f ${config.packages.prelude}/share/prelude/shell.bash
+        test -f ${config.packages.prelude}/share/prelude/init.bash
+        test -f ${config.packages.prelude}/share/prelude/shell/init.bash
+        test -f ${config.packages.prelude}/share/prelude/shell/bash-init.bash
+        test -f ${config.packages.prelude}/share/prelude/shell/status.bash
+        test -f ${config.packages.prelude}/share/prelude/shell/completion.bash
+        test -f ${config.packages.prelude}/share/prelude/shell/catalogue.bash
+        test -f ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
+        test -f ${config.packages.prelude}/nix-support/setup-hook
+        grep -Fq 'prelude-init()' ${config.packages.prelude}/nix-support/setup-hook
+        grep -Fq '. ${config.packages.prelude.shellInit}' ${config.packages.prelude}/nix-support/setup-hook
+        grep -Fq '_PRELUDE_BLESH=${pkgs.blesh}/share/blesh/ble.sh' ${config.packages.prelude}/share/prelude/init.bash
+        grep -Fq '_PRELUDE_STARSHIP=${lib.getExe pkgs.starship}' ${config.packages.prelude}/share/prelude/init.bash
+        grep -Fq '_PRELUDE_STARSHIP_STATUS_ENABLED=1' ${config.packages.prelude}/share/prelude/init.bash
+        grep -Fq 'bleopt color_scheme=prelude' ${config.packages.prelude}/share/prelude/shell/bash-init.bash
+        grep -Fq 'function ble/contrib/scheme:prelude/initialize' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
+        test "$(grep -c '^  ble-face -s ' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash)" -eq 74
+        ! grep -Fq '%prelude_' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
+        ! grep -Eq '#[[:xdigit:]]{6}[[:alnum:]_]' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
+        grep -Fq "bleopt prompt_status_line='\\q{prelude/status}'" ${config.packages.prelude}/share/prelude/shell/bash-init.bash
+        grep -Fq "blehook PRECMD!='prelude/status/update'" ${config.packages.prelude}/share/prelude/shell/bash-init.bash
+        ! grep -Fq 'ble-bind -f C-i' ${config.packages.prelude}/share/prelude/shell/bash-init.bash
+        grep -Fq 'local line=''${bleopt_prompt_rps1-}' ${config.packages.prelude}/share/prelude/shell/status.bash
+        grep -Fq 'bleopt prompt_rps1=' ${config.packages.prelude}/share/prelude/shell/status.bash
+        grep -Fq 'ble/prompt/process-prompt-string "$_prelude_status_line"' ${config.packages.prelude}/share/prelude/shell/status.bash
+        ! grep -Fq '_prelude_status_browse' ${config.packages.prelude}/share/prelude/shell/status.bash
+        (
+          _PRELUDE_STARSHIP_STATUS_ENABLED=1
+          bleopt_prompt_rps1=$'\n\nrendered-powerline'
+          bleopt() { bleopt_prompt_rps1=; }
+          source ${config.packages.prelude}/share/prelude/shell/status.bash
+          prelude/status/update
+          test "$_prelude_status_line" = rendered-powerline
+          test -z "$bleopt_prompt_rps1"
+        )
+        ${pkgs.bash}/bin/bash -n ${config.packages.prelude}/share/prelude/init.bash
+        for source in ${config.packages.prelude}/share/prelude/shell/*.bash; do
+          ${pkgs.bash}/bin/bash -n "$source"
+        done
+        ${pkgs.bash}/bin/bash -n ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
+        shellcheck -x ${config.packages.prelude}/share/prelude/init.bash
+        shellcheck -x ${config.packages.prelude}/share/prelude/shell/init.bash
+        shellcheck -x -e SC1091,SC2154 ${config.packages.prelude}/share/prelude/shell/bash-init.bash
+        shellcheck -x -e SC2154 ${config.packages.prelude}/share/prelude/shell/status.bash
+        shellcheck -x -e SC2154 ${config.packages.prelude}/share/prelude/shell/completion.bash
+        shellcheck -e SC2154 ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
+        ${pkgs.bash}/bin/bash -n ${config.packages.prelude}/share/prelude/shell.bash
+        grep -Fq 'pane_frames false' ${config.packages.prelude}/share/prelude/zellij/config.kdl
+        grep -Fq 'mouse_hover_effects false' ${config.packages.prelude}/share/prelude/zellij/config.kdl
+        grep -Fq 'default_mode "locked"' ${config.packages.prelude}/share/prelude/zellij/config.kdl
+        grep -Fq 'FocusNextPane' ${config.packages.prelude}/share/prelude/zellij/config.kdl
+        grep -Fq 'Alt p' ${config.packages.prelude}/share/prelude/zellij/config.kdl
+        grep -Fq 'prelude-focus-rail' ${config.packages.prelude}/share/prelude/zellij/layouts/shell.kdl
+        grep -Fq 'name "shell"' ${config.packages.prelude}/share/prelude/zellij/layouts/shell.kdl
+        command -v prelude-focus-rail >/dev/null
+        touch "$out"
+      '';
 
   title-previews = pkgs.runCommand "title-previews" { } ''
     ${lib.getExe config.packages.title-previews} "choose me" > "$out"
@@ -154,20 +216,16 @@ in
         ];
       };
       normalized = plib.normalizeCommandGroups evaluated.config.prelude.sort.groups evaluated.config.prelude.commands;
-      actual = map
-        (group: {
-          inherit (group) title;
-          commands = map
-            (command: {
-              inherit (command)
-                name
-                label
-                run
-                ;
-            })
-            group.tasks;
-        })
-        normalized;
+      actual = map (group: {
+        inherit (group) title;
+        commands = map (command: {
+          inherit (command)
+            name
+            label
+            run
+            ;
+        }) group.tasks;
+      }) normalized;
       expected = [
         {
           title = "prelude";
@@ -297,12 +355,12 @@ in
     assert header.status.cache.failLevel == "warning";
     assert header.status.cache.async;
     assert
-    links == [
-      {
-        label = "Prelude on GitHub";
-        url = "https://github.com/darkmatter/prelude";
-      }
-    ];
+      links == [
+        {
+          label = "Prelude on GitHub";
+          url = "https://github.com/darkmatter/prelude";
+        }
+      ];
     assert padding.x == 2;
     assert padding.y == 0;
     assert padding.top == 2;
@@ -329,27 +387,27 @@ in
       };
     in
     assert
-    all == [
-      {
-        command = "motd";
-        alias = "?";
-      }
-      {
-        command = "menu";
-        alias = "m";
-      }
-      {
-        command = "docs";
-        alias = "d";
-      }
-    ];
+      all == [
+        {
+          command = "motd";
+          alias = "?";
+        }
+        {
+          command = "menu";
+          alias = "m";
+        }
+        {
+          command = "docs";
+          alias = "d";
+        }
+      ];
     assert
-    menuOnly == [
-      {
-        command = "menu";
-        alias = "m";
-      }
-    ];
+      menuOnly == [
+        {
+          command = "menu";
+          alias = "m";
+        }
+      ];
     pkgs.runCommand "component-shortcuts" { } "touch $out";
 
   # prelude.lib.mdSplit → { title = "README"; text; children = [preamble, H2…] }.
@@ -398,12 +456,13 @@ in
     assert node ? text; # always set (toFile for string src)
     assert builtins.length children == 4;
     # Pure mdSplit keeps H1-derived preamble title; docs.nix renames to project.
-    assert titles == [
-      "Guide"
-      "First section"
-      "Second section"
-      "motd options (`prelude.motd.*`)"
-    ];
+    assert
+      titles == [
+        "Guide"
+        "First section"
+        "Second section"
+        "motd options (`prelude.motd.*`)"
+      ];
     assert lib.hasInfix "badge" (builtins.elemAt bodies 0);
     assert lib.hasInfix "intro before any H2" (builtins.elemAt bodies 0);
     assert !(lib.hasInfix "# Guide" (builtins.elemAt bodies 0));
@@ -417,39 +476,41 @@ in
     assert builtins.length fromPath.children > 1;
     # Empty preamble still occupies children[0]; Alpha is not promoted.
     assert thin.title == "README";
-    assert thinTitles == [
-      "Thin"
-      "Alpha"
-    ];
+    assert
+      thinTitles == [
+        "Thin"
+        "Alpha"
+      ];
     assert lib.hasInfix "alpha body" (builtins.readFile (builtins.elemAt thin.children 1).text);
     pkgs.runCommand "mdSplit-pages" { } "touch $out";
 
   # docs.nix nav: README → <project> → first original H2 … + FIGlet flag.
   mdSplit-readme-nav =
     let
-      docsPkg = import ../src/prelude/docs.nix
-        {
-          inherit (pkgs)
-            lib
-            writeText
-            buildGoModule
-            runCommand
-            nixosOptionsDoc
-            figlet
-            ;
-        }
-        {
-          theme = "phosphor";
-          colorProfile = "auto";
-          project = "myproj";
-          rootReadme = ../README.md;
-          pages = [
-            (preludeLib.mdSplit ../README.md)
-          ];
-          nixosOptions = {
-            options = { };
+      docsPkg =
+        import ../src/prelude/docs.nix
+          {
+            inherit (pkgs)
+              lib
+              writeText
+              buildGoModule
+              runCommand
+              nixosOptionsDoc
+              figlet
+              ;
+          }
+          {
+            theme = "phosphor";
+            colorProfile = "auto";
+            project = "myproj";
+            rootReadme = ../README.md;
+            pages = [
+              (preludeLib.mdSplit ../README.md)
+            ];
+            nixosOptions = {
+              options = { };
+            };
           };
-        };
       cfg = builtins.fromJSON (builtins.readFile "${docsPkg.passthru.config}/config.json");
       root = builtins.head cfg.nav;
       kids = root.children;
@@ -466,12 +527,6 @@ in
     assert (cfg.heroFile or "") != "";
     pkgs.runCommand "mdSplit-readme-nav" { } "touch $out";
 
-
-
-
-
-
-
   # Dogfood surfaces must render every enable-derived navigation shortcut.
   motd-renders = pkgs.runCommand "motd-renders" { } ''
     NO_COLOR=1 ${lib.getExe config.packages.motd} > "$out"
@@ -481,12 +536,24 @@ in
   '';
 
   prompt-renders-shortcuts = pkgs.runCommand "prompt-renders-shortcuts" { } ''
+    grep -F 'right_format = ' ${config.packages.prompt}
     grep -F '[?](bold fg:accent2)' ${config.packages.prompt}
     grep -F '[ motd](fg:muted)' ${config.packages.prompt}
     grep -F '[m](bold fg:accent2)' ${config.packages.prompt}
     grep -F '[ menu](fg:muted)' ${config.packages.prompt}
     grep -F '[d](bold fg:accent2)' ${config.packages.prompt}
     grep -F '[ docs](fg:muted)' ${config.packages.prompt}
+
+    STARSHIP_CONFIG=${config.packages.prompt} STARSHIP_SHELL=bash \
+      ${lib.getExe pkgs.starship} prompt --terminal-width 79 --status 0 > "$TMPDIR/normal"
+    STARSHIP_CONFIG=${config.packages.prompt} STARSHIP_SHELL=bash \
+      ${lib.getExe pkgs.starship} prompt --right --terminal-width 79 --status 0 > "$TMPDIR/status"
+    grep -F '❯' "$TMPDIR/normal"
+    ! grep -F 'prelude' "$TMPDIR/normal"
+    grep -F 'prelude' "$TMPDIR/status"
+    grep -F 'motd' "$TMPDIR/status"
+    grep -F 'menu' "$TMPDIR/status"
+    grep -F 'docs' "$TMPDIR/status"
     touch "$out"
   '';
 
@@ -504,11 +571,11 @@ in
   # Built-in navigation aliases must resolve on the same PATH as their labels.
   motd-shortcuts-runnable =
     assert
-    config.packages.motd.shortcutAliases == [
-      "?"
-      "m"
-      "d"
-    ];
+      config.packages.motd.shortcutAliases == [
+        "?"
+        "m"
+        "d"
+      ];
     mkRunnableCheck "motd-shortcuts-runnable" "built-in shortcuts" config.packages.motd.shortcutAliases;
 
   titles-command-renders =
@@ -553,16 +620,14 @@ in
     let
       internalPreludeLib = import ../src/prelude/lib.nix { inherit lib; };
       attempted = builtins.tryEval (
-        builtins.deepSeq
-          (internalPreludeLib.normalizeCommandEntries {
-            "go:test" = {
-              exec = "go test";
-            };
-            "quality:test" = {
-              exec = "go test";
-            };
-          })
-          true
+        builtins.deepSeq (internalPreludeLib.normalizeCommandEntries {
+          "go:test" = {
+            exec = "go test";
+          };
+          "quality:test" = {
+            exec = "go test";
+          };
+        }) true
       );
     in
     assert !attempted.success;
@@ -630,34 +695,35 @@ in
       pages = evaluated.config.prelude.docs.pages;
       nixos = evaluated.config.prelude.docs.nixosOptions;
       # Exercise pass-through: builder must accept non-transform args unchanged.
-      docsPkg = import ../src/prelude/docs.nix
-        {
-          inherit (pkgs)
-            lib
-            writeText
-            buildGoModule
-            runCommand
-            nixosOptionsDoc
-            figlet
-            ;
-        }
-        {
-          theme = "phosphor";
-          colorProfile = "auto";
-          project = "check";
-          pages = [
-            {
-              generate = "nixosOptions";
-              title = "Options";
-            }
-          ];
-          nixosOptions = {
-            inherit (tiny) options;
-            documentType = "none";
-            warningsAreErrors = false;
-            revision = "check-rev";
+      docsPkg =
+        import ../src/prelude/docs.nix
+          {
+            inherit (pkgs)
+              lib
+              writeText
+              buildGoModule
+              runCommand
+              nixosOptionsDoc
+              figlet
+              ;
+          }
+          {
+            theme = "phosphor";
+            colorProfile = "auto";
+            project = "check";
+            pages = [
+              {
+                generate = "nixosOptions";
+                title = "Options";
+              }
+            ];
+            nixosOptions = {
+              inherit (tiny) options;
+              documentType = "none";
+              warningsAreErrors = false;
+              revision = "check-rev";
+            };
           };
-        };
     in
     assert builtins.length pages == 3;
     assert (builtins.head pages).text == ../docs/welcome.md;
@@ -696,36 +762,37 @@ in
           ../src/prelude/options/prompt.nix
         ];
       };
-      docsPkg = import ../src/prelude/docs.nix
-        {
-          inherit (pkgs)
-            lib
-            writeText
-            buildGoModule
-            runCommand
-            nixosOptionsDoc
-            figlet
-            ;
-        }
-        {
-          theme = "phosphor";
-          colorProfile = "auto";
-          project = "check";
-          pages = [
-            {
-              generate = "nixosOptions";
-              title = "Options";
-              # default split is allLeaves — omit to exercise the default
-            }
-          ];
-          nixosOptions = {
-            options = {
-              inherit (preludeEval.options) prelude;
+      docsPkg =
+        import ../src/prelude/docs.nix
+          {
+            inherit (pkgs)
+              lib
+              writeText
+              buildGoModule
+              runCommand
+              nixosOptionsDoc
+              figlet
+              ;
+          }
+          {
+            theme = "phosphor";
+            colorProfile = "auto";
+            project = "check";
+            pages = [
+              {
+                generate = "nixosOptions";
+                title = "Options";
+                # default split is allLeaves — omit to exercise the default
+              }
+            ];
+            nixosOptions = {
+              options = {
+                inherit (preludeEval.options) prelude;
+              };
+              transformOptions = o: o // { declarations = [ ]; };
+              warningsAreErrors = false;
             };
-            transformOptions = o: o // { declarations = [ ]; };
-            warningsAreErrors = false;
           };
-        };
     in
     pkgs.runCommand "docs-allLeaves-prelude"
       {
@@ -782,38 +849,34 @@ in
           }
         ];
       };
-      docsPkg = import ../src/prelude/docs.nix
-        {
-          inherit (pkgs)
-            lib
-            writeText
-            buildGoModule
-            runCommand
-            nixosOptionsDoc
-            figlet
-            ;
-        }
-        {
-          theme = "phosphor";
-          colorProfile = "auto";
-          project = "check";
-          pages = [
-            {
-              generate = "nixosOptions";
-              title = "Options";
-            }
-          ];
-          nixosOptions = {
-            inherit (tiny) options;
-            transformOptions =
-              o:
-              if o.name == "hiddenByTransform" then
-                o // { visible = false; }
-              else
-                o;
-            warningsAreErrors = false;
+      docsPkg =
+        import ../src/prelude/docs.nix
+          {
+            inherit (pkgs)
+              lib
+              writeText
+              buildGoModule
+              runCommand
+              nixosOptionsDoc
+              figlet
+              ;
+          }
+          {
+            theme = "phosphor";
+            colorProfile = "auto";
+            project = "check";
+            pages = [
+              {
+                generate = "nixosOptions";
+                title = "Options";
+              }
+            ];
+            nixosOptions = {
+              inherit (tiny) options;
+              transformOptions = o: if o.name == "hiddenByTransform" then o // { visible = false; } else o;
+              warningsAreErrors = false;
+            };
           };
-        };
     in
     pkgs.runCommand "docs-allLeaves-filters-internal"
       {
@@ -851,36 +914,43 @@ in
           }
         ];
       };
-      docsPkg = import ../src/prelude/docs.nix
-        {
-          inherit (pkgs)
-            lib
-            writeText
-            buildGoModule
-            runCommand
-            nixosOptionsDoc
-            figlet
-            ;
-        }
-        {
-          theme = "phosphor";
-          colorProfile = "auto";
-          project = "check";
-          pages = [
-            {
-              generate = "nixosOptions";
-              title = "Options";
-            }
-          ];
-          nixosOptions = {
-            inherit (tiny) options;
-            transformOptions = o: o // {
-              name = "renamed.demo";
-              loc = [ "renamed" "demo" ];
+      docsPkg =
+        import ../src/prelude/docs.nix
+          {
+            inherit (pkgs)
+              lib
+              writeText
+              buildGoModule
+              runCommand
+              nixosOptionsDoc
+              figlet
+              ;
+          }
+          {
+            theme = "phosphor";
+            colorProfile = "auto";
+            project = "check";
+            pages = [
+              {
+                generate = "nixosOptions";
+                title = "Options";
+              }
+            ];
+            nixosOptions = {
+              inherit (tiny) options;
+              transformOptions =
+                o:
+                o
+                // {
+                  name = "renamed.demo";
+                  loc = [
+                    "renamed"
+                    "demo"
+                  ];
+                };
+              warningsAreErrors = false;
             };
-            warningsAreErrors = false;
           };
-        };
     in
     pkgs.runCommand "docs-allLeaves-rename-transform"
       {
@@ -916,33 +986,34 @@ in
           }
         ];
       };
-      docsPkg = import ../src/prelude/docs.nix
-        {
-          inherit (pkgs)
-            lib
-            writeText
-            buildGoModule
-            runCommand
-            nixosOptionsDoc
-            figlet
-            ;
-        }
-        {
-          theme = "phosphor";
-          colorProfile = "auto";
-          project = "check";
-          pages = [
-            {
-              generate = "nixosOptions";
-              title = "Options";
-              split = "shallow";
-            }
-          ];
-          nixosOptions = {
-            inherit (tiny) options;
-            warningsAreErrors = false;
+      docsPkg =
+        import ../src/prelude/docs.nix
+          {
+            inherit (pkgs)
+              lib
+              writeText
+              buildGoModule
+              runCommand
+              nixosOptionsDoc
+              figlet
+              ;
+          }
+          {
+            theme = "phosphor";
+            colorProfile = "auto";
+            project = "check";
+            pages = [
+              {
+                generate = "nixosOptions";
+                title = "Options";
+                split = "shallow";
+              }
+            ];
+            nixosOptions = {
+              inherit (tiny) options;
+              warningsAreErrors = false;
+            };
           };
-        };
     in
     pkgs.runCommand "docs-shallow-passthrough"
       {

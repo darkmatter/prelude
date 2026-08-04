@@ -4,12 +4,18 @@
 # (src/prelude/options/*.nix) and the generators (fallbacks for direct
 # mkMotd/mkMenu consumers).
 #
+# These defaults are a complete ACME example — layout and content that look
+# like a real dogfooded shell — so a zero-config `mkMotd { }` / bare module
+# enable renders something useful. Replace project, tagline, description,
+# commands, and recipes with your own; defining any `prelude.commands.*`
+# replaces this catalogue entirely (attrs option default, not merge).
+#
 # Text items intentionally carry no colors here — when `foreground` is null
 # the generators fall back to the palette role for that element, so the
 # selected theme drives the look. Explicit colors always win.
 {
   # Theme name (see themes.nix) + per-token palette overrides.
-  theme = "phosphor";
+  theme = "minted";
   palette = { };
 
   # Color depth: "auto" detects the terminal profile, "truecolor" forces
@@ -19,106 +25,183 @@
   # Project identity, shared by motd and menu.
   project = "acme";
 
-  # Project commands keyed by invocation name for the interactive menu. The
-  # flake-parts module contributes menu/docs when those components exist.
-  # Commands sort by `order ? 1000`, then name; groups follow the first command.
-  # Command: { exec ? commandKey, group ? "general", order ? 1000,
-  #            description ? "", key ? null, usage ? null, details ? null,
-  #            examples ? [ ], args ? [ { token, description ? "",
-  #            required ? false, boolean ? false, options ? [ ] } ] }
-  commands = { };
+  # Example catalogue for ACME. The first colon infers the menu group; the
+  # complete key stays callable through `x`. Commands with `motd = N` appear
+  # on the Getting Started list (ascending order). `menu` is always listed
+  # when the menu component is enabled.
+  #
+  # Shape: { exec ? key, description ? "", key ? null, usage ? null,
+  #          details ? null, examples ? [ ], motd ? null,
+  #          args ? [ { token, description ? "", required ? false,
+  #          boolean ? false, options ? [ ] } ] }
+  commands = {
+    dev = {
+      description = "start the dev server with hot reload";
+      exec = "pnpm dev";
+      motd = 1;
+      usage = "x dev --port 3000";
+      details = "Boots a development server that watches the source tree and hot-reloads modules as files change.";
+      examples = [
+        "x dev --port 8080"
+        "x dev --host 0.0.0.0"
+      ];
+      args = [
+        {
+          token = "--port";
+          description = "Port to bind the dev server";
+          options = [
+            "3000"
+            "8080"
+          ];
+        }
+        {
+          token = "--host";
+          description = "Interface to expose";
+          options = [
+            "127.0.0.1"
+            "0.0.0.0"
+          ];
+        }
+      ];
+    };
+    test = {
+      description = "run the unit test suite";
+      exec = "pnpm test";
+      motd = 2;
+    };
+    build = {
+      description = "compile an optimized production bundle";
+      exec = "pnpm build";
+      motd = 3;
+    };
+    "database:up" = {
+      description = "start postgres & redis in the background";
+      exec = "docker compose up -d db redis";
+    };
+    "database:migrate" = {
+      description = "apply pending schema migrations";
+      exec = "drizzle-kit migrate";
+    };
+    "ops:deploy" = {
+      description = "ship the current build to production";
+      exec = "vercel deploy";
+      usage = "x ops:deploy --alias staging";
+      details = "Uploads the most recent production build and promotes it after health checks.";
+      examples = [
+        "x ops:deploy --dry-run"
+        "x ops:deploy --alias staging"
+      ];
+      args = [
+        {
+          token = "--alias";
+          description = "Publish to a named preview URL";
+          options = [
+            "staging"
+            "preview"
+          ];
+        }
+        {
+          token = "--dry-run";
+          description = "Print the manifest without shipping";
+          boolean = true;
+        }
+      ];
+    };
+  };
 
-  # commands.dev = { exec = "bun run dev"; description = "Long description"; }
-
-  # Inferred presentation-group order. The first colon in a command key names
-  # its group; ungrouped commands fall under develop. Prelude navigation stays
-  # first; unlisted groups follow alphabetically.
-  sort.groups = [ "develop" ];
+  # Preferred command-group order. Ungrouped commands fall under develop;
+  # Prelude navigation stays first; unlisted groups follow alphabetically.
+  sort.groups = [
+    "develop"
+    "database"
+    "ops"
+  ];
 
   # --- motd --------------------------------------------------------------------
-  # Layout matches dev/playground/motd-playground: header bar → description → env →
-  # Getting Started (commands + examples) → shortcuts.
+  # Dogfood-shaped layout: clear screen, transparent card, centered wordmark,
+  # header without a raised bar, description → env → Getting Started → recipes
+  # → shortcuts. Bottom margin only on tall terminals so short windows keep
+  # the card on screen.
 
   motd = {
-    enable= true;
+    enable = true;
     # The optional checked-in multiline text is generated by `prelude-title`;
     # null keeps the styled project-name wordmark. Alignment applies to custom
     # text, while style selects the fallback wordmark treatment.
     title = {
       text = null;
-      align = "left";
+      align = "center";
       style = "spine";
     };
 
     # Block background fill: null/false = transparent, true = theme `bg`
     # token, or an explicit color. Falls back to windowBackground when
     # unset.
-    background = null;
+    background = false;
 
     # Window background: paints the full terminal width — margins,
     # alignment gutters, and line remainders. null/false = transparent,
     # true = theme `bg` token, or an explicit color.
-    windowBackground = null;
+    windowBackground = true;
 
-    # Clear the terminal before rendering — with the top margin below this
-    # renders as a clean greeting screen on shell entry.
+    # Clear the terminal before rendering so shell entry feels like a
+    # clean greeting screen.
     clearScreen = true;
 
-    # Margin around the block: top/bottom blank lines, left/right columns
-    # folded into the horizontal offset. x/y axes work as shorthands;
-    # explicit sides supersede them.
+    # Margin around the block: horizontal inset always; bottom breathing
+    # room only when the terminal is tall enough (minHeight). x/y axes
+    # work as shorthands; explicit sides supersede them.
     margin = {
-      x = 0;
+      x = 4;
       y = 0;
-      top = 10;
-      bottom = null;
+      top = null;
+      bottom = 4;
       left = null;
       right = null;
       # Vertical sides apply only at or above this terminal height (rows);
       # 0 always applies. Horizontal sides are unaffected.
-      minHeight = 0;
+      minHeight = 40;
     };
 
     # Horizontal placement of the motd block against the terminal window
     # (content inside stays left-aligned).
     align = "center";
 
-    # Inner padding between content and the block edge. Header bar stays
+    # Inner padding between content and the block edge. Header stays
     # edge-to-edge horizontally; tagline, middle, and footer shortcuts take
-    # horizontal inset. Top and bottom pad the whole card outside the title
-    # and shortcut rows.
+    # horizontal inset. Top pads under the title; bottom pads above shortcuts.
     padding = {
       x = 4;
-      y = 0;
-      top = null;
-      bottom = 2;
-      left = null;
-      right = null;
+      y = 2;
       minHeight = 0;
     };
 
-    # Hero bar: wordmark, status, and activation copy.
+    # Hero: wordmark, status, and activation copy (no raised fill by default).
     header = {
       tagline = {
-        text = "Dev Shell Activated";
-        subtitle = "Your environment is ready";
+        text = "everything you need to build, test & ship";
+        subtitle = "edit prelude.nix to replace this ACME example with your project";
         # stack = two lines; inline = "text · subtitle" on one row.
         layout = "stack";
         # left | center
         align = "left";
       };
-      # true = raised lightened bar (default); null/false = transparent;
+      # true = raised lightened bar; null/false = transparent;
       # color / { relative } = explicit fill.
-      background = true;
+      background = false;
       statusHint = {
         # below = separate row; inline = lights left, hint right.
-        layout = "below";
+        layout = "inline";
         # Hyperlinks appended after the reload hint. Item: { label; url; }
-        links = [ ];
+        links = [{
+          label = "powered by prelude";
+          url = "https://github.com/darkmatter/prelude";
+        }];
       };
       # Keyed lights: static { status } or live { check, ok?, fail? }.
       status = {
         ready = {
+          label = "devshell";
           status = "ready";
         };
       };
@@ -127,7 +210,12 @@
     # Styled text rendered beneath the header (theme fg role). An empty
     # text hides it. { text, foreground, background, bold, italic, faint }
     description = {
-      text = "";
+      text = ''
+        You are inside the ACME example devshell — the out-of-the-box Prelude
+        welcome banner. Set `prelude.project`, rewrite the tagline and this
+        description, and replace `prelude.commands` with your real workflows.
+        Run `menu` to browse every command.
+      '';
     };
 
     # Terminal hyperlinks rendered beneath the description.
@@ -138,11 +226,44 @@
     #   { label; value; }  — static chip
     #   { label; probe; }  — command run at render time; first output line
     #                        becomes the value, skipped on failure
-    env = [ ];
+    env = [
+      {
+        label = "node";
+        value = "22";
+      }
+      {
+        label = "pnpm";
+        value = "9";
+      }
+      {
+        label = "postgres";
+        value = "16";
+      }
+    ];
 
     # Multi-step workflows keyed by name. Prefer `steps`; legacy `lines`
     # are normalized into steps at the Nix boundary.
-    recipes = { };
+    recipes = {
+      first-run = {
+        order = 100;
+        title = "spin up a clean local stack";
+        steps = [
+          { comment = "start services, migrate, then run the app"; }
+          { command = "x database:up"; }
+          { command = "x database:migrate"; }
+          { command = "dev"; }
+        ];
+      };
+      ship = {
+        order = 200;
+        title = "ship a release";
+        steps = [
+          { comment = "verify, build, then deploy"; }
+          { command = "test && build"; }
+          { command = "x ops:deploy"; }
+        ];
+      };
+    };
 
     # Unified commands + examples region labels.
     gettingStarted = {
@@ -156,7 +277,7 @@
     };
 
     width = "full";
-    maxWidth = 96;
+    maxWidth = 120;
   };
 
   # --- menu --------------------------------------------------------------------
@@ -166,7 +287,7 @@
     placeholder = "type to filter commands…";
 
     # Filter list height (rows).
-    height = 12;
+    height = 20;
 
     # Execute the selected command (exec bash -c). When false, print it instead.
     execute = true;
@@ -176,10 +297,10 @@
   };
 
   # --- prompt ------------------------------------------------------------------
-  # Themed starship config (packages.prompt = starship.toml). Colors come from
-  # the palette (path: muted, marker: accent2 — the documented prompt role —
-  # continuation: dim). `settings` merges over the themed defaults;
-  # `configFile` replaces the generated config entirely.
+  # Themed Starship config (packages.prompt = starship.toml). The character is
+  # the normal prompt; the Powerline is right_format, which Prelude transfers
+  # into ble.sh's Bash status line. `settings` merges over the themed defaults;
+  # `configFile` replaces the generated config and disables that transfer.
 
   prompt = {
     settings = { };

@@ -150,9 +150,10 @@ func (s sections) gettingStarted() []string {
 	content := ui.Surface{Context: s.r.blockUI, Width: s.r.contentWidth}
 	var out []string
 	if hasCommands {
-		out = append(out, s.subLabel(commandsLabel), content.Blank())
+		header, noteInline := s.commandsHeader(commandsLabel, gs.CommandNote)
+		out = append(out, header, content.Blank())
 		out = append(out, s.commands()...)
-		if gs.CommandNote != "" {
+		if gs.CommandNote != "" && !noteInline {
 			out = append(out, content.Blank())
 			out = append(out, s.renderTipLine(gs.CommandNote)...)
 		}
@@ -171,6 +172,52 @@ func (s sections) subLabel(text string) string {
 	return s.r.st.blockFill.Width(s.r.contentWidth).Render(
 		ui.Inline(s.r.st.dim).Render(text),
 	)
+}
+
+// commandsHeader renders the commands sub-label with the note right-aligned
+// on the same row. The second return reports whether the note fit inline, so
+// the caller can fall back to a line under the list on narrow terminals.
+func (s sections) commandsHeader(label, note string) (string, bool) {
+	if note == "" {
+		return s.subLabel(label), true
+	}
+	left := ui.Inline(s.r.st.dim).Render(label)
+	right := s.commandNote(note)
+	gap := s.r.contentWidth - lipgloss.Width(left) - lipgloss.Width(right)
+	if gap < 2 {
+		return s.subLabel(label), false
+	}
+	return s.r.st.blockFill.Width(s.r.contentWidth).Render(
+		left + strings.Repeat(" ", gap) + right,
+	), true
+}
+
+// commandNote renders the note prose in a single dim tone (accent only for
+// the backtick code span) — unlike renderTipLine, which mutes prose after the
+// first code span. The note sits on the same row as the equally-dim commands
+// label, so a mid-string tone shift would read as a rendering bug.
+func (s sections) commandNote(note string) string {
+	var b strings.Builder
+	rest := note
+	for {
+		start := strings.Index(rest, "`")
+		if start < 0 {
+			b.WriteString(ui.Inline(s.r.st.dim).Render(rest))
+			break
+		}
+		if start > 0 {
+			b.WriteString(ui.Inline(s.r.st.dim).Render(rest[:start]))
+		}
+		rest = rest[start+1:]
+		end := strings.Index(rest, "`")
+		if end < 0 {
+			b.WriteString(ui.Inline(s.r.st.dim).Render("`" + rest))
+			break
+		}
+		b.WriteString(ui.Inline(s.r.st.accent).Bold(true).Render(rest[:end]))
+		rest = rest[end+1:]
+	}
+	return b.String()
 }
 
 // description renders onboarding prose and optional tip lines.

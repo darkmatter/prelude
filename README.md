@@ -14,18 +14,32 @@ With prelude, the only command anyone would need to remember is `nix develop`. A
 </div>
 <br />
 
-
 ## Quickstart (Setup Wizard)
 
-![demo](docs/recording.gif)
-
-Prelude ships with a setup wizard that generates the initial configuration for you. It writes a ready-to-use config and a sibling FIGlet title file (default `prelude.nix` + `title.txt`):
+Prelude ships with a setup wizard that generates a basic configuration for you. It will
+create a `prelude.nix` file and a `title.txt` which contains your figlet title:
 
 ```bash
 $ nix run github:darkmatter/prelude#setup
-# or: nix run github:darkmatter/prelude#setup -- -o path/to/prelude.nix
+wrote title.txt
+wrote prelude.nix
+
+# or specify a path:
+$ nix run github:darkmatter/prelude#setup -- -o nix/prelude.nix
 ```
 
+![demo](docs/recording.gif)
+
+If you want to customize things further, all other options are also included but
+commented out in the generated config, along with documentation and the default value.
+
+Import the module with your config as an argument, for example:
+
+```nix
+imports = [
+  (inputs.prelude.flakeModules.default ./prelude.nix)
+];
+```
 
 Your MOTD should contain an overview of what your project is, and clear instructions for
 the most common tasks. Ideally, the user should be able to go from clone to running
@@ -199,12 +213,12 @@ step through them, `j`/`k` to scroll, and `q` to quit.
 
 ## Themes
 
-`prelude.theme` selects a palette: `phosphor` (default), `minted` (indigo-black
-with sage + rose), `amber`, `solarized`, `nord`, `gruvbox`, and `paper` (light)
-— ported from the cli-menu-design demo — plus `mono` (strict dark grayscale)
-and `apathy` (ported from czxtm/apathy-theme: purple-tinted darks, lavender +
-butterscotch accents). Page through the current MOTD in every theme with
-`nix run .#example-themes`.
+`prelude.theme` selects a palette: `prelude` (default brand palette),
+`phosphor`, `minted` (indigo-black with sage + rose), `amber`, `solarized`,
+`nord`, `gruvbox`, and `paper` (light) — most ported from the cli-menu-design
+demo — plus `mono` (strict dark grayscale) and `apathy` (ported from
+czxtm/apathy-theme: purple-tinted darks, lavender + butterscotch accents).
+Page through the current MOTD in every theme with `nix run .#example-themes`.
 
 Tokens: `fg`, `muted`, `dim`, `border`, `accentBorder`, `accent`,
 `accent2`, `success`, `warning`, `info`, `error`, `selectionFg`, `bg`,
@@ -465,22 +479,23 @@ Group order is configured with `prelude.sort.groups` (default:
 
 A [starship](https://starship.rs/) config themed from the active palette.
 `packages.prompt` is the generated `starship.toml`. The default layout starts
-with two blank lines for breathing room, followed by a two-line prompt:
-Powerline header with right-aligned shortcuts for enabled components on the
-first line, marker on the second:
+with two blank lines for breathing room and a marker prompt. The existing
+Powerline is the generated Starship `right_format`; in Bash, Starship's native
+ble.sh integration renders it and Prelude moves that rendered value into
+ble.sh's bottom status line:
 
 ```
-░▒▓ prelude  …/prelude   main  ✘»+⇡   ···  [?] motd  [m] menu  [d] docs
 ❯
+░▒▓ prelude  …/prelude   main  ✘»+⇡   ···  [?] motd  [m] menu  [d] docs
 ```
 
-Header: ramp + project pill on `secondary`, then continuous Powerline
+Status: ramp + project pill on `secondary`, then continuous Powerline
 transitions through a `bg` directory segment, an inverted `fg` branch
 segment, and a `surface` status segment before returning to the terminal
 background. Command duration and shortcuts remain transparent; shortcuts are
-right-aligned via `$fill` (works in bash and zsh, while Starship's
-`right_format` requires zsh or ble.sh). Marker: bold `success`, `error` on
-failure. Styles reference palette tokens by name — the config carries
+right-aligned via `$fill`. Other shells that support Starship `right_format`
+retain it as a native right prompt. Marker: bold `success`, `error` on failure.
+Styles reference palette tokens by name — the config carries
 `palettes.prelude` mapping `bg`, `surface`, `secondary`, `fg`, `muted`, `dim`,
 `accent`, `accent2`, `success`, `warning`, `info`, `error`, … to the resolved
 theme, so `settings` overrides can use the same names (e.g.
@@ -500,14 +515,33 @@ devShells.default = pkgs.mkShell {
 ```
 
 `packages.prelude` contains every enabled Prelude component. When the prompt is
-enabled it also contains Starship and ble.sh, so consumers do not need to add
-those dependencies separately. Starship re-resolves `$STARSHIP_CONFIG` on every
-prompt render, and direnv propagates env vars (only `PS1` itself is stripped).
-Entering the project therefore re-themes the prompt and leaving it reverts to
-the user's own config. In an interactive Bash `nix develop` shell, Prelude's
-package setup hook sources ble.sh and initializes Starship automatically. The
-hook remains inert during non-interactive direnv evaluation, where the user's
-existing login-shell prompt remains in control.
+enabled it also contains Starship, ble.sh, and bash-completion, so consumers do
+not need to add those dependencies separately. Its setup hook sources a small,
+idempotent `prelude-init` entrypoint in the current interactive shell. That
+entrypoint composes checked-in lifecycle, completion, and status modules with a
+Nix-generated command catalogue. Starship's documented ble.sh PRECMD hook
+captures command state and renders `right_format`; Prelude's following hook
+moves that already-rendered value into the status line. There is no extra
+Starship process per keystroke, nested shell, or reconstructed rcfile.
+
+The resolved Prelude palette is also compiled into a native ble.sh
+`contrib/scheme/prelude.bash` color scheme. It maps ble.sh's editing, syntax,
+command, filename, variable, validation, and completion faces to the same
+semantic theme roles used by the MOTD, menu, docs, status line, and Starship.
+
+**Tab** remains owned by ble.sh's native completion menu. Prelude contributes
+catalogue-aware candidates and descriptions for `x` commands and their
+arguments without replacing ble.sh's navigation or rendering. The status line
+contains only Starship's Powerline—no duplicate command browser or hints.
+
+When `prelude.prompt.configFile` is set, that file remains verbatim and fully
+user-owned; Prelude does not move its right prompt into the Bash status line.
+
+Starship re-resolves `$STARSHIP_CONFIG` on every prompt render, and direnv
+propagates env vars (only `PS1` itself is stripped). Entering the project
+therefore re-themes the prompt and leaving it reverts to the user's own config.
+The init remains inert during non-interactive direnv evaluation, where the
+user's existing login-shell prompt remains in control.
 
 ## Without flake-parts
 
@@ -547,6 +581,8 @@ nix run .#motd                # this repo's welcome banner
 nix run .#menu                # this repo's command menu
 nix run .#previews            # build the render checks and show their output
 nix run .#previews -- motd-renders   # …or just specific checks
+nix run .#example-default     # MOTD from stock setup wizard presets
+# nix run .#example-default -- --config   # print the generated prelude.nix
 nix run .#example-motd        # acme-web welcome banner demo
 nix run .#example-menu        # acme-web command menu demo (arg entry)
 nix run .#examples            # render every demo in sequence
@@ -586,7 +622,7 @@ templates/default/     # `nix flake init -t github:darkmatter/prelude#default` s
 docs/                  # docs-viewer pages, guides, generated references, media
 src/cmd/               # Go entrypoints (motd, menu, docs, title)
 src/internal/          # Go renderers: motd (Lip Gloss), menu (Bubble Tea),
-                       #   docs, title (setup wizard)
+                       #   docs, wizard (setup + title chooser)
 src/pkg/               # shared Go packages (manual, shared, ui)
 src/prelude/
   themes.nix           # palettes (oklch → hex, CSS gamut-mapped)

@@ -7,10 +7,11 @@
 #   export STARSHIP_CONFIG=${config.packages.prompt}
 #
 # re-themes the user's existing starship prompt while inside the project and
-# reverts automatically when direnv unloads. `packages.prelude` supplies
-# Starship and ble.sh when the prompt is enabled and initializes both in an
-# interactive Bash `nix develop` shell. Non-interactive direnv evaluation stays
-# inert so the user's existing login-shell prompt remains in control.
+# reverts automatically when direnv unloads. `packages.prelude` sources one
+# canonical, idempotent `prelude-init` file in the interactive shell that
+# `nix develop` already started; it does not launch or reconstruct another
+# shell. Non-interactive direnv evaluation stays inert so the user's existing
+# login-shell prompt remains in control.
 { lib
 , formats
 , ...
@@ -32,19 +33,18 @@ let
   # `palettes.prelude` maps them to the resolved theme hex values, mirroring
   # how a hand-written starship config names its palette.
   #
-  # Layout (two blank lines, then a two-line prompt with shortcuts right-aligned
-  # on the Powerline):
+  # Layout (cross-shell via Starship, with ble.sh status chrome in Bash):
   #
+  #   Bash + ble.sh status: ░▒▓ project  path  branch  status  ··· shortcuts
+  #   Prompt:               ❯
   #
+  # The status format and normal prompt share this one Starship config. Bash
+  # moves Starship's native ble.sh right-prompt render into the status line;
+  # other supported shells retain it as a normal right prompt.
   #
-  #   ░▒▓ project  path  branch  status   ···  [?] motd  [m] menu  [d] docs
-  #   ❯
-  #
-  # Each separator inherits the background of the segment on its left as its
-  # foreground and the next segment's background as its own background. That
-  # overlap is what makes adjacent modules one continuous Powerline rather
-  # than independently styled labels. `\[`/`\]` are literal brackets in
-  # Starship format strings.
+  # Each Powerline separator inherits the background of the segment on its left
+  # as its foreground and the next segment's background as its own background.
+  # `\[`/`\]` are literal brackets in Starship format strings.
   shortcutChip =
     { command, alias, ... }:
     "[\\[](fg:dim)[${alias}](bold fg:accent2)[\\]](fg:dim)[ ${command}](fg:muted)";
@@ -65,13 +65,11 @@ let
     "[ ](fg:surface)"
     "$cmd_duration"
   ];
+  statusFormat = if m.shortcuts == [ ] then leftSegments else "${leftSegments}$fill${chips}";
 
   defaultSettings = {
-    format =
-      if m.shortcuts == [ ] then
-        "\n\n${leftSegments}\n$character"
-      else
-        "\n\n${leftSegments}$fill${chips}\n$character";
+    format = "\n\n$character";
+    right_format = statusFormat;
     add_newline = false;
     palette = "prelude";
     palettes.prelude = pal;

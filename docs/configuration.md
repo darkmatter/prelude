@@ -2,8 +2,8 @@
 
 Everything is a `prelude.*` option, validated at build time.
 
-- **`prelude.theme`** — palette: `phosphor` (default), `minted`, `amber`,
-  `solarized`, `nord`, `gruvbox`, `paper`. Override single tokens with
+- **`prelude.theme`** — palette: `prelude` (default), `phosphor`, `minted`,
+  `amber`, `solarized`, `nord`, `gruvbox`, `paper`. Override single tokens with
   `prelude.palette`.
 - **`prelude.colorProfile`** — `auto`, `truecolor`, or `ansi256`; force
   truecolor when terminal detection guesses wrong.

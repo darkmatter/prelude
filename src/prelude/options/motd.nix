@@ -145,8 +145,9 @@ in
             type = t.bgType;
             default = defaults.motd.header.background;
             description = ''
-              Header bar fill: true = raised lightened bar (default), null/false =
-              transparent (fg-only), a color, or `{ relative = ±n; }` vs terminal bg.
+              Header bar fill: true = raised lightened bar, null/false =
+              transparent (fg-only, default), a color, or `{ relative = ±n; }`
+              vs terminal bg.
             '';
             example = null;
           };

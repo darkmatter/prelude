@@ -17,6 +17,15 @@ type Config struct {
 	ColorProfile string         `json:"colorProfile"`
 	Palette      shared.Palette `json:"palette"`
 	Groups       []Group        `json:"groups"`
+	MOTDCommands []CommandHint  `json:"motdCommands"`
+}
+
+// CommandHint is the reduced command projection used by compact catalogue
+// surfaces. Menu itself continues to render the richer Task values.
+type CommandHint struct {
+	Name        string `json:"name"`
+	Command     string `json:"command"`
+	Description string `json:"description"`
 }
 
 type Group struct {
@@ -28,6 +37,7 @@ type Task struct {
 	Name        string   `json:"name"`
 	Label       string   `json:"label"`
 	Run         string   `json:"run"`
+	Command     string   `json:"command"` // user-runnable shell form (possibly "x <key>")
 	Description string   `json:"description"`
 	Key         string   `json:"key"`   // "" = none
 	Usage       string   `json:"usage"` // "" = none

@@ -456,7 +456,7 @@ buildGoModule {
   src = ../.;
   subPackages = [ "cmd/docs" ];
   doCheck = false;
-  vendorHash = "sha256-qHpXE7MVG06KxY/2eLnqUva3/FHjAdQceH6A/5sn7mU=";
+  vendorHash = "sha256-axbNd4BKZRaM0vb7XsF7hefBLuTD0Z8RWihNJd6ktE0=";
   ldflags = [
     "-s"
     "-w"

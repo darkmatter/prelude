@@ -16,14 +16,20 @@ let
       themes.${theme} // lib.filterAttrs (_n: v: v != null) overrides;
 
   # Resolve a spacing spec into explicit sides. `x`/`y` are axis shorthands
-  # (left+right / top+bottom); explicit sides supersede them.
-  resolveSpacing = spec: {
-    top = if (spec.top or null) != null then spec.top else (spec.y or 0);
-    bottom = if (spec.bottom or null) != null then spec.bottom else (spec.y or 0);
-    left = if (spec.left or null) != null then spec.left else (spec.x or 0);
-    right = if (spec.right or null) != null then spec.right else (spec.x or 0);
-    minHeight = spec.minHeight or 0;
-  };
+  # (left+right / top+bottom); explicit sides supersede them. Every field is
+  # optional — missing sides fall through to the axis (or 0).
+  resolveSpacing =
+    spec:
+    let
+      s = if spec == null then { } else spec;
+    in
+    {
+      top = if (s.top or null) != null then s.top else (s.y or 0);
+      bottom = if (s.bottom or null) != null then s.bottom else (s.y or 0);
+      left = if (s.left or null) != null then s.left else (s.x or 0);
+      right = if (s.right or null) != null then s.right else (s.x or 0);
+      minHeight = s.minHeight or 0;
+    };
 
   textDefaults = {
     text = "";

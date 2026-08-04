@@ -117,7 +117,9 @@ let
     };
 
   # Spacing submodule: x/y axis shorthands plus explicit sides that
-  # supersede them (CSS-style).
+  # supersede them (CSS-style). Omitted keys in `spacingDefaults` (and in
+  # consumer overrides) are fine — sides default to null (fall through to the
+  # axis), axes/minHeight default to 0.
   mkSpacingOption =
     { spacingDefaults, description }:
     let
@@ -125,7 +127,7 @@ let
         side: axis:
         lib.mkOption {
           type = lib.types.nullOr lib.types.ints.unsigned;
-          default = spacingDefaults.${side};
+          default = spacingDefaults.${side} or null;
           description = "${side} spacing; supersedes `${axis}` when set.";
         };
     in
@@ -136,12 +138,12 @@ let
         options = {
           x = lib.mkOption {
             type = lib.types.ints.unsigned;
-            default = spacingDefaults.x;
+            default = spacingDefaults.x or 0;
             description = "Horizontal spacing (columns, left and right).";
           };
           y = lib.mkOption {
             type = lib.types.ints.unsigned;
-            default = spacingDefaults.y;
+            default = spacingDefaults.y or 0;
             description = "Vertical spacing (lines, top and bottom).";
           };
           top = mkSide "top" "y";

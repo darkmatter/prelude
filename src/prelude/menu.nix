@@ -32,6 +32,11 @@ let
   domainGroups = plib.normalizeCommandGroups groupOrder commands;
   groups = plib.projectMenuGroups groupOrder commands;
   tasks = plib.flatCommands domainGroups;
+  # The status host's quiet default summary follows the same explicit MOTD
+  # selection/order, minus navigation already rendered by the Starship prompt.
+  motdCommands = lib.filter
+    (command: !lib.elem command.name [ "menu" "docs" ])
+    (plib.selectCommands tasks);
 
   m = d.menu // config;
 
@@ -74,6 +79,7 @@ let
       execute = m.execute;
       palette = pal;
       groups = jsonGroups;
+      inherit motdCommands;
     }
   );
 
@@ -85,7 +91,7 @@ let
     src = ../.;
     subPackages = [ "cmd/menu" ];
     doCheck = false;
-    vendorHash = "sha256-qHpXE7MVG06KxY/2eLnqUva3/FHjAdQceH6A/5sn7mU=";
+    vendorHash = "sha256-axbNd4BKZRaM0vb7XsF7hefBLuTD0Z8RWihNJd6ktE0=";
     ldflags = [
       "-s"
       "-w"
@@ -127,4 +133,8 @@ symlinkJoin {
     description = "Interactive devshell command menu and x dispatcher (themed bubbletea TUI, configured by Nix)";
     mainProgram = "menu";
   };
+  # The generated JSON is also the canonical catalogue/palette boundary for
+  # non-menu tools. Keeping the store path in passthru avoids teaching each
+  # consumer how to reverse-engineer command wrappers or themes.
+  passthru.configFile = configFile;
 }

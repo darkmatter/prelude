@@ -5,6 +5,7 @@ let
   motdDemos = import ./motd-demo-builder.nix {
     inherit pkgs lib;
     currentMotdConfig = config.packages.motd.motdRenderConfig;
+    titlePkg = config.packages.title;
   };
   menuDemo = import ./menu-demo-builder.nix { inherit pkgs lib; };
   ex = import ../src/prelude/examples.nix;
@@ -35,6 +36,11 @@ let
           })
           (lib.attrNames ex.motdDemos)
         ++ [
+          {
+            label = "example-default";
+            hint = "nix run .#example-default";
+            cmd = lib.getExe examplePackages.example-default;
+          }
           {
             label = "example-motd";
             hint = "nix run .#example-motd";

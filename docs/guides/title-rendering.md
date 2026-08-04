@@ -40,33 +40,34 @@ nix run .#setup
 # equivalent: nix run .#setup -- -o prelude.nix
 ```
 
-That writes `prelude.nix` and `title.txt` in the current directory. Point `-o`
+That writes a **sidecar** `prelude.nix` and `title.txt` in the current
+directory — never `flake.nix` (refused if you pass `-o flake.nix`). Point `-o`
 at another config path to relocate both files — the wordmark is always
 `title.txt` beside the config (e.g. `-o nix/prelude.nix` → `nix/prelude.nix`
 and `nix/title.txt`). An existing file at either path is replaced.
 
-The generated config is an options template as well as a working module: every
+The generated file is an options template as well as a working module: every
 supported Prelude option appears once with a short comment. Wizard choices
 are active; everything else is commented out at its default so you can see
 defaults and enable knobs without leaving the file. Full prose docs live in
 `docs/reference/options.md`.
 
-The setup UI renders on stderr; status lines (`wrote …`) go there too. The
-previous `nix run .#title -- --wizard` invocation remains available for
-compatibility. Enabling the docs viewer also writes a starter
-`docs/getting-started.md`, but an existing page is kept untouched.
+Import it from your existing flake-parts flake (do not replace `flake.nix`):
 
-The final step chooses between two config shapes:
+```nix
+imports = [
+  inputs.prelude.flakeModules.default
+  ./prelude.nix
+];
+```
 
-- **flake-parts** (default) — a module to import next to Prelude's:
+The setup UI renders on stderr; status lines (`wrote …`) and a short import
+hint go there too. The previous `nix run .#title -- --wizard` invocation
+remains available for compatibility. Enabling the docs viewer also writes a
+starter `docs/getting-started.md`, but an existing page is kept untouched.
 
-  ```nix
-  imports = [ prelude.flakeModules.default ./prelude.nix ];
-  ```
-
-- **standalone** — `prelude.lib.mkMotd`/`mkMenu`/`mkDocs` builder calls for
-  flakes that do not use flake-parts; call the file with
-  `{ inherit pkgs prelude; }` and put the resulting packages on your shell.
+Commented defaults in the generated file mirror `src/prelude/defaults.nix` so
+the config doubles as the option surface.
 
 ## Choose where the result goes
 

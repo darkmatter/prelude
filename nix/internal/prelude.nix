@@ -22,7 +22,7 @@ in
 {
 
   prelude = {
-    theme = "minted";
+    theme = "amber";
     colorProfile = "truecolor";
     project = "prelude";
 
@@ -60,6 +60,7 @@ in
             ".#menu"
             ".#docs"
             ".#example-themes"
+            ".#example-default"
           ];
         }
       ];
@@ -86,6 +87,10 @@ in
     commands."demos:themes" = {
       description = "render a mini motd per theme";
       exec = "nix run .#example-themes";
+    };
+    commands."demos:defaults" = {
+      description = "preview MOTD from stock setup wizard presets";
+      exec = "nix run .#example-default";
     };
     commands."gen" = {
       description = "run generation tasks";
@@ -121,36 +126,18 @@ in
 
     motd = {
       enable = true;
+      # Layout (maxWidth, transparent chrome, margin/padding, statusHint) comes
+      # from shared defaults; only project identity and probes stay here.
       title = {
         text = self + /nix/internal/title.txt;
-        align = "center";
-        style = "spine";
       };
-      maxWidth = 120;
-      windowBackground = false;
-      background = false;
-      clearScreen = true;
-      # Bottom breathing room only when the terminal can afford it; short
-      # windows drop it instead of scrolling the card away.
-      margin = {
-        bottom = 8;
-        x = 4;
-        minHeight = 40;
-      };
-      # padding.x = 4;
-      # padding.bottom = 2;
-      padding.top = 1;
 
       header = {
         tagline = {
           text = "Devshell UI for Nix flakes";
           subtitle = "MOTD, command menu, docs viewer, and prompt from one flake-parts module";
-          layout = "stack";
-          align = "left";
         };
-        background = false;
         statusHint = {
-          layout = "inline";
           links = [
             {
               label = "github";

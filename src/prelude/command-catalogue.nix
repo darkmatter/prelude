@@ -214,6 +214,10 @@ let
 
   # Menu TUI JSON boundary: groups of tasks with the fields Go menu.Config
   # expects. Keeps catalogue metadata (usage/details/examples/args/key) intact.
+  # `command` is the user-runnable form: ungrouped entries are PATH commands,
+  # while colon-grouped catalogue identities dispatch through `x`. Consumers
+  # such as the shell status host must use this rather than reconstructing
+  # invocation rules from a display label.
   projectMenuGroups =
     groupOrder: commands:
     map
@@ -224,6 +228,7 @@ let
             name = t.name;
             label = t.label;
             run = t.run;
+            command = if t.grouped then t.xInvocation else t.name;
             description = t.description;
             key = orEmpty t.key;
             usage = orEmpty t.usage;

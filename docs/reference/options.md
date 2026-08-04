@@ -41,7 +41,80 @@ attribute set of (submodule)
 *Default:*
 
 ```nix
-{ }
+{
+  build = {
+    description = "compile an optimized production bundle";
+    exec = "pnpm build";
+    motd = 3;
+  };
+  "database:migrate" = {
+    description = "apply pending schema migrations";
+    exec = "drizzle-kit migrate";
+  };
+  "database:up" = {
+    description = "start postgres & redis in the background";
+    exec = "docker compose up -d db redis";
+  };
+  dev = {
+    args = [
+      {
+        description = "Port to bind the dev server";
+        options = [
+          "3000"
+          "8080"
+        ];
+        token = "--port";
+      }
+      {
+        description = "Interface to expose";
+        options = [
+          "127.0.0.1"
+          "0.0.0.0"
+        ];
+        token = "--host";
+      }
+    ];
+    description = "start the dev server with hot reload";
+    details = "Boots a development server that watches the source tree and hot-reloads modules as files change.";
+    examples = [
+      "x dev --port 8080"
+      "x dev --host 0.0.0.0"
+    ];
+    exec = "pnpm dev";
+    motd = 1;
+    usage = "x dev --port 3000";
+  };
+  "ops:deploy" = {
+    args = [
+      {
+        description = "Publish to a named preview URL";
+        options = [
+          "staging"
+          "preview"
+        ];
+        token = "--alias";
+      }
+      {
+        boolean = true;
+        description = "Print the manifest without shipping";
+        token = "--dry-run";
+      }
+    ];
+    description = "ship the current build to production";
+    details = "Uploads the most recent production build and promotes it after health checks.";
+    examples = [
+      "x ops:deploy --dry-run"
+      "x ops:deploy --alias staging"
+    ];
+    exec = "vercel deploy";
+    usage = "x ops:deploy --alias staging";
+  };
+  test = {
+    description = "run the unit test suite";
+    exec = "pnpm test";
+    motd = 2;
+  };
+}
 ```
 
 
@@ -674,7 +747,7 @@ positive integer, meaning >0
 *Default:*
 
 ```nix
-12
+20
 ```
 
 
@@ -695,7 +768,7 @@ null or (unsigned integer, meaning >=0)
 *Default:*
 
 ```nix
-96
+80
 ```
 
 
@@ -811,7 +884,7 @@ null or boolean or unsigned integer, meaning >=0, or string or (submodule) or (s
 *Default:*
 
 ```nix
-null
+false
 ```
 
 
@@ -989,9 +1062,14 @@ string
 
 *Default:*
 
-```nix
-""
-```
+````nix
+''
+  You are inside the ACME example devshell — the out-of-the-box Prelude
+  welcome banner. Set `prelude.project`, rewrite the tagline and this
+  description, and replace `prelude.commands` with your real workflows.
+  Run `menu` to browse every command.
+''
+````
 
 
 
@@ -1032,7 +1110,20 @@ list of (submodule)
 *Default:*
 
 ```nix
-[ ]
+[
+  {
+    label = "node";
+    value = "22";
+  }
+  {
+    label = "pnpm";
+    value = "9";
+  }
+  {
+    label = "postgres";
+    value = "16";
+  }
+]
 ```
 
 
@@ -1260,8 +1351,9 @@ submodule
 
 
 
-Header bar fill: true = raised lightened bar (default), null/false =
-transparent (fg-only), a color, or ` { relative = ±n; } ` vs terminal bg\.
+Header bar fill: true = raised lightened bar, null/false =
+transparent (fg-only, default), a color, or ` { relative = ±n; } `
+vs terminal bg\.
 
 
 
@@ -1273,7 +1365,7 @@ null or boolean or unsigned integer, meaning >=0, or string or (submodule)
 *Default:*
 
 ```nix
-true
+false
 ```
 
 
@@ -1319,6 +1411,7 @@ attribute set of (submodule)
 ```nix
 {
   ready = {
+    label = "devshell";
     status = "ready";
   };
 }
@@ -1579,7 +1672,7 @@ one of “below”, “inline”
 *Default:*
 
 ```nix
-"below"
+"inline"
 ```
 
 
@@ -1723,7 +1816,7 @@ string
 *Default:*
 
 ```nix
-"Your environment is ready"
+"edit prelude.nix to replace this ACME example with your project"
 ```
 
 
@@ -1744,7 +1837,7 @@ string
 *Default:*
 
 ```nix
-"Dev Shell Activated"
+"everything you need to build, test & ship"
 ```
 
 
@@ -1846,7 +1939,7 @@ null or (unsigned integer, meaning >=0)
 *Default:*
 
 ```nix
-null
+8
 ```
 
 
@@ -1891,7 +1984,7 @@ unsigned integer, meaning >=0
 *Default:*
 
 ```nix
-0
+40
 ```
 
 
@@ -1933,7 +2026,7 @@ null or (unsigned integer, meaning >=0)
 *Default:*
 
 ```nix
-10
+null
 ```
 
 
@@ -1954,7 +2047,7 @@ unsigned integer, meaning >=0
 *Default:*
 
 ```nix
-0
+4
 ```
 
 
@@ -1996,7 +2089,7 @@ null or (unsigned integer, meaning >=0)
 *Default:*
 
 ```nix
-96
+120
 ```
 
 
@@ -2038,7 +2131,7 @@ null or (unsigned integer, meaning >=0)
 *Default:*
 
 ```nix
-null
+2
 ```
 
 
@@ -2125,7 +2218,7 @@ null or (unsigned integer, meaning >=0)
 *Default:*
 
 ```nix
-null
+1
 ```
 
 
@@ -2146,7 +2239,7 @@ unsigned integer, meaning >=0
 *Default:*
 
 ```nix
-0
+4
 ```
 
 
@@ -2188,7 +2281,41 @@ attribute set of (submodule)
 *Default:*
 
 ```nix
-{ }
+{
+  first-run = {
+    order = 100;
+    steps = [
+      {
+        comment = "start services, migrate, then run the app";
+      }
+      {
+        command = "x database:up";
+      }
+      {
+        command = "x database:migrate";
+      }
+      {
+        command = "dev";
+      }
+    ];
+    title = "spin up a clean local stack";
+  };
+  ship = {
+    order = 200;
+    steps = [
+      {
+        comment = "verify, build, then deploy";
+      }
+      {
+        command = "test && build";
+      }
+      {
+        command = "x ops:deploy";
+      }
+    ];
+    title = "ship a release";
+  };
+}
 ```
 
 
@@ -2380,7 +2507,7 @@ one of “left”, “center”, “right”
 *Default:*
 
 ```nix
-"left"
+"center"
 ```
 
 
@@ -2475,7 +2602,7 @@ null or boolean or unsigned integer, meaning >=0, or string or (submodule) or (s
 *Default:*
 
 ```nix
-null
+false
 ```
 
 
@@ -2832,7 +2959,7 @@ string
 *Default:*
 
 ```nix
-"devshell"
+"acme"
 ```
 
 
@@ -2871,6 +2998,7 @@ true
 
 
 Use this starship\.toml verbatim instead of the generated themed config\.
+Prelude leaves its right prompt and ble\.sh status line fully user-owned\.
 
 
 
@@ -2938,6 +3066,8 @@ list of string
 ```nix
 [
   "develop"
+  "database"
+  "ops"
 ]
 ```
 
@@ -2971,5 +3101,5 @@ one of “amber”, “apathy”, “gruvbox”, “minted”, “mono”, “no
 *Default:*
 
 ```nix
-"phosphor"
+"prelude"
 ```

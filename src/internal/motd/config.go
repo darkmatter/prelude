@@ -155,8 +155,10 @@ type GettingStarted struct {
 	Heading       string `json:"heading"`
 	CommandsLabel string `json:"commandsLabel"`
 	ExamplesLabel string `json:"examplesLabel"`
-	// CommandNote is a dim line under the commands list (backtick accent),
-	// e.g. pointing at the `x` dispatcher as the anti-shadowing fallback.
+	// CommandNote is a dim note right-aligned next to the commands label
+	// (backtick accent), e.g. pointing at the `x` dispatcher as the
+	// anti-shadowing fallback. Falls back to a line under the list when the
+	// terminal is too narrow for the inline layout.
 	CommandNote string `json:"commandNote"`
 }
 

@@ -11,3 +11,19 @@ a downstream project would use.
 
 Viewer keys: digits jump between pages, `Tab`/`Shift-Tab` step through them,
 `j`/`k` scroll, `q` quits.
+
+## Silencing direnv noise under the MOTD
+
+If you use [direnv](https://direnv.net/) alongside Prelude, its per-shell
+log lines can print between the MOTD and your prompt. To suppress that noise,
+run once per user account:
+
+```sh
+mkdir -p ~/.config/direnv && touch ~/.config/direnv/direnv.toml
+grep -q 'log_format = "-"' ~/.config/direnv/direnv.toml \
+  || printf '%s\n' '[global]' 'log_format = "-"' 'log_filter = "^$"' \
+  >> ~/.config/direnv/direnv.toml
+```
+
+If you ship the MOTD to other users, point them at this snippet too — direnv
+logging is a per-user config, so it must be applied on each account.

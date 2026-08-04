@@ -5,7 +5,7 @@ package main
 import (
 	"os"
 
-	"prelude/internal/title"
+	"prelude/internal/wizard"
 )
 
 // defaultConfigPath is injected by Nix at link time. The config contains the
@@ -13,5 +13,5 @@ import (
 var defaultConfigPath string
 
 func main() {
-	os.Exit(title.Run(defaultConfigPath, os.Args[1:]))
+	os.Exit(wizard.Run(defaultConfigPath, os.Args[1:]))
 }

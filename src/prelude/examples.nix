@@ -4,9 +4,10 @@
 #
 #   nix run .#example-minimal
 #
-# The acme-web motd/menu demos back `nix run .#example-motd` and
-# `nix run .#example-menu`; the current module-produced MOTD supplies the
-# separate `nix run .#example-themes` pager. Render everything:
+# Shared defaults (no overrides) are `nix run .#example-default`. The acme-web
+# motd/menu demos back `nix run .#example-motd` and `nix run .#example-menu`;
+# the current module-produced MOTD supplies the separate
+# `nix run .#example-themes` pager. Render everything:
 #
 #   nix run .#examples
 #

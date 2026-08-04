@@ -70,6 +70,8 @@ let
   mkMenu = import ./menu.nix;
   mkDocs = import ./docs.nix;
   mkPrompt = import ./prompt.nix;
+  mkShellInit = import ./shell-init.nix;
+  mkPin = import ./pin.nix;
   plib = import ./lib.nix { inherit lib; };
   optionTypes = import ./option-types.nix { inherit lib; };
 
@@ -148,13 +150,11 @@ in
             ;
         };
 
-        motdRenderConfig =
-          generatorConfig cfg.motd
-          // {
-            commandCatalog = commands;
-            commandGroupOrder = sortCfg.groups;
-            shortcuts = internalShortcuts;
-          };
+        motdRenderConfig = generatorConfig cfg.motd // {
+          commandCatalog = commands;
+          commandGroupOrder = sortCfg.groups;
+          shortcuts = internalShortcuts;
+        };
         motdBin = mkMotd deps motdRenderConfig;
         titlePkg = mkTitle deps;
         titlePreviewsPkg = mkTitlePreviews deps;
@@ -240,33 +240,29 @@ in
           in
           assert lib.assertMsg
             (
-              !lib.any
-                (
-                  entry:
-                  lib.elem entry.name [
-                    "menu"
-                    "x"
-                  ]
-                )
-                wrapped
+              !lib.any (
+                entry:
+                lib.elem entry.name [
+                  "menu"
+                  "x"
+                ]
+              ) wrapped
             )
             "prelude: ungrouped commands named \"menu\" or \"x\" cannot receive wrappers because Prelude owns those entrypoints";
-          map
-            (
-              entry:
-              # writeTextFile rather than writeShellApplication: public command
-              # keys may contain ":" (valid in bin/ entries, unsafe in store names).
-              pkgs.writeTextFile {
-                name = "prelude-command-${lib.replaceStrings [ ":" ] [ "-" ] entry.name}";
-                executable = true;
-                destination = "/bin/${entry.name}";
-                text = ''
-                  #!${pkgs.runtimeShell}
-                  exec ${xBin} ${lib.escapeShellArg entry.name} "$@"
-                '';
-              }
-            )
-            wrapped;
+          map (
+            entry:
+            # writeTextFile rather than writeShellApplication: public command
+            # keys may contain ":" (valid in bin/ entries, unsafe in store names).
+            pkgs.writeTextFile {
+              name = "prelude-command-${lib.replaceStrings [ ":" ] [ "-" ] entry.name}";
+              executable = true;
+              destination = "/bin/${entry.name}";
+              text = ''
+                #!${pkgs.runtimeShell}
+                exec ${xBin} ${lib.escapeShellArg entry.name} "$@"
+              '';
+            }
+          ) wrapped;
 
         # Built-in navigation aliases are PATH wrappers so every rendered chip
         # is runnable. Resolve targets to absolute store paths so shell builtins
@@ -299,22 +295,20 @@ in
             lib.getExe motdBin
           else
             lib.escapeShellArg command;
-        shortcutWrappers = map
-          (
-            s:
-            pkgs.writeTextFile {
-              # Alias may be `?` or other non-store-safe glyphs; sanitize the
-              # derivation name while keeping the bin/ entry exact.
-              name = "prelude-shortcut-${lib.replaceStrings [ "?" ":" "/" " " ] [ "q" "-" "-" "-" ] s.alias}";
-              executable = true;
-              destination = "/bin/${s.alias}";
-              text = ''
-                #!${pkgs.runtimeShell}
-                exec ${resolveShortcutTarget s.command} "$@"
-              '';
-            }
-          )
-          shortcutEntries;
+        shortcutWrappers = map (
+          s:
+          pkgs.writeTextFile {
+            # Alias may be `?` or other non-store-safe glyphs; sanitize the
+            # derivation name while keeping the bin/ entry exact.
+            name = "prelude-shortcut-${lib.replaceStrings [ "?" ":" "/" " " ] [ "q" "-" "-" "-" ] s.alias}";
+            executable = true;
+            destination = "/bin/${s.alias}";
+            text = ''
+              #!${pkgs.runtimeShell}
+              exec ${resolveShortcutTarget s.command} "$@"
+            '';
+          }
+        ) shortcutEntries;
 
         menuPkg = pkgs.symlinkJoin {
           name = "menu";
@@ -333,6 +327,7 @@ in
               shortcutAliases
               shortcutWrappers
               ;
+            menuConfig = menuBin.configFile;
             commandInvocations = map (entry: entry.invocation) commandEntries;
             xInvocations = map (entry: entry.xInvocation) commandEntries;
             commandWrapperNames = map (entry: entry.name) wrappedCommandEntries;
@@ -359,6 +354,59 @@ in
             };
         promptPkg = mkPrompt deps (generatorConfig cfg.prompt // { shortcuts = internalShortcuts; });
 
+        # Resolve the palette once for the generated prompt and shell catalogue.
+        # Starship owns prompt/status content while ble.sh owns Bash rendering,
+        # lifecycle, and native completion menus.
+        pal = plib.resolvePalette cfg.theme cfg.palette;
+
+        # The current shell is the product boundary. Checked-in shell modules
+        # own behavior; Nix injects paths and serializes the same normalized
+        # catalogue used by menu. nix develop and Zellij share one entrypoint.
+        shellCommandEntries = plib.flatCommands (plib.normalizeCommandGroups sortCfg.groups commands);
+        shell =
+          mkShellInit
+            {
+              inherit (pkgs)
+                lib
+                writeText
+                runCommand
+                starship
+                blesh
+                bash-completion
+                stdenv
+                ;
+            }
+            {
+              palette = pal;
+              commandEntries = shellCommandEntries;
+              motdCommand = if cfg.motd.enable then lib.getExe motdPkg else null;
+              statusEnabled = cfg.prompt.configFile == null;
+            };
+        shellInit = shell.init;
+        shellRuntime = shell.runtime;
+
+        # Zellij pin workspace: real panes for docs/motd; shell = Starship+ble.
+        # Its shell pane sources the same init file as nix develop.
+        pinPkg =
+          mkPin
+            {
+              inherit (pkgs)
+                lib
+                writeText
+                writeShellApplication
+                writeShellScriptBin
+                runCommand
+                symlinkJoin
+                zellij
+                bash
+                jq
+                ;
+            }
+            {
+              promptConfig = if cfg.prompt.enable then promptPkg else null;
+              inherit shellInit;
+            };
+
         # Canonical devshell package. Component packages already compose their
         # enabled descendants (motd -> menu -> docs), so select only the
         # outermost enabled component and add prompt runtimes when requested.
@@ -369,77 +417,46 @@ in
         promptRuntimePackages = lib.optionals cfg.prompt.enable [
           pkgs.starship
           pkgs.blesh
+          pkgs.bash-completion
         ];
-        # Resolve palette once for ble.sh face theming (hex roles interpolated
-        # into the setup-hook at build time — the hook itself stays a quoted
-        # heredoc so shell $-expansion is untouched).
-        pal = plib.resolvePalette cfg.theme cfg.palette;
-        # ble.sh completion/menu faces themed from the palette:
-        #   auto_complete        — inline ghost suggestion: dim fg on surface bg
-        #   menu_complete_match  — bold matched portion (emphasis only)
-        #   menu_complete_selected — selected menu row: accent bg, selectionFg text
-        bleFaceTheme = ''
-          ble-face auto_complete=fg=${pal.dim},bg=${pal.surface}
-          ble-face menu_complete_match=bold
-          ble-face menu_complete_selected=fg=${pal.selectionFg},bg=${pal.accent}
-        '';
         preludePkg = pkgs.symlinkJoin {
           name = "prelude";
-          paths = preludeComponentPaths ++ promptRuntimePackages;
+          paths = preludeComponentPaths ++ promptRuntimePackages ++ [ pinPkg ];
           postBuild = lib.optionalString cfg.prompt.enable ''
-            mkdir -p "$out/nix-support"
+            mkdir -p "$out/nix-support" "$out/share/prelude/shell"
+            cp -f ${shellInit} "$out/share/prelude/init.bash"
+            cp -R ${shellRuntime}/. "$out/share/prelude/shell/"
             cat > "$out/nix-support/setup-hook" <<'EOF'
-            # Sourced by stdenv during nix-shell-env build. Nix develop.cc
-            # serializes setup-time state then evals "${shellHook:-}" — it does
-            # NOT re-source setup-hooks interactively. So a bare call here
-            # would only run at non-interactive build time (gate skips it) and
-            # never at interactive launch. Append a guarded preludePromptInit
-            # invocation to shellHook so it runs AFTER the consumer's
-            # `export STARSHIP_CONFIG` (starship reads $STARSHIP_CONFIG at init),
-            # once, at interactive nix develop launch. A marker guards duplicate
-            # registration if the hook is sourced more than once.
-            # Detect the active shell from its own version variable, not $SHELL
-            # (which may be a login-shell path or a different shell than the one
-            # nix develop spawned). Direnv/`nix develop -c` stay inert via the
-            # *i* gate inside the function.
-            preludePromptInit() {
-              case "$-" in
-                *i*) ;;
-                *) return 0 ;;
-              esac
-              if [ -n "''${BASH_VERSION-}" ]; then
-                source ${pkgs.blesh}/share/blesh/ble.sh
-              ${
-                lib.optionalString pkgs.stdenv.isDarwin ''
-                  # ble.sh's ble/bin/stty/.instantiate only swaps GNU
-                  # */coreutils/libexec/gnubin/stty → /bin/stty, but Nix's
-                  # coreutils stty lives at /nix/store/...-coreutils/bin/stty
-                  # which evades that glob. On Darwin, force the BSD /bin/stty
-                  # so tty termios (echo/canonical mode) stay in the native
-                  # kernel's vocabulary — before ble.sh's first attach probes
-                  # Override ble.sh's stty wrapper to BSD /bin/stty before the
-                  # first attach (deferred to PROMPT_COMMAND) probes stdin.
-                  function ble/bin/stty { command /bin/stty "$@"; }
-                  function ble/bin/stty/.instantiate { return 0; }
-                ''
-              }
-                ${bleFaceTheme}
-                eval "$(${lib.getExe pkgs.starship} init bash)"
-              elif [ -n "''${ZSH_VERSION-}" ]; then
-                # ble.sh is Bash-only; zsh gets the themed Starship prompt
-                # without the ble.sh readline layer.
-                eval "$(${lib.getExe pkgs.starship} init zsh)"
-              fi
+            # This generated config remains the canonical serialized menu
+            # catalogue and palette for tools that need the JSON boundary.
+            export PRELUDE_MENU_CONFIG=${menuBin.configFile}
+
+            # `prelude-init` mutates this shell, so it is a shell function rather
+            # than an executable subprocess. The generated file is idempotent.
+            prelude-init() {
+              # shellcheck source=/dev/null
+              . ${shellInit}
             }
-            if [ -z "''${preludePromptInitRegistered:-}" ]; then
-              export preludePromptInitRegistered=1
+
+            # setup-hooks run while Nix constructs the environment; the final
+            # shellHook is what runs in the real interactive shell. Source the
+            # init after the consumer hook so STARSHIP_CONFIG is already set.
+            if [ -z "''${_prelude_init_registered:-}" ]; then
+              _prelude_init_registered=1
               shellHook="''${shellHook-}
-            preludePromptInit"
+            . ${shellInit}"
             fi
             EOF
           '';
           passthru = {
-            inherit preludeComponentPaths promptRuntimePackages;
+            inherit
+              preludeComponentPaths
+              promptRuntimePackages
+              pinPkg
+              shellInit
+              shellRuntime
+              ;
+            menuConfig = menuBin.configFile;
           }
           // lib.optionalAttrs cfg.prompt.enable {
             prompt = promptPkg;
@@ -462,6 +479,7 @@ in
           # Add this single package to a devshell to receive every enabled
           # Prelude component and its runtime dependencies.
           packages.prelude = preludePkg;
+          packages.pin = pinPkg;
         }
         (lib.mkIf cfg.motd.enable {
           packages.motd = motdPkg;
