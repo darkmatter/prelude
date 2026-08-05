@@ -12,9 +12,10 @@
 # `nix develop` already started; it does not launch or reconstruct another
 # shell. Non-interactive direnv evaluation stays inert so the user's existing
 # login-shell prompt remains in control.
-{ lib
-, formats
-, ...
+{
+  lib,
+  formats,
+  ...
 }:
 
 # Component config: shared theme fields plus settings/configFile options.
@@ -25,56 +26,61 @@ let
   d = import ./defaults.nix;
   plib = import ./lib.nix { inherit lib; };
 
-  pal = plib.resolvePalette (config.theme or d.theme) (config.palette or d.palette);
-  project = config.project or d.project;
   m = d.prompt // config;
+  project = config.project or d.project;
+  backdrop =
+    config.backdropPalette
+      or (plib.resolveBackdropPalette (config.theme or d.theme) (config.palette or d.palette
+      ) m.windowBackgroundContext);
+  pal = backdrop.palette;
 
   # Styles reference palette tokens by name (bg:surface, fg:accent2, …);
   # `palettes.prelude` maps them to the resolved theme hex values, mirroring
   # how a hand-written starship config names its palette.
   #
-  # Layout (cross-shell via Starship, with ble.sh status chrome in Bash):
+  # Layout (cross-shell via Starship, with fixed status chrome only in Bash):
   #
-  #   Bash + ble.sh status: ░▒▓ project  path  branch  status  ··· shortcuts
-  #   Prompt:               ❯
+  #   Context: ░▒▓ project  path  branch  status  duration
+  #   Prompt:  ~/project ❯
   #
-  # The status format and normal prompt share this one Starship config. Bash
-  # moves Starship's native ble.sh right-prompt render into the status line;
-  # other supported shells retain it as a normal right prompt.
+  # Shortcut chips are rendered by the Bash status callback and never by
+  # Starship's normal prompt or right-format output.
   #
   # Each Powerline separator inherits the background of the segment on its left
   # as its foreground and the next segment's background as its own background.
   # `\[`/`\]` are literal brackets in Starship format strings.
-  shortcutChip =
-    { command, alias, ... }:
-    "[\\[](fg:dim)[${alias}](bold fg:accent2)[\\]](fg:dim)[ ${command}](fg:muted)";
-  chips = lib.concatMapStringsSep "  " shortcutChip m.shortcuts;
-
-  # Keep the separator colors paired with the neighboring module backgrounds.
-  # A separator is intentionally unconditional, matching Starship's Powerline
-  # presets: stable geometry is preferable to caps shifting as Git state changes.
+  # The Powerline context is a separate, left-aligned row. Shortcut chips
+  # belong to Bash's fixed status row and must never leak into Starship output.
   leftSegments = lib.concatStrings [
-    "[░▒▓](fg:secondary)"
+    "[╭░▒▓](fg:surface)"
     "[ ${project} ](bg:secondary bold fg:accent2)"
     "[](fg:secondary bg:bg)"
     "$directory"
     "[](fg:bg bg:fg)"
     "$git_branch"
     "[](fg:fg bg:surface)"
-    "$git_status"
-    "[ ](fg:surface)"
-    "$cmd_duration"
+    "$git_status$git_metrics"
+    "[$fill──╮](fg:surface)"
   ];
-  statusFormat = if m.shortcuts == [ ] then leftSegments else "${leftSegments}$fill${chips}";
 
   defaultSettings = {
-    format = "\n\n$character";
-    right_format = statusFormat;
-    add_newline = false;
-    palette = "prelude";
-    palettes.prelude = pal;
+    # Preserve two breathing rows, then keep context above the editable input.
+    # Starship paints this whole projection; the shell owns only the input buffer.
+    format = "[${leftSegments}\n[╰─](fg:surface) ](bg:bg)";
+    add_newline = true;
 
-    fill.symbol = " ";
+    right_format = lib.concatStrings [
+      "[─╯](fg:surface)"
+      "\n\n"
+    ];
+
+    fill.symbol = "─";
+    fill.style = "surface";
+
+    palette = "prelude";
+    palettes.prelude = pal // {
+      inherit (backdrop) shadow;
+    };
 
     directory = {
       style = "bg:bg fg:fg";
@@ -91,18 +97,20 @@ let
       style = "bg:surface fg:accent";
       format = "[( $all_status$ahead_behind )]($style)";
     };
+    git_metrics = {
+      disabled = false;
+      format = "([+$added ]($added_style))([-$deleted ]($deleted_style))";
+      added_style = "fg:success bg:surface";
+      deleted_style = "fg:error bg:surface";
+    };
     cmd_duration = {
       style = "fg:dim";
       format = "[ $duration ]($style)";
     };
     # Always-on inside the devshell — pure noise there.
     nix_shell.disabled = true;
-    character = {
-      success_symbol = "[❯](bold fg:success)";
-      error_symbol = "[❯](bold fg:error)";
-      vimcmd_symbol = "[❮](bold fg:accent)";
-    };
     continuation_prompt = "[·](fg:${pal.dim}) ";
+
   };
 
   settings = lib.recursiveUpdate defaultSettings m.settings;

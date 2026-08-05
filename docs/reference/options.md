@@ -1693,7 +1693,12 @@ list of (submodule)
 *Default:*
 
 ```nix
-[ ]
+[
+  {
+    label = "powered by prelude";
+    url = "https://github.com/darkmatter/prelude";
+  }
+]
 ```
 
 
@@ -1939,7 +1944,7 @@ null or (unsigned integer, meaning >=0)
 *Default:*
 
 ```nix
-8
+4
 ```
 
 
@@ -2131,7 +2136,7 @@ null or (unsigned integer, meaning >=0)
 *Default:*
 
 ```nix
-2
+null
 ```
 
 
@@ -2218,7 +2223,7 @@ null or (unsigned integer, meaning >=0)
 *Default:*
 
 ```nix
-1
+null
 ```
 
 
@@ -2260,7 +2265,7 @@ unsigned integer, meaning >=0
 *Default:*
 
 ```nix
-0
+2
 ```
 
 
@@ -2602,7 +2607,7 @@ null or boolean or unsigned integer, meaning >=0, or string or (submodule) or (s
 *Default:*
 
 ```nix
-false
+true
 ```
 
 
@@ -2998,7 +3003,7 @@ true
 
 
 Use this starship\.toml verbatim instead of the generated themed config\.
-Prelude leaves its right prompt and ble\.sh status line fully user-owned\.
+Prelude leaves this config and its prompt/status behavior fully user-owned\.
 
 
 
@@ -3012,6 +3017,68 @@ null or absolute path
 ```nix
 null
 ```
+
+
+
+## prelude\.prompt\.localServer
+
+
+
+Explicitly opt in to cached asynchronous local-server health\. ` command `
+must be a canonical key from ` prelude.commands `; ` check ` is executed
+only by the generated refresh runtime\.
+
+
+
+*Type:*
+null or (submodule)
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+
+
+## prelude\.prompt\.localServer\.check
+
+
+
+Explicit shell command used to check local-server health\.
+
+
+
+*Type:*
+string
+
+
+
+## prelude\.prompt\.localServer\.command
+
+
+
+Canonical ` prelude.commands ` key used to start the local server\.
+
+
+
+*Type:*
+string
+
+
+
+## prelude\.prompt\.localServer\.ttl
+
+
+
+Positive cache lifetime (for example ` 5m ` or ` 30s `); values that overflow the runtime duration are rejected\.
+
+
+
+*Type:*
+string
 
 
 
@@ -3101,5 +3168,5 @@ one of “amber”, “apathy”, “gruvbox”, “minted”, “mono”, “no
 *Default:*
 
 ```nix
-"prelude"
+"minted"
 ```

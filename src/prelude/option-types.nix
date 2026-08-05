@@ -8,25 +8,21 @@ let
   # Relative shade of a containing background: negative darkens, positive lightens.
   # Amount is in [ -1.0, 1.0 ]. Resolved at runtime against the terminal (card/
   # window) or the resolved card (nested description).
-  relativeBgType = lib.types.addCheck
-    (lib.types.submodule {
-      options.relative = lib.mkOption {
-        type = lib.types.either lib.types.float lib.types.int;
-        description = "Signed shade amount relative to the containing background (−1..1).";
-      };
-    })
-    (v: (v.relative or 2) >= -1 && (v.relative or 2) <= 1);
+  relativeBgType = lib.types.addCheck (lib.types.submodule {
+    options.relative = lib.mkOption {
+      type = lib.types.either lib.types.float lib.types.int;
+      description = "Signed shade amount relative to the containing background (−1..1).";
+    };
+  }) (v: (v.relative or 2) >= -1 && (v.relative or 2) <= 1);
 
   # Blend amount toward the theme background: 0 is the detected terminal
   # background, 1 is the theme `bg` token.
-  blendBgType = lib.types.addCheck
-    (lib.types.submodule {
-      options.blend = lib.mkOption {
-        type = lib.types.either lib.types.float lib.types.int;
-        description = "Blend amount from the detected terminal background toward the theme background (0..1).";
-      };
-    })
-    (v: (v.blend or 2) >= 0 && (v.blend or 2) <= 1);
+  blendBgType = lib.types.addCheck (lib.types.submodule {
+    options.blend = lib.mkOption {
+      type = lib.types.either lib.types.float lib.types.int;
+      description = "Blend amount from the detected terminal background toward the theme background (0..1).";
+    };
+  }) (v: (v.blend or 2) >= 0 && (v.blend or 2) <= 1);
 
   # Terminal-relative backgrounds add `{ blend = n; }`; nested backgrounds only
   # support relative shading because their base may be the containing card.
@@ -53,13 +49,13 @@ let
   # settings (e.g. `prelude.motd.description.text = "..."`) keep the per-option
   # styling. A null foreground falls back to the theme's role color.
   mkTextOption =
-    { text ? ""
-    , foreground ? null
-    , background ? null
-    , bold ? false
-    , faint ? false
-    , description
-    ,
+    {
+      text ? "",
+      foreground ? null,
+      background ? null,
+      bold ? false,
+      faint ? false,
+      description,
     }:
     lib.mkOption {
       inherit description;

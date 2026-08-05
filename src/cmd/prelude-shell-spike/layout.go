@@ -44,9 +44,9 @@ type layoutGeom struct {
 	shellRows    int // configured shell I/O height when pin is on
 	pin          pinMode
 
-	pinH   int // pin panel height
-	shellH int // PTY / scroll-region height
-	shellTop int // 1-based first shell row
+	pinH      int // pin panel height
+	shellH    int // PTY / scroll-region height
+	shellTop  int // 1-based first shell row
 	statusRow int // 1-based status row (== totalH)
 }
 

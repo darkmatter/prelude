@@ -7,12 +7,13 @@
 #
 # The Go binary is config-independent (one derivation shared by every menu
 # configuration); each config becomes a JSON file baked into a thin wrapper.
-{ lib
-, writeShellApplication
-, writeText
-, buildGoModule
-, symlinkJoin
-, ...
+{
+  lib,
+  writeShellApplication,
+  writeText,
+  buildGoModule,
+  symlinkJoin,
+  ...
 }:
 
 # Flat config: { theme?, palette?, colorProfile?, project?, commands?,
@@ -34,9 +35,13 @@ let
   tasks = plib.flatCommands domainGroups;
   # The status host's quiet default summary follows the same explicit MOTD
   # selection/order, minus navigation already rendered by the Starship prompt.
-  motdCommands = lib.filter
-    (command: !lib.elem command.name [ "menu" "docs" ])
-    (plib.selectCommands tasks);
+  motdCommands = lib.filter (
+    command:
+    !lib.elem command.name [
+      "menu"
+      "docs"
+    ]
+  ) (plib.selectCommands tasks);
 
   m = d.menu // config;
 
@@ -52,10 +57,9 @@ let
       "menu: command names may only contain [A-Za-z0-9:_.-]";
     assert lib.assertMsg (lib.all safeName keys) "menu: command keys may only contain [A-Za-z0-9:_.-]";
     assert lib.assertMsg (lib.unique keys == keys) "menu: command keys must be unique";
-    assert lib.assertMsg
-      (
-        lib.intersectLists keys names == [ ]
-      ) "menu: command keys must not collide with command names";
+    assert lib.assertMsg (
+      lib.intersectLists keys names == [ ]
+    ) "menu: command keys must not collide with command names";
     true;
 
   # --- config payload ----------------------------------------------------------
@@ -91,7 +95,7 @@ let
     src = ../.;
     subPackages = [ "cmd/menu" ];
     doCheck = false;
-    vendorHash = "sha256-axbNd4BKZRaM0vb7XsF7hefBLuTD0Z8RWihNJd6ktE0=";
+    vendorHash = "sha256-xtubcnDtPcFPOr7Qj3hm2eSGxbACoabLyl/CTLlqp/U=";
     ldflags = [
       "-s"
       "-w"

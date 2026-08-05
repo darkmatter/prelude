@@ -2,10 +2,11 @@
 # normalized JSON file into the Go renderer at link time. Runtime terminal
 # layout, probes, Git state, and styling live in internal/motd — never in generated
 # shell source.
-{ lib
-, writeText
-, buildGoModule
-, ...
+{
+  lib,
+  writeText,
+  buildGoModule,
+  ...
 }:
 
 # Component config: public MOTD options plus shared theme fields and command
@@ -152,31 +153,26 @@ let
   # A probe remains a shell snippet by contract, but only the Go runtime
   # executes it. Empty strings encode the inactive side of the value/probe sum
   # so the JSON boundary contains no nullable scalar fields.
-  env = map
-    (
-      item:
-      let
-        value = item.value or null;
-        probe = item.probe or null;
-      in
-      assert lib.assertMsg
-        (
-          (value == null) != (probe == null)
-        ) "motd: env item \"${item.label or "?"}\" must set exactly one of `value` or `probe`";
-      {
-        label = item.label;
-        value = if value == null then "" else value;
-        probe = if probe == null then "" else probe;
-      }
-    )
-    m.env;
+  env = map (
+    item:
+    let
+      value = item.value or null;
+      probe = item.probe or null;
+    in
+    assert lib.assertMsg (
+      (value == null) != (probe == null)
+    ) "motd: env item \"${item.label or "?"}\" must set exactly one of `value` or `probe`";
+    {
+      label = item.label;
+      value = if value == null then "" else value;
+      probe = if probe == null then "" else probe;
+    }
+  ) m.env;
 
-  shortcuts = map
-    (s: {
-      command = s.command;
-      alias = s.alias or "";
-    })
-    (m.shortcuts or [ ]);
+  shortcuts = map (s: {
+    command = s.command;
+    alias = s.alias or "";
+  }) (m.shortcuts or [ ]);
 
   jsonColor = value: if value == null then "" else toString value;
 
@@ -231,7 +227,12 @@ let
       };
       links = m.links;
       gettingStarted = {
-        inherit (gettingStarted) heading commandsLabel examplesLabel commandNote;
+        inherit (gettingStarted)
+          heading
+          commandsLabel
+          examplesLabel
+          commandNote
+          ;
       };
       width =
         if m.fullscreen or false then
@@ -285,14 +286,12 @@ assert lib.assertOneOf "motd header.statusHint.layout" header.statusHintLayout [
   "below"
   "inline"
 ];
-assert lib.assertMsg
-  (
-    m.width == "full" || builtins.isInt m.width
-  ) "motd: width must be an integer or \"full\"";
-assert lib.assertMsg
-  (
-    m.maxWidth == null || builtins.isInt m.maxWidth
-  ) "motd: maxWidth must be an integer or null";
+assert lib.assertMsg (
+  m.width == "full" || builtins.isInt m.width
+) "motd: width must be an integer or \"full\"";
+assert lib.assertMsg (
+  m.maxWidth == null || builtins.isInt m.maxWidth
+) "motd: maxWidth must be an integer or null";
 buildGoModule {
   pname = "motd";
   version = "0.1.0";
@@ -300,7 +299,7 @@ buildGoModule {
   subPackages = [ "cmd/motd" ];
   # Banner layout is still in flux — don't block package builds on render tests.
   doCheck = false;
-  vendorHash = "sha256-axbNd4BKZRaM0vb7XsF7hefBLuTD0Z8RWihNJd6ktE0=";
+  vendorHash = "sha256-xtubcnDtPcFPOr7Qj3hm2eSGxbACoabLyl/CTLlqp/U=";
   ldflags = [
     "-s"
     "-w"

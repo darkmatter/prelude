@@ -25,7 +25,7 @@ const (
 const bel = 0x07
 
 type escCoalescer struct {
-	state  escState
+	state   escState
 	pending []byte
 }
 

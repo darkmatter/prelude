@@ -15,6 +15,11 @@ import (
 	"prelude/internal/motd"
 )
 
+const (
+	promptStatusCheckTimeout = 5 * time.Second
+	maxDuration              = time.Duration(1<<63 - 1)
+)
+
 // Descriptor is the generated, explicit local-server health contract.
 // Probe execution is intentionally absent from shell code and only happens in
 // Refresh when the persisted entry is due.
@@ -94,11 +99,10 @@ func parseTTL(value string) (time.Duration, error) {
 		if err != nil || count <= 0 {
 			break
 		}
-		duration := time.Duration(count) * unit.value
-		if duration <= 0 {
+		if count > int64(maxDuration/unit.value) {
 			break
 		}
-		return duration, nil
+		return time.Duration(count) * unit.value, nil
 	}
 	return 0, fmt.Errorf("prompt-status: invalid ttl %q", value)
 }
@@ -188,8 +192,9 @@ func Read(descriptorPath string, now time.Time) (Record, error) {
 }
 
 // RefreshDue refreshes only a missing or expired entry, then returns the same
-// pure projection. A caller can safely launch this operation detached.
-func RefreshDue(descriptorPath string, now time.Time) (Record, error) {
+// pure projection. The cache lifetime begins after the probe completes, so a
+// slow check cannot make a newly written result immediately stale.
+func RefreshDue(descriptorPath string, clock func() time.Time) (Record, error) {
 	descriptor, err := LoadDescriptor(descriptorPath)
 	if err != nil {
 		return Record{}, err
@@ -198,18 +203,38 @@ func RefreshDue(descriptorPath string, now time.Time) (Record, error) {
 	if err != nil {
 		return Record{}, err
 	}
+	now := clock()
 	cache := store.LoadOrEmpty()
 	entry, exists := checkEntry(descriptor, cache)
+	if exists && entry.Fresh(now) {
+		return record(descriptor, cache, now), nil
+	}
+
+	release, acquired, err := store.TryLock()
+	if err != nil {
+		return Record{}, err
+	}
+	if !acquired {
+		return record(descriptor, cache, now), nil
+	}
+	defer release()
+
+	// Another shell might have finished the due refresh while this invocation
+	// was acquiring the descriptor-scoped lock.
+	cache = store.LoadOrEmpty()
+	entry, exists = checkEntry(descriptor, cache)
+	now = clock()
 	if !exists || !entry.Fresh(now) {
-		ok, output := motd.CheckCommand(descriptor.Check)
+		ok, output := motd.CheckCommandWithTimeout(descriptor.Check, promptStatusCheckTimeout)
 		status := "stopped"
 		level := "error"
 		if ok {
 			status = "healthy"
 			level = "success"
 		}
+		checkedAt := clock()
 		cache.Set(cacheKey(descriptor), motd.CacheEntry{
-			CheckedAt: now,
+			CheckedAt: checkedAt,
 			TTL:       mustTTL(descriptor.TTL),
 			Status:    status,
 			Level:     level,
@@ -218,6 +243,7 @@ func RefreshDue(descriptorPath string, now time.Time) (Record, error) {
 		if err := store.Write(cache); err != nil {
 			return record(descriptor, cache, now), err
 		}
+		now = checkedAt
 	}
 	return record(descriptor, cache, now), nil
 }

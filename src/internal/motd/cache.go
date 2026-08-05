@@ -4,10 +4,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -160,6 +162,30 @@ func (s cacheStore) write(cache Cache) error {
 	return os.Rename(tmpName, s.path)
 }
 
+// TryLock acquires the cache's nonblocking process lock. The lock is advisory
+// but scoped to the same cache identity as the value, so concurrent shells
+// cannot run one due refresh each for the same local-server descriptor.
+func (s cacheStore) TryLock() (release func(), acquired bool, err error) {
+	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
+		return nil, false, err
+	}
+	file, err := os.OpenFile(s.path+".lock", os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, false, err
+	}
+	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		_ = file.Close()
+		if errors.Is(err, syscall.EWOULDBLOCK) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return func() {
+		_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+		_ = file.Close()
+	}, true, nil
+}
+
 func naturalAge(age time.Duration) string {
 	if age < 0 {
 		age = 0
@@ -175,3 +201,24 @@ func naturalAge(age time.Duration) string {
 		return fmt.Sprintf("%dd", int(age/(24*time.Hour)))
 	}
 }
+
+// CacheStore is the persisted, project-scoped cache used by generated
+// runtimes. The alias keeps MOTD's existing internal tests and helpers intact
+// while allowing prompt-status to share atomic persistence and identity rules.
+type CacheStore = cacheStore
+
+// NewCacheStore scopes cache identity to both the normalized project and the
+// generated descriptor/config path.
+func NewCacheStore(configPath, project string) (CacheStore, error) {
+	return newCacheStore(configPath, project)
+}
+
+func (s cacheStore) Load() (Cache, error)           { return s.load() }
+func (s cacheStore) LoadOrEmpty() Cache             { return s.loadOrEmpty() }
+func (s cacheStore) Write(cache Cache) error        { return s.write(cache) }
+func (s cacheStore) Now() time.Time                 { return s.now() }
+func (c Cache) Entry(key string) (CacheEntry, bool) { return c.entry(key) }
+func (c *Cache) Set(key string, entry CacheEntry)   { c.set(key, entry) }
+func (e CacheEntry) Fresh(now time.Time) bool       { return e.fresh(now) }
+func StatusKey(check string) string                 { return statusKey(check) }
+func NaturalAge(age time.Duration) string           { return naturalAge(age) }

@@ -1,17 +1,16 @@
-{ lib
-, writeShellApplication
-, figlet
-, ...
+{
+  lib,
+  writeShellApplication,
+  figlet,
+  ...
 }:
 let
   fonts = import ./fonts.nix;
   renderers = lib.concatStringsSep "\n" (
-    lib.mapAttrsToList
-      (name: path: ''
-        printf '\n===== %s =====\n\n' ${lib.escapeShellArg name}
-        figlet -f '${path}' -- "$text"
-      '')
-      fonts
+    lib.mapAttrsToList (name: path: ''
+      printf '\n===== %s =====\n\n' ${lib.escapeShellArg name}
+      figlet -f '${path}' -- "$text"
+    '') fonts
   );
 in
 writeShellApplication {

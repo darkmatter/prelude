@@ -20,15 +20,26 @@ if [ -n "${_PRELUDE_DARWIN-}" ]; then
   ble/bin/stty/.instantiate() { return 0; }
 fi
 
+# `prelude-init` clears generated inputs after this file returns. Preserve the
+# ownership fact so Blesh chrome never has to infer terminal backdrop painting.
+_prelude_window_background_set=${_PRELUDE_WINDOW_BACKGROUND_SET:-0}
+
 # Prelude is a regular ble.sh contrib color scheme. Prepending the generated
 # runtime keeps the user's existing import path available for other contribs.
 bleopt import_path="$_PRELUDE_SHELL_RUNTIME/contrib${bleopt_import_path:+:$bleopt_import_path}"
 bleopt color_scheme=prelude
 
+# Cursor: blinking vertical bar (DECSCUSR 5) in the emacs keymap, and the same
+# shape whenever ble.sh yields the terminal to external commands.
+ble-bind -m emacs --cursor 5
+bleopt term_cursor_external=5
+
 # shellcheck source=./completion.bash
 . "$_PRELUDE_SHELL_RUNTIME/completion.bash"
 # shellcheck source=./status.bash
 . "$_PRELUDE_SHELL_RUNTIME/status.bash"
+# shellcheck source=./status-cap.bash
+. "$_PRELUDE_SHELL_RUNTIME/status-cap.bash"
 
 complete -F _prelude_complete_x x
 if ((${#_prelude_catalogue_direct_names[@]})); then
@@ -36,15 +47,14 @@ if ((${#_prelude_catalogue_direct_names[@]})); then
 fi
 
 eval "$("$_PRELUDE_STARSHIP" init bash)"
-blehook PRECMD-='prelude/status/update' 2>/dev/null || true
 if [ "$_prelude_status_enabled" = 1 ]; then
-  # Starship installs its native ble.sh PRECMD hook during initialization. Keep
-  # Prelude after it so the status line reuses Starship's rendered right prompt.
+  # Blesh's status panel is one row. Its menu-inspired cap is a sibling panel,
+  # so status markup stays one row and Blesh owns both bottom-docked heights.
+  # prelude/status/cap/install || :
   blehook PRECMD!='prelude/status/update'
+  prelude/status/update
   bleopt prompt_status_align=left
   bleopt prompt_status_line='\q{prelude/status}'
-else
-  bleopt prompt_status_line=
 fi
 
 _prelude_init_show_motd

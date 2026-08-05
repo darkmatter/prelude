@@ -1,6 +1,11 @@
 # Feature-demo builders shared by packages.nix, apps.nix, and checks.nix.
 # Evaluated once per system in flake.nix and passed down as `demos`.
-{ pkgs, lib, config, ... }:
+{
+  pkgs,
+  lib,
+  config,
+  ...
+}:
 let
   motdDemos = import ./motd-demo-builder.nix {
     inherit pkgs lib;
@@ -28,13 +33,11 @@ let
   examplesRunner =
     let
       entries =
-        map
-          (name: {
-            label = "example-${name}";
-            hint = "nix run .#example-${name}";
-            cmd = lib.getExe examplePackages."example-${name}";
-          })
-          (lib.attrNames ex.motdDemos)
+        map (name: {
+          label = "example-${name}";
+          hint = "nix run .#example-${name}";
+          cmd = lib.getExe examplePackages."example-${name}";
+        }) (lib.attrNames ex.motdDemos)
         ++ [
           {
             label = "example-default";

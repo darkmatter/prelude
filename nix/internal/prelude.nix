@@ -22,11 +22,15 @@ in
 {
 
   prelude = {
-    theme = "amber";
+    theme = "apathy";
     colorProfile = "truecolor";
     project = "prelude";
 
     prompt.enable = true;
+    # prompt.settings = {
+    #   # format = "\n$directory$git_branch$character";
+    #   # add_newline =  true;
+    # };
     menu.enable = true;
 
     # --------------------------------------------------------

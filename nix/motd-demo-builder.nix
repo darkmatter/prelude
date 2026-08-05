@@ -1,8 +1,9 @@
 # Final MOTD demo packages shared by runnable examples and docs captures.
-{ pkgs
-, lib
-, currentMotdConfig
-, titlePkg
+{
+  pkgs,
+  lib,
+  currentMotdConfig,
+  titlePkg,
 }:
 let
   ex = import ../src/prelude/examples.nix;
@@ -30,41 +31,37 @@ let
   );
 
   # FIGlet wordmark the wizard would write next to prelude.nix.
-  wizardTitle = pkgs.runCommand "wizard-preset-title.txt"
-    {
-      nativeBuildInputs = [
-        titlePkg
-        pkgs.figlet
-      ];
-    }
-    ''
-      cat > recipe.nix <<EOF
+  wizardTitle =
+    pkgs.runCommand "wizard-preset-title.txt"
       {
-        text = ${builtins.toJSON presets.project};
-        font = ${builtins.toJSON presets.font};
+        nativeBuildInputs = [
+          titlePkg
+          pkgs.figlet
+        ];
       }
-      EOF
-      prelude-title --generate --recipe ./recipe.nix -o "$out"
-    '';
+      ''
+        cat > recipe.nix <<EOF
+        {
+          text = ${builtins.toJSON presets.project};
+          font = ${builtins.toJSON presets.font};
+        }
+        EOF
+        prelude-title --generate --recipe ./recipe.nix -o "$out"
+      '';
 
   # Active fields only — same surface the wizard sets. Everything else falls
   # through to defaults.nix (as if left commented in the generated module).
   wizardCommandCatalog = lib.listToAttrs (
-    lib.imap1
-      (
-        i: command:
-        {
-          name = command.name;
-          value = {
-            description = command.description or "";
-            motd = if presets.motd then i else null;
-          }
-          // lib.optionalAttrs (command ? exec && command.exec != null && command.exec != "") {
-            exec = command.exec;
-          };
-        }
-      )
-      presets.commands
+    lib.imap1 (i: command: {
+      name = command.name;
+      value = {
+        description = command.description or "";
+        motd = if presets.motd then i else null;
+      }
+      // lib.optionalAttrs (command ? exec && command.exec != null && command.exec != "") {
+        exec = command.exec;
+      };
+    }) presets.commands
   );
 
   wizardMotd = mkMotd {
@@ -137,7 +134,11 @@ in
         name = "motd-themes";
         text = ''
           themes=(${lib.concatMapStringsSep " " lib.escapeShellArg plib.themeNames})
-          commands=(${lib.concatMapStringsSep " " (theme: lib.escapeShellArg (lib.getExe themePackages.${theme})) plib.themeNames})
+          commands=(${
+            lib.concatMapStringsSep " " (
+              theme: lib.escapeShellArg (lib.getExe themePackages.${theme})
+            ) plib.themeNames
+          })
           n=''${#themes[@]}
 
           if [ -t 0 ] && [ -t 1 ]; then

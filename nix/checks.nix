@@ -7,6 +7,7 @@
   demos,
   docsAutomation,
   previews,
+  flakePartsLib,
   ...
 }:
 let
@@ -62,76 +63,348 @@ in
         ];
       }
       ''
-        command -v motd >/dev/null
-        command -v menu >/dev/null
-        command -v docs >/dev/null
-        command -v pin >/dev/null
-        command -v prelude-shell >/dev/null
-        command -v starship >/dev/null
-        command -v blesh-share >/dev/null
-        test -f ${config.packages.prelude}/share/blesh/ble.sh
-        test -f ${config.packages.prelude}/share/prelude/zellij/config.kdl
-        test -f ${config.packages.prelude}/share/prelude/shell.bash
-        test -f ${config.packages.prelude}/share/prelude/init.bash
-        test -f ${config.packages.prelude}/share/prelude/shell/init.bash
-        test -f ${config.packages.prelude}/share/prelude/shell/bash-init.bash
-        test -f ${config.packages.prelude}/share/prelude/shell/status.bash
-        test -f ${config.packages.prelude}/share/prelude/shell/completion.bash
-        test -f ${config.packages.prelude}/share/prelude/shell/catalogue.bash
-        test -f ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
-        test -f ${config.packages.prelude}/nix-support/setup-hook
-        grep -Fq 'prelude-init()' ${config.packages.prelude}/nix-support/setup-hook
-        grep -Fq '. ${config.packages.prelude.shellInit}' ${config.packages.prelude}/nix-support/setup-hook
-        grep -Fq '_PRELUDE_BLESH=${pkgs.blesh}/share/blesh/ble.sh' ${config.packages.prelude}/share/prelude/init.bash
-        grep -Fq '_PRELUDE_STARSHIP=${lib.getExe pkgs.starship}' ${config.packages.prelude}/share/prelude/init.bash
-        grep -Fq '_PRELUDE_STARSHIP_STATUS_ENABLED=1' ${config.packages.prelude}/share/prelude/init.bash
-        grep -Fq 'bleopt color_scheme=prelude' ${config.packages.prelude}/share/prelude/shell/bash-init.bash
-        grep -Fq 'function ble/contrib/scheme:prelude/initialize' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
-        test "$(grep -c '^  ble-face -s ' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash)" -eq 74
-        ! grep -Fq '%prelude_' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
-        ! grep -Eq '#[[:xdigit:]]{6}[[:alnum:]_]' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
-        grep -Fq "bleopt prompt_status_line='\\q{prelude/status}'" ${config.packages.prelude}/share/prelude/shell/bash-init.bash
-        grep -Fq "blehook PRECMD!='prelude/status/update'" ${config.packages.prelude}/share/prelude/shell/bash-init.bash
-        ! grep -Fq 'ble-bind -f C-i' ${config.packages.prelude}/share/prelude/shell/bash-init.bash
-        grep -Fq 'local line=''${bleopt_prompt_rps1-}' ${config.packages.prelude}/share/prelude/shell/status.bash
-        grep -Fq 'bleopt prompt_rps1=' ${config.packages.prelude}/share/prelude/shell/status.bash
-        grep -Fq 'ble/prompt/process-prompt-string "$_prelude_status_line"' ${config.packages.prelude}/share/prelude/shell/status.bash
-        ! grep -Fq '_prelude_status_browse' ${config.packages.prelude}/share/prelude/shell/status.bash
-        (
-          _PRELUDE_STARSHIP_STATUS_ENABLED=1
-          bleopt_prompt_rps1=$'\n\nrendered-powerline'
-          bleopt() { bleopt_prompt_rps1=; }
-          source ${config.packages.prelude}/share/prelude/shell/status.bash
-          prelude/status/update
-          test "$_prelude_status_line" = rendered-powerline
-          test -z "$bleopt_prompt_rps1"
-        )
-        ${pkgs.bash}/bin/bash -n ${config.packages.prelude}/share/prelude/init.bash
-        for source in ${config.packages.prelude}/share/prelude/shell/*.bash; do
-          ${pkgs.bash}/bin/bash -n "$source"
-        done
-        ${pkgs.bash}/bin/bash -n ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
-        shellcheck -x ${config.packages.prelude}/share/prelude/init.bash
-        shellcheck -x ${config.packages.prelude}/share/prelude/shell/init.bash
-        shellcheck -x -e SC1091,SC2154 ${config.packages.prelude}/share/prelude/shell/bash-init.bash
-        shellcheck -x -e SC2154 ${config.packages.prelude}/share/prelude/shell/status.bash
-        shellcheck -x -e SC2154 ${config.packages.prelude}/share/prelude/shell/completion.bash
-        shellcheck -e SC2154 ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
-        ${pkgs.bash}/bin/bash -n ${config.packages.prelude}/share/prelude/shell.bash
-        grep -Fq 'pane_frames false' ${config.packages.prelude}/share/prelude/zellij/config.kdl
-        grep -Fq 'mouse_hover_effects false' ${config.packages.prelude}/share/prelude/zellij/config.kdl
-        grep -Fq 'default_mode "locked"' ${config.packages.prelude}/share/prelude/zellij/config.kdl
-        grep -Fq 'FocusNextPane' ${config.packages.prelude}/share/prelude/zellij/config.kdl
-        grep -Fq 'Alt p' ${config.packages.prelude}/share/prelude/zellij/config.kdl
-        grep -Fq 'prelude-focus-rail' ${config.packages.prelude}/share/prelude/zellij/layouts/shell.kdl
-        grep -Fq 'name "shell"' ${config.packages.prelude}/share/prelude/zellij/layouts/shell.kdl
-        command -v prelude-focus-rail >/dev/null
-        touch "$out"
+                command -v motd >/dev/null
+                command -v menu >/dev/null
+                command -v docs >/dev/null
+                command -v pin >/dev/null
+                command -v prelude-shell >/dev/null
+                command -v starship >/dev/null
+                command -v blesh-share >/dev/null
+                test -f ${config.packages.prelude}/share/blesh/ble.sh
+                test -f ${config.packages.prelude}/share/prelude/zellij/config.kdl
+                test -f ${config.packages.prelude}/share/prelude/shell.bash
+                test -f ${config.packages.prelude}/share/prelude/init.bash
+                test -f ${config.packages.prelude}/share/prelude/shell/init.bash
+                test -f ${config.packages.prelude}/share/prelude/shell/bash-init.bash
+                test -f ${config.packages.prelude}/share/prelude/shell/status.bash
+                test -f ${config.packages.prelude}/share/prelude/shell/completion.bash
+                test -f ${config.packages.prelude}/share/prelude/shell/status-cap.bash
+                test -f ${config.packages.prelude}/share/prelude/shell/catalogue.bash
+                test -f ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
+                test -f ${config.packages.prelude}/nix-support/setup-hook
+                grep -Fq 'prelude-init()' ${config.packages.prelude}/nix-support/setup-hook
+                grep -Fq '. ${config.packages.prelude.shellInit}' ${config.packages.prelude}/nix-support/setup-hook
+                grep -Fq '_PRELUDE_BLESH=${pkgs.blesh}/share/blesh/ble.sh' ${config.packages.prelude}/share/prelude/init.bash
+                grep -Fq '_PRELUDE_STARSHIP=${lib.getExe pkgs.starship}' ${config.packages.prelude}/share/prelude/init.bash
+                grep -Fq '_PRELUDE_STARSHIP_STATUS_ENABLED=1' ${config.packages.prelude}/share/prelude/init.bash
+                grep -Fq 'bleopt color_scheme=prelude' ${config.packages.prelude}/share/prelude/shell/bash-init.bash
+                grep -Fq 'function ble/contrib/scheme:prelude/initialize' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
+                grep -Fq "ble-face -d prelude_status_cap" ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
+                test "$(grep -c '^  ble-face -s ' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash)" -eq 74
+                ! grep -Fq '%prelude_' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
+                ! grep -Eq '#[[:xdigit:]]{6}[[:alnum:]_]' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
+                ! grep -Fq 'right_format' ${config.packages.prompt}
+                grep -Fq '[❯](bold fg:accent2) ' ${config.packages.prompt}
+                ! grep -Fq 'Type a command' ${config.packages.prompt}
+                grep -Fq '_PRELUDE_PROMPT_PROJECT=' ${config.packages.prelude}/share/prelude/init.bash
+                grep -Fq '_PRELUDE_PROMPT_NAVIGATION=' ${config.packages.prelude}/share/prelude/init.bash
+                grep -Fq '_PRELUDE_PROMPT_NAVIGATION_RENDERED=' ${config.packages.prelude}/share/prelude/init.bash
+                grep -Fq '_PRELUDE_PROMPT_STATUS_HINT=' ${config.packages.prelude}/share/prelude/init.bash
+                grep -Fq '_PRELUDE_PROMPT_STATUS_HINT_RENDERED=' ${config.packages.prelude}/share/prelude/init.bash
+                grep -Fq "bleopt prompt_status_line='\\q{prelude/status}'" ${config.packages.prelude}/share/prelude/shell/bash-init.bash
+                grep -Fq "blehook PRECMD!='prelude/status/update'" ${config.packages.prelude}/share/prelude/shell/bash-init.bash
+                (
+                  COLUMNS=200
+                  _PRELUDE_STARSHIP_STATUS_ENABLED=1
+                  _PRELUDE_PROMPT_NAVIGATION='[?] motd  [m] menu  [d] docs'
+                  _PRELUDE_PROMPT_NAVIGATION_RENDERED='\g{fg=#555555,bg=#101010}[\g{bold,fg=#00ff00,bg=#101010}?\g{fg=#555555,bg=#101010}]\g{fg=#777777,bg=#101010} motd  \g{fg=#555555,bg=#101010}[\g{bold,fg=#00ff00,bg=#101010}m\g{fg=#555555,bg=#101010}]\g{fg=#777777,bg=#101010} menu  \g{fg=#555555,bg=#101010}[\g{bold,fg=#00ff00,bg=#101010}d\g{fg=#555555,bg=#101010}]\g{fg=#777777,bg=#101010} docs'
+                  _PRELUDE_PROMPT_PROJECT=demo
+                  _PRELUDE_PROMPT_STATUS_HINT=' hint  | '
+                  _PRELUDE_PROMPT_STATUS_HINT_RENDERED='\g{bold,fg=#101010,bg=#00ff00} hint \g{fg=#00ff00,bg=#101010}\g{fg=#555555,bg=#101010} | \g{fg=#777777,bg=#101010}'
+                  _prelude_fake_hashes=
+                  _prelude_fake_hash_count=0
+                  _prelude_fake_line=
+                  _prelude_fake_literal=
+                  _prelude_fake_processed=
+                  _prelude_fake_process_count=0
+                  _ble_edit_str=
+                  bleopt() { :; }
+                  ble/prompt/unit/add-hash() {
+                    [ "$1" != '$_ble_edit_str' ] || _prelude_fake_line=
+                    _prelude_fake_hash_count=$((_prelude_fake_hash_count + 1))
+                    _prelude_fake_hashes+="<$1>"$'\n'
+                  }
+                  ble/prompt/print() {
+                    _prelude_fake_literal=$1
+                    _prelude_fake_line+=$1
+                  }
+                  ble/prompt/process-prompt-string() {
+                    _prelude_fake_process_count=$((_prelude_fake_process_count + 1))
+                    _prelude_fake_processed=$1
+                    _prelude_fake_line+=$1
+                  }
+                  # Mirror the pinned Blesh grapheme contract for the focused
+                  # status callback test, including representative double-width
+                  # and combining clusters.
+                  ble/unicode/GraphemeCluster/match() {
+                    local text=$1 index=$2
+                    case "''${text:index}" in
+                      '界'*) cs='界'; w=2; extend=$((''${#cs} - 1)) ;;
+                      'é'*) cs='é'; w=1; extend=$((''${#cs} - 1)) ;;
+                      *) cs=''${text:index:1}; w=1; extend=0 ;;
+                    esac
+                  }
+                  source ${config.packages.prelude}/share/prelude/shell/catalogue.bash
+                  source ${config.packages.prelude}/share/prelude/shell/status.bash
+                  _prelude_status_revision=42
+                  prelude/status/update
+                  ble/prompt/backslash:prelude/status
+                  printf '%s' "$_prelude_fake_literal" | grep -F 'Welcome demo'
+                  printf '%s' "$_prelude_fake_literal" | grep -F 'bare x'
+                  printf '%s' "$_prelude_fake_literal" | grep -F 'x --list'
+                  printf '%s' "$_prelude_fake_literal" | grep -F 'Tab'
+                  printf '%s' "$_prelude_fake_line" | grep -F "$_PRELUDE_PROMPT_STATUS_HINT_RENDERED"
+                  printf '%s' "$_prelude_fake_line" | grep -F '\g{fg=#555555,bg=#101010}['
+                  printf '%s' "$_prelude_fake_line" | grep -F '\g{fg=#555555,bg=#101010}]'
+                  printf '%s' "$_prelude_fake_line" | grep -F '\g{bold,fg=#00ff00,bg=#101010}?'
+                  printf '%s' "$_prelude_fake_line" | grep -F '\g{bold,fg=#00ff00,bg=#101010}m'
+                  printf '%s' "$_prelude_fake_line" | grep -F '\g{bold,fg=#00ff00,bg=#101010}d'
+                  printf '%s' "$_prelude_fake_line" | grep -F '\g{fg=#777777,bg=#101010} motd'
+                  printf '%s' "$_prelude_fake_line" | grep -F '\g{fg=#777777,bg=#101010} menu'
+                  printf '%s' "$_prelude_fake_line" | grep -F '\g{fg=#777777,bg=#101010} docs'
+                  printf '%s' "$_prelude_fake_line" | grep -F '\g{fg=#777777,bg=#101010} motd  \g{fg=#555555,bg=#101010}['
+                  ! printf '%s' "$_prelude_fake_line" | grep -F '\g{none}'
+                  test "$_prelude_fake_process_count" -eq 2
+                  test "$_prelude_fake_processed" = "$_PRELUDE_PROMPT_NAVIGATION_RENDERED"
+                  test "$_prelude_fake_hash_count" -eq 3
+                  printf '%s' "$_prelude_fake_hashes" | grep -F '<$_ble_edit_str>'
+                  printf '%s' "$_prelude_fake_hashes" | grep -F '<$_prelude_status_revision>'
+                  printf '%s' "$_prelude_fake_hashes" | grep -F '<$_prelude_status_health_record>'
+                  COLUMNS=40
+                  _ble_edit_str=
+                  ble/prompt/backslash:prelude/status
+                  printf '%s' "$_prelude_fake_line" | grep -F 'Welcome'
+                  COLUMNS=200
+                  COLUMNS=25
+                  _ble_edit_str=
+                  _prelude_fake_process_count=0
+                  ble/prompt/backslash:prelude/status
+                  printf '%s' "$_prelude_fake_literal" | grep -F 'Welcome'
+                  test "$_prelude_fake_process_count" -eq 1
+                  test "$_prelude_fake_processed" = "$_PRELUDE_PROMPT_STATUS_HINT_RENDERED"
+                  ! printf '%s' "$_prelude_fake_line" | grep -F 'motd'
+                  COLUMNS=200
+
+                  _ble_edit_str='x'
+                  ble/prompt/backslash:prelude/status
+                  printf '%s' "$_prelude_fake_line" | grep -F '`x <cmd>` for hints'
+                  printf '%s' "$_prelude_fake_line" | grep -F 'cycle'
+                  printf '%s' "$_prelude_fake_line" | grep -F 'navigate'
+
+                  _ble_edit_str='x '
+                  ble/prompt/backslash:prelude/status
+                  printf '%s' "$_prelude_fake_line" | grep -F '`x <cmd>` for hints'
+                  printf '%s' "$_prelude_fake_line" | grep -F 'cycle'
+                  printf '%s' "$_prelude_fake_line" | grep -F 'navigate'
+
+                  _ble_edit_str='x build'
+                  ble/prompt/backslash:prelude/status
+                  printf '%s' "$_prelude_fake_line" | grep -F 'build a flake output'
+                  printf '%s' "$_prelude_fake_line" | grep -F 'x build'
+                  printf '%s' "$_prelude_fake_line" | grep -F 'bare x then Tab'
+
+                  _ble_edit_str='x build '
+                  ble/prompt/backslash:prelude/status
+                  printf '%s' "$_prelude_fake_line" | grep -F 'argument <empty>'
+                  printf '%s' "$_prelude_fake_line" | grep -F 'optional'
+                  printf '%s' "$_prelude_fake_line" | grep -F 'candidates: .#motd'
+
+                  _ble_edit_str='x build .#m'
+                  ble/prompt/backslash:prelude/status
+                  printf '%s' "$_prelude_fake_line" | grep -F 'argument .#m'
+                  printf '%s' "$_prelude_fake_line" | grep -F 'optional'
+                  printf '%s' "$_prelude_fake_line" | grep -F 'flake output to build'
+                  printf '%s' "$_prelude_fake_line" | grep -F 'candidates: .#motd'
+
+                  _ble_edit_str="x '"
+                  ble/prompt/backslash:prelude/status
+                  printf '%s' "$_prelude_fake_line" | grep -F 'Welcome demo'
+
+                  _ble_edit_str='x unknown'
+                  ble/prompt/backslash:prelude/status
+                  printf '%s' "$_prelude_fake_line" | grep -F 'Welcome demo'
+
+                  _prelude_status_health_record=$'checking\t\t\tchecking local server\tx dev\tr1'
+                  ble/prompt/backslash:prelude/status
+                  printf '%s' "$_prelude_fake_line" | grep -F 'health checking'
+                  _prelude_status_health_record=$'stopped\tstopped\t1m ago\tdown\tx dev\tr1'
+                  ble/prompt/backslash:prelude/status
+                  printf '%s' "$_prelude_fake_line" | grep -F 'down' | grep -F 'start: x dev'
+                  _prelude_status_health_record=$'stale\tstopped\t17m ago\tdown\tx dev\tr1'
+                  ble/prompt/backslash:prelude/status
+                  printf '%s' "$_prelude_fake_line" | grep -F 'start: x dev' | grep -F 'stale: down (17m ago)'
+                  _prelude_status_navigation=
+                  _prelude_status_navigation_rendered=
+                  _ble_edit_str=
+                  ble/prompt/backslash:prelude/status
+                  ! printf '%s' "$_prelude_fake_line" | grep -F 'motd'
+                  ! printf '%s' "$_prelude_fake_line" | grep -F '\g{fg=#555555,bg=#101010}['
+
+                  _prelude_status_health_record=
+                  _prelude_status_navigation=
+                  _prelude_status_navigation_rendered=
+                  _prelude_status_hint=
+                  _prelude_status_hint_rendered=
+                  _prelude_status_default='界'
+                  COLUMNS=4
+                  _ble_edit_str=
+                  ble/prompt/backslash:prelude/status
+                  test "$_prelude_fake_literal" = '界  '
+                  _prelude_status_default='é'
+                  ble/prompt/backslash:prelude/status
+                  test "$_prelude_fake_literal" = 'é   '
+                  _prelude_status_default=Welcome
+                  COLUMNS=not-a-width
+                  ble/prompt/backslash:prelude/status
+                  printf '%s' "$_prelude_fake_literal" | grep -F Welcome
+
+                  COLUMNS=200
+                  _prelude_status_hint=' hint  | '
+                  _prelude_status_hint_rendered='\g{bold,fg=#101010,bg=#00ff00} hint \g{fg=#00ff00,bg=#101010}\g{fg=#555555,bg=#101010} | \g{fg=#777777,bg=#101010}'
+                  _prelude_status_health_record=$'stopped\tstopped\t1m ago\t\\g{fg=#ff0000}unsafe\tx dev\tr2'
+                  _prelude_fake_process_count=0
+                  ble/prompt/backslash:prelude/status
+                  printf '%s' "$_prelude_fake_literal" | grep -F '\g{fg=#ff0000}unsafe'
+                  test "$_prelude_fake_process_count" -eq 1
+                  test "$_prelude_fake_processed" = "$_PRELUDE_PROMPT_STATUS_HINT_RENDERED"
+                  ! printf '%s' "$_prelude_fake_processed" | grep -F 'unsafe'
+                  refresh_tmp=$(mktemp -d)
+                  export PRELUDE_FAKE_REFRESH_COUNT="$refresh_tmp/count"
+                  export PRELUDE_FAKE_HELPER_CALLS="$refresh_tmp/calls"
+                  : > "$PRELUDE_FAKE_REFRESH_COUNT"
+                  : > "$PRELUDE_FAKE_HELPER_CALLS"
+                  touch "$refresh_tmp/config"
+                  cat > "$refresh_tmp/helper" <<'EOF'
+        #!${pkgs.bash}/bin/bash
+        printf '%s\n' "$1" >> "$PRELUDE_FAKE_HELPER_CALLS"
+        if [ "$1" = --cached ]; then
+          printf 'checking\t\t\tchecking local server\tx dev\tr1\n'
+          exit 0
+        fi
+        printf 'refresh\n' >> "$PRELUDE_FAKE_REFRESH_COUNT"
+        sleep 0.2
+        EOF
+                  chmod +x "$refresh_tmp/helper"
+                  _prelude_status_helper="$refresh_tmp/helper"
+                  _prelude_status_config="$refresh_tmp/config"
+                  _prelude_status_refresh_pid=
+                  prelude/status/refresh
+                  prelude/status/refresh
+                  sleep 0.1
+                  refresh_count=$(wc -l < "$PRELUDE_FAKE_REFRESH_COUNT")
+                  wait
+                  test "$refresh_count" -eq 1
+                  # Rendering must only consume the cached record. A helper call here
+                  # would turn every editor redraw into a local-server probe.
+                  : > "$PRELUDE_FAKE_HELPER_CALLS"
+                  _prelude_fake_process_count=0
+                  ble/prompt/backslash:prelude/status
+                  test "$(wc -l < "$PRELUDE_FAKE_HELPER_CALLS")" -eq 0
+                  test "$_prelude_fake_process_count" -eq 1
+                )
+                (
+                  COLUMNS=4
+                  _ble_term_xenl=1
+                  _ble_term_sgr0='<reset>'
+                  _ble_prompt_status_panel=4
+                  _ble_prompt_status_data=()
+                  _ble_canvas_panel_class=(ble/textarea ble/textarea ble/edit/info ble/edit/visible-bell ble/prompt/status)
+                  _ble_canvas_panel_height=(1 0 0 0 0)
+                  _ble_canvas_panel_vfill=4
+                  _prelude_cap_goto=
+                  _prelude_cap_output=
+                  _prelude_cap_cursor=
+                  ble/color/face2g() { ret=cap-face; }
+                  ble/color/g2sgr() { ret='<cap>'; }
+                  ble/string#repeat() {
+                    ret=
+                    for ((i = 0; i < $2; i++)); do
+                      ret+=$1
+                    done
+                  }
+                  ble/canvas/panel#goto.draw() { _prelude_cap_goto="$1:''${2-0}:''${3-0}"; }
+                  ble/canvas/panel#put.draw() {
+                    _prelude_cap_output=$2
+                    _prelude_cap_cursor="$1:$3:$4"
+                  }
+                  ble/canvas/bflush.draw() { :; }
+                  _prelude_cap_reallocation_count=0
+                  _prelude_cap_height_operations=
+                  ble/canvas/panel#set-height.draw() {
+                    _prelude_cap_height_operations+="$1:$2 "
+                    _ble_canvas_panel_height[$1]=$2
+                  }
+                  ble/canvas/panel/reallocate-height.draw() {
+                    ((++_prelude_cap_reallocation_count))
+                    _ble_canvas_panel_height[4]=1
+                    _ble_canvas_panel_height[5]=1
+                  }
+                  ble/edit/is-command-layout() { return 1; }
+                  source ${config.packages.prelude}/share/prelude/shell/status-cap.bash
+                  prelude/status/cap/install
+                  test "''${_ble_canvas_panel_class[4]}" = prelude/status/cap
+                  test "''${_ble_canvas_panel_class[5]}" = ble/prompt/status
+                  test "$_ble_prompt_status_panel" -eq 5
+                  test "$_ble_canvas_panel_vfill" -eq 4
+                  prelude/status/cap#panel::getHeight 4
+                  test "$height" = 0:0
+                  bleopt_prompt_status_line='\q{prelude/status}'
+                  prelude/status/cap#panel::getHeight 4
+                  test "$height" = 0:1
+                  ble/edit/is-command-layout() { return 0; }
+                  prelude/status/cap#panel::getHeight 4
+                  test "$height" = 0:0
+                  ble/edit/is-command-layout() { return 1; }
+                  _prelude_status_cap_dirty=1
+                  prelude/status/cap#panel::render 4 0 0
+                  test "$_prelude_cap_reallocation_count" -eq 1
+                  test "$_prelude_cap_goto" = 4:0:0
+                  test "$_prelude_cap_output" = '<cap>▄▄▄▄<reset>'
+                  test "$_prelude_cap_cursor" = 4:4:0
+                  # Blesh enters command layout through this exact collapse hook.
+                  ble/prompt/status#collapse
+                  test "''${_ble_canvas_panel_height[4]}" -eq 0
+                  test "''${_ble_canvas_panel_height[5]}" -eq 0
+                  test "$_prelude_cap_height_operations" = '4:0 5:0 '
+                )
+                (
+                  _ble_prompt_status_panel=4
+                  _ble_canvas_panel_class=(ble/textarea ble/textarea ble/edit/info ble/edit/visible-bell unexpected)
+                  _ble_canvas_panel_height=(1 0 0 0 0)
+                  _ble_canvas_panel_vfill=4
+                  source ${config.packages.prelude}/share/prelude/shell/status-cap.bash
+                  ! prelude/status/cap/install >/dev/null 2>&1
+                  test "''${#_ble_canvas_panel_class[@]}" -eq 5
+                  test "''${_ble_canvas_panel_class[4]}" = unexpected
+                  test "$_ble_prompt_status_panel" -eq 4
+                  test "$_ble_canvas_panel_vfill" -eq 4
+                )
+                ${pkgs.bash}/bin/bash -n ${config.packages.prelude}/share/prelude/init.bash
+                for source in ${config.packages.prelude}/share/prelude/shell/*.bash; do
+                  ${pkgs.bash}/bin/bash -n "$source"
+                done
+                ${pkgs.bash}/bin/bash -n ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
+                shellcheck -x ${config.packages.prelude}/share/prelude/init.bash
+                shellcheck -x ${config.packages.prelude}/share/prelude/shell/init.bash
+                shellcheck -x -e SC1091,SC2154 ${config.packages.prelude}/share/prelude/shell/bash-init.bash
+                shellcheck -x -e SC2016,SC2154 ${config.packages.prelude}/share/prelude/shell/status.bash
+                shellcheck -x -e SC2154 ${config.packages.prelude}/share/prelude/shell/completion.bash
+                shellcheck -e SC2154 ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
+                ${pkgs.bash}/bin/bash -n ${config.packages.prelude}/share/prelude/shell.bash
+                grep -Fq 'pane_frames false' ${config.packages.prelude}/share/prelude/zellij/config.kdl
+                grep -Fq 'mouse_hover_effects false' ${config.packages.prelude}/share/prelude/zellij/config.kdl
+                grep -Fq 'default_mode "locked"' ${config.packages.prelude}/share/prelude/zellij/config.kdl
+                grep -Fq 'FocusNextPane' ${config.packages.prelude}/share/prelude/zellij/config.kdl
+                grep -Fq 'Alt p' ${config.packages.prelude}/share/prelude/zellij/config.kdl
+                grep -Fq 'prelude-focus-rail' ${config.packages.prelude}/share/prelude/zellij/layouts/shell.kdl
+                grep -Fq 'name "shell"' ${config.packages.prelude}/share/prelude/zellij/layouts/shell.kdl
+                command -v prelude-focus-rail >/dev/null
+                touch "$out"
       '';
 
   title-previews = pkgs.runCommand "title-previews" { } ''
     ${lib.getExe config.packages.title-previews} "choose me" > "$out"
-    test "$(grep -c '^===== .* =====$' "$out")" -eq 23
+    test "$(grep -c '^===== .* =====$' "$out")" -eq 25
     grep -q '^===== 3d-ascii =====$' "$out"
     grep -q '^===== calvin-s =====$' "$out"
     grep -q '^===== roman =====$' "$out"
@@ -362,7 +635,7 @@ in
         }
       ];
     assert padding.x == 2;
-    assert padding.y == 0;
+    assert padding.y == 2;
     assert padding.top == 2;
     assert padding.left == null;
     assert padding.right == null;
@@ -526,36 +799,343 @@ in
     assert second.title == "Quickstart (Setup Wizard)";
     assert (cfg.heroFile or "") != "";
     pkgs.runCommand "mdSplit-readme-nav" { } "touch $out";
-
-  # Dogfood surfaces must render every enable-derived navigation shortcut.
-  motd-renders = pkgs.runCommand "motd-renders" { } ''
-    NO_COLOR=1 ${lib.getExe config.packages.motd} > "$out"
-    grep -F '[?] motd' "$out"
-    grep -F '[m] menu' "$out"
-    grep -F '[d] docs' "$out"
-  '';
+  prompt-shadow-palette =
+    let
+      mkPrompt =
+        promptConfig:
+        (import ../src/prelude/prompt.nix {
+          inherit (pkgs) lib formats;
+        })
+          promptConfig;
+      themeCases = {
+        phosphor = "#0b100d";
+        minted = "#0b0b12";
+        amber = "#100b07";
+        solarized = "#0c2121";
+        nord = "#2b3039";
+        gruvbox = "#262420";
+        mono = "#090909";
+        apathy = "#0d0a12";
+        prelude = "#0d0a12";
+        paper = "#e7e5e0";
+      };
+      themePrompts = lib.mapAttrs (theme: _: mkPrompt { inherit theme; }) themeCases;
+      themeChecks = lib.concatStringsSep "\n" (
+        lib.mapAttrsToList (
+          theme: shadow: ''grep -Fq 'shadow = "${shadow}"' ${themePrompts.${theme}}''
+        ) themeCases
+      );
+      overridden = mkPrompt {
+        theme = "apathy";
+        palette.bg = "#6496c8";
+      };
+      black = mkPrompt {
+        theme = "apathy";
+        palette.bg = "#000000";
+      };
+      literalWindow = mkPrompt {
+        theme = "apathy";
+        windowBackgroundContext = {
+          set = true;
+          base = "#202020";
+        };
+      };
+      dynamicWindow = mkPrompt {
+        theme = "apathy";
+        windowBackgroundContext = {
+          set = true;
+          base = null;
+        };
+      };
+      shortHex = mkPrompt {
+        theme = "apathy";
+        palette.bg = "#abc";
+      };
+      indexed = mkPrompt {
+        theme = "apathy";
+        palette.bg = 212;
+      };
+      packed = mkPrompt {
+        theme = "apathy";
+        palette.bg = 660510;
+      };
+      disabledWindowContext =
+        internalLib.resolveWindowBackgroundContext false "#202020";
+      relativeWindowContext =
+        internalLib.resolveWindowBackgroundContext true { relative = -0.05; };
+      mkShell =
+        shadow: windowBackgroundSet:
+        (import ../src/prelude/shell-init.nix {
+          inherit (pkgs)
+            lib
+            writeText
+            runCommand
+            starship
+            blesh
+            bash-completion
+            stdenv
+            ;
+        }) {
+          palette = internalLib.resolvePalette "apathy" { };
+          inherit shadow windowBackgroundSet;
+        };
+      ownedShell = mkShell "#1e1e1e" true;
+      fallbackShell = mkShell "#0d0a12" false;
+    in
+    assert !disabledWindowContext.set;
+    assert disabledWindowContext.base == null;
+    assert relativeWindowContext.set;
+    assert relativeWindowContext.base == null;
+    pkgs.runCommand "prompt-shadow-palette" { } ''
+      ${themeChecks}
+      grep -Fq 'shadow = "#5f8ebe"' ${overridden}
+      grep -Fq 'shadow = "#000000"' ${black}
+      grep -Fq 'shadow = "#1e1e1e"' ${literalWindow}
+      grep -Fq 'shadow = "#0d0a12"' ${dynamicWindow}
+      grep -Fq 'shadow = "#a1b1c1"' ${shortHex}
+      grep -Fq 'shadow = "#f280cc"' ${indexed}
+      grep -Fq 'shadow = "#09131c"' ${packed}
+      grep -Fq '_PRELUDE_WINDOW_BACKGROUND_SET=1' ${ownedShell.init}
+      grep -Fq '_PRELUDE_WINDOW_BACKGROUND_SET=0' ${fallbackShell.init}
+      grep -Fq 'fg=#1b1629,bg=#1e1e1e' ${ownedShell.runtime}/contrib/scheme/prelude.bash
+      grep -Fq 'fg=#1b1629,bg=#0d0a12' ${fallbackShell.runtime}/contrib/scheme/prelude.bash
+      grep -Fq '_prelude_window_background_set=''${_PRELUDE_WINDOW_BACKGROUND_SET:-0}' ${ownedShell.runtime}/bash-init.bash
+      touch "$out"
+    '';
 
   prompt-renders-shortcuts = pkgs.runCommand "prompt-renders-shortcuts" { } ''
-    grep -F 'right_format = ' ${config.packages.prompt}
-    grep -F '[?](bold fg:accent2)' ${config.packages.prompt}
-    grep -F '[ motd](fg:muted)' ${config.packages.prompt}
-    grep -F '[m](bold fg:accent2)' ${config.packages.prompt}
-    grep -F '[ menu](fg:muted)' ${config.packages.prompt}
-    grep -F '[d](bold fg:accent2)' ${config.packages.prompt}
-    grep -F '[ docs](fg:muted)' ${config.packages.prompt}
+    export NO_COLOR=1
+    export HOME="$TMPDIR/home"
+    export XDG_CACHE_HOME="$TMPDIR/cache"
+    mkdir -p "$HOME" "$XDG_CACHE_HOME"
+    export STARSHIP_CONFIG=${config.packages.prompt}
+    export STARSHIP_SHELL=bash
+    ${lib.getExe pkgs.starship} prompt --terminal-width 79 --status 0 > "$TMPDIR/normal"
+    ${lib.getExe pkgs.starship} prompt --right --terminal-width 79 --status 0 > "$TMPDIR/status"
 
-    STARSHIP_CONFIG=${config.packages.prompt} STARSHIP_SHELL=bash \
-      ${lib.getExe pkgs.starship} prompt --terminal-width 79 --status 0 > "$TMPDIR/normal"
-    STARSHIP_CONFIG=${config.packages.prompt} STARSHIP_SHELL=bash \
-      ${lib.getExe pkgs.starship} prompt --right --terminal-width 79 --status 0 > "$TMPDIR/status"
-    grep -F '❯' "$TMPDIR/normal"
-    ! grep -F 'prelude' "$TMPDIR/normal"
-    grep -F 'prelude' "$TMPDIR/status"
-    grep -F 'motd' "$TMPDIR/status"
-    grep -F 'menu' "$TMPDIR/status"
-    grep -F 'docs' "$TMPDIR/status"
+    # The generated prompt owns two blank rows before its two visible rows.
+    test "$(od -An -t x1 -N 2 "$TMPDIR/normal" | tr -d '[:space:]')" = 0a0a
+    sed -n '3p' "$TMPDIR/normal" | grep -F 'prelude'
+    sed -n '4p' "$TMPDIR/normal" | grep -F '~/prelude'
+    sed -n '4p' "$TMPDIR/normal" | grep -F '❯'
+    ! grep -F 'motd' "$TMPDIR/normal"
+    ! grep -F 'menu' "$TMPDIR/normal"
+    ! grep -F 'docs' "$TMPDIR/normal"
+    test ! -s "$TMPDIR/status"
     touch "$out"
   '';
+
+  prompt-status-runtime =
+    let
+      statusPkg =
+        (import ../src/prelude/prompt-status.nix {
+          inherit (pkgs)
+            lib
+            writeText
+            buildGoModule
+            ;
+        })
+          {
+            project = "fixture";
+            command = "dev";
+            check = "true";
+            ttl = "5m";
+            start = "x dev";
+          };
+      shellPkg =
+        (import ../src/prelude/shell-init.nix {
+          inherit lib;
+          writeText = pkgs.writeText;
+          runCommand = pkgs.runCommand;
+          starship = pkgs.starship;
+          blesh = pkgs.blesh;
+          bash-completion = pkgs.bash-completion;
+          stdenv = pkgs.stdenv;
+        })
+          {
+            palette = internalLib.resolvePalette "phosphor" { };
+            projectName = "fixture";
+            commandEntries = [ ];
+            navigation = [ ];
+            statusEnabled = false;
+            promptStatusCommand = null;
+            promptStatusConfig = null;
+          };
+      shellInitText = builtins.readFile shellPkg.init;
+    in
+    assert lib.hasInfix "_PRELUDE_STARSHIP_STATUS_ENABLED=0" shellInitText;
+    assert lib.hasInfix "_PRELUDE_PROMPT_STATUS=''" shellInitText;
+    assert lib.hasInfix "_PRELUDE_PROMPT_STATUS_CONFIG=''" shellInitText;
+    assert lib.hasInfix "_PRELUDE_PROMPT_NAVIGATION=''" shellInitText;
+    pkgs.runCommand "prompt-status-runtime"
+      {
+        nativeBuildInputs = [
+          statusPkg
+          pkgs.coreutils
+          pkgs.gawk
+        ];
+      }
+      ''
+              export HOME="$TMPDIR/home"
+              export XDG_CACHE_HOME="$TMPDIR/cache"
+              mkdir -p "$HOME" "$XDG_CACHE_HOME"
+              cached="$(${lib.getExe statusPkg} --cached)"
+              test "$(printf '%s\n' "$cached" | awk -F '\t' '{ print NF }')" -eq 6
+              printf '%s\n' "$cached" | grep -F 'checking'
+              printf '%s\n' "$cached" | grep -F $'\tx dev\t'
+              refreshed="$(${lib.getExe statusPkg} --refresh)"
+              test "$(printf '%s\n' "$refreshed" | awk -F '\t' '{ print NF }')" -eq 6
+              printf '%s\n' "$refreshed" | grep -F 'healthy'
+              printf '%s\n' "$refreshed" | grep -F $'\tx dev\t'
+              cat > "$TMPDIR/slow-check" <<EOF
+        #!${pkgs.bash}/bin/bash
+        touch "$TMPDIR/refresh-started"
+        printf 'check\n' >> "$TMPDIR/refresh-count"
+        sleep 0.2
+        EOF
+              chmod +x "$TMPDIR/slow-check"
+              cat > "$TMPDIR/slow-status.json" <<EOF
+        {"project":"concurrent","command":"dev","check":"$TMPDIR/slow-check","ttl":"5m","start":"x dev"}
+        EOF
+              ${lib.getExe statusPkg} --refresh --config "$TMPDIR/slow-status.json" >/dev/null &
+              first_refresh=$!
+              for _ in $(seq 1 50); do
+                [ -e "$TMPDIR/refresh-started" ] && break
+                sleep 0.01
+              done
+              test -e "$TMPDIR/refresh-started"
+              ${lib.getExe statusPkg} --refresh --config "$TMPDIR/slow-status.json" >/dev/null &
+              second_refresh=$!
+              wait "$first_refresh"
+              wait "$second_refresh"
+              test "$(wc -l < "$TMPDIR/refresh-count")" -eq 1
+              touch "$out"
+      '';
+  # Explicit local-server health has two validation boundaries: the option
+  # rejects malformed values, and the per-system catalogue resolves the key
+  # after package-backed commands have been merged.
+  prompt-local-server-evaluation =
+    let
+      validLocalServer = {
+        command = "dev";
+        check = "true";
+        ttl = "5m";
+      };
+      customConfigFile = ../nix/internal/title.txt;
+      evalPrompt =
+        localServer: configFile:
+        builtins.tryEval (
+          let
+            evaluated = lib.evalModules {
+              modules = [
+                ../src/prelude/options/shared.nix
+                ../src/prelude/options/motd.nix
+                ../src/prelude/options/menu.nix
+                ../src/prelude/options/docs.nix
+                ../src/prelude/options/prompt.nix
+                {
+                  prelude = {
+                    commands.dev = {
+                      description = "start the dev server";
+                      exec = "pnpm dev";
+                    };
+                    prompt = {
+                      enable = true;
+                      inherit localServer configFile;
+                    };
+                  };
+                }
+              ];
+            };
+          in
+          builtins.deepSeq evaluated.config evaluated.config
+        );
+      commandKey = "dev;unsafe";
+      start = "x ${lib.escapeShellArg commandKey}";
+      # Keep the nested flake evaluation isolated from this repository's
+      # outputs. Reusing the outer `self` would recursively evaluate the
+      # production perSystem module instead of the fixture below.
+      fixtureInputs = {
+        self = {
+          outPath = toString ../.;
+          inputs = { };
+        };
+      };
+      fixtureSystem = pkgs.stdenv.hostPlatform.system;
+      fixturePkgs = {
+        inherit lib;
+        # The test only reads the descriptor, so a store text path is enough.
+        writeText = builtins.toFile;
+        # Preserve prompt-status.nix's observable passthru contract directly.
+        buildGoModule = args: args.passthru;
+        symlinkJoin =
+          args:
+          (builtins.derivation {
+            name = args.name;
+            system = fixtureSystem;
+            builder = "/bin/sh";
+            args = [
+              "-c"
+              "mkdir -p \"$out\""
+            ];
+          })
+          // args.passthru;
+      };
+      fixtureModule = flakePartsLib.importApply ../src/prelude/module.nix {
+        localFlake = { };
+        flake-parts-lib = flakePartsLib;
+      };
+      evalFixture =
+        localServer:
+        let
+          evaluated = flakePartsLib.evalFlakeModule { inputs = fixtureInputs; } {
+            systems = [ fixtureSystem ];
+            imports = [ fixtureModule ];
+            prelude = {
+              project = "fixture";
+              prompt = {
+                enable = true;
+                inherit localServer;
+              };
+            };
+            perSystem = { ... }: {
+              # Avoid importing nixpkgs into the nested evaluation; this check
+              # only needs the descriptor passthru supplied by fixturePkgs.
+              _module.args.pkgs = fixturePkgs;
+              prelude.commands.${commandKey} = {
+                description = "start the fixture server";
+                exec = "true";
+              };
+            };
+          };
+        in
+        builtins.deepSeq evaluated.config.allSystems.${fixtureSystem}.packages.prelude.promptStatusPkg
+          evaluated.config.allSystems.${fixtureSystem}.packages.prelude.promptStatusPkg;
+      valid = evalPrompt validLocalServer null;
+      invalidTtl = evalPrompt (validLocalServer // { ttl = "0m"; }) null;
+      invalidOverflowTtl = evalPrompt (validLocalServer // { ttl = "9223372036854775807h"; }) null;
+      invalidCheck = evalPrompt (validLocalServer // { check = "  "; }) null;
+      custom = evalPrompt validLocalServer customConfigFile;
+      perSystemValid = evalFixture (validLocalServer // { command = commandKey; });
+      perSystemUnknown = builtins.tryEval (evalFixture (validLocalServer // { command = "missing"; }));
+      statusConfig = perSystemValid.configFile;
+    in
+    assert valid.success;
+    assert invalidTtl.success == false;
+    assert invalidCheck.success == false;
+    assert invalidOverflowTtl.success == false;
+    assert custom.success;
+    assert perSystemValid != null;
+    assert perSystemUnknown.success == false;
+    assert valid.value.prelude.prompt.localServer.command == "dev";
+    assert valid.value.prelude.prompt.localServer.check == "true";
+    assert valid.value.prelude.prompt.localServer.ttl == "5m";
+    assert custom.value.prelude.prompt.configFile == customConfigFile;
+    pkgs.runCommand "prompt-local-server-evaluation" { nativeBuildInputs = [ pkgs.jq ]; } ''
+      ${lib.getExe pkgs.jq} -e --arg start ${lib.escapeShellArg start} \
+        '.start == $start' ${statusConfig} >/dev/null
+      touch "$out"
+    '';
 
   # The MOTD advertises x aliases for project commands (plus bare `menu`);
   # the menu retains canonical underlying invocations for execution and
@@ -585,7 +1165,7 @@ in
       }
       ''
         prelude-title-previews prelude > "$out"
-        test "$(grep -c '^===== .* =====$' "$out")" -eq 23
+        test "$(grep -c '^===== .* =====$' "$out")" -eq 25
         grep -q '^===== 3d-ascii =====$' "$out"
         grep -q '^===== calvin-s =====$' "$out"
         test "$(wc -l < "$out")" -gt 50

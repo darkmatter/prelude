@@ -1,10 +1,11 @@
-{ lib
-, writeShellApplication
-, writeText
-, buildGoModule
-, figlet
-, nix
-, ...
+{
+  lib,
+  writeShellApplication,
+  writeText,
+  buildGoModule,
+  figlet,
+  nix,
+  ...
 }:
 let
   fonts = import ./fonts.nix;
@@ -13,19 +14,15 @@ let
   configFile = writeText "prelude-title.json" (
     builtins.toJSON {
       defaultFont = "thin";
-      fonts = lib.mapAttrsToList
-        (name: path: {
-          inherit name path;
-        })
-        fonts;
+      fonts = lib.mapAttrsToList (name: path: {
+        inherit name path;
+      }) fonts;
       # The wizard iteration offers the bundled palettes; the plain chooser
       # ignores these fields.
       defaultTheme = defaults.theme;
-      themes = lib.mapAttrsToList
-        (name: palette: {
-          inherit name palette;
-        })
-        themes;
+      themes = lib.mapAttrsToList (name: palette: {
+        inherit name palette;
+      }) themes;
     }
   );
 
@@ -35,7 +32,7 @@ let
     src = ../.;
     subPackages = [ "cmd/title" ];
     doCheck = false;
-    vendorHash = "sha256-axbNd4BKZRaM0vb7XsF7hefBLuTD0Z8RWihNJd6ktE0=";
+    vendorHash = "sha256-xtubcnDtPcFPOr7Qj3hm2eSGxbACoabLyl/CTLlqp/U=";
     ldflags = [
       "-s"
       "-w"

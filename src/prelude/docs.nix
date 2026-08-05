@@ -1,12 +1,13 @@
 # Docs package: nav tree → directory bundle → Go viewer.
 # Generated options use pkgs.nixosOptionsDoc; option records never enter JSON.
-{ lib
-, writeText
-, buildGoModule
-, runCommand
-, nixosOptionsDoc
-, figlet
-, ...
+{
+  lib,
+  writeText,
+  buildGoModule,
+  runCommand,
+  nixosOptionsDoc,
+  figlet,
+  ...
 }:
 
 # Component config from module: shared palette fields + docs.pages + docs.nixosOptions
@@ -51,16 +52,14 @@ let
   docList =
     let
       rawList = lib.optionAttrSetToDocList opts;
-      paired = map
-        (raw: {
-          inherit raw;
-          transformed = transformOptions raw;
-        })
-        rawList;
+      paired = map (raw: {
+        inherit raw;
+        transformed = transformOptions raw;
+      }) rawList;
       keep =
-        { raw
-        , transformed
-        ,
+        {
+          raw,
+          transformed,
         }:
         (transformed.visible or true)
         && !(transformed.internal or false)
@@ -68,19 +67,17 @@ let
         && !(lib.any (s: s == "_module") (transformed.loc or [ ]));
       kept = builtins.filter keep paired;
     in
-    map
-      (
-        { raw
-        , transformed
-        ,
-        }:
-        {
-          lookupLoc = raw.loc;
-          displayLoc = transformed.loc or raw.loc;
-          displayName = transformed.name or (lib.concatStringsSep "." (transformed.loc or raw.loc));
-        }
-      )
-      kept;
+    map (
+      {
+        raw,
+        transformed,
+      }:
+      {
+        lookupLoc = raw.loc;
+        displayLoc = transformed.loc or raw.loc;
+        displayName = transformed.name or (lib.concatStringsSep "." (transformed.loc or raw.loc));
+      }
+    ) kept;
 
   nodeShapeOK =
     node:
@@ -91,23 +88,20 @@ let
       hasTitle = (node.title or null) != null;
     in
     if hasGenerate then
-    # Generate node: no text/children.
+      # Generate node: no text/children.
       !hasText && !hasChildren
     else if hasChildren then
-    # Group: title required. Optional `text` is provenance only (mdSplit
-    # original path for rootReadme/FIGlet) — not a body.
+      # Group: title required. Optional `text` is provenance only (mdSplit
+      # original path for rootReadme/FIGlet) — not a body.
       hasTitle
     else
-    # Leaf: text required.
+      # Leaf: text required.
       hasText;
 
   # nestPath [ "prelude" "motd" ] value → { prelude = { motd = value; }; }
-  nestPath =
-    path: value:
-    lib.foldr (seg: acc: { ${seg} = acc; }) value path;
+  nestPath = path: value: lib.foldr (seg: acc: { ${seg} = acc; }) value path;
 
-  isPlaceholder =
-    seg: seg == "*" || (lib.hasPrefix "<" seg && lib.hasSuffix ">" seg);
+  isPlaceholder = seg: seg == "*" || (lib.hasPrefix "<" seg && lib.hasSuffix ">" seg);
 
   # Recover the raw option record at `path` by walking getSubOptions
   # segment-by-segment. lib.attrByPath cannot do this: opts.prelude is an
@@ -173,14 +167,12 @@ let
       rootReadme = false;
     };
 
-  asGroup =
-    title: children:
-    {
-      kind = "group";
-      inherit title children;
-      gapBefore = true;
-      rootReadme = false;
-    };
+  asGroup = title: children: {
+    kind = "group";
+    inherit title children;
+    gapBefore = true;
+    rootReadme = false;
+  };
 
   # Nested nav from displayLoc; lookupLoc drives optionAt on leaves.
   treeFromDocList =
@@ -193,11 +185,12 @@ let
           let
             seg = builtins.head loc;
             rest = builtins.tail loc;
-            child = trie.${seg} or {
-              children = { };
-              isLeaf = false;
-              entry = null;
-            };
+            child =
+              trie.${seg} or {
+                children = { };
+                isLeaf = false;
+                entry = null;
+              };
             updated =
               if rest == [ ] then
                 child
@@ -257,7 +250,7 @@ let
         rootReadme = false;
       }
     else
-    # split = "allLeaves" (default): nested sidebar of every terminal option.
+      # split = "allLeaves" (default): nested sidebar of every terminal option.
       let
         tree = treeFromDocList;
       in
@@ -269,60 +262,59 @@ let
   # Mark leaves whose text path is exactly prelude.docs.rootReadme (path equality
   # before collect renames sources to pages/NNN.md). No basename guessing.
   leafIsRootReadme =
-    path:
-    rootReadmePath != null && path != null && (toString path) == (toString rootReadmePath);
+    path: rootReadmePath != null && path != null && (toString path) == (toString rootReadmePath);
 
   expandNode =
     node:
-      assert lib.assertMsg (nodeShapeOK node) ''
-        docs: each pages node must be exactly one of
-          { text = ./page.md; }
-          | { title = "…"; children = [ … ]; text? /* mdSplit provenance */ }
-          | { generate = "nixosOptions"; }
-      '';
-      if (node.generate or null) != null then
-        expandGenerate node
-      else if (node.children or [ ]) != [ ] then
-        let
-          kids = map expandNode node.children;
-          # mdSplit: group has provenance `text`, children = preamble + H2 leaves.
-          # Rename the preamble leaf to config.project and mark rootReadme/FIGlet
-          # when provenance matches prelude.docs.rootReadme.
-          kids' =
-            if (node.text or null) != null && kids != [ ] then
-              let
-                head = builtins.head kids;
-                tail = builtins.tail kids;
-                isReadme = leafIsRootReadme node.text;
-                head' =
-                  if head.kind == "leaf" then
-                    head
-                    // {
-                      title = project;
-                      rootReadme = isReadme || (head.rootReadme or false);
-                    }
-                  else
-                    head;
-              in
-              [ head' ] ++ tail
-            else
-              kids;
-        in
-        {
-          kind = "group";
-          title = node.title;
-          children = kids';
-          gapBefore = false;
-          rootReadme = false;
-        }
-      else
-        {
-          kind = "leaf";
-          title = if (node.title or null) != null then node.title else "";
-          markdownPath = node.text;
-          gapBefore = false;
-          rootReadme = leafIsRootReadme node.text;
-        };
+    assert lib.assertMsg (nodeShapeOK node) ''
+      docs: each pages node must be exactly one of
+        { text = ./page.md; }
+        | { title = "…"; children = [ … ]; text? /* mdSplit provenance */ }
+        | { generate = "nixosOptions"; }
+    '';
+    if (node.generate or null) != null then
+      expandGenerate node
+    else if (node.children or [ ]) != [ ] then
+      let
+        kids = map expandNode node.children;
+        # mdSplit: group has provenance `text`, children = preamble + H2 leaves.
+        # Rename the preamble leaf to config.project and mark rootReadme/FIGlet
+        # when provenance matches prelude.docs.rootReadme.
+        kids' =
+          if (node.text or null) != null && kids != [ ] then
+            let
+              head = builtins.head kids;
+              tail = builtins.tail kids;
+              isReadme = leafIsRootReadme node.text;
+              head' =
+                if head.kind == "leaf" then
+                  head
+                  // {
+                    title = project;
+                    rootReadme = isReadme || (head.rootReadme or false);
+                  }
+                else
+                  head;
+            in
+            [ head' ] ++ tail
+          else
+            kids;
+      in
+      {
+        kind = "group";
+        title = node.title;
+        children = kids';
+        gapBefore = false;
+        rootReadme = false;
+      }
+    else
+      {
+        kind = "leaf";
+        title = if (node.title or null) != null then node.title else "";
+        markdownPath = node.text;
+        gapBefore = false;
+        rootReadme = leafIsRootReadme node.text;
+      };
 
   nav = map expandNode pages;
 
@@ -379,13 +371,11 @@ let
               }
             ];
           };
-      result = lib.foldl' step
-        {
-          id = startId;
-          entries = [ ];
-          nodes = [ ];
-        }
-        nodes;
+      result = lib.foldl' step {
+        id = startId;
+        entries = [ ];
+        nodes = [ ];
+      } nodes;
     in
     {
       id = result.id;
@@ -398,22 +388,20 @@ let
 
   escape = lib.escapeShellArg;
 
-  copyLines = lib.concatMapStrings
-    (
-      e:
-      if e.header == "" then
-        ''
-          cp ${escape e.path} $out/${escape e.fileName}
-        ''
-      else
-        ''
-          {
-            printf '%s' ${escape e.header}
-            cat ${escape e.path}
-          } > $out/${escape e.fileName}
-        ''
-    )
-    collected.entries;
+  copyLines = lib.concatMapStrings (
+    e:
+    if e.header == "" then
+      ''
+        cp ${escape e.path} $out/${escape e.fileName}
+      ''
+    else
+      ''
+        {
+          printf '%s' ${escape e.header}
+          cat ${escape e.path}
+        } > $out/${escape e.fileName}
+      ''
+  ) collected.entries;
 
   metaJson = builtins.toJSON {
     inherit project colorProfile;
@@ -430,12 +418,14 @@ let
 
   # FIGlet hero rendered at build time. Pure derivation: figlet is a
   # nativeBuildInput, output is a store path, never read by Nix eval.
-  heroDrv = runCommand "prelude-docs-hero"
-    {
-      nativeBuildInputs = [ figlet ];
-    } ''
-    figlet -f ${heroFont} -- ${lib.escapeShellArg heroText} > "$out"
-  '';
+  heroDrv =
+    runCommand "prelude-docs-hero"
+      {
+        nativeBuildInputs = [ figlet ];
+      }
+      ''
+        figlet -f ${heroFont} -- ${lib.escapeShellArg heroText} > "$out"
+      '';
 
   configBundle = runCommand "prelude-docs-config" { } ''
     mkdir -p "$out/pages"
@@ -456,7 +446,7 @@ buildGoModule {
   src = ../.;
   subPackages = [ "cmd/docs" ];
   doCheck = false;
-  vendorHash = "sha256-axbNd4BKZRaM0vb7XsF7hefBLuTD0Z8RWihNJd6ktE0=";
+  vendorHash = "sha256-xtubcnDtPcFPOr7Qj3hm2eSGxbACoabLyl/CTLlqp/U=";
   ldflags = [
     "-s"
     "-w"

@@ -15,12 +15,51 @@
 
 {
   palette,
+  shadow ? null,
+  windowBackgroundSet ? false,
   commandEntries ? [ ],
+  projectName ? "your project",
+  navigation ? [ ],
   motdCommand ? null,
   statusEnabled ? false,
+  promptStatusCommand ? null,
+  promptStatusConfig ? null,
 }:
 
 let
+  plib = import ./lib.nix { inherit lib; };
+  resolvedShadow = if shadow == null then plib.darkenColor palette.bg else shadow;
+  # Prompt markup is zero-width after ble.sh parses it, while status-row layout
+  # runs before parsing. Keep a literal twin so padding always uses cell widths.
+  # The status row is standalone; each `\g` span resets SGR, so spans without a
+  # background render transparent over the prompt_status_line face.
+  navigationText = lib.concatStringsSep "  " (
+    map (shortcut: "[${shortcut.alias}] ${shortcut.command}") navigation
+  );
+  navigationRendered = lib.concatStringsSep "  " (
+    map (
+      shortcut:
+      lib.concatStrings [
+        "\\g{fg=${palette.dim}}["
+        "\\g{bold,fg=${palette.accent2}}${shortcut.alias}"
+        "\\g{fg=${palette.dim}}]"
+        "\\g{fg=${palette.muted}} ${shortcut.command}"
+      ]
+    ) navigation
+  );
+  # Keep a visible-text twin: status.bash calculates padding before ble.sh
+  # strips the trusted `\g` markup.
+  hintText = "x <cmd> hint • x ⇥ inline • x tui";
+  hintRendered = lib.concatStrings [
+    "\\g{bold,fg=${palette.fg}}x <cmd> "
+    "\\g{fg=${palette.muted}}hint "
+    "\\g{fg=${palette.dim}}• "
+    "\\g{bold,fg=${palette.fg}}x ⇥ "
+    "\\g{fg=${palette.muted}}inline "
+    "\\g{fg=${palette.dim}}• "
+    "\\g{bold,fg=${palette.fg}}x "
+    "\\g{fg=${palette.muted}}tui"
+  ];
   catalogue = writeText "prelude-shell-catalogue.bash" (
     import ./shell/catalogue.nix { inherit lib; } { inherit commandEntries; }
   );
@@ -42,6 +81,7 @@ let
       ;
     accent_border = palette.accentBorder;
     selection_fg = palette.selectionFg;
+    shadow = resolvedShadow;
   };
   # Replace longer names first (`accent_border` and `accent2` before `accent`)
   # because the semantic markers intentionally share readable prefixes.
@@ -59,6 +99,7 @@ let
     install -m 0444 ${./shell/init.bash} "$out/init.bash"
     install -m 0444 ${./shell/bash-init.bash} "$out/bash-init.bash"
     install -m 0444 ${./shell/status.bash} "$out/status.bash"
+    install -m 0444 ${./shell/status-cap.bash} "$out/status-cap.bash"
     install -m 0444 ${./shell/completion.bash} "$out/completion.bash"
     install -m 0444 ${scheme} "$out/contrib/scheme/prelude.bash"
     install -m 0444 ${catalogue} "$out/catalogue.bash"
@@ -71,14 +112,30 @@ let
     _PRELUDE_BLESH=${lib.escapeShellArg "${blesh}/share/blesh/ble.sh"}
     _PRELUDE_STARSHIP=${lib.escapeShellArg (lib.getExe starship)}
     _PRELUDE_STARSHIP_STATUS_ENABLED=${if statusEnabled then "1" else "0"}
+    _PRELUDE_WINDOW_BACKGROUND_SET=${if windowBackgroundSet then "1" else "0"}
+    _PRELUDE_PROMPT_PROJECT=${lib.escapeShellArg projectName}
+    _PRELUDE_PROMPT_NAVIGATION=${lib.escapeShellArg navigationText}
+    _PRELUDE_PROMPT_NAVIGATION_RENDERED=${lib.escapeShellArg navigationRendered}
+    _PRELUDE_PROMPT_STATUS_HINT=${lib.escapeShellArg hintText}
+    _PRELUDE_PROMPT_STATUS_HINT_RENDERED=${lib.escapeShellArg hintRendered}
     _PRELUDE_MOTD=${lib.escapeShellArg (if motdCommand == null then "" else motdCommand)}
+    _PRELUDE_PROMPT_STATUS=${
+      lib.escapeShellArg (if promptStatusCommand == null then "" else promptStatusCommand)
+    }
+    _PRELUDE_PROMPT_STATUS_CONFIG=${
+      lib.escapeShellArg (if promptStatusConfig == null then "" else promptStatusConfig)
+    }
     _PRELUDE_DARWIN=${if stdenv.isDarwin then "1" else ""}
 
     # shellcheck source=/dev/null
     . ${lib.escapeShellArg "${runtime}/init.bash"}
 
     unset _PRELUDE_SHELL_RUNTIME _PRELUDE_BASH_COMPLETION _PRELUDE_BLESH
-    unset _PRELUDE_STARSHIP _PRELUDE_STARSHIP_STATUS_ENABLED
+    unset _PRELUDE_STARSHIP _PRELUDE_STARSHIP_STATUS_ENABLED _PRELUDE_PROMPT_PROJECT
+    unset _PRELUDE_WINDOW_BACKGROUND_SET
+    unset _PRELUDE_PROMPT_NAVIGATION _PRELUDE_PROMPT_NAVIGATION_RENDERED
+    unset _PRELUDE_PROMPT_STATUS_HINT _PRELUDE_PROMPT_STATUS_HINT_RENDERED
+    unset _PRELUDE_PROMPT_STATUS _PRELUDE_PROMPT_STATUS_CONFIG
     unset _PRELUDE_MOTD _PRELUDE_DARWIN
   '';
 in

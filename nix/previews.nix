@@ -1,11 +1,16 @@
 # `nix run .#previews` — build the render checks (their outputs ARE the
 # previews) and display each one. Render checks are discovered from the
 # checks attrset by their `-render(s)` suffix, so the two never drift.
-{ pkgs, lib, checks, ... }:
+{
+  pkgs,
+  lib,
+  checks,
+  ...
+}:
 let
-  renderNames = lib.filter
-    (n: lib.hasSuffix "-renders" n || lib.hasSuffix "-render" n)
-    (lib.attrNames checks);
+  renderNames = lib.filter (n: lib.hasSuffix "-renders" n || lib.hasSuffix "-render" n) (
+    lib.attrNames checks
+  );
 
   # Biggest output last.
   previewCheckNames =

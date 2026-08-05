@@ -5,13 +5,18 @@
 #     └ checks.nix     build + render smoke tests
 #         └ previews.nix   utility that builds render checks and shows them
 #             └ packages.nix / apps.nix / shell.nix
-{ pkgs
-, lib
-, config
-, ...
+{ flake-parts-lib }:
+{
+  pkgs,
+  lib,
+  config,
+  ...
 }:
 let
-  args = { inherit pkgs lib config; };
+  args = {
+    inherit pkgs lib config;
+    flakePartsLib = flake-parts-lib;
+  };
   demos = import ./demos.nix args;
   docsAutomation = import ./docs-automation.nix args;
   # Mutually recursive but well-founded: previews only reads the (static)

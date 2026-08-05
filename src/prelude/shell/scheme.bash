@@ -20,7 +20,8 @@ function ble/contrib/scheme:prelude/initialize {
   ble-face -s vbell                     'fg=%prelude_selection_fg,bg=%prelude_error'
   ble-face -s vbell_erase               'bg=%prelude_secondary'
   ble-face -s vbell_flash               'fg=%prelude_selection_fg,bg=%prelude_error,bold'
-  ble-face -s prompt_status_line        'fg=%prelude_muted,bg=%prelude_bg'
+  ble-face -s prompt_status_line        'fg=%prelude_muted,bg=transparent'
+  ble-face -d prelude_status_cap         'fg=%prelude_surface,bg=%prelude_shadow'
 
   # Shell syntax.
   ble-face -s syntax_default            'fg=%prelude_fg'
@@ -87,7 +88,7 @@ function ble/contrib/scheme:prelude/initialize {
   ble-face -s argument_error            'fg=%prelude_selection_fg,bg=%prelude_error'
 
   # Completion and filtering.
-  ble-face -s auto_complete             'fg=%prelude_dim,bg=%prelude_surface,italic'
+  ble-face -s auto_complete             'fg=%prelude_dim,italic'
   ble-face -s menu_complete_match       'bold'
   ble-face -s menu_complete_selected    'fg=%prelude_selection_fg,bg=%prelude_accent'
   ble-face -s menu_desc_default         'fg=%prelude_muted'

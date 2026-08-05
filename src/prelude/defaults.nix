@@ -193,10 +193,12 @@
         # below = separate row; inline = lights left, hint right.
         layout = "inline";
         # Hyperlinks appended after the reload hint. Item: { label; url; }
-        links = [{
-          label = "powered by prelude";
-          url = "https://github.com/darkmatter/prelude";
-        }];
+        links = [
+          {
+            label = "powered by prelude";
+            url = "https://github.com/darkmatter/prelude";
+          }
+        ];
       };
       # Keyed lights: static { status } or live { check, ok?, fail? }.
       status = {
@@ -305,6 +307,12 @@
   prompt = {
     settings = { };
     configFile = null;
+    # Private generator input: module.nix replaces this with the MOTD backdrop
+    # context; direct mkPrompt consumers deterministically fall back to bg.
+    windowBackgroundContext = {
+      set = false;
+      base = null;
+    };
   };
 
   # --- docs --------------------------------------------------------------------

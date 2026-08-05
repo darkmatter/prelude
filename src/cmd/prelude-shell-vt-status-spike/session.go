@@ -167,10 +167,10 @@ func preludeShellCommand(shell string, env []string, catalog menuCatalog) (*exec
 	}
 	var initScript []byte
 	if setupHook := adjacentPromptSetupHook(starship); setupHook != "" {
-		// This is the canonical nix develop path. The package-owned function
-		// includes ble.sh, palette faces, Darwin stty handling, and the
-		// shell-specific Starship initialization.
-		initScript = []byte(fmt.Sprintf("source %q\npreludePromptInit\n", setupHook))
+		// This is the canonical nix develop path. The package-owned setup-hook
+		// defines prelude-init, which sources the init script that wires up
+		// ble.sh, palette faces, Darwin stty handling, and Starship.
+		initScript = []byte(fmt.Sprintf("source %q\nprelude-init\n", setupHook))
 	} else {
 		// Standalone fallback for a user-installed Starship. ble.sh will not be
 		// loaded here, so prelude-ble.sh's BLE_VERSION guard no-ops gracefully.

@@ -70,6 +70,7 @@ let
   mkMenu = import ./menu.nix;
   mkDocs = import ./docs.nix;
   mkPrompt = import ./prompt.nix;
+  mkPromptStatus = import ./prompt-status.nix;
   mkShellInit = import ./shell-init.nix;
   mkPin = import ./pin.nix;
   plib = import ./lib.nix { inherit lib; };
@@ -217,6 +218,23 @@ in
         );
 
         commandEntries = plib.normalizeCommandEntries commands;
+        # Resolve only after root and per-system command entries have merged.
+        # A local server is a canonical `x` target, so its copyable start hint
+        # must reuse the catalogue's shell-escaped dispatcher invocation.
+        promptLocalServer =
+          let
+            configured = cfg.prompt.localServer;
+          in
+          if configured == null then
+            null
+          else
+            let
+              entry = lib.findFirst (candidate: candidate.name == configured.command) null commandEntries;
+            in
+            assert lib.assertMsg (
+              entry != null
+            ) "prelude.prompt.localServer.command must name a canonical prelude.commands key";
+            configured // { start = entry.xInvocation; };
         commandNames = map (entry: entry.name) commandEntries;
         selectedMotdCommands = plib.selectCommands commandEntries;
         commandRuntimePackages = lib.unique (
@@ -352,17 +370,44 @@ in
                 mainProgram = "docs";
               };
             };
-        promptPkg = mkPrompt deps (generatorConfig cfg.prompt // { shortcuts = internalShortcuts; });
+        # Keep invalid local-server keys fail-closed even when a custom prompt
+        # suppresses Prelude's generated status package.
+        promptStatusPkg =
+          assert builtins.deepSeq promptLocalServer true;
+          if cfg.prompt.enable && cfg.prompt.configFile == null && promptLocalServer != null then
+            mkPromptStatus deps (
+              shared
+              // {
+                inherit (promptLocalServer)
+                  command
+                  check
+                  ttl
+                  start
+                  ;
+              }
+            )
+          else
+            null;
+        # Prompt and Blesh share one backdrop decision. The flag is false when
+        # MOTD is disabled because no Prelude process then paints the terminal.
+        windowBackgroundContext = plib.resolveWindowBackgroundContext cfg.motd.enable cfg.motd.windowBackground;
+        backdropPalette = plib.resolveBackdropPalette cfg.theme cfg.palette windowBackgroundContext;
+        promptPkg = mkPrompt deps (
+          generatorConfig cfg.prompt
+          // {
+            shortcuts = internalShortcuts;
+            inherit windowBackgroundContext backdropPalette;
+          }
+        );
 
         # Resolve the palette once for the generated prompt and shell catalogue.
         # Starship owns prompt/status content while ble.sh owns Bash rendering,
         # lifecycle, and native completion menus.
-        pal = plib.resolvePalette cfg.theme cfg.palette;
+        pal = backdropPalette.palette;
 
         # The current shell is the product boundary. Checked-in shell modules
         # own behavior; Nix injects paths and serializes the same normalized
         # catalogue used by menu. nix develop and Zellij share one entrypoint.
-        shellCommandEntries = plib.flatCommands (plib.normalizeCommandGroups sortCfg.groups commands);
         shell =
           mkShellInit
             {
@@ -378,9 +423,14 @@ in
             }
             {
               palette = pal;
-              commandEntries = shellCommandEntries;
+              inherit (backdropPalette) shadow windowBackgroundSet;
+              projectName = cfg.project;
+              navigation = internalShortcuts;
+              commandEntries = commandEntries;
               motdCommand = if cfg.motd.enable then lib.getExe motdPkg else null;
               statusEnabled = cfg.prompt.configFile == null;
+              promptStatusCommand = if promptStatusPkg == null then null else lib.getExe promptStatusPkg;
+              promptStatusConfig = if promptStatusPkg == null then null else promptStatusPkg.configFile;
             };
         shellInit = shell.init;
         shellRuntime = shell.runtime;
@@ -419,9 +469,10 @@ in
           pkgs.blesh
           pkgs.bash-completion
         ];
+        promptStatusPackages = lib.optional (promptStatusPkg != null) promptStatusPkg;
         preludePkg = pkgs.symlinkJoin {
           name = "prelude";
-          paths = preludeComponentPaths ++ promptRuntimePackages ++ [ pinPkg ];
+          paths = preludeComponentPaths ++ promptRuntimePackages ++ promptStatusPackages ++ [ pinPkg ];
           postBuild = lib.optionalString cfg.prompt.enable ''
             mkdir -p "$out/nix-support" "$out/share/prelude/shell"
             cp -f ${shellInit} "$out/share/prelude/init.bash"
@@ -452,6 +503,8 @@ in
             inherit
               preludeComponentPaths
               promptRuntimePackages
+              promptStatusPkg
+              promptStatusPackages
               pinPkg
               shellInit
               shellRuntime

@@ -28,7 +28,7 @@
 { ... }:
 {
   prelude = {
-    theme = "prelude";  # color theme for all components; default "prelude"
+    theme = "prelude"; # color theme for all components; default "prelude"
 
     # Per-token overrides on top of the theme (null keeps the theme token).
     # Values: null | hex string | ANSI-256 index.
@@ -48,9 +48,9 @@
     # palette.surface = null;
     # palette.secondary = null;
 
-    colorProfile = "auto";  # "auto" | "truecolor" | "ansi256"; default "auto"
+    colorProfile = "auto"; # "auto" | "truecolor" | "ansi256"; default "auto"
 
-    project = "acme";  # shown in the MOTD banner and menu header; default "acme"
+    project = "acme"; # shown in the MOTD banner and menu header; default "acme"
 
     # Project commands keyed by public `x` name. The first colon infers the
     # menu group; the complete key stays callable (e.g. `x db:migrate`).
@@ -59,7 +59,7 @@
     commands = {
 
       dev = {
-        exec = "pnpm dev";  # defaults to the key suffix after the first colon
+        exec = "pnpm dev"; # defaults to the key suffix after the first colon
         description = "start the dev server with hot reload";
         # group inferred from key: develop  # first colon segment; builtins land in "prelude"
         # key = null;  # single-key accelerator (`x <key>`)
@@ -68,11 +68,11 @@
         # examples = [ "pnpm dev" ];  # worked example invocations
         # args = [ ];  # arg-entry mode: { token, description?, required?, boolean?, options? }
         # invocation = null;  # canonical shell text for duplicate detection; defaults to exec
-        motd = 1;  # MOTD Getting Started sort order; null hides from MOTD
+        motd = 1; # MOTD Getting Started sort order; null hides from MOTD
       };
 
       test = {
-        exec = "pnpm test";  # defaults to the key suffix after the first colon
+        exec = "pnpm test"; # defaults to the key suffix after the first colon
         description = "run the unit test suite";
         # group inferred from key: develop  # first colon segment; builtins land in "prelude"
         # key = null;  # single-key accelerator (`x <key>`)
@@ -81,11 +81,11 @@
         # examples = [ "pnpm test" ];  # worked example invocations
         # args = [ ];  # arg-entry mode: { token, description?, required?, boolean?, options? }
         # invocation = null;  # canonical shell text for duplicate detection; defaults to exec
-        motd = 2;  # MOTD Getting Started sort order; null hides from MOTD
+        motd = 2; # MOTD Getting Started sort order; null hides from MOTD
       };
 
       build = {
-        exec = "pnpm build";  # defaults to the key suffix after the first colon
+        exec = "pnpm build"; # defaults to the key suffix after the first colon
         description = "compile an optimized production bundle";
         # group inferred from key: develop  # first colon segment; builtins land in "prelude"
         # key = null;  # single-key accelerator (`x <key>`)
@@ -94,7 +94,7 @@
         # examples = [ "pnpm build" ];  # worked example invocations
         # args = [ ];  # arg-entry mode: { token, description?, required?, boolean?, options? }
         # invocation = null;  # canonical shell text for duplicate detection; defaults to exec
-        motd = 3;  # MOTD Getting Started sort order; null hides from MOTD
+        motd = 3; # MOTD Getting Started sort order; null hides from MOTD
       };
     };
 
@@ -102,9 +102,8 @@
     motd = {
       enable = true;
 
-
       title = {
-        text = ./title.txt;  # multiline title file; null uses the project-name wordmark
+        text = ./title.txt; # multiline title file; null uses the project-name wordmark
         # align = "center";  # left|center|right; default "center"
         # style = "spine";  # wordmark when text is null: plain|spine|bracketed|label|inline|inverted
       };

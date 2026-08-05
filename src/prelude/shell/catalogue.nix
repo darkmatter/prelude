@@ -25,6 +25,8 @@ let
         inherit commandIndex argumentIndex;
         token = argument.token;
         description = oneLine argument.description;
+        required = argument.required;
+        boolean = argument.boolean;
         options = argument.options;
       }) entry.args
     ) visibleEntries
@@ -44,6 +46,17 @@ let
 in
 ''
   # Generated from the same normalized command entries used by menu.
+  ${array "_prelude_catalogue_groups" (map (entry: entry.group) visibleEntries)}
+  ${array "_prelude_catalogue_labels" (map (entry: entry.label) visibleEntries)}
+  ${array "_prelude_catalogue_grouped" (map (entry: entry.grouped) visibleEntries)}
+  ${array "_prelude_catalogue_invocations" (map (entry: entry.invocation) visibleEntries)}
+  ${array "_prelude_catalogue_x_invocations" (map (entry: entry.xInvocation) visibleEntries)}
+  ${array "_prelude_catalogue_argument_commands" (map (argument: argument.commandIndex) arguments)}
+  ${array "_prelude_catalogue_argument_positions" (map (argument: argument.argumentIndex) arguments)}
+  ${array "_prelude_catalogue_argument_tokens" (map (argument: argument.token) arguments)}
+  ${array "_prelude_catalogue_argument_required" (map (argument: argument.required) arguments)}
+  ${array "_prelude_catalogue_argument_boolean" (map (argument: argument.boolean) arguments)}
+  ${array "_prelude_catalogue_argument_descriptions" (map (argument: argument.description) arguments)}
   # shellcheck shell=bash
   ${array "_prelude_catalogue_names" (map (entry: entry.name) visibleEntries)}
   ${array "_prelude_catalogue_descriptions" (map (entry: oneLine entry.description) visibleEntries)}

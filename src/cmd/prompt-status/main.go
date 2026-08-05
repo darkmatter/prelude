@@ -35,7 +35,7 @@ func main() {
 		err    error
 	)
 	if *refresh {
-		record, err = promptstatus.RefreshDue(*configPath, time.Now())
+		record, err = promptstatus.RefreshDue(*configPath, time.Now)
 	} else {
 		// Cached read is the safe default as well as the explicit shell mode.
 		record, err = promptstatus.Read(*configPath, time.Now())

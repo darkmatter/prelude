@@ -2,6 +2,7 @@ package promptstatus
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -55,8 +56,7 @@ func TestRefreshDueSuccessfulCheckIsFreshHealthy(t *testing.T) {
 	isolateCache(t)
 	path := writeDescriptor(t, testDescriptor("printf ready", "5m"))
 	now := time.Unix(200, 0)
-
-	record, err := RefreshDue(path, now)
+	record, err := RefreshDue(path, func() time.Time { return now })
 	if err != nil {
 		t.Fatalf("RefreshDue: %v", err)
 	}
@@ -68,8 +68,7 @@ func TestRefreshDueSuccessfulCheckIsFreshHealthy(t *testing.T) {
 func TestRefreshDueFailedCheckIsStoppedWithCanonicalStart(t *testing.T) {
 	isolateCache(t)
 	path := writeDescriptor(t, testDescriptor("printf down; exit 1", "5m"))
-
-	record, err := RefreshDue(path, time.Unix(300, 0))
+	record, err := RefreshDue(path, func() time.Time { return time.Unix(300, 0) })
 	if err != nil {
 		t.Fatalf("RefreshDue: %v", err)
 	}
@@ -82,7 +81,7 @@ func TestReadExpiredCacheIsStaleAndPreservesOutcomeMessageAndCompactAge(t *testi
 	isolateCache(t)
 	path := writeDescriptor(t, testDescriptor("printf down; exit 1", "5m"))
 	checkedAt := time.Unix(400, 0)
-	if _, err := RefreshDue(path, checkedAt); err != nil {
+	if _, err := RefreshDue(path, func() time.Time { return checkedAt }); err != nil {
 		t.Fatalf("RefreshDue: %v", err)
 	}
 
@@ -110,6 +109,14 @@ func TestLoadDescriptorFallbackUsesCanonicalStartInstruction(t *testing.T) {
 	}
 }
 
+func TestLoadDescriptorRejectsTTLOverflow(t *testing.T) {
+	path := writeDescriptor(t, testDescriptor("true", "1000000000000000000ms"))
+
+	if _, err := LoadDescriptor(path); err == nil {
+		t.Fatal("LoadDescriptor accepted an overflowing ttl")
+	}
+}
+
 func TestRecordLineSanitizesControlOutputWithoutChangingFieldShape(t *testing.T) {
 	record := Record{
 		State:      "stopped\x1b[31m",
@@ -134,5 +141,30 @@ func TestRecordLineSanitizesControlOutputWithoutChangingFieldShape(t *testing.T)
 	}
 	if fields[3] != "ordinary text    [2K" {
 		t.Fatalf("sanitized message = %q", fields[3])
+	}
+}
+
+func TestRefreshDueStampsCacheAtProbeCompletion(t *testing.T) {
+	isolateCache(t)
+	marker := t.TempDir() + "/probe-complete"
+	path := writeDescriptor(t, testDescriptor(fmt.Sprintf("touch %q; printf ready", marker), "1m"))
+	started := time.Unix(500, 0)
+	completed := started.Add(2 * time.Minute)
+	clock := func() time.Time {
+		if _, err := os.Stat(marker); err == nil {
+			return completed
+		}
+		return started
+	}
+
+	if _, err := RefreshDue(path, clock); err != nil {
+		t.Fatalf("RefreshDue: %v", err)
+	}
+	record, err := Read(path, completed)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if record.State != "healthy" {
+		t.Fatalf("completion-stamped cache state = %q, want healthy", record.State)
 	}
 }

@@ -17,9 +17,10 @@
   };
 
   outputs =
-    inputs@{ flake-parts
-    , prelude
-    , ...
+    inputs@{
+      flake-parts,
+      prelude,
+      ...
     }:
     flake-parts.lib.mkFlake { inherit inputs; } {
       # 1. Import the Prelude flake-parts module.

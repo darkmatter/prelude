@@ -359,7 +359,7 @@ func TestFinishWizardOmitsDirenvTipWhenMotdDisabled(t *testing.T) {
 	t.Chdir(t.TempDir())
 	m := testWizard()
 	result := wizardResult{
-		Recipe: Recipe{Text: "acme", Font: "thin"},
+		Recipe:  Recipe{Text: "acme", Font: "thin"},
 		Project: "acme", Theme: "nord", ColorProfile: "auto",
 		Motd: false, Menu: true, Prompt: true,
 	}

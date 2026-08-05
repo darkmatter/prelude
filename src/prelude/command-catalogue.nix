@@ -43,14 +43,12 @@ let
           "develop";
       label = if grouped then lib.concatStringsSep ":" (lib.tail parts) else sourceName;
     in
-    assert lib.assertMsg
-      (
-        builtins.match "[^ \t]+" sourceName != null
-      ) "prelude: command key must be non-empty and contain no whitespace";
-    assert lib.assertMsg
-      (
-        group != "" && label != ""
-      ) "prelude: command key must have non-empty colon-separated segments";
+    assert lib.assertMsg (
+      builtins.match "[^ \t]+" sourceName != null
+    ) "prelude: command key must be non-empty and contain no whitespace";
+    assert lib.assertMsg (
+      group != "" && label != ""
+    ) "prelude: command key must have non-empty colon-separated segments";
     {
       inherit
         sourceName
@@ -111,27 +109,22 @@ let
   normalizeCommandEntries =
     commands:
     let
-      baseEntries = map
-        (
-          { name, value }:
-          (normalizeCommand name value)
-          // {
-            raw = value;
-          }
-        )
-        (lib.mapAttrsToList lib.nameValuePair commands);
+      baseEntries = map (
+        { name, value }:
+        (normalizeCommand name value)
+        // {
+          raw = value;
+        }
+      ) (lib.mapAttrsToList lib.nameValuePair commands);
       invocations = map (entry: entry.invocation) baseEntries;
-      duplicates = lib.filter
-        (
-          invocation: lib.count (candidate: candidate == invocation) invocations > 1
-        )
-        (lib.unique invocations);
+      duplicates = lib.filter (
+        invocation: lib.count (candidate: candidate == invocation) invocations > 1
+      ) (lib.unique invocations);
       withDispatch = entry: entry // { xInvocation = "x ${lib.escapeShellArg entry.name}"; };
     in
-    assert lib.assertMsg
-      (
-        duplicates == [ ]
-      ) "prelude: duplicate canonical command invocation(s): ${lib.concatStringsSep ", " duplicates}";
+    assert lib.assertMsg (
+      duplicates == [ ]
+    ) "prelude: duplicate canonical command invocation(s): ${lib.concatStringsSep ", " duplicates}";
     map withDispatch baseEntries;
 
   normalizeCommandGroups =
@@ -148,16 +141,13 @@ let
       commandsInGroup =
         group: lib.sort (a: b: a.label < b.label) (lib.filter (entry: entry.group == group) entries);
     in
-    assert lib.assertMsg
-      (
-        lib.unique groupOrder == groupOrder
-      ) "prelude: sort.groups must not contain duplicates";
-    map
-      (group: {
-        title = group;
-        tasks = commandsInGroup group;
-      })
-      groupNames;
+    assert lib.assertMsg (
+      lib.unique groupOrder == groupOrder
+    ) "prelude: sort.groups must not contain duplicates";
+    map (group: {
+      title = group;
+      tasks = commandsInGroup group;
+    }) groupNames;
 
   flatCommands = groups: lib.concatMap (group: group.tasks) groups;
 
@@ -187,26 +177,22 @@ let
         else
           null;
       motdEntries = lib.filter (entry: motdOrder entry != null) commands;
-      sorted = lib.sort
-        (
-          a: b:
-            let
-              ao = motdOrder a;
-              bo = motdOrder b;
-            in
-            if ao != bo then ao < bo else a.name < b.name
-        )
-        motdEntries;
+      sorted = lib.sort (
+        a: b:
+        let
+          ao = motdOrder a;
+          bo = motdOrder b;
+        in
+        if ao != bo then ao < bo else a.name < b.name
+      ) motdEntries;
     in
-    map
-      (entry: {
-        name = entry.name;
-        # Ungrouped commands run bare from PATH; grouped keys only run
-        # through the `x` dispatcher, so they keep the dispatch form.
-        command = if entry.grouped then entry.xInvocation else entry.name;
-        description = entry.description;
-      })
-      sorted;
+    map (entry: {
+      name = entry.name;
+      # Ungrouped commands run bare from PATH; grouped keys only run
+      # through the `x` dispatcher, so they keep the dispatch form.
+      command = if entry.grouped then entry.xInvocation else entry.name;
+      description = entry.description;
+    }) sorted;
 
   # --- projections -------------------------------------------------------------
 
@@ -220,30 +206,25 @@ let
   # invocation rules from a display label.
   projectMenuGroups =
     groupOrder: commands:
-    map
-      (group: {
-        title = group.title;
-        tasks = map
-          (t: {
-            name = t.name;
-            label = t.label;
-            run = t.run;
-            command = if t.grouped then t.xInvocation else t.name;
-            description = t.description;
-            key = orEmpty t.key;
-            usage = orEmpty t.usage;
-            details = orEmpty t.details;
-            examples = t.examples;
-            args = t.args;
-          })
-          group.tasks;
-      })
-      (normalizeCommandGroups groupOrder commands);
+    map (group: {
+      title = group.title;
+      tasks = map (t: {
+        name = t.name;
+        label = t.label;
+        run = t.run;
+        command = if t.grouped then t.xInvocation else t.name;
+        description = t.description;
+        key = orEmpty t.key;
+        usage = orEmpty t.usage;
+        details = orEmpty t.details;
+        examples = t.examples;
+        args = t.args;
+      }) group.tasks;
+    }) (normalizeCommandGroups groupOrder commands);
 
   # Flat catalogue (normalized entries) used by motd.nix before row reduction.
   projectMotdCatalog =
-    groupOrder: commands:
-    flatCommands (normalizeCommandGroups groupOrder commands);
+    groupOrder: commands: flatCommands (normalizeCommandGroups groupOrder commands);
 
   # Reduced MOTD rows: only what the Go MOTD renderer paints.
   projectMotdRows =

@@ -1,10 +1,11 @@
 # Deterministic documentation inputs plus an impure VHS recording app.
 # Markdown and media fingerprints are checked in pure derivations; GIF/PNG
 # bytes are produced outside the Nix sandbox because VHS needs a browser/TTY.
-{ pkgs
-, lib
-, config
-, ...
+{
+  pkgs,
+  lib,
+  config,
+  ...
 }:
 let
   ex = import ../src/prelude/examples.nix;
@@ -119,21 +120,19 @@ let
       entries = builtins.readDir path;
       names = lib.sort builtins.lessThan (builtins.attrNames entries);
     in
-    lib.concatMapStringsSep "\n"
-      (
-        name:
-        let
-          kind = entries.${name};
-          child = path + "/${name}";
-        in
-        if kind == "directory" then
-          "directory:${name}\n${readTree child}"
-        else if kind == "regular" then
-          "file:${name}\n${builtins.readFile child}"
-        else
-          "${kind}:${name}"
-      )
-      names;
+    lib.concatMapStringsSep "\n" (
+      name:
+      let
+        kind = entries.${name};
+        child = path + "/${name}";
+      in
+      if kind == "directory" then
+        "directory:${name}\n${readTree child}"
+      else if kind == "regular" then
+        "file:${name}\n${builtins.readFile child}"
+      else
+        "${kind}:${name}"
+    ) names;
 
   sharedInput = builtins.concatStringsSep "\n" [
     (builtins.readFile ../flake.lock)
@@ -164,14 +163,11 @@ let
   motdFingerprint = fingerprint motdComponentInput motdTapeText ex.motd;
   minimalFingerprint = fingerprint motdComponentInput minimalTapeText ex.motdDemos.minimal;
   surfaceFingerprint = fingerprint motdComponentInput surfaceTapeText ex.motdDemos.surface;
-  menuFingerprint = fingerprint
-    (builtins.concatStringsSep "\n" [
-      (builtins.readFile ./menu-demo-builder.nix)
-      (builtins.readFile ../src/prelude/menu.nix)
-      (readTree ../src/internal/menu)
-    ])
-    menuTapeText
-    ex.menu;
+  menuFingerprint = fingerprint (builtins.concatStringsSep "\n" [
+    (builtins.readFile ./menu-demo-builder.nix)
+    (builtins.readFile ../src/prelude/menu.nix)
+    (readTree ../src/internal/menu)
+  ]) menuTapeText ex.menu;
 
   manifestData = {
     version = 1;
@@ -310,7 +306,7 @@ let
       (
         config:
         (lib.evalModules {
-          modules = optionModules ++ [{ prelude = motdModuleConfig config; }];
+          modules = optionModules ++ [ { prelude = motdModuleConfig config; } ];
         }).config.prelude.motd
       )
       [

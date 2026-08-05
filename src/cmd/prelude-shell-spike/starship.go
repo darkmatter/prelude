@@ -43,7 +43,7 @@ func compactStarshipConfig() (path string, cleanup func(), err error) {
 // stripFormatLeadingNewlines removes leading \n/\r from the format string value
 // so the powerline is the first thing starship paints.
 //
-// Handles TOML multiline format = '''…''' and format = """…""" (no backrefs;
+// Handles TOML multiline format = ”'…”' and format = """…""" (no backrefs;
 // Go's regexp RE2 does not support \2).
 func stripFormatLeadingNewlines(toml string) string {
 	for _, quote := range []string{`'''`, `"""`} {

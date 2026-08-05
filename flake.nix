@@ -92,7 +92,7 @@
           };
         };
 
-        perSystem = import ./nix/per-system.nix;
+        perSystem = import ./nix/per-system.nix { inherit flake-parts-lib; };
       }
     );
 }
