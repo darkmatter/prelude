@@ -106,3 +106,44 @@ func TestEmptyCommandNoteIsHidden(t *testing.T) {
 		t.Errorf("MOTD output renders a note without a configured command note: %q", output)
 	}
 }
+
+// TestCommandNoteGapPaintedWithWindowBackground verifies that the gap between
+// the commands label and the command note is painted with the window background
+// when windowBackground is set without a block background. The gap must carry
+// an explicit background SGR — wrapping with a fill style is insufficient
+// because the \x1b[m reset after the styled label clears any wrapper-level
+// background before the gap begins.
+func TestCommandNoteGapPaintedWithWindowBackground(t *testing.T) {
+	cfg := Config{
+		Palette: shared.Palette{
+			Bg:           "#101010",
+			Fg:           "#ffffff",
+			Dim:          "#777777",
+			Accent:       "#00aaff",
+		},
+		WindowBackground: "#112233",
+		Commands: []Command{
+			{Command: "test", Description: "run the tests"},
+		},
+		GettingStarted: GettingStarted{
+			CommandNote: "prefix with `x` if a command is shadowed",
+		},
+		Width: 80,
+	}
+
+	output := (MOTDView{r: newRenderer(Resolve(cfg, Cache{}, 80, 20, time.Now()))}).Render()
+
+	// Find the commands header row containing both the label and the note.
+	for _, line := range strings.Split(output, "\n") {
+		stripped := ansi.Strip(line)
+		if !strings.Contains(stripped, "commands") || !strings.Contains(stripped, "prefix with") {
+			continue
+		}
+		// #112233 → 48;2;17;34;51 in truecolor SGR.
+		if !strings.Contains(line, "\x1b[48;2;17;34;51m") {
+			t.Errorf("gap is not painted with the window background;\nrow: %q", line)
+		}
+		return
+	}
+	t.Fatalf("commands header row not found in output")
+}

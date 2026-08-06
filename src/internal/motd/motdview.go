@@ -35,19 +35,19 @@ func (v MOTDView) Render() string {
 		clearScreen = v.r.st.windowFill.Render(clearScreen)
 	}
 
-	// Fill-above: emit full-width painted rows for every terminal line the
-	// MOTD body does not occupy. Placed before the body, they push the MOTD
-	// toward the bottom of the terminal so the shell prompt lands directly
-	// under it. Each row carries the window background SGR explicitly, so
-	// non-BCE terminals still see the fill. The last fill row ends with \n
-	// so the body starts on a fresh row.
+	// Fill-above: emit full-width rows for every terminal line the MOTD body
+	// does not occupy. Placed before the body, they push the MOTD toward the
+	// bottom of the terminal so the shell prompt lands directly under it.
+	// This is layout, not coloring — the rows are emitted regardless of
+	// window background. When a background is set each row carries the SGR
+	// explicitly so non-BCE terminals still see the fill; when transparent
+	// the rows are blank but still occupy vertical space. The last fill row
+	// ends with \n so the body starts on a fresh row.
 	fillAbove := ""
-	if !v.r.st.windowTransparent {
-		fillRows := v.r.terminalHeight - bodyRows - 1
-		if fillRows > 0 {
-			row := v.r.st.windowFill.Width(v.r.terminalWidth).Render("")
-			fillAbove = strings.Repeat(row+"\n", fillRows)
-		}
+	fillRows := v.r.terminalHeight - bodyRows - 1
+	if fillRows > 0 {
+		row := v.r.st.windowFill.Width(v.r.terminalWidth).Render("")
+		fillAbove = strings.Repeat(row+"\n", fillRows)
 	}
 
 	return clearScreen + fillAbove + output

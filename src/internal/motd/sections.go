@@ -187,9 +187,17 @@ func (s sections) commandsHeader(label, note string) (string, bool) {
 	if gap < 2 {
 		return s.subLabel(label), false
 	}
-	return s.r.st.blockFill.Width(s.r.contentWidth).Render(
-		left + strings.Repeat(" ", gap) + right,
-	), true
+	// PlaceHorizontal with WithWhitespaceStyle paints each gap cell directly,
+	// so the background survives the \x1b[m resets that the styled segments
+	// emit. A plain strings.Repeat + blockFill.Width().Render wrapper cannot
+	// do this: the reset after "commands" clears any wrapper-level background
+	// before the gap begins. Fall back to the window fill when the block surface
+	// is transparent so windowBackground still paints the gap.
+	fill := s.r.st.blockFill
+	if s.r.st.blockTransparent && !s.r.st.windowTransparent {
+		fill = s.r.st.windowFill
+	}
+	return ui.PlaceRight(s.r.contentWidth, left, right, fill), true
 }
 
 // commandNote renders the note prose in a single dim tone (accent only for

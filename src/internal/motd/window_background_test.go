@@ -79,7 +79,7 @@ func TestWindowBackgroundPaintsScreenErase(t *testing.T) {
 	}
 }
 
-func TestWindowBackgroundTransparentSkipsScrollFill(t *testing.T) {
+func TestWindowBackgroundTransparentStillAnchorsBottom(t *testing.T) {
 	cfg := Config{
 		Project:     "transparent-test",
 		ClearScreen: true,
@@ -107,8 +107,15 @@ func TestWindowBackgroundTransparentSkipsScrollFill(t *testing.T) {
 	if clearAt != 0 {
 		t.Fatalf("transparent clear should be first. got prefix: %q", got[:clearAt])
 	}
-	// No fill rows when window is transparent.
+	// Fill rows are still emitted for layout (pushing body to bottom) even
+	// without a window background — they carry no background SGR.
 	if strings.Contains(got[len(clearScreen):], "\x1b[48;") {
-		t.Fatalf("transparent window should not emit fill rows")
+		t.Fatalf("transparent window should not paint background SGR in fill rows")
+	}
+	// Total newlines must be terminalHeight-1 (23) so the body ends on the
+	// second-to-last row — same as the non-transparent case.
+	newlines := strings.Count(got, "\n")
+	if newlines != 23 {
+		t.Fatalf("newline count = %d, want 23 (terminalHeight-1, bottom-anchored): %d bytes", newlines, len(got))
 	}
 }
