@@ -32,7 +32,8 @@ in
   # formatter = pkgs.nixfmt;
   inherit checks;
   treefmt = {
-    programs.nixpkgs-fmt.enable = true;
+    programs.alejandra.enable = true;
+    programs.mdformat.enable = true;
     # Go formatting via dedicated file-scoped formatters. golangci-lint is NOT
     # here on purpose: it is a package-scoped linter that typechecks whole
     # packages, so it cannot handle treefmt batching files from multiple

@@ -52,3 +52,4 @@ src/.tmp-motd-region-test/
 .claude/
 .codex/
 .envrc.local
+.work/
