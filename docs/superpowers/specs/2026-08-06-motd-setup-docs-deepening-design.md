@@ -59,7 +59,7 @@ Key invariants:
 - Nix materialization rules: `writeText` embeds path strings only; `runCommand` creates real store edges via `cp`/`cat`. FIGlet hero is a separate `runCommand` with `figlet` as `nativeBuildInput` — pure derivation, never read by Nix eval (no IFD).
 - Legacy inline pages: the Go viewer (`src/internal/docs/config.go`) back-compat-parses an older `pages` shape (array of `{text}`) into `NavNode` leaves when the current `nav` field is absent.
 - Config-relative assets: `heroFile` is resolved against the config dir (`filepath.Join(base, heroFile)`), same convention as `NavNode.markdownFile`.
-- Title precedence: explicit `NavNode.Title` wins; empty title falls back to the first H1 in the Markdown body (`markdownTitle`); if still empty, `page N` (`src/internal/docs/doc.go`). Root README with empty title becomes "README".
+- Title precedence: explicit `NavNode.Title` wins; empty title falls back to the first H1 in the Markdown body (`markdownTitle`); if still empty, `page N` (`src/internal/docs/doc.go`). `markdownTitle` always supplies `page N`, so the `RootReadme` "README" fallback in `convertNode` is currently unreachable.
 - Group/leaf normalization: `nodeShapeOK` enforces that each node is exactly one of generate/group/leaf; groups require `title`; leaves require `text`. `expandGenerate` handles `split = "allLeaves"` (nested sidebar) and `split = "shallow"` (single full page).
 - README presentation: root README leaves (`rootReadme = true`) keep their body as-authored and are marked in Nix by path equality with `prelude.docs.rootReadme`.
 - Viewer behavior: `src/internal/docs/run.go` loads config, converts nav (`convertNav` → `manual.NavNode`), and runs a `tea.Program`. The viewer is presentation-side; `pkg/manual` stays the presentation adapter.
@@ -75,7 +75,7 @@ Source evidence establishes an intentional, tested Nix→Go seam:
 - `src/internal/menu/invocation.go` resolves the public `x <command-key>` contract through `resolveXInvocation`; the complete key is globally unique and remains public.
 - `nix/checks.nix:437-532` tests command ordering, defaults, and key uniqueness; `nix/checks.nix:1260-1353` tests MOTD/menu command runnability and shortcut resolution.
 
-This seam is intentional and tested. Replacing it with palette ownership work would break the public `x` dispatcher contract and the menu/MOTD projection invariants. The Command catalogue refactor is dropped from this round.
+This seam is intentional and tested. The Command catalogue refactor is dropped from this round because the Nix→Go seam is intentional and covered by the checks above, and palette ownership is a separate out-of-scope concern. The Command catalogue refactor is dropped from this round.
 
 ## Target behavior
 
@@ -91,7 +91,7 @@ Preserve:
 - The Config → Preflight → Cache → Resolve/Render sequence.
 - Pure Resolve/Render: no Runtime, no Cache I/O after Preflight.
 - Preflight ordering: blocking before async; `PreflightBlocking` refreshes terminal size/bg, sync statuses, env; `PreflightAsync` refreshes only async status.
-- Asymmetric cache/preflight failures: blocking failures abort; async failures write stale/pending and never abort; cache read failure yields sparse UI.
+- Asymmetric cache/preflight failures: a blocking failure in the normal foreground run is logged as `motd: preflight:` and rendering continues with whatever Cache is available; only `--preflight-only` exits non-zero on a blocking Preflight failure. Async failures write stale/pending and never abort; cache read failure yields sparse UI.
 - Post-output async refresh: the banner is written to stdout before the detached async Preflight begins.
 
 Deepen internally using an orchestration plan/effect seam: the Config → Preflight → Cache → Resolve/Render sequence is expressed as a named internal orchestration that composes discrete effects (terminal probe, status check, env probe, cache read/write, render). Runtime, terminal, and Cache stay local adapters to that orchestration. No new exported interface is added — the binary entry point, JSON boundary, and `Render`/`RenderInput` public surface are unchanged.
@@ -120,7 +120,7 @@ Preserve:
 - Nix materialization rules (`writeText` for strings, `runCommand` for store edges, FIGlet hero as separate pure derivation).
 - Legacy inline pages (`pages` array of `{text}`) parsed by the Go viewer when `nav` is absent.
 - Config-relative assets (`heroFile` resolved against the config dir).
-- Title precedence (explicit → first H1 → `page N`; root README → "README").
+- Title precedence (explicit → first H1 → `page N`; the `RootReadme` "README" fallback is currently unreachable because `markdownTitle` always supplies `page N`).
 - README presentation (root README body as-authored, no forced H1).
 - Viewer behavior (`tea.Program` over `manualDocument`).
 
@@ -133,7 +133,7 @@ Normalize current and legacy inputs through one internal Docs bundle-interpretat
 The module is `src/internal/motd`. The current entry point (`Run`) interleaves config load, cache open, preflight mode selection, render, and post-output async refresh in one function. Deepen by introducing an internal orchestration that names the sequence:
 
 1. **Config load** — load JSON boundary (unchanged `loadConfig`).
-2. **Preflight** — compose blocking and/or async effects against the Cache, per mode. The Runtime and terminal adapters remain local; the orchestration names which effects run in which mode and how failures map (blocking aborts, async writes-through).
+2. **Preflight** — compose blocking and/or async effects against the Cache, per mode. The Runtime and terminal adapters remain local; the orchestration names which effects run in which mode and how failures map (blocking in the foreground run logs `motd: preflight:` and renders on with available Cache; `--preflight-only` exits non-zero on blocking failure; async writes-through).
 3. **Cache read** — load the post-preflight cache (or sparse empty on cache failure).
 4. **Resolve/Render** — pure, from `RenderInput`.
 5. **Output** — write banner to stdout.
@@ -164,7 +164,7 @@ The module spans `src/prelude/docs.nix` (Nix source-side) and `src/internal/docs
 - Legacy input: `{ pages: [{ text: string }], ... }`.
 - Both normalize to `[]NavNode` with the same group/leaf/hero/title invariants. The legacy path already does this (`src/internal/docs/config.go:57-68`); deepen it into a named interpretation seam so both shapes flow through one normalization, not a bolt-on fallback.
 
-Nix (`src/prelude/docs.nix`) stays the source-side adapter: it owns the bundle, materialization, JSON, and FIGlet hero. `pkg/manual` stays the presentation adapter: it owns the TUI document and rendering. No removal of legacy handling — the `pages` shape continues to parse. No movement of README HTML semantics — root README leaves keep their body as-authored, and the viewer's title fallback (explicit → H1 → `page N` → "README") is unchanged.
+Nix (`src/prelude/docs.nix`) stays the source-side adapter: it owns the bundle, materialization, JSON, and FIGlet hero. `pkg/manual` stays the presentation adapter: it owns the TUI document and rendering. No removal of legacy handling — the `pages` shape continues to parse. No movement of README HTML semantics — root README leaves keep their body as-authored. The viewer's title resolution is explicit `NavNode.Title` → first H1 (`markdownTitle`) → `page N`; because `markdownTitle` always supplies `page N`, the `RootReadme` "README" fallback in `convertNode` is currently unreachable, and this deepening preserves that behavior without claiming "README" wins.
 
 Locality: deepening is within `src/internal/docs` (config loader, `convertNav`, `doc.go`). `src/prelude/docs.nix` and `pkg/manual` are not modified.
 
@@ -186,7 +186,7 @@ Extend the existing Go tests in `src/internal/motd/`:
 
 1. **Mode/legacy alias**: `--refresh-status` maps to `--preflight-only --async`; `PRELUDE_MOTD_PURE=1` sets pure; `--pure` skips Preflight. Assert the orchestration produces the same observable output as the current flow for each mode.
 2. **Config source**: `PRELUDE_MOTD_CONFIG` env overrides the Nix-injected default; missing config is a fatal error with the current message shape.
-3. **Cache failure policy**: cache read failure yields a sparse `Cache{}` and the banner still renders (sparse UI); blocking Preflight failure aborts with non-zero exit; async Preflight failure writes stale/pending status and does not abort.
+3. **Cache failure policy**: cache read failure yields a sparse `Cache{}` and the banner still renders (sparse UI); blocking Preflight failure in the foreground run logs `motd: preflight:` and renders on with available Cache; `--preflight-only` exits non-zero on blocking failure; async Preflight failure writes stale/pending status and does not abort.
 4. **Foreground preflight warning behavior**: blocking Preflight with `spinner=true` on a TTY emits the MiniDot spinner on stderr; `--async` suppresses the spinner. Assert the spinner is emitted for blocking and suppressed for async.
 5. **Output-before-async behavior**: the banner is fully written to stdout before the detached async Preflight begins. Assert that stdout contains the banner and the async preflight is started (or not, when no due async entries) after the output write.
 
