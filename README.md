@@ -547,7 +547,7 @@ user's existing login-shell prompt remains in control.
 
 ```nix
 prelude.lib.mkMotd
-  { inherit (pkgs) lib writeText buildGoModule; }
+  { inherit (pkgs) lib writeText; buildGoModule = pkgs.buildGo126Module; }
   {
     theme = "gruvbox";
     project = "acme-web";
@@ -561,10 +561,10 @@ prelude.lib.mkMotd
 ```
 
 `lib.mkMotd` and `lib.mkMenu` take the component-specific configs the module
-assembles; `lib.themes` exposes the palettes. Builder deps: motd needs
-`{ lib writeText buildGoModule }`, menu needs
-`{ lib writeShellApplication writeText buildGoModule }`. The overlay
-(`overlays.default`) provides `pkgs.prelude.mkMotd` / `mkMenu` with deps
+assembles; `lib.themes` exposes the palettes. Pass
+`buildGoModule = pkgs.buildGo126Module` with the other component-specific
+builder dependencies. The overlay (`overlays.default`) provides
+`pkgs.prelude.mkMotd` / `mkMenu` with the pinned builder and other dependencies
 pre-applied.
 
 ## Demos

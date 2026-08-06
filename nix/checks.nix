@@ -1186,8 +1186,10 @@ in
         inherit lib;
         # The test only reads the descriptor, so a store text path is enough.
         writeText = builtins.toFile;
-        # Preserve prompt-status.nix's observable passthru contract directly.
-        buildGoModule = args: args.passthru;
+        # The exported module must never fall back to Nixpkgs' mutable default
+        # Go alias; preserve prompt-status.nix's passthru with the pinned builder.
+        buildGoModule = throw "Prelude must use pkgs.buildGo126Module";
+        buildGo126Module = args: args.passthru;
         symlinkJoin =
           args:
           (builtins.derivation {

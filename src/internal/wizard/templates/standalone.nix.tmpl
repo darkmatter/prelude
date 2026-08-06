@@ -44,7 +44,7 @@ in
 {
 {{- if .Motd }}
   motd = prelude.lib.mkMotd
-    { inherit (pkgs) lib writeText buildGoModule; }
+    { inherit (pkgs) lib writeText; buildGoModule = pkgs.buildGo126Module; }
     (shared // {
       title = {
         text = {{ .TitlePath }};
@@ -71,14 +71,18 @@ in
 
 {{- else }}
   # MOTD disabled in the wizard; the rendered title is kept for later:
-  # motd = prelude.lib.mkMotd { inherit (pkgs) lib writeText buildGoModule; }
+  # motd = prelude.lib.mkMotd
+  #   { inherit (pkgs) lib writeText; buildGoModule = pkgs.buildGo126Module; }
   #   (shared // { title.text = {{ .TitlePath }}; commandCatalog = commands; });
 
 {{- end }}
 {{- if .Menu }}
 {{- if .Commands }}
   menu = prelude.lib.mkMenu
-    { inherit (pkgs) lib writeShellApplication writeText buildGoModule; }
+    {
+      inherit (pkgs) lib writeShellApplication writeText;
+      buildGoModule = pkgs.buildGo126Module;
+    }
     (shared // {
       inherit commands;
       # placeholder = "type to filter commands…";
@@ -93,7 +97,10 @@ in
   # The menu needs at least one command: add entries to `commands`
   # above, then uncomment:
   # menu = prelude.lib.mkMenu
-  #   { inherit (pkgs) lib writeShellApplication writeText buildGoModule; }
+  #   {
+  #     inherit (pkgs) lib writeShellApplication writeText;
+  #     buildGoModule = pkgs.buildGo126Module;
+  #   }
   #   (shared // { inherit commands; });
 
 {{- end }}
@@ -101,7 +108,7 @@ in
 {{- if .Docs }}
   # Starter page written by setup; add more entries as docs grow.
   docs = prelude.lib.mkDocs
-    { inherit (pkgs) lib writeText buildGoModule; }
+    { inherit (pkgs) lib writeText; buildGoModule = pkgs.buildGo126Module; }
     (shared // { pages = [ { text = ./docs/getting-started.md; } ]; });
 
 {{- end }}

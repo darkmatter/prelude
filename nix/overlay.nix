@@ -9,9 +9,9 @@ let
       lib
       writeShellApplication
       writeText
-      buildGoModule
       symlinkJoin
       ;
+    buildGoModule = final.buildGo126Module;
   };
 in
 {

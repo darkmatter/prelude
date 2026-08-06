@@ -2,7 +2,7 @@
 # non-flake-parts users.
 #
 #   prelude.lib.mkMotd
-#     { inherit (pkgs) lib writeText buildGoModule; }
+#     { inherit (pkgs) lib writeText; buildGoModule = pkgs.buildGo126Module; }
 #     { project = "acme-web"; commandCatalog.dev.exec = "pnpm dev"; }
 #
 # mkMenu additionally takes { writeShellApplication, symlinkJoin }.

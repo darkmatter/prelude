@@ -139,7 +139,6 @@ in
             lib
             writeShellApplication
             writeText
-            buildGoModule
             runCommand
             nixosOptionsDoc
             symlinkJoin
@@ -148,6 +147,9 @@ in
             nix
             formats
             ;
+          # Downstream flakes may use a Nixpkgs whose default Go still trails
+          # src/go.mod. Select the required toolchain instead of that alias.
+          buildGoModule = pkgs.buildGo126Module;
         };
 
         motdRenderConfig = generatorConfig cfg.motd // {
