@@ -77,12 +77,15 @@ palette-background fallback selected during design.
   prompt settings without changing the palette passed to Go tools.
 - `src/prelude/shell-init.nix` adds `shadow` to the generated ble.sh scheme
   palette and emits `_PRELUDE_WINDOW_BACKGROUND_SET=0|1`. Before bootstrap
-  cleanup, `src/prelude/shell/bash-init.bash` copies it to the persistent
-  `_prelude_window_background_set` consumed by Prelude's Blesh runtime; the
-  generated temporary variable remains in the existing unset sweep.
+  cleanup, `src/prelude/shell/bash-init.bash` initializes the persistent
+  `_prelude_window_background_set` to false; `src/prelude/shell/init.bash`
+  promotes it from the generated candidate only when MOTD successfully paints
+  the window. The generated temporary variable remains in the existing unset
+  sweep.
 - `src/prelude/shell/scheme.bash` receives `%prelude_shadow` for
-  backdrop-dependent shell chrome. Blesh uses the persisted ownership fact
-  rather than probing the terminal or inventing a second color derivation.
+  backdrop-dependent shell chrome. Blesh initializes that chrome from the
+  persisted ownership state; if already initialized, `init.bash` refreshes it
+  after MOTD. In either path, it uses `shadow` only when MOTD painted the window.
 - A user-provided `prelude.prompt.configFile` remains a complete Starship
   ownership boundary. Prelude does not modify that file; the generated Blesh
   scheme still receives its resolved palette contract when the shell package is
@@ -111,7 +114,8 @@ Focused Nix checks must prove:
 5. Relative and blend window backgrounds retain ownership while falling back to
    the resolved palette background. Disabled MOTD always clears ownership.
 6. Generated Starship TOML and the generated ble.sh scheme agree on `shadow`.
-   Generated `_PRELUDE_WINDOW_BACKGROUND_SET` must survive as
-   `_prelude_window_background_set` after bootstrap cleanup.
+   Generated `_PRELUDE_WINDOW_BACKGROUND_SET` must survive bootstrap cleanup:
+   successful owned startup selects `shadow`; successful fallback, quiet, and
+   failed-MOTD startup select `palette.bg`.
 7. Direct `mkPrompt` generation without module-injected context deterministically
    derives `shadow` from resolved `palette.bg`.
