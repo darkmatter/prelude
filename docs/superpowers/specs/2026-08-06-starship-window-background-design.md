@@ -32,7 +32,7 @@ The generated prompt has an effective `window` color and a conditional outer bac
 
 The relative/blend row is deliberately static. MOTD resolves terminal-relative colors at runtime, while generated Starship configuration is evaluated ahead of that query. The prompt uses the same deterministic palette-background fallback already used for derived shadow styling; no runtime MOTD-to-Starship synchronization is introduced.
 
-For the requested `windowBackground = true` case, both MOTD and Starship resolve to the same canonical value derived from `palette.bg`.
+For the requested `windowBackground = true` case, both sides derive from the same `palette.bg`. Starship receives the canonical truecolor form, while MOTD retains the accepted raw form and Lip Gloss resolves it through the same color contract.
 
 ## Architecture
 
@@ -46,7 +46,7 @@ window = canonicalColor (
 );
 ```
 
-`canonicalColor` must use the existing accepted-color conversion path (`colorToRGB` followed by `rgbToHex`) so short hex, ANSI-index, and packed-RGB forms are represented as stable truecolor. `shadow` continues to derive from the same selected static base and keeps its existing five-percent contract.
+`canonicalColor` must be defined in `src/prelude/lib.nix` beside the existing color helpers and exported for focused Nix checks. It must use the accepted-color conversion path (`colorToRGB` followed by `rgbToHex`) so short hex, ANSI-index, and packed-RGB forms are represented as stable truecolor. `shadow` continues to derive from the same selected static base and keeps its current implementation and assertions unchanged (currently a 2.5% lighten-toward-white contract).
 
 The envelope remains separate from `palette`. `window` and `shadow` must not be merged into the Go-safe palette passed to MOTD, menu, or docs JSON decoders.
 
@@ -64,7 +64,7 @@ The format keeps its semantic `bg:window` reference only when Prelude owns a win
 
 ```nix
 format = "[${leftSegments}\n[╰─](fg:accent) ]${
-  if backdrop.windowBackgroundSet then "(bg:window)" else ""
+  if backdrop.windowBackgroundSet then "(bg:window)" else "()"
 }";
 ```
 
@@ -90,7 +90,7 @@ Extend the existing `prompt-shadow-palette` check in `nix/checks.nix` with focus
 4. Relative and blend contexts retain `windowBackgroundSet = true`, use the canonical `palette.bg` fallback, and include `(bg:window)`.
 5. Numeric and short-hex `palette.bg`/literal values are emitted as canonical six-digit truecolor values.
 6. The existing `shadow` assertions remain unchanged and continue to prove the selected-base contract.
-7. The generated config does not add `window` or `shadow` to the Go-safe palette JSON.
+7. The MOTD, menu, and docs palette JSON objects contain no `window` or `shadow` key; the Starship-only envelope fields remain outside the Go-safe palette.
 8. A rendered `starship prompt` smoke test with `TERM=xterm-256color` confirms that the true case emits the expected truecolor background SGR.
 9. A supplied `configFile` remains byte-for-byte user-owned and receives no generated backdrop styling.
 
