@@ -299,7 +299,7 @@ buildGoModule {
   subPackages = [ "cmd/motd" ];
   # Banner layout is still in flux — don't block package builds on render tests.
   doCheck = false;
-  vendorHash = "sha256-xtubcnDtPcFPOr7Qj3hm2eSGxbACoabLyl/CTLlqp/U=";
+  vendorHash = "sha256-qHpXE7MVG06KxY/2eLnqUva3/FHjAdQceH6A/5sn7mU=";
   ldflags = [
     "-s"
     "-w"

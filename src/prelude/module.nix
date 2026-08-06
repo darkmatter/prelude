@@ -72,7 +72,6 @@ let
   mkPrompt = import ./prompt.nix;
   mkPromptStatus = import ./prompt-status.nix;
   mkShellInit = import ./shell-init.nix;
-  mkPin = import ./pin.nix;
   plib = import ./lib.nix { inherit lib; };
   optionTypes = import ./option-types.nix { inherit lib; };
 
@@ -407,7 +406,7 @@ in
 
         # The current shell is the product boundary. Checked-in shell modules
         # own behavior; Nix injects paths and serializes the same normalized
-        # catalogue used by menu. nix develop and Zellij share one entrypoint.
+        # catalogue used by menu. The devshell sources this entrypoint directly.
         shell =
           mkShellInit
             {
@@ -435,28 +434,6 @@ in
         shellInit = shell.init;
         shellRuntime = shell.runtime;
 
-        # Zellij pin workspace: real panes for docs/motd; shell = Starship+ble.
-        # Its shell pane sources the same init file as nix develop.
-        pinPkg =
-          mkPin
-            {
-              inherit (pkgs)
-                lib
-                writeText
-                writeShellApplication
-                writeShellScriptBin
-                runCommand
-                symlinkJoin
-                zellij
-                bash
-                jq
-                ;
-            }
-            {
-              promptConfig = if cfg.prompt.enable then promptPkg else null;
-              inherit shellInit;
-            };
-
         # Canonical devshell package. Component packages already compose their
         # enabled descendants (motd -> menu -> docs), so select only the
         # outermost enabled component and add prompt runtimes when requested.
@@ -472,7 +449,7 @@ in
         promptStatusPackages = lib.optional (promptStatusPkg != null) promptStatusPkg;
         preludePkg = pkgs.symlinkJoin {
           name = "prelude";
-          paths = preludeComponentPaths ++ promptRuntimePackages ++ promptStatusPackages ++ [ pinPkg ];
+          paths = preludeComponentPaths ++ promptRuntimePackages ++ promptStatusPackages;
           postBuild = lib.optionalString cfg.prompt.enable ''
             mkdir -p "$out/nix-support" "$out/share/prelude/shell"
             cp -f ${shellInit} "$out/share/prelude/init.bash"
@@ -505,7 +482,6 @@ in
               promptRuntimePackages
               promptStatusPkg
               promptStatusPackages
-              pinPkg
               shellInit
               shellRuntime
               ;
@@ -532,7 +508,6 @@ in
           # Add this single package to a devshell to receive every enabled
           # Prelude component and its runtime dependencies.
           packages.prelude = preludePkg;
-          packages.pin = pinPkg;
         }
         (lib.mkIf cfg.motd.enable {
           packages.motd = motdPkg;

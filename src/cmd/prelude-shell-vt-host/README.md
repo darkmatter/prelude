@@ -1,8 +1,8 @@
 # prelude-shell-vt-host
 
-A rewrite of `prelude-shell-vt-spike` as a maintainable module: same
-architecture, but with the invariants pinned down by tests and the shutdown,
-rendering, and input paths made correct rather than merely demonstrable.
+A maintainable terminal host for composing Prelude surfaces with an
+interactive shell: the invariants are pinned down by tests, and the shutdown,
+rendering, and input paths are correct rather than merely demonstrable.
 
 ## The idea
 
@@ -96,17 +96,17 @@ in a single row.
 | **Shift+PgUp / PgDn** | scroll the child's history |
 | `exit` / **Ctrl+D** | leave; the host exits with the child's status |
 
-## What changed from the spike
+## Design corrections
 
 **Rendering.** One reused frame buffer instead of a fresh allocation per paint,
 and cells stored by value in a single slice per surface. Composition steps over
-wide graphemes by cell width; the spike wrote every column, which made
-ultraviolet blank each wide glyph as the following continuation cell landed.
+wide graphemes by cell width; writing every column made ultraviolet blank each
+wide glyph as the following continuation cell landed.
 
 **Output.** A reader goroutine feeds the virtual terminal and a throttle
 coalesces repaints: the first byte after an idle period paints immediately, and
-a burst collapses to one trailing frame. The spike issued one `tea.Cmd` per
-read, so a chatty child scheduled a frame per chunk.
+a burst collapses to one trailing frame. Issuing one `tea.Cmd` per read meant a
+chatty child scheduled a frame per chunk.
 
 **Resize.** Applied only when the geometry actually changes, so dragging a
 window edge does not become a `SIGWINCH` storm, and a resize that leaves the
@@ -121,8 +121,8 @@ from child failures via `hostError`.
 
 **Panels.** Captured through their own virtual terminal at exactly the pin
 body's geometry. A command that repaints itself lands as the picture it meant
-to draw rather than the transcript of how it got there — the spike's
-`ansi.Strip` kept erased text and dropped colour. A partial image survives a
+to draw rather than the transcript of how it got there — using `ansi.Strip`
+kept erased text and dropped colour. A partial image survives a
 nonzero exit, so a failing command still shows the operator something real.
 
 **Opacity is a per-band policy, not a global one.** A virtual terminal reports
@@ -143,8 +143,8 @@ the same `shell.draw` as the shell itself, so reusing the shell's policy for it
 would silently reintroduce transparent chrome. That is why the policy is a
 parameter rather than a property of the capture path.
 
-**Header.** The pin header is drawn after the panel blit. The spike blitted
-over its own header.
+**Header.** The pin header is drawn after the panel blit. Drawing the panel
+could otherwise overwrite its own header.
 
 ## Shutdown
 
@@ -208,9 +208,9 @@ check or the detach ordering is removed.
 
 ## Status
 
-The architecture question the spike asked is answered, and the Docs pin is now
-a live pane rather than a placeholder: the real docs TUI runs in the band, and
-Ctrl+O hands it the keyboard so its pages can actually be turned.
+The architecture is now complete: the Docs pin is a live pane rather than a
+placeholder. The real docs TUI runs in the band, and Ctrl+O hands it the
+keyboard so its pages can actually be turned.
 
 Still open: the pin is cycled with Ctrl+G rather than driven by a command the
 child shell can run, and MOTD and Menu remain captured surfaces — correctly, in

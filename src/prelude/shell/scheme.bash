@@ -22,7 +22,7 @@ function ble/contrib/scheme:prelude/initialize {
   ble-face -s vbell_flash               'fg=%prelude_selection_fg,bg=%prelude_error,bold'
   ble-face -s prompt_status_line        'fg=%prelude_dim,bg=%prelude_shadow'
   # This state starts static; init promotes it only after MOTD successfully
-  # paints the window, so quiet pin panes never claim backdrop ownership.
+  # paints the window.
   ble-face -d prelude_status_cap        'fg=%prelude_surface,bg=%prelude_bg'
   function prelude/status/cap/refresh-face {
     local window_background_set=${1:-0}

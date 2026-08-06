@@ -32,7 +32,7 @@ let
     src = ../.;
     subPackages = [ "cmd/title" ];
     doCheck = false;
-    vendorHash = "sha256-xtubcnDtPcFPOr7Qj3hm2eSGxbACoabLyl/CTLlqp/U=";
+    vendorHash = "sha256-qHpXE7MVG06KxY/2eLnqUva3/FHjAdQceH6A/5sn7mU=";
     ldflags = [
       "-s"
       "-w"

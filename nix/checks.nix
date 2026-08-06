@@ -65,13 +65,9 @@ in
                 command -v motd >/dev/null
                 command -v menu >/dev/null
                 command -v docs >/dev/null
-                command -v pin >/dev/null
-                command -v prelude-shell >/dev/null
                 command -v starship >/dev/null
                 command -v blesh-share >/dev/null
                 test -f ${config.packages.prelude}/share/blesh/ble.sh
-                test -f ${config.packages.prelude}/share/prelude/zellij/config.kdl
-                test -f ${config.packages.prelude}/share/prelude/shell.bash
                 test -f ${config.packages.prelude}/share/prelude/init.bash
                 test -f ${config.packages.prelude}/share/prelude/shell/init.bash
                 test -f ${config.packages.prelude}/share/prelude/shell/bash-init.bash
@@ -376,15 +372,6 @@ in
                 shellcheck -x -e SC2016,SC2154 ${config.packages.prelude}/share/prelude/shell/status.bash
                 shellcheck -x -e SC2154 ${config.packages.prelude}/share/prelude/shell/completion.bash
                 shellcheck -e SC2154 ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
-                ${pkgs.bash}/bin/bash -n ${config.packages.prelude}/share/prelude/shell.bash
-                grep -Fq 'pane_frames false' ${config.packages.prelude}/share/prelude/zellij/config.kdl
-                grep -Fq 'mouse_hover_effects false' ${config.packages.prelude}/share/prelude/zellij/config.kdl
-                grep -Fq 'default_mode "locked"' ${config.packages.prelude}/share/prelude/zellij/config.kdl
-                grep -Fq 'FocusNextPane' ${config.packages.prelude}/share/prelude/zellij/config.kdl
-                grep -Fq 'Alt p' ${config.packages.prelude}/share/prelude/zellij/config.kdl
-                grep -Fq 'prelude-focus-rail' ${config.packages.prelude}/share/prelude/zellij/layouts/shell.kdl
-                grep -Fq 'name "shell"' ${config.packages.prelude}/share/prelude/zellij/layouts/shell.kdl
-                command -v prelude-focus-rail >/dev/null
                 touch "$out"
       '';
 

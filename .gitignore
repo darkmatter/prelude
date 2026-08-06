@@ -4,7 +4,12 @@ result-*
 docs/.record-bin/
 
 # Local Go build outputs
-/src/motd/motd
+/src/cmd/docs/docs
+/src/cmd/menu/menu
+/src/cmd/motd/motd
+/src/cmd/prompt-status/prompt-status
+/src/cmd/title/title
+/src/cmd/prelude-shell-vt-host/prelude-shell-vt-host
 
 # direnv
 .direnv/
