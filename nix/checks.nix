@@ -53,6 +53,70 @@ in
   motd-default = config.packages.motd;
   title-default = config.packages.title;
   menu-default = config.packages.menu;
+  status-gradient-width =
+    pkgs.runCommand "status-gradient-width" { } ''
+      gradient_line=$(grep '^_PRELUDE_PROMPT_STATUS_GRADIENT=' ${config.packages.prelude.shellInit})
+      test "$(printf '%s' "$gradient_line" | tr -cd '#' | wc -c)" -eq 64
+      grep -Fq '_PRELUDE_PROMPT_STATUS_GRADIENT_FG=' ${config.packages.prelude.shellInit}
+      grep -Fq '_PRELUDE_PROMPT_STATUS_HINT_BOLD_START=' ${config.packages.prelude.shellInit}
+      grep -Fq '_PRELUDE_PROMPT_STATUS_HINT_BOLD_WIDTH=' ${config.packages.prelude.shellInit}
+
+      ${lib.getExe pkgs.bash} <<'EOF'
+      set -euo pipefail
+      _PRELUDE_STARSHIP_STATUS_ENABLED=1
+      _PRELUDE_PROMPT_STATUS_HINT=
+      _PRELUDE_PROMPT_STATUS_GRADIENT='#000000:#111111:#222222:#333333'
+      _PRELUDE_PROMPT_STATUS_GRADIENT_FG='#ffffff'
+      ble/unicode/GraphemeCluster/match() {
+        local text=$1 index=$2
+        cs=''${text:index:1}
+        w=1
+        extend=0
+      }
+      source ${../src/prelude/shell/status.bash}
+
+      COLUMNS=10
+      _prelude_status_render ""
+      test "''${#_prelude_status_gradient_chunks[@]}" -eq 4
+      test "''${#_prelude_status_gradient_chunks[0]}" -eq 3
+      test "''${#_prelude_status_gradient_chunks[1]}" -eq 3
+      test "''${#_prelude_status_gradient_chunks[2]}" -eq 3
+      test "''${#_prelude_status_gradient_chunks[3]}" -eq 1
+
+      COLUMNS=19
+      _prelude_status_render ""
+      test "''${#_prelude_status_gradient_chunks[@]}" -eq 4
+      test "''${#_prelude_status_gradient_chunks[0]}" -eq 6
+      test "''${#_prelude_status_gradient_chunks[1]}" -eq 6
+      test "''${#_prelude_status_gradient_chunks[2]}" -eq 6
+      test "''${#_prelude_status_gradient_chunks[3]}" -eq 1
+
+      _prelude_status_default='\g{x}unsafe'
+      _ble_edit_str=
+      _prelude_fake_hash_count=0
+      _prelude_fake_styles=
+      _prelude_fake_text=
+      ble/prompt/unit/add-hash() { _prelude_fake_hash_count=$((_prelude_fake_hash_count + 1)); }
+      ble/prompt/process-prompt-string() { _prelude_fake_styles+=$1; }
+      ble/prompt/print() { _prelude_fake_text+=$1; }
+      ble/prompt/backslash:prelude/status
+      test "$_prelude_fake_hash_count" -eq 4
+      test "''${#_prelude_fake_text}" -eq 19
+      case $_prelude_fake_text in
+        *'\g{x}unsafe'*) ;;
+        *) exit 1 ;;
+      esac
+      case $_prelude_fake_styles in
+        *'bg=#000000'*'bg=#333333'*) ;;
+        *) exit 1 ;;
+      esac
+      case $_prelude_fake_styles in
+        *unsafe*) exit 1 ;;
+      esac
+      EOF
+      touch "$out"
+    '';
+
   prelude-default =
     pkgs.runCommand "prelude-default"
       {
@@ -96,6 +160,8 @@ in
                 grep -Fq '_PRELUDE_PROMPT_NAVIGATION_RENDERED=' ${config.packages.prelude}/share/prelude/init.bash
                 grep -Fq '_PRELUDE_PROMPT_STATUS_HINT=' ${config.packages.prelude}/share/prelude/init.bash
                 grep -Fq '_PRELUDE_PROMPT_STATUS_HINT_RENDERED=' ${config.packages.prelude}/share/prelude/init.bash
+                grep -Fq '_PRELUDE_PROMPT_STATUS_GRADIENT=' ${config.packages.prelude}/share/prelude/init.bash
+                grep -Fq '_PRELUDE_PROMPT_STATUS_GRADIENT_FG=' ${config.packages.prelude}/share/prelude/init.bash
                 grep -Fq "bleopt prompt_status_line='\\q{prelude/status}'" ${config.packages.prelude}/share/prelude/shell/bash-init.bash
                 grep -Fq "blehook PRECMD!='prelude/status/update'" ${config.packages.prelude}/share/prelude/shell/bash-init.bash
                 (
@@ -152,10 +218,11 @@ in
                   ! printf '%s' "$_prelude_fake_line" | grep -F '\g{none}'
                   test "$_prelude_fake_process_count" -eq 1
                   test "$_prelude_fake_processed" = "   $_PRELUDE_PROMPT_STATUS_HINT_RENDERED"
-                  test "$_prelude_fake_hash_count" -eq 3
+                  test "$_prelude_fake_hash_count" -eq 4
                   printf '%s' "$_prelude_fake_hashes" | grep -F '<$_ble_edit_str>'
                   printf '%s' "$_prelude_fake_hashes" | grep -F '<$_prelude_status_revision>'
                   printf '%s' "$_prelude_fake_hashes" | grep -F '<$_prelude_status_health_record>'
+                  printf '%s' "$_prelude_fake_hashes" | grep -F '<$COLUMNS>'
                   COLUMNS=40
                   _ble_edit_str=
                   ble/prompt/backslash:prelude/status

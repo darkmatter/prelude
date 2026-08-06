@@ -49,17 +49,21 @@ let
   );
   # Keep a visible-text twin: status.bash calculates padding before ble.sh
   # strips the trusted `\g` markup.
-  hintText = "Run commands: x <cmd> or x ⇥";
-  # Gradient stops from bg to shadow across the hint segments.
-  gs0 = plib.mixColor palette.bg resolvedShadow 0.0;
-  gs1 = plib.mixColor palette.bg resolvedShadow 0.33;
-  gs2 = plib.mixColor palette.bg resolvedShadow 0.67;
-  gs3 = plib.mixColor palette.bg resolvedShadow 1.0;
+  hintPrefix = "Run commands: ";
+  hintCommand = "x <cmd>";
+  hintText = hintPrefix + hintCommand;
+  # Sample the subtle bg → shadow transition densely. status.bash maps these
+  # colors to terminal columns, so resizing moves the stops with the viewport
+  # instead of tying them to hint fragments.
+  gradientStopCount = 64;
+  gradientColors = lib.genList (
+    index:
+    plib.mixColor palette.bg resolvedShadow (index * 1.0 / (gradientStopCount - 1))
+  ) gradientStopCount;
+  # Fallback for an older runtime that does not understand the gradient palette.
   hintRendered = lib.concatStrings [
-    "\\g{fg=${palette.dim},bg=${gs0}}Run commands: "
-    "\\g{bold,fg=${palette.dim},bg=${gs1}}x <cmd> "
-    "\\g{fg=${palette.dim},bg=${gs2}}or "
-    "\\g{bold,fg=${palette.dim},bg=${gs3}}x ⇥"
+    "\\g{fg=${palette.dim}}${hintPrefix}"
+    "\\g{bold,fg=${palette.dim}}${hintCommand}"
   ];
   catalogue = writeText "prelude-shell-catalogue.bash" (
     import ./shell/catalogue.nix { inherit lib; } { inherit commandEntries; }
@@ -119,6 +123,10 @@ let
     _PRELUDE_PROMPT_NAVIGATION_RENDERED=${lib.escapeShellArg navigationRendered}
     _PRELUDE_PROMPT_STATUS_HINT=${lib.escapeShellArg hintText}
     _PRELUDE_PROMPT_STATUS_HINT_RENDERED=${lib.escapeShellArg hintRendered}
+    _PRELUDE_PROMPT_STATUS_HINT_BOLD_START=${toString (builtins.stringLength hintPrefix)}
+    _PRELUDE_PROMPT_STATUS_HINT_BOLD_WIDTH=${toString (builtins.stringLength hintCommand)}
+    _PRELUDE_PROMPT_STATUS_GRADIENT=${lib.escapeShellArg (lib.concatStringsSep ":" gradientColors)}
+    _PRELUDE_PROMPT_STATUS_GRADIENT_FG=${lib.escapeShellArg palette.dim}
     _PRELUDE_MOTD=${lib.escapeShellArg (if motdCommand == null then "" else motdCommand)}
     _PRELUDE_PROMPT_STATUS=${
       lib.escapeShellArg (if promptStatusCommand == null then "" else promptStatusCommand)
@@ -136,6 +144,8 @@ let
     unset _PRELUDE_WINDOW_BACKGROUND_SET
     unset _PRELUDE_PROMPT_NAVIGATION _PRELUDE_PROMPT_NAVIGATION_RENDERED
     unset _PRELUDE_PROMPT_STATUS_HINT _PRELUDE_PROMPT_STATUS_HINT_RENDERED
+    unset _PRELUDE_PROMPT_STATUS_HINT_BOLD_START _PRELUDE_PROMPT_STATUS_HINT_BOLD_WIDTH
+    unset _PRELUDE_PROMPT_STATUS_GRADIENT _PRELUDE_PROMPT_STATUS_GRADIENT_FG
     unset _PRELUDE_PROMPT_STATUS _PRELUDE_PROMPT_STATUS_CONFIG
     unset _PRELUDE_MOTD _PRELUDE_DARWIN
   '';

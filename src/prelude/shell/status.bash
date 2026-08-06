@@ -6,9 +6,9 @@
 # the refresh lifecycle both no-op unless this is 1.
 _prelude_status_enabled=${_PRELUDE_STARSHIP_STATUS_ENABLED:-0}
 
-# Render output: the middle segment (message plus padding spaces) printed
-# after the hint. Plain text painted with the prompt_status_line face; rebuilt
-# on every render.
+# Plain message-plus-padding suffix. The gradient path joins it to the visible
+# hint and splits the complete row into styled runs; the fallback prints it
+# after the pre-rendered hint.
 _prelude_status_literal=
 
 # Cached health snapshot, a TSV record (state, last_status, age, message,
@@ -29,11 +29,28 @@ _prelude_status_config=${_PRELUDE_PROMPT_STATUS_CONFIG-}
 
 # Plain hint text: the width-measurement twin, and the fallback drawn when no
 # rendered twin is provided.
-_prelude_status_hint=${_PRELUDE_PROMPT_STATUS_HINT:-'Run commands: x <cmd> or x ⇥'}
+_prelude_status_hint=${_PRELUDE_PROMPT_STATUS_HINT:-'Run commands: x <cmd>'}
 
-# `\g`-markup twin of the hint; drawn when the hint fits. Falls back to the
-# plain twin above when unset.
+# `\g`-markup twin of the hint; used only when no width-aware gradient palette
+# was generated. Falls back to the plain twin above when unset.
 _prelude_status_hint_rendered=${_PRELUDE_PROMPT_STATUS_HINT_RENDERED:-$_prelude_status_hint}
+
+# Nix precomputes a dense bg → shadow palette; Bash owns placement because only
+# the live shell knows the terminal width. Colors are colon-delimited hex values.
+_prelude_status_gradient_spec=${_PRELUDE_PROMPT_STATUS_GRADIENT-}
+_prelude_status_gradient_fg=${_PRELUDE_PROMPT_STATUS_GRADIENT_FG-}
+_prelude_status_hint_bold_start=${_PRELUDE_PROMPT_STATUS_HINT_BOLD_START:-0}
+_prelude_status_hint_bold_width=${_PRELUDE_PROMPT_STATUS_HINT_BOLD_WIDTH:-0}
+case $_prelude_status_hint_bold_start in
+  ''|*[!0-9]*) _prelude_status_hint_bold_start=0 ;;
+esac
+case $_prelude_status_hint_bold_width in
+  ''|*[!0-9]*) _prelude_status_hint_bold_width=0 ;;
+esac
+_prelude_status_gradient_colors=()
+if [ -n "$_prelude_status_gradient_spec" ]; then
+  IFS=: read -r -a _prelude_status_gradient_colors <<<"$_prelude_status_gradient_spec"
+fi
 
 # Discovery message shown when the buffer is empty or not an `x` invocation.
 _prelude_status_default=""
@@ -46,9 +63,14 @@ _prelude_status_words=()
 # hints plus merged health state); becomes the left part of the literal.
 _prelude_status_message=
 
-# Render output: the final hint string chosen by the width fit (rendered
-# markup), or empty when the hint does not fit.
+# Fallback render output: the final hint markup chosen by the width fit, or
+# empty when the hint does not fit.
 _prelude_status_hint_line=
+
+# Width-aware output runs. Styles are trusted generated prompt markup; chunks
+# are always sent through ble/prompt/print so live status text remains literal.
+_prelude_status_gradient_styles=()
+_prelude_status_gradient_chunks=()
 
 # PID of the last detached --refresh helper run; guards against spawning a
 # second refresh while one is still in flight.
@@ -128,7 +150,7 @@ _prelude_status_discovery() {
   _prelude_status_tokenize "$input" || return 0
   count=${#_prelude_status_words[@]}
   if ((count == 0)); then
-    _prelude_status_message='`x <cmd>` for hints ▶︎  ⇥ cycle  ↑↓ navigate'
+    _prelude_status_message=' ⇥ cycle  ↑↓ navigate'
     return 0
   fi
 
@@ -230,26 +252,89 @@ _prelude_status_fit() {
   ((index == length))
 }
 
+_prelude_status_gradient_append() {
+  local text=$1 color=$2 bold=$3 index
+  index=${#_prelude_status_gradient_chunks[@]}
+  _prelude_status_gradient_chunks[index]=$text
+  if ((bold)); then
+    _prelude_status_gradient_styles[index]="\\g{bold,fg=$_prelude_status_gradient_fg,bg=$color}"
+  else
+    _prelude_status_gradient_styles[index]="\\g{fg=$_prelude_status_gradient_fg,bg=$color}"
+  fi
+}
+
+# Split the complete visible row at palette stops. Stop positions are a function
+# of terminal columns, never text-fragment lengths. Grapheme matching keeps wide
+# and combining characters aligned with the same cell accounting used for fit.
+_prelude_status_build_gradient() {
+  local value=${1-} width=${2-} hint_width=${3-} indent=${4-}
+  local index=0 cell=0 length stop_count stop_index bold key
+  local current_key='' current_color='' current_bold=0 chunk=''
+  local cs w extend color
+  local bold_from bold_to
+  _prelude_status_gradient_styles=()
+  _prelude_status_gradient_chunks=()
+  stop_count=${#_prelude_status_gradient_colors[@]}
+  ((stop_count > 1)) || return 1
+  [ -n "$_prelude_status_gradient_fg" ] || return 1
+  case $width in
+    ''|*[!0-9]*|0*) return 1 ;;
+  esac
+
+  bold_from=$((indent + _prelude_status_hint_bold_start))
+  bold_to=$((bold_from + _prelude_status_hint_bold_width))
+  length=${#value}
+  while ((index < length)); do
+    ble/unicode/GraphemeCluster/match "$value" "$index"
+    if ((width > 1)); then
+      stop_index=$((cell * (stop_count - 1) / (width - 1)))
+    else
+      stop_index=$((stop_count - 1))
+    fi
+    color=${_prelude_status_gradient_colors[stop_index]}
+    bold=0
+    if ((hint_width > 0 && cell >= bold_from && cell < bold_to)); then
+      bold=1
+    fi
+    key=$color:$bold
+    if [ -n "$current_key" ] && [ "$key" != "$current_key" ]; then
+      _prelude_status_gradient_append "$chunk" "$current_color" "$current_bold"
+      chunk=
+    fi
+    current_key=$key
+    current_color=$color
+    current_bold=$bold
+    chunk+=$cs
+    ((cell += w, index += 1 + extend))
+  done
+  [ -z "$chunk" ] || _prelude_status_gradient_append "$chunk" "$current_color" "$current_bold"
+  ((cell == width && ${#_prelude_status_gradient_chunks[@]} > 0))
+}
+
 _prelude_status_render() {
   local input=${1-} width left padding
-  local hint hint_width available left_width ellipsis_width
+  local hint plain_hint hint_width available left_width ellipsis_width
   local indent=3 indent_pad
   printf -v indent_pad '%*s' "$indent" ''
   case ${COLUMNS-} in
     ''|*[!0-9]*|0*|????????*) width=80 ;;
     *) width=$((10#$COLUMNS)) ;;
   esac
+  _prelude_status_gradient_styles=()
+  _prelude_status_gradient_chunks=()
   _prelude_status_discovery "$input"
   _prelude_status_health
   left=$_prelude_status_message
 
   available=$((width - 1))
   hint=
+  plain_hint=
   hint_width=0
   if [ -n "$_prelude_status_hint" ] &&
     ((available > 2)) &&
     _prelude_status_fit "$_prelude_status_hint" "$((available - 2))"; then
     hint="$indent_pad$_prelude_status_hint_rendered"
+    plain_hint="$indent_pad$_prelude_status_hint"
     hint_width=$((_prelude_status_fit_width + indent))
     available=$((available - hint_width))
   fi
@@ -271,6 +356,12 @@ _prelude_status_render() {
   padding=$((width - hint_width - left_width))
   printf -v _prelude_status_literal '%s%*s' "$left" "$padding" ''
   _prelude_status_hint_line=$hint
+  if ((${#_prelude_status_gradient_colors[@]} > 1)); then
+    _prelude_status_build_gradient "$plain_hint$_prelude_status_literal" "$width" "$hint_width" "$indent" || {
+      _prelude_status_gradient_styles=()
+      _prelude_status_gradient_chunks=()
+    }
+  fi
 }
 _prelude_status_read_health_record() {
   local record=${1-} state last_status age message start revision
@@ -304,10 +395,19 @@ function prelude/status/refresh {
 
 function ble/prompt/backslash:prelude/status {
   [ "$_prelude_status_enabled" = 1 ] || return 0
+  local index
   ble/prompt/unit/add-hash '$_ble_edit_str'
   ble/prompt/unit/add-hash '$_prelude_status_revision'
   ble/prompt/unit/add-hash '$_prelude_status_health_record'
+  ble/prompt/unit/add-hash '$COLUMNS'
   _prelude_status_render "${_ble_edit_str-}"
-  [ -z "$_prelude_status_hint_line" ] || ble/prompt/process-prompt-string "$_prelude_status_hint_line"
-  ble/prompt/print "$_prelude_status_literal"
+  if ((${#_prelude_status_gradient_chunks[@]} > 0)); then
+    for ((index = 0; index < ${#_prelude_status_gradient_chunks[@]}; index++)); do
+      ble/prompt/process-prompt-string "${_prelude_status_gradient_styles[index]}"
+      ble/prompt/print "${_prelude_status_gradient_chunks[index]}"
+    done
+  else
+    [ -z "$_prelude_status_hint_line" ] || ble/prompt/process-prompt-string "$_prelude_status_hint_line"
+    ble/prompt/print "$_prelude_status_literal"
+  fi
 }
