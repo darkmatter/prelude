@@ -185,17 +185,33 @@ let
     in
     "#${channel rgb.r}${channel rgb.g}${channel rgb.b}";
 
-  # Match Lip Gloss Darken exactly: multiply each byte by 0.95 and truncate.
-  darkenColor =
+  # Lighten a color by mixing 2.5% toward white (255). Used for the shadow
+  # surface: a subtle shade just lighter than bg so chrome bars (status line,
+  # cap) are visible against the terminal background.
+  lightenColor =
     value:
     let
       rgb = colorToRGB value;
-      darken = channel: builtins.floor (channel * 0.95);
+      lighten = channel: builtins.floor (channel + (255 - channel) * 0.025);
     in
     rgbToHex {
-      r = darken rgb.r;
-      g = darken rgb.g;
-      b = darken rgb.b;
+      r = lighten rgb.r;
+      g = lighten rgb.g;
+      b = lighten rgb.b;
+    };
+
+  # Linear interpolation between two colors by t ∈ 0.0–1.0.
+  mixColor =
+    a: b: t:
+    let
+      ra = colorToRGB a;
+      rb = colorToRGB b;
+      mix = ca: cb: builtins.floor (ca + (cb - ca) * t);
+    in
+    rgbToHex {
+      r = mix ra.r rb.r;
+      g = mix ra.g rb.g;
+      b = mix ra.b rb.b;
     };
 
   # Only an enabled MOTD can paint a Prelude-owned terminal backdrop. Relative
@@ -224,7 +240,7 @@ let
     in
     {
       inherit palette windowBackgroundSet;
-      shadow = darkenColor (if windowBackgroundSet && base != null then base else palette.bg);
+      shadow = lightenColor (if windowBackgroundSet && base != null then base else palette.bg);
     };
 
   # Resolve a spacing spec into explicit sides. `x`/`y` are axis shorthands
@@ -630,7 +646,8 @@ in
     themes
     themeNames
     resolvePalette
-    darkenColor
+    lightenColor
+    mixColor
     resolveWindowBackgroundContext
     resolveBackdropPalette
     resolveSpacing

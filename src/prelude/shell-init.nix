@@ -28,7 +28,7 @@
 
 let
   plib = import ./lib.nix { inherit lib; };
-  resolvedShadow = if shadow == null then plib.darkenColor palette.bg else shadow;
+  resolvedShadow = if shadow == null then plib.lightenColor palette.bg else shadow;
   # Prompt markup is zero-width after ble.sh parses it, while status-row layout
   # runs before parsing. Keep a literal twin so padding always uses cell widths.
   # The status row is standalone; each `\g` span resets SGR, so spans without a
@@ -49,16 +49,17 @@ let
   );
   # Keep a visible-text twin: status.bash calculates padding before ble.sh
   # strips the trusted `\g` markup.
-  hintText = "x <cmd> hint • x ⇥ inline • x tui";
+  hintText = "Run commands: x <cmd> or x ⇥";
+  # Gradient stops from bg to shadow across the hint segments.
+  gs0 = plib.mixColor palette.bg resolvedShadow 0.0;
+  gs1 = plib.mixColor palette.bg resolvedShadow 0.33;
+  gs2 = plib.mixColor palette.bg resolvedShadow 0.67;
+  gs3 = plib.mixColor palette.bg resolvedShadow 1.0;
   hintRendered = lib.concatStrings [
-    "\\g{bold,fg=${palette.fg}}x <cmd> "
-    "\\g{fg=${palette.muted}}hint "
-    "\\g{fg=${palette.dim}}• "
-    "\\g{bold,fg=${palette.fg}}x ⇥ "
-    "\\g{fg=${palette.muted}}inline "
-    "\\g{fg=${palette.dim}}• "
-    "\\g{bold,fg=${palette.fg}}x "
-    "\\g{fg=${palette.muted}}tui"
+    "\\g{fg=${palette.dim},bg=${gs0}}Run commands: "
+    "\\g{bold,fg=${palette.dim},bg=${gs1}}x <cmd> "
+    "\\g{fg=${palette.dim},bg=${gs2}}or "
+    "\\g{bold,fg=${palette.dim},bg=${gs3}}x ⇥"
   ];
   catalogue = writeText "prelude-shell-catalogue.bash" (
     import ./shell/catalogue.nix { inherit lib; } { inherit commandEntries; }

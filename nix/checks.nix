@@ -1,14 +1,13 @@
 # Flake checks. Checks whose $out is a rendered preview use the `-render(s)`
 # suffix — the previews utility (previews.nix) discovers them by name.
-{
-  pkgs,
-  lib,
-  config,
-  demos,
-  docsAutomation,
-  previews,
-  flakePartsLib,
-  ...
+{ pkgs
+, lib
+, config
+, demos
+, docsAutomation
+, previews
+, flakePartsLib
+, ...
 }:
 let
   preludeLib = import ./lib.nix { inherit lib; };
@@ -90,7 +89,7 @@ in
                 grep -Fq 'bleopt color_scheme=prelude' ${config.packages.prelude}/share/prelude/shell/bash-init.bash
                 grep -Fq 'function ble/contrib/scheme:prelude/initialize' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
                 grep -Fq "ble-face -d prelude_status_cap" ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
-                test "$(grep -c '^  ble-face -s ' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash)" -eq 74
+                test "$(grep -c '^  ble-face -[sd] ' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash)" -eq 75
                 ! grep -Fq '%prelude_' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
                 ! grep -Eq '#[[:xdigit:]]{6}[[:alnum:]_]' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
                 ! grep -Fq 'right_format' ${config.packages.prompt}
@@ -154,18 +153,9 @@ in
                   printf '%s' "$_prelude_fake_literal" | grep -F 'x --list'
                   printf '%s' "$_prelude_fake_literal" | grep -F 'Tab'
                   printf '%s' "$_prelude_fake_line" | grep -F "$_PRELUDE_PROMPT_STATUS_HINT_RENDERED"
-                  printf '%s' "$_prelude_fake_line" | grep -F '\g{fg=#555555,bg=#101010}['
-                  printf '%s' "$_prelude_fake_line" | grep -F '\g{fg=#555555,bg=#101010}]'
-                  printf '%s' "$_prelude_fake_line" | grep -F '\g{bold,fg=#00ff00,bg=#101010}?'
-                  printf '%s' "$_prelude_fake_line" | grep -F '\g{bold,fg=#00ff00,bg=#101010}m'
-                  printf '%s' "$_prelude_fake_line" | grep -F '\g{bold,fg=#00ff00,bg=#101010}d'
-                  printf '%s' "$_prelude_fake_line" | grep -F '\g{fg=#777777,bg=#101010} motd'
-                  printf '%s' "$_prelude_fake_line" | grep -F '\g{fg=#777777,bg=#101010} menu'
-                  printf '%s' "$_prelude_fake_line" | grep -F '\g{fg=#777777,bg=#101010} docs'
-                  printf '%s' "$_prelude_fake_line" | grep -F '\g{fg=#777777,bg=#101010} motd  \g{fg=#555555,bg=#101010}['
                   ! printf '%s' "$_prelude_fake_line" | grep -F '\g{none}'
-                  test "$_prelude_fake_process_count" -eq 2
-                  test "$_prelude_fake_processed" = "$_PRELUDE_PROMPT_NAVIGATION_RENDERED"
+                  test "$_prelude_fake_process_count" -eq 1
+                  test "$_prelude_fake_processed" = "   $_PRELUDE_PROMPT_STATUS_HINT_RENDERED"
                   test "$_prelude_fake_hash_count" -eq 3
                   printf '%s' "$_prelude_fake_hashes" | grep -F '<$_ble_edit_str>'
                   printf '%s' "$_prelude_fake_hashes" | grep -F '<$_prelude_status_revision>'
@@ -181,7 +171,7 @@ in
                   ble/prompt/backslash:prelude/status
                   printf '%s' "$_prelude_fake_literal" | grep -F 'Welcome'
                   test "$_prelude_fake_process_count" -eq 1
-                  test "$_prelude_fake_processed" = "$_PRELUDE_PROMPT_STATUS_HINT_RENDERED"
+                  test "$_prelude_fake_processed" = "   $_PRELUDE_PROMPT_STATUS_HINT_RENDERED"
                   ! printf '%s' "$_prelude_fake_line" | grep -F 'motd'
                   COLUMNS=200
 
@@ -233,16 +223,12 @@ in
                   _prelude_status_health_record=$'stale\tstopped\t17m ago\tdown\tx dev\tr1'
                   ble/prompt/backslash:prelude/status
                   printf '%s' "$_prelude_fake_line" | grep -F 'start: x dev' | grep -F 'stale: down (17m ago)'
-                  _prelude_status_navigation=
-                  _prelude_status_navigation_rendered=
                   _ble_edit_str=
                   ble/prompt/backslash:prelude/status
                   ! printf '%s' "$_prelude_fake_line" | grep -F 'motd'
                   ! printf '%s' "$_prelude_fake_line" | grep -F '\g{fg=#555555,bg=#101010}['
 
                   _prelude_status_health_record=
-                  _prelude_status_navigation=
-                  _prelude_status_navigation_rendered=
                   _prelude_status_hint=
                   _prelude_status_hint_rendered=
                   _prelude_status_default='界'
@@ -266,7 +252,7 @@ in
                   ble/prompt/backslash:prelude/status
                   printf '%s' "$_prelude_fake_literal" | grep -F '\g{fg=#ff0000}unsafe'
                   test "$_prelude_fake_process_count" -eq 1
-                  test "$_prelude_fake_processed" = "$_PRELUDE_PROMPT_STATUS_HINT_RENDERED"
+                  test "$_prelude_fake_processed" = "   $_PRELUDE_PROMPT_STATUS_HINT_RENDERED"
                   ! printf '%s' "$_prelude_fake_processed" | grep -F 'unsafe'
                   refresh_tmp=$(mktemp -d)
                   export PRELUDE_FAKE_REFRESH_COUNT="$refresh_tmp/count"
@@ -489,16 +475,20 @@ in
         ];
       };
       normalized = plib.normalizeCommandGroups evaluated.config.prelude.sort.groups evaluated.config.prelude.commands;
-      actual = map (group: {
-        inherit (group) title;
-        commands = map (command: {
-          inherit (command)
-            name
-            label
-            run
-            ;
-        }) group.tasks;
-      }) normalized;
+      actual = map
+        (group: {
+          inherit (group) title;
+          commands = map
+            (command: {
+              inherit (command)
+                name
+                label
+                run
+                ;
+            })
+            group.tasks;
+        })
+        normalized;
       expected = [
         {
           title = "prelude";
@@ -628,12 +618,12 @@ in
     assert header.status.cache.failLevel == "warning";
     assert header.status.cache.async;
     assert
-      links == [
-        {
-          label = "Prelude on GitHub";
-          url = "https://github.com/darkmatter/prelude";
-        }
-      ];
+    links == [
+      {
+        label = "Prelude on GitHub";
+        url = "https://github.com/darkmatter/prelude";
+      }
+    ];
     assert padding.x == 2;
     assert padding.y == 2;
     assert padding.top == 2;
@@ -660,27 +650,27 @@ in
       };
     in
     assert
-      all == [
-        {
-          command = "motd";
-          alias = "?";
-        }
-        {
-          command = "menu";
-          alias = "m";
-        }
-        {
-          command = "docs";
-          alias = "d";
-        }
-      ];
+    all == [
+      {
+        command = "motd";
+        alias = "?";
+      }
+      {
+        command = "menu";
+        alias = "m";
+      }
+      {
+        command = "docs";
+        alias = "d";
+      }
+    ];
     assert
-      menuOnly == [
-        {
-          command = "menu";
-          alias = "m";
-        }
-      ];
+    menuOnly == [
+      {
+        command = "menu";
+        alias = "m";
+      }
+    ];
     pkgs.runCommand "component-shortcuts" { } "touch $out";
 
   # prelude.lib.mdSplit → { title = "README"; text; children = [preamble, H2…] }.
@@ -730,12 +720,12 @@ in
     assert builtins.length children == 4;
     # Pure mdSplit keeps H1-derived preamble title; docs.nix renames to project.
     assert
-      titles == [
-        "Guide"
-        "First section"
-        "Second section"
-        "motd options (`prelude.motd.*`)"
-      ];
+    titles == [
+      "Guide"
+      "First section"
+      "Second section"
+      "motd options (`prelude.motd.*`)"
+    ];
     assert lib.hasInfix "badge" (builtins.elemAt bodies 0);
     assert lib.hasInfix "intro before any H2" (builtins.elemAt bodies 0);
     assert !(lib.hasInfix "# Guide" (builtins.elemAt bodies 0));
@@ -750,10 +740,10 @@ in
     # Empty preamble still occupies children[0]; Alpha is not promoted.
     assert thin.title == "README";
     assert
-      thinTitles == [
-        "Thin"
-        "Alpha"
-      ];
+    thinTitles == [
+      "Thin"
+      "Alpha"
+    ];
     assert lib.hasInfix "alpha body" (builtins.readFile (builtins.elemAt thin.children 1).text);
     pkgs.runCommand "mdSplit-pages" { } "touch $out";
 
@@ -808,22 +798,24 @@ in
         })
           promptConfig;
       themeCases = {
-        phosphor = "#0b100d";
-        minted = "#0b0b12";
-        amber = "#100b07";
-        solarized = "#0c2121";
-        nord = "#2b3039";
-        gruvbox = "#262420";
-        mono = "#090909";
-        apathy = "#0d0a12";
-        prelude = "#0d0a12";
-        paper = "#e7e5e0";
+        phosphor = "#121614";
+        minted = "#121218";
+        amber = "#16120e";
+        solarized = "#132828";
+        nord = "#333841";
+        gruvbox = "#2d2b27";
+        mono = "#101010";
+        apathy = "#141118";
+        prelude = "#141118";
+        paper = "#f4f2ec";
       };
       themePrompts = lib.mapAttrs (theme: _: mkPrompt { inherit theme; }) themeCases;
       themeChecks = lib.concatStringsSep "\n" (
-        lib.mapAttrsToList (
-          theme: shadow: ''grep -Fq 'shadow = "${shadow}"' ${themePrompts.${theme}}''
-        ) themeCases
+        lib.mapAttrsToList
+          (
+            theme: shadow: ''grep -Fq 'shadow = "${shadow}"' ${themePrompts.${theme}}''
+          )
+          themeCases
       );
       overridden = mkPrompt {
         theme = "apathy";
@@ -847,6 +839,10 @@ in
           base = null;
         };
       };
+      injectedBackdrop = mkPrompt {
+        theme = "apathy";
+        backdropPalette = internalLib.resolveBackdropPalette "apathy" { } literalWindowContext;
+      };
       shortHex = mkPrompt {
         theme = "apathy";
         palette.bg = "#abc";
@@ -859,10 +855,13 @@ in
         theme = "apathy";
         palette.bg = 660510;
       };
-      disabledWindowContext =
-        internalLib.resolveWindowBackgroundContext false "#202020";
-      relativeWindowContext =
-        internalLib.resolveWindowBackgroundContext true { relative = -0.05; };
+      disabledWindowContext = internalLib.resolveWindowBackgroundContext false "#202020";
+      noWindowContext = internalLib.resolveWindowBackgroundContext true null;
+      transparentWindowContext = internalLib.resolveWindowBackgroundContext true false;
+      themeWindowContext = internalLib.resolveWindowBackgroundContext true true;
+      literalWindowContext = internalLib.resolveWindowBackgroundContext true "#202020";
+      relativeWindowContext = internalLib.resolveWindowBackgroundContext true { relative = -0.05; };
+      blendWindowContext = internalLib.resolveWindowBackgroundContext true { blend = 0.4; };
       mkShell =
         shadow: windowBackgroundSet:
         (import ../src/prelude/shell-init.nix {
@@ -886,20 +885,154 @@ in
     assert disabledWindowContext.base == null;
     assert relativeWindowContext.set;
     assert relativeWindowContext.base == null;
+    assert !noWindowContext.set;
+    assert noWindowContext.base == null;
+    assert !transparentWindowContext.set;
+    assert transparentWindowContext.base == null;
+    assert themeWindowContext.set;
+    assert themeWindowContext.base == null;
+    assert literalWindowContext.set;
+    assert literalWindowContext.base == "#202020";
+    assert blendWindowContext.set;
+    assert blendWindowContext.base == null;
     pkgs.runCommand "prompt-shadow-palette" { } ''
       ${themeChecks}
-      grep -Fq 'shadow = "#5f8ebe"' ${overridden}
-      grep -Fq 'shadow = "#000000"' ${black}
-      grep -Fq 'shadow = "#1e1e1e"' ${literalWindow}
-      grep -Fq 'shadow = "#0d0a12"' ${dynamicWindow}
-      grep -Fq 'shadow = "#a1b1c1"' ${shortHex}
-      grep -Fq 'shadow = "#f280cc"' ${indexed}
-      grep -Fq 'shadow = "#09131c"' ${packed}
+      grep -Fq 'shadow = "#6798c9"' ${overridden}
+      grep -Fq 'shadow = "#060606"' ${black}
+      grep -Fq 'shadow = "#252525"' ${literalWindow}
+      grep -Fq 'shadow = "#141118"' ${dynamicWindow}
+      grep -Fq 'shadow = "#252525"' ${injectedBackdrop}
+      grep -Fq 'shadow = "#acbccd"' ${shortHex}
+      grep -Fq 'shadow = "#ff8ad8"' ${indexed}
+      grep -Fq 'shadow = "#101923"' ${packed}
       grep -Fq '_PRELUDE_WINDOW_BACKGROUND_SET=1' ${ownedShell.init}
       grep -Fq '_PRELUDE_WINDOW_BACKGROUND_SET=0' ${fallbackShell.init}
-      grep -Fq 'fg=#1b1629,bg=#1e1e1e' ${ownedShell.runtime}/contrib/scheme/prelude.bash
-      grep -Fq 'fg=#1b1629,bg=#0d0a12' ${fallbackShell.runtime}/contrib/scheme/prelude.bash
-      grep -Fq '_prelude_window_background_set=''${_PRELUDE_WINDOW_BACKGROUND_SET:-0}' ${ownedShell.runtime}/bash-init.bash
+      cat > "$TMPDIR/probe-cap-face.bash" <<'EOF'
+      set -euo pipefail
+      scheme=$1
+      shadow=$2
+      background=$3
+      faces=$4
+      ble-import() { :; }
+      ble/contrib/scheme:default/initialize() { :; }
+      cap_defined=
+      ble-face() {
+        if [[ $2 == prelude_status_cap ]]; then
+          case $1 in
+            -d) cap_defined=1 ;;
+            -s) [[ $cap_defined ]] || exit 1 ;;
+          esac
+        fi
+        printf '%s\n' "$*" >> "$faces"
+      }
+      source "$scheme"
+      ble/contrib/scheme:prelude/initialize
+      grep -Fx -- "-d prelude_status_cap fg=#1b1629,bg=$background" "$faces"
+      grep -Fx -- "-s prelude_status_cap fg=#1b1629,bg=$background" "$faces"
+      : > "$faces"
+      cap_defined=
+      _prelude_window_background_set=1
+      ble/contrib/scheme:prelude/initialize
+      grep -Fx -- "-s prelude_status_cap fg=#1b1629,bg=$shadow" "$faces"
+      : > "$faces"
+      prelude/status/cap/refresh-face 1
+      grep -Fx -- "-s prelude_status_cap fg=#1b1629,bg=$shadow" "$faces"
+      : > "$faces"
+      prelude/status/cap/refresh-face 0
+      grep -Fx -- "-s prelude_status_cap fg=#1b1629,bg=$background" "$faces"
+      EOF
+      ${lib.getExe pkgs.bash} "$TMPDIR/probe-cap-face.bash" \
+        ${ownedShell.runtime}/contrib/scheme/prelude.bash "#1e1e1e" "#0e0b13" "$TMPDIR/owned-faces"
+      ${lib.getExe pkgs.bash} "$TMPDIR/probe-cap-face.bash" \
+        ${fallbackShell.runtime}/contrib/scheme/prelude.bash "#0d0a12" "#0e0b13" "$TMPDIR/fallback-faces"
+
+      mkdir -p "$TMPDIR/init-runtime"
+      cp ${ownedShell.runtime}/init.bash "$TMPDIR/init-runtime/init.bash"
+      : > "$TMPDIR/init-runtime/catalogue.bash"
+      cat > "$TMPDIR/init-runtime/bash-init.bash" <<'EOF'
+      prelude/status/cap/refresh-face() {
+        printf 'refresh:%s\n' "$1" > "$PRELUDE_FACE_RESULT"
+      }
+      _prelude_init_show_motd
+      printf '%s\n' "$_prelude_window_background_set" > "$PRELUDE_OWNERSHIP_RESULT"
+      EOF
+      sed \
+        -e "s|^_PRELUDE_SHELL_RUNTIME=.*|_PRELUDE_SHELL_RUNTIME=$TMPDIR/init-runtime|" \
+        -e '/^_PRELUDE_MOTD=/d' \
+        -e 's|^\. /nix/store/.*/init\.bash$|. "$_PRELUDE_SHELL_RUNTIME/init.bash"|' \
+        ${ownedShell.init} > "$TMPDIR/owned-init.bash"
+      sed \
+        -e "s|^_PRELUDE_SHELL_RUNTIME=.*|_PRELUDE_SHELL_RUNTIME=$TMPDIR/init-runtime|" \
+        -e '/^_PRELUDE_MOTD=/d' \
+        -e 's|^\. /nix/store/.*/init\.bash$|. "$_PRELUDE_SHELL_RUNTIME/init.bash"|' \
+        ${fallbackShell.init} > "$TMPDIR/fallback-init.bash"
+      grep -Fqx "_PRELUDE_SHELL_RUNTIME=$TMPDIR/init-runtime" "$TMPDIR/owned-init.bash"
+      grep -Fqx '. "$_PRELUDE_SHELL_RUNTIME/init.bash"' "$TMPDIR/owned-init.bash"
+      grep -Fqx "_PRELUDE_SHELL_RUNTIME=$TMPDIR/init-runtime" "$TMPDIR/fallback-init.bash"
+      grep -Fqx '. "$_PRELUDE_SHELL_RUNTIME/init.bash"' "$TMPDIR/fallback-init.bash"
+      cat > "$TMPDIR/motd" <<EOF
+      #!${lib.getExe pkgs.bash}
+      touch "$TMPDIR/motd-ran"
+      EOF
+      chmod +x "$TMPDIR/motd"
+      cat > "$TMPDIR/failing-motd" <<EOF
+      #!${lib.getExe pkgs.bash}
+      exit 1
+      EOF
+      chmod +x "$TMPDIR/failing-motd"
+      env \
+        _PRELUDE_MOTD="$TMPDIR/motd" \
+        PRELUDE_FACE_RESULT="$TMPDIR/face-result" \
+        PRELUDE_OWNERSHIP_RESULT="$TMPDIR/ownership-result" \
+        PRELUDE_POST_INIT_RESULT="$TMPDIR/post-init-result" \
+        ${lib.getExe pkgs.bash} --noprofile --norc -ic '. "$1"; printf "%s\n" "$_prelude_window_background_set" > "$PRELUDE_POST_INIT_RESULT"' _ "$TMPDIR/owned-init.bash" \
+        > "$TMPDIR/init-normal-output" 2>&1
+      test -e "$TMPDIR/motd-ran"
+      test "$(cat "$TMPDIR/face-result")" = refresh:1
+      test "$(cat "$TMPDIR/ownership-result")" = 1
+      test "$(cat "$TMPDIR/post-init-result")" = 1
+      rm -f "$TMPDIR/motd-ran" "$TMPDIR/face-result" "$TMPDIR/ownership-result" "$TMPDIR/post-init-result"
+      env \
+        _PRELUDE_MOTD="$TMPDIR/motd" \
+        PRELUDE_FACE_RESULT="$TMPDIR/face-result" \
+        PRELUDE_OWNERSHIP_RESULT="$TMPDIR/ownership-result" \
+        PRELUDE_POST_INIT_RESULT="$TMPDIR/post-init-result" \
+        ${lib.getExe pkgs.bash} --noprofile --norc -ic '. "$1"; printf "%s\n" "$_prelude_window_background_set" > "$PRELUDE_POST_INIT_RESULT"' _ "$TMPDIR/fallback-init.bash" \
+        > "$TMPDIR/init-fallback-output" 2>&1
+      test -e "$TMPDIR/motd-ran"
+      test "$(cat "$TMPDIR/face-result")" = refresh:0
+      test "$(cat "$TMPDIR/ownership-result")" = 0
+      test "$(cat "$TMPDIR/post-init-result")" = 0
+      rm -f "$TMPDIR/motd-ran" "$TMPDIR/face-result" "$TMPDIR/ownership-result" "$TMPDIR/post-init-result"
+      env \
+        PRELUDE_INIT_QUIET=1 \
+        _PRELUDE_MOTD="$TMPDIR/motd" \
+        PRELUDE_FACE_RESULT="$TMPDIR/face-result" \
+        PRELUDE_OWNERSHIP_RESULT="$TMPDIR/ownership-result" \
+        PRELUDE_POST_INIT_RESULT="$TMPDIR/post-init-result" \
+        ${lib.getExe pkgs.bash} --noprofile --norc -ic '. "$1"; printf "%s\n" "$_prelude_window_background_set" > "$PRELUDE_POST_INIT_RESULT"' _ "$TMPDIR/owned-init.bash" \
+        > "$TMPDIR/init-quiet-output" 2>&1
+      test ! -e "$TMPDIR/motd-ran"
+      test "$(cat "$TMPDIR/face-result")" = refresh:0
+      test "$(cat "$TMPDIR/ownership-result")" = 0
+      test "$(cat "$TMPDIR/post-init-result")" = 0
+      rm -f "$TMPDIR/face-result" "$TMPDIR/ownership-result" "$TMPDIR/post-init-result"
+      env \
+        _PRELUDE_MOTD="$TMPDIR/failing-motd" \
+        PRELUDE_FACE_RESULT="$TMPDIR/face-result" \
+        PRELUDE_OWNERSHIP_RESULT="$TMPDIR/ownership-result" \
+        PRELUDE_POST_INIT_RESULT="$TMPDIR/post-init-result" \
+        ${lib.getExe pkgs.bash} --noprofile --norc -ic '. "$1"; printf "%s\n" "$_prelude_window_background_set" > "$PRELUDE_POST_INIT_RESULT"' _ "$TMPDIR/owned-init.bash" \
+        > "$TMPDIR/init-failed-output" 2>&1
+      test "$(cat "$TMPDIR/face-result")" = refresh:0
+      test "$(cat "$TMPDIR/ownership-result")" = 0
+      test "$(cat "$TMPDIR/post-init-result")" = 0
+      grep -Fqx '_prelude_window_background_set=0' ${ownedShell.runtime}/bash-init.bash
+      scheme_line=$(grep -n -Fx 'bleopt color_scheme=prelude' ${ownedShell.runtime}/bash-init.bash | cut -d: -f1)
+      motd_line=$(grep -n -Fx '_prelude_init_show_motd' ${ownedShell.runtime}/bash-init.bash | cut -d: -f1)
+      test "$scheme_line" -lt "$motd_line"
+      ${lib.getExe pkgs.bash} -n ${ownedShell.runtime}/bash-init.bash
+      ${lib.getExe pkgs.bash} -n ${ownedShell.runtime}/contrib/scheme/prelude.bash
       touch "$out"
     '';
 
@@ -1151,11 +1284,11 @@ in
   # Built-in navigation aliases must resolve on the same PATH as their labels.
   motd-shortcuts-runnable =
     assert
-      config.packages.motd.shortcutAliases == [
-        "?"
-        "m"
-        "d"
-      ];
+    config.packages.motd.shortcutAliases == [
+      "?"
+      "m"
+      "d"
+    ];
     mkRunnableCheck "motd-shortcuts-runnable" "built-in shortcuts" config.packages.motd.shortcutAliases;
 
   titles-command-renders =
@@ -1200,14 +1333,16 @@ in
     let
       internalPreludeLib = import ../src/prelude/lib.nix { inherit lib; };
       attempted = builtins.tryEval (
-        builtins.deepSeq (internalPreludeLib.normalizeCommandEntries {
-          "go:test" = {
-            exec = "go test";
-          };
-          "quality:test" = {
-            exec = "go test";
-          };
-        }) true
+        builtins.deepSeq
+          (internalPreludeLib.normalizeCommandEntries {
+            "go:test" = {
+              exec = "go test";
+            };
+            "quality:test" = {
+              exec = "go test";
+            };
+          })
+          true
       );
     in
     assert !attempted.success;

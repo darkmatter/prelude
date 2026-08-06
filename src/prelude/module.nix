@@ -396,7 +396,7 @@ in
           generatorConfig cfg.prompt
           // {
             shortcuts = internalShortcuts;
-            inherit windowBackgroundContext backdropPalette;
+            inherit backdropPalette;
           }
         );
 

@@ -7,13 +7,9 @@
 _prelude_status_enabled=${_PRELUDE_STARSHIP_STATUS_ENABLED:-0}
 
 # Render output: the middle segment (message plus padding spaces) printed
-# between hint and navigation. Plain text painted with the prompt_status_line
-# face; rebuilt on every render.
+# after the hint. Plain text painted with the prompt_status_line face; rebuilt
+# on every render.
 _prelude_status_literal=
-
-# Render output: the navigation chips drawn at the right edge as `\g` markup,
-# or empty when the chips do not fit the terminal width.
-_prelude_status_navigation_line=
 
 # Cached health snapshot, a TSV record (state, last_status, age, message,
 # start, revision) read from the status helper's cache. The render callback
@@ -31,23 +27,16 @@ _prelude_status_helper=${_PRELUDE_PROMPT_STATUS-}
 # Generated config file passed to the status helper via --config.
 _prelude_status_config=${_PRELUDE_PROMPT_STATUS_CONFIG-}
 
-# Plain visible-text twin of the navigation chips; measured for width before
-# ble.sh strips the markup. Never drawn when the rendered twin exists.
-_prelude_status_navigation=${_PRELUDE_PROMPT_NAVIGATION-}
-
-# `\g`-markup twin of the navigation chips; this is what actually draws.
-_prelude_status_navigation_rendered=${_PRELUDE_PROMPT_NAVIGATION_RENDERED-}
-
 # Plain hint text: the width-measurement twin, and the fallback drawn when no
 # rendered twin is provided.
-_prelude_status_hint=${_PRELUDE_PROMPT_STATUS_HINT:-'x <cmd> hint • x ⇥ inline • x tui'}
+_prelude_status_hint=${_PRELUDE_PROMPT_STATUS_HINT:-'Run commands: x <cmd> or x ⇥'}
 
 # `\g`-markup twin of the hint; drawn when the hint fits. Falls back to the
 # plain twin above when unset.
 _prelude_status_hint_rendered=${_PRELUDE_PROMPT_STATUS_HINT_RENDERED:-$_prelude_status_hint}
 
 # Discovery message shown when the buffer is empty or not an `x` invocation.
-_prelude_status_default="."
+_prelude_status_default=""
 
 # Scratch: whitespace-separated tokens after the `x` prefix of the current
 # buffer, produced by _prelude_status_tokenize; empty for non-`x` input.
@@ -242,8 +231,10 @@ _prelude_status_fit() {
 }
 
 _prelude_status_render() {
-  local input=${1-} width left navigation nav_width padding
+  local input=${1-} width left padding
   local hint hint_width available left_width ellipsis_width
+  local indent=3 indent_pad
+  printf -v indent_pad '%*s' "$indent" ''
   case ${COLUMNS-} in
     ''|*[!0-9]*|0*|????????*) width=80 ;;
     *) width=$((10#$COLUMNS)) ;;
@@ -251,33 +242,15 @@ _prelude_status_render() {
   _prelude_status_discovery "$input"
   _prelude_status_health
   left=$_prelude_status_message
-  navigation=
-  if [ -n "$_prelude_status_navigation" ]; then
-    navigation=${_prelude_status_navigation_rendered:-$_prelude_status_navigation}
-  fi
-  if _prelude_status_fit "$_prelude_status_navigation" "$width"; then
-    nav_width=$_prelude_status_fit_width
-  else
-    # Chips are all-or-nothing: truncating their themed markup can leave an
-    # unmatched label, while printing the full string wraps the fixed row.
-    navigation=
-    nav_width=0
-  fi
-  if ((width <= nav_width + 1)); then
-    _prelude_status_literal=
-    _prelude_status_hint_line=
-    _prelude_status_navigation_line=$navigation
-    return 0
-  fi
 
-  available=$((width - nav_width - 1))
+  available=$((width - 1))
   hint=
   hint_width=0
   if [ -n "$_prelude_status_hint" ] &&
     ((available > 2)) &&
     _prelude_status_fit "$_prelude_status_hint" "$((available - 2))"; then
-    hint=$_prelude_status_hint_rendered
-    hint_width=$_prelude_status_fit_width
+    hint="$indent_pad$_prelude_status_hint_rendered"
+    hint_width=$((_prelude_status_fit_width + indent))
     available=$((available - hint_width))
   fi
   if _prelude_status_fit "$left" "$available"; then
@@ -295,10 +268,9 @@ _prelude_status_render() {
       left_width=0
     fi
   fi
-  padding=$((width - hint_width - left_width - nav_width))
+  padding=$((width - hint_width - left_width))
   printf -v _prelude_status_literal '%s%*s' "$left" "$padding" ''
   _prelude_status_hint_line=$hint
-  _prelude_status_navigation_line=$navigation
 }
 _prelude_status_read_health_record() {
   local record=${1-} state last_status age message start revision
@@ -338,6 +310,4 @@ function ble/prompt/backslash:prelude/status {
   _prelude_status_render "${_ble_edit_str-}"
   [ -z "$_prelude_status_hint_line" ] || ble/prompt/process-prompt-string "$_prelude_status_hint_line"
   ble/prompt/print "$_prelude_status_literal"
-  [ -z "$_prelude_status_navigation_line" ] ||
-    ble/prompt/process-prompt-string "$_prelude_status_navigation_line"
 }

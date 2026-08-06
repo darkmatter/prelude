@@ -20,9 +20,9 @@ if [ -n "${_PRELUDE_DARWIN-}" ]; then
   ble/bin/stty/.instantiate() { return 0; }
 fi
 
-# `prelude-init` clears generated inputs after this file returns. Preserve the
-# ownership fact so Blesh chrome never has to infer terminal backdrop painting.
-_prelude_window_background_set=${_PRELUDE_WINDOW_BACKGROUND_SET:-0}
+# Start conservatively. `init.bash` promotes this only after MOTD succeeds,
+# before generated inputs are unset, so Blesh carries an actual ownership fact.
+_prelude_window_background_set=0
 
 # Prelude is a regular ble.sh contrib color scheme. Prepending the generated
 # runtime keeps the user's existing import path available for other contribs.

@@ -22,7 +22,7 @@ in
 {
 
   prelude = {
-    theme = "apathy";
+    # theme = "apathy";
     colorProfile = "truecolor";
     project = "prelude";
 

@@ -153,9 +153,9 @@
     # work as shorthands; explicit sides supersede them.
     margin = {
       x = 4;
-      y = 0;
+      y = 2;
       top = null;
-      bottom = 4;
+      bottom = null;
       left = null;
       right = null;
       # Vertical sides apply only at or above this terminal height (rows);
@@ -279,7 +279,7 @@
     };
 
     width = "full";
-    maxWidth = 120;
+    maxWidth = 100;
   };
 
   # --- menu --------------------------------------------------------------------
@@ -307,8 +307,8 @@
   prompt = {
     settings = { };
     configFile = null;
-    # Private generator input: module.nix replaces this with the MOTD backdrop
-    # context; direct mkPrompt consumers deterministically fall back to bg.
+    # Private direct-generator input. module.nix injects a resolved backdrop
+    # envelope instead; direct mkPrompt consumers deterministically fall back to bg.
     windowBackgroundContext = {
       set = false;
       base = null;

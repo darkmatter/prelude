@@ -34,6 +34,11 @@ let
       ) m.windowBackgroundContext);
   pal = backdrop.palette;
 
+  mkKey = char: label: "\\[[${char}](bold fg:accent)\\][─](fg:surface)${label}";
+  keymap = lib.concatStringsSep "[──](fg:surface)" (
+    map (s: mkKey s.alias s.command) (config.shortcuts or [ ])
+  );
+
   # Styles reference palette tokens by name (bg:surface, fg:accent2, …);
   # `palettes.prelude` maps them to the resolved theme hex values, mirroring
   # how a hand-written starship config names its palette.
@@ -52,25 +57,27 @@ let
   # The Powerline context is a separate, left-aligned row. Shortcut chips
   # belong to Bash's fixed status row and must never leak into Starship output.
   leftSegments = lib.concatStrings [
-    "[╭░▒▓](fg:surface)"
-    "[ ${project} ](bg:secondary bold fg:accent2)"
-    "[](fg:secondary bg:bg)"
-    "$directory"
+    "[╭░▒▓](fg:accent)"
+    "[ π ](bold bg:accent fg:bg)"
+    # "[ ${project} ](bg:secondary bold fg:accent2)"
+    "[](fg:accent bg:bg)"
+    "( $directory)"
     "[](fg:bg bg:fg)"
     "$git_branch"
     "[](fg:fg bg:surface)"
-    "$git_status$git_metrics"
-    "[$fill──╮](fg:surface)"
+    "$git_status"
+    "$git_metrics"
+    "[$fill](fg:surface)[${keymap}](fg:muted)[─╮](fg:surface)"
   ];
 
   defaultSettings = {
     # Preserve two breathing rows, then keep context above the editable input.
     # Starship paints this whole projection; the shell owns only the input buffer.
-    format = "[${leftSegments}\n[╰─](fg:surface) ](bg:bg)";
+    format = "[${leftSegments}\n[╰─](fg:accent) ](bg:window)";
     add_newline = true;
 
     right_format = lib.concatStrings [
-      "[─╯](fg:surface)"
+      "[──╯](fg:surface)"
       "\n\n"
     ];
 
@@ -85,8 +92,12 @@ let
     directory = {
       style = "bg:bg fg:fg";
       format = "[ $path ]($style)";
-      truncation_length = 3;
-      truncation_symbol = "…/";
+      truncation_length = 8;
+      truncation_symbol = "";
+      truncate_to_repo = true;
+      substitutions = [
+        { from = "^[^~/][^/]*/"; to = "/"; regex = true; }
+      ];
     };
     git_branch = {
       symbol = "";
@@ -94,7 +105,7 @@ let
       format = "[ $symbol $branch ]($style)";
     };
     git_status = {
-      style = "bg:surface fg:accent";
+      style = "bg:surface fg:fg";
       format = "[( $all_status$ahead_behind )]($style)";
     };
     git_metrics = {
