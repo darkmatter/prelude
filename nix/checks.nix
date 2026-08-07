@@ -909,6 +909,31 @@ in
         theme = "apathy";
         palette.bg = 660510;
       };
+      noWindow = mkPrompt {
+        theme = "apathy";
+        windowBackgroundContext = noWindowContext;
+      };
+      themeWindow = mkPrompt {
+        theme = "apathy";
+        windowBackgroundContext = themeWindowContext;
+      };
+      menuBoundary = (import ../src/prelude/menu.nix {
+        inherit (pkgs) lib writeShellApplication writeText symlinkJoin;
+        buildGoModule = args: args;
+      }) { theme = "apathy"; };
+      docsBoundary = (import ../src/prelude/docs.nix {
+        inherit (pkgs) lib writeText runCommand nixosOptionsDoc figlet;
+        buildGoModule = args: args;
+      }) {
+        theme = "apathy";
+        pages = [ { text = pkgs.writeText "prelude-docs-boundary.md" "boundary"; } ];
+      };
+      customPromptSource = pkgs.writeText "prelude-custom-prompt.toml" "format = \"custom\"\n";
+      customPrompt = mkPrompt {
+        theme = "apathy";
+        configFile = customPromptSource;
+        windowBackgroundContext = themeWindowContext;
+      };
       disabledWindowContext = internalLib.resolveWindowBackgroundContext false "#202020";
       noWindowContext = internalLib.resolveWindowBackgroundContext true null;
       transparentWindowContext = internalLib.resolveWindowBackgroundContext true false;
@@ -949,16 +974,44 @@ in
     assert literalWindowContext.base == "#202020";
     assert blendWindowContext.set;
     assert blendWindowContext.base == null;
-    pkgs.runCommand "prompt-shadow-palette" { } ''
+    pkgs.runCommand "prompt-shadow-palette" { nativeBuildInputs = [ pkgs.jq ]; } ''
       ${themeChecks}
       grep -Fq 'shadow = "#6798c9"' ${overridden}
+      grep -Fq 'window = "#6496c8"' ${overridden}
       grep -Fq 'shadow = "#060606"' ${black}
+      grep -Fq 'window = "#000000"' ${black}
       grep -Fq 'shadow = "#252525"' ${literalWindow}
+      grep -Fq 'window = "#202020"' ${literalWindow}
       grep -Fq 'shadow = "#141118"' ${dynamicWindow}
+      grep -Fq 'window = "#0e0b13"' ${dynamicWindow}
       grep -Fq 'shadow = "#252525"' ${injectedBackdrop}
+      grep -Fq 'window = "#202020"' ${injectedBackdrop}
       grep -Fq 'shadow = "#acbccd"' ${shortHex}
+      grep -Fq 'window = "#aabbcc"' ${shortHex}
       grep -Fq 'shadow = "#ff8ad8"' ${indexed}
+      grep -Fq 'window = "#ff87d7"' ${indexed}
       grep -Fq 'shadow = "#101923"' ${packed}
+      grep -Fq 'window = "#0a141e"' ${packed}
+      grep -Fq '](bg:window)' ${themeWindow}
+      grep -Fq '](bg:window)' ${literalWindow}
+      grep -Fq '](bg:window)' ${dynamicWindow}
+      grep -Fq ']()' ${noWindow}
+      ! grep -Fq '](bg:window)' ${noWindow}
+      test "$(sha256sum ${customPromptSource} | cut -d' ' -f1)" = "$(sha256sum ${customPrompt} | cut -d' ' -f1)"
+      test "$(jq -r '.palette | has("window") or has("shadow")' ${menuBoundary.passthru.configFile})" = false
+      test "$(jq -r '.palette | has("window") or has("shadow")' ${docsBoundary.passthru.config}/config.json)" = false
+      cat > "$TMPDIR/render-window.bash" <<'EOF'
+      set -euo pipefail
+      export HOME="$TMPDIR/home"
+      export XDG_CACHE_HOME="$TMPDIR/cache"
+      export STARSHIP_CONFIG=$1
+      export STARSHIP_SHELL=bash
+      export TERM=xterm-256color
+      mkdir -p "$HOME" "$XDG_CACHE_HOME"
+      ${lib.getExe pkgs.starship} prompt --terminal-width 79 --status 0
+      EOF
+      ${lib.getExe pkgs.bash} "$TMPDIR/render-window.bash" ${themeWindow} > "$TMPDIR/window-render"
+      grep -Faq '48;2;14;11;19' "$TMPDIR/window-render"
       grep -Fq '_PRELUDE_WINDOW_BACKGROUND_SET=1' ${ownedShell.init}
       grep -Fq '_PRELUDE_WINDOW_BACKGROUND_SET=0' ${fallbackShell.init}
       cat > "$TMPDIR/probe-cap-face.bash" <<'EOF'

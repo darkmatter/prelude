@@ -12,8 +12,11 @@
 # the MOTD, installs catalogue completion, initializes Starship, and enables
 # the generated left Powerline prompt plus fixed Bash status row.
 # Non-interactive direnv evaluation remains inert.
-{ lib, config, ... }:
-let
+{
+  lib,
+  config,
+  ...
+}: let
   maxTTLCounts = {
     ms = 9223372036854;
     s = 9223372036;
@@ -22,21 +25,18 @@ let
     d = 106751;
     w = 15250;
   };
-  positiveDuration =
-    value:
-    if !builtins.isString value then
-      false
-    else
-      let
-        match = builtins.match "([1-9][0-9]*)(ms|s|m|h|d|w)" value;
+  positiveDuration = value:
+    if !builtins.isString value
+    then false
+    else let
+      match = builtins.match "([1-9][0-9]*)(ms|s|m|h|d|w)" value;
+    in
+      if match == null
+      then false
+      else let
+        count = builtins.tryEval (builtins.fromJSON (builtins.elemAt match 0));
+        unit = builtins.elemAt match 1;
       in
-      if match == null then
-        false
-      else
-        let
-          count = builtins.tryEval (builtins.fromJSON (builtins.elemAt match 0));
-          unit = builtins.elemAt match 1;
-        in
         count.success && count.value <= maxTTLCounts.${unit};
 
   localServerType = lib.types.submodule {
@@ -56,15 +56,16 @@ let
     };
   };
   defaults = import ../defaults.nix;
-in
-{
+in {
   options.prelude.prompt = {
     enable = lib.mkEnableOption "themed starship prompt config (`packages.prompt` = starship.toml)";
 
     settings = lib.mkOption {
-      type = (lib.types.attrsOf lib.types.anything) // {
-        description = "TOML value";
-      };
+      type =
+        (lib.types.attrsOf lib.types.anything)
+        // {
+          description = "TOML value";
+        };
       default = defaults.prompt.settings;
       description = ''
         Starship settings merged (recursively) over the themed defaults.
@@ -93,18 +94,16 @@ in
         must be a canonical key from `prelude.commands`; `check` is executed
         only by the generated refresh runtime.
       '';
-      apply =
-        value:
-        if value == null then
-          null
+      apply = value:
+        if value == null
+        then null
         else
           # Per-system package commands are merged later, so resolve the key
           # against that final catalogue in module.nix rather than rejecting a
           # valid package-backed command here.
           assert lib.assertMsg (
             lib.strings.trim value.check != ""
-          ) "prelude.prompt.localServer.check must not be empty";
-          value;
+          ) "prelude.prompt.localServer.check must not be empty"; value;
     };
   };
 }

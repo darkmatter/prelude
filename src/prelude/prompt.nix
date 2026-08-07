@@ -73,7 +73,9 @@ let
   defaultSettings = {
     # Preserve two breathing rows, then keep context above the editable input.
     # Starship paints this whole projection; the shell owns only the input buffer.
-    format = "[${leftSegments}\n[╰─](fg:accent) ](bg:window)";
+    format = "[${leftSegments}\n[╰─](fg:accent) ]${
+      if backdrop.windowBackgroundSet then "(bg:window)" else "()"
+    }";
     add_newline = true;
 
     right_format = lib.concatStrings [
@@ -86,7 +88,7 @@ let
 
     palette = "prelude";
     palettes.prelude = pal // {
-      inherit (backdrop) shadow;
+      inherit (backdrop) window shadow;
     };
 
     directory = {

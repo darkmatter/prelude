@@ -7,10 +7,7 @@
   writeText,
   buildGoModule,
   ...
-}:
-
-config:
-let
+}: config: let
   descriptor = writeText "prelude-prompt-status.json" (
     builtins.toJSON {
       project = config.project;
@@ -21,21 +18,21 @@ let
     }
   );
 in
-buildGoModule {
-  pname = "prompt-status";
-  version = "0.1.0";
-  src = ../.;
-  subPackages = [ "cmd/prompt-status" ];
-  doCheck = false;
-  vendorHash = "sha256-qHpXE7MVG06KxY/2eLnqUva3/FHjAdQceH6A/5sn7mU=";
-  ldflags = [
-    "-s"
-    "-w"
-    "-X main.defaultDescriptorPath=${descriptor}"
-  ];
-  passthru.configFile = descriptor;
-  meta = {
-    description = "Cached asynchronous Prelude local-server health status";
-    mainProgram = "prompt-status";
-  };
-}
+  buildGoModule {
+    pname = "prompt-status";
+    version = "0.1.0";
+    src = ../.;
+    subPackages = ["cmd/prompt-status"];
+    doCheck = false;
+    vendorHash = "sha256-qHpXE7MVG06KxY/2eLnqUva3/FHjAdQceH6A/5sn7mU=";
+    ldflags = [
+      "-s"
+      "-w"
+      "-X main.defaultDescriptorPath=${descriptor}"
+    ];
+    passthru.configFile = descriptor;
+    meta = {
+      description = "Cached asynchronous Prelude local-server health status";
+      mainProgram = "prompt-status";
+    };
+  }

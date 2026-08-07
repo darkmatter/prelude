@@ -47,9 +47,14 @@
 # The outer function receives static args via flake-parts' `importApply`
 # (see flake.nix); consumers should import the applied module from
 # `flakeModules.default`, not this file directly.
-{ localFlake, flake-parts-lib }:
-{ lib, config, ... }:
-let
+{
+  localFlake,
+  flake-parts-lib,
+}: {
+  lib,
+  config,
+  ...
+}: let
   # Currently unused; kept so the exported module can reference the prelude
   # flake itself (per the flake-parts importApply pattern) without a
   # breaking signature change later.
@@ -57,7 +62,7 @@ let
 
   cfg = config.prelude;
   sortCfg = cfg.sort;
-  docsEnabled = cfg.docs.pages != [ ];
+  docsEnabled = cfg.docs.pages != [];
   internalShortcuts = plib.componentShortcuts {
     motd = cfg.motd.enable;
     menu = cfg.menu.enable;
@@ -72,12 +77,13 @@ let
   mkPrompt = import ./prompt.nix;
   mkPromptStatus = import ./prompt-status.nix;
   mkShellInit = import ./shell-init.nix;
-  plib = import ./lib.nix { inherit lib; };
-  optionTypes = import ./option-types.nix { inherit lib; };
+  plib = import ./lib.nix {inherit lib;};
+  optionTypes = import ./option-types.nix {inherit lib;};
 
   # Shared config threaded into every generator.
   shared = {
-    inherit (cfg)
+    inherit
+      (cfg)
       theme
       palette
       colorProfile
@@ -88,9 +94,8 @@ let
   # Generator config is the evaluated option set minus module-only activation.
   # Passing the complete set avoids a second field list that can silently drift
   # when options are added.
-  generatorConfig = component: shared // removeAttrs component [ "enable" ];
-in
-{
+  generatorConfig = component: shared // removeAttrs component ["enable"];
+in {
   imports = [
     ./options/shared.nix
     ./options/motd.nix
@@ -100,10 +105,10 @@ in
   ];
 
   options.perSystem = flake-parts-lib.mkPerSystemOption (
-    { lib, ... }: {
+    {lib, ...}: {
       options.prelude.commands = lib.mkOption {
         type = lib.types.attrsOf optionTypes.commandType;
-        default = { };
+        default = {};
         description = "System-specific project commands, including package-backed commands created with prelude.lib.fromPkg.";
       };
     }
@@ -130,65 +135,71 @@ in
       })
     ];
 
-    perSystem =
-      { pkgs, config, ... }:
-      let
-        commands = lib.recursiveUpdate cfg.commands config.prelude.commands;
-        deps = {
-          inherit (pkgs)
-            lib
-            writeShellApplication
-            writeText
-            runCommand
-            nixosOptionsDoc
-            symlinkJoin
-            figlet
-            jq
-            nix
-            formats
-            ;
-          # Downstream flakes may use a Nixpkgs whose default Go still trails
-          # src/go.mod. Select the required toolchain instead of that alias.
-          buildGoModule = pkgs.buildGo126Module;
-        };
+    perSystem = {
+      pkgs,
+      config,
+      ...
+    }: let
+      commands = lib.recursiveUpdate cfg.commands config.prelude.commands;
+      deps = {
+        inherit
+          (pkgs)
+          lib
+          writeShellApplication
+          writeText
+          runCommand
+          nixosOptionsDoc
+          symlinkJoin
+          figlet
+          jq
+          nix
+          formats
+          ;
+        # Downstream flakes may use a Nixpkgs whose default Go still trails
+        # src/go.mod. Select the required toolchain instead of that alias.
+        buildGoModule = pkgs.buildGo126Module;
+      };
 
-        motdRenderConfig = generatorConfig cfg.motd // {
+      motdRenderConfig =
+        generatorConfig cfg.motd
+        // {
           commandCatalog = commands;
           commandGroupOrder = sortCfg.groups;
           shortcuts = internalShortcuts;
         };
-        motdBin = mkMotd deps motdRenderConfig;
-        titlePkg = mkTitle deps;
-        titlePreviewsPkg = mkTitlePreviews deps;
-        setupPkg = pkgs.writeShellApplication {
-          name = "setup";
-          runtimeInputs = [ titlePkg ];
-          text = ''
-            if [ "''${1:-}" = "--help" ] || [ "''${1:-}" = "-h" ]; then
-              cat <<'EOF'
-            usage: setup [--recipe path] [-o path]
+      motdBin = mkMotd deps motdRenderConfig;
+      titlePkg = mkTitle deps;
+      titlePreviewsPkg = mkTitlePreviews deps;
+      setupPkg = pkgs.writeShellApplication {
+        name = "setup";
+        runtimeInputs = [titlePkg];
+        text = ''
+          if [ "''${1:-}" = "--help" ] || [ "''${1:-}" = "-h" ]; then
+            cat <<'EOF'
+          usage: setup [--recipe path] [-o path]
 
-            Interactively generate a ready-to-use Prelude configuration.
-            The UI renders on stderr. Writes the Nix config to -o and a sibling
-            title.txt next to it (e.g. prelude.nix + title.txt).
+          Interactively generate a ready-to-use Prelude configuration.
+          The UI renders on stderr. Writes the Nix config to -o and a sibling
+          title.txt next to it (e.g. prelude.nix + title.txt).
 
-              -o, --output path  write the generated config (default: prelude.nix)
-              --recipe path      prefill title text and font from a Nix recipe
-            EOF
-              exit 0
-            fi
-            exec prelude-title --wizard "$@"
-          '';
-          meta.description = "Interactively generate a Prelude project configuration";
-        };
+            -o, --output path  write the generated config (default: prelude.nix)
+            --recipe path      prefill title text and font from a Nix recipe
+          EOF
+            exit 0
+          fi
+          exec prelude-title --wizard "$@"
+        '';
+        meta.description = "Interactively generate a Prelude project configuration";
+      };
 
-        motdPkg = pkgs.symlinkJoin {
-          name = "motd";
-          # Command-backed MOTD rows remain runnable when packages.motd is used
-          # directly by carrying the menu and its generated wrappers. Built-in
-          # navigation aliases ride along with the menu when enabled; otherwise
-          # the MOTD package carries them.
-          paths = [
+      motdPkg = pkgs.symlinkJoin {
+        name = "motd";
+        # Command-backed MOTD rows remain runnable when packages.motd is used
+        # directly by carrying the menu and its generated wrappers. Built-in
+        # navigation aliases ride along with the menu when enabled; otherwise
+        # the MOTD package carries them.
+        paths =
+          [
             motdBin
             titlePkg
             titlePreviewsPkg
@@ -196,289 +207,303 @@ in
           ]
           ++ lib.optional cfg.menu.enable menuPkg
           ++ lib.optionals (!cfg.menu.enable) shortcutWrappers;
-          passthru = {
-            inherit motdRenderConfig;
-            commandNames = map (command: command.name) selectedMotdCommands;
-            commandInvocations = map (command: command.command) selectedMotdCommands;
-            commandWrappers = lib.optionals cfg.menu.enable menuPkg.commandWrappers;
-            shortcutAliases = if cfg.menu.enable then menuPkg.shortcutAliases else shortcutAliases;
-            shortcutWrappers = if cfg.menu.enable then menuPkg.shortcutWrappers else shortcutWrappers;
-          };
-          meta = {
-            inherit (motdBin.meta) description;
-            mainProgram = "motd";
-          };
+        passthru = {
+          inherit motdRenderConfig;
+          commandNames = map (command: command.name) selectedMotdCommands;
+          commandInvocations = map (command: command.command) selectedMotdCommands;
+          commandWrappers = lib.optionals cfg.menu.enable menuPkg.commandWrappers;
+          shortcutAliases =
+            if cfg.menu.enable
+            then menuPkg.shortcutAliases
+            else shortcutAliases;
+          shortcutWrappers =
+            if cfg.menu.enable
+            then menuPkg.shortcutWrappers
+            else shortcutWrappers;
         };
+        meta = {
+          inherit (motdBin.meta) description;
+          mainProgram = "motd";
+        };
+      };
 
-        menuBin = mkMenu deps (
-          generatorConfig cfg.menu
-          // {
-            inherit commands;
-            groupOrder = sortCfg.groups;
-          }
-        );
+      menuBin = mkMenu deps (
+        generatorConfig cfg.menu
+        // {
+          inherit commands;
+          groupOrder = sortCfg.groups;
+        }
+      );
 
-        commandEntries = plib.normalizeCommandEntries commands;
-        # Resolve only after root and per-system command entries have merged.
-        # A local server is a canonical `x` target, so its copyable start hint
-        # must reuse the catalogue's shell-escaped dispatcher invocation.
-        promptLocalServer =
-          let
-            configured = cfg.prompt.localServer;
-          in
-          if configured == null then
-            null
-          else
-            let
-              entry = lib.findFirst (candidate: candidate.name == configured.command) null commandEntries;
-            in
-            assert lib.assertMsg (
-              entry != null
-            ) "prelude.prompt.localServer.command must name a canonical prelude.commands key";
-            configured // { start = entry.xInvocation; };
-        commandNames = map (entry: entry.name) commandEntries;
-        selectedMotdCommands = plib.selectCommands commandEntries;
-        commandRuntimePackages = lib.unique (
-          lib.concatMap (entry: entry.raw.runtimePackages) commandEntries
-        );
+      commandEntries = plib.normalizeCommandEntries commands;
+      # Resolve only after root and per-system command entries have merged.
+      # A local server is a canonical `x` target, so its copyable start hint
+      # must reuse the catalogue's shell-escaped dispatcher invocation.
+      promptLocalServer = let
+        configured = cfg.prompt.localServer;
+      in
+        if configured == null
+        then null
+        else let
+          entry = lib.findFirst (candidate: candidate.name == configured.command) null commandEntries;
+        in
+          assert lib.assertMsg (
+            entry != null
+          ) "prelude.prompt.localServer.command must name a canonical prelude.commands key";
+            configured // {start = entry.xInvocation;};
+      commandNames = map (entry: entry.name) commandEntries;
+      selectedMotdCommands = plib.selectCommands commandEntries;
+      commandRuntimePackages = lib.unique (
+        lib.concatMap (entry: entry.raw.runtimePackages) commandEntries
+      );
 
-        # Menu entries are devshell commands too. A command whose `exec` starts
-        # with its own name asserts "this command already exists on PATH"
-        # (motd, docs, previews…); every other command gets a generated wrapper
-        # that delegates to the public `x` dispatcher so direct and interactive
-        # invocation share one execution contract. `menu` is picker-only.
-        needsWrapper = entry: builtins.head (lib.splitString " " entry.run) != entry.name;
-        # Colon-grouped entries are catalogue identity only. Never turn them
-        # into shell executables: the complete key stays public through x while
-        # its first colon derives menu presentation.
-        wrappedCommandEntries = lib.filter (entry: !entry.grouped && needsWrapper entry) commandEntries;
-        commandWrappers =
-          let
-            wrapped = wrappedCommandEntries;
-            xBin = lib.getExe' menuBin "x";
-          in
-          assert lib.assertMsg
-            (
-              !lib.any (
-                entry:
-                lib.elem entry.name [
-                  "menu"
-                  "x"
-                ]
-              ) wrapped
-            )
-            "prelude: ungrouped commands named \"menu\" or \"x\" cannot receive wrappers because Prelude owns those entrypoints";
+      # Menu entries are devshell commands too. A command whose `exec` starts
+      # with its own name asserts "this command already exists on PATH"
+      # (motd, docs, previews…); every other command gets a generated wrapper
+      # that delegates to the public `x` dispatcher so direct and interactive
+      # invocation share one execution contract. `menu` is picker-only.
+      needsWrapper = entry: builtins.head (lib.splitString " " entry.run) != entry.name;
+      # Colon-grouped entries are catalogue identity only. Never turn them
+      # into shell executables: the complete key stays public through x while
+      # its first colon derives menu presentation.
+      wrappedCommandEntries = lib.filter (entry: !entry.grouped && needsWrapper entry) commandEntries;
+      commandWrappers = let
+        wrapped = wrappedCommandEntries;
+        xBin = lib.getExe' menuBin "x";
+      in
+        assert lib.assertMsg
+        (!lib.any (
+          entry:
+            lib.elem entry.name [
+              "menu"
+              "x"
+            ]
+        )
+        wrapped)
+        "prelude: ungrouped commands named \"menu\" or \"x\" cannot receive wrappers because Prelude owns those entrypoints";
           map (
             entry:
             # writeTextFile rather than writeShellApplication: public command
             # keys may contain ":" (valid in bin/ entries, unsafe in store names).
+              pkgs.writeTextFile {
+                name = "prelude-command-${lib.replaceStrings [":"] ["-"] entry.name}";
+                executable = true;
+                destination = "/bin/${entry.name}";
+                text = ''
+                  #!${pkgs.runtimeShell}
+                  exec ${xBin} ${lib.escapeShellArg entry.name} "$@"
+                '';
+              }
+          )
+          wrapped;
+
+      # Built-in navigation aliases are PATH wrappers so every rendered chip
+      # is runnable. Resolve targets to absolute store paths so shell builtins
+      # cannot shadow Prelude commands.
+      shortcutEntries = internalShortcuts;
+      shortcutAliases = map (s: s.alias) shortcutEntries;
+      entriesByName = lib.listToAttrs (map (entry: lib.nameValuePair entry.name entry) commandEntries);
+      resolveShortcutTarget = command:
+        if entriesByName ? ${command}
+        then let
+          entry = entriesByName.${command};
+          head = builtins.head (lib.splitString " " entry.run);
+        in
+          if needsWrapper entry
+          then "${lib.getExe menuBin} ${lib.escapeShellArg entry.name}"
+          else if entry.builtinSurface == "menu" && cfg.menu.enable
+          then lib.getExe menuBin
+          else if entry.builtinSurface == "docs" && docsEnabled
+          then lib.getExe docsBin
+          else if entry.builtinSurface == "motd" && cfg.motd.enable
+          then lib.getExe motdBin
+          else lib.escapeShellArg head
+        else if command == "menu" && cfg.menu.enable
+        then lib.getExe menuBin
+        else if command == "docs" && docsEnabled
+        then lib.getExe docsBin
+        else if command == "motd" && cfg.motd.enable
+        then lib.getExe motdBin
+        else lib.escapeShellArg command;
+      shortcutWrappers =
+        map (
+          s:
             pkgs.writeTextFile {
-              name = "prelude-command-${lib.replaceStrings [ ":" ] [ "-" ] entry.name}";
+              # Alias may be `?` or other non-store-safe glyphs; sanitize the
+              # derivation name while keeping the bin/ entry exact.
+              name = "prelude-shortcut-${lib.replaceStrings ["?" ":" "/" " "] ["q" "-" "-" "-"] s.alias}";
               executable = true;
-              destination = "/bin/${entry.name}";
+              destination = "/bin/${s.alias}";
               text = ''
                 #!${pkgs.runtimeShell}
-                exec ${xBin} ${lib.escapeShellArg entry.name} "$@"
+                exec ${resolveShortcutTarget s.command} "$@"
               '';
             }
-          ) wrapped;
+        )
+        shortcutEntries;
 
-        # Built-in navigation aliases are PATH wrappers so every rendered chip
-        # is runnable. Resolve targets to absolute store paths so shell builtins
-        # cannot shadow Prelude commands.
-        shortcutEntries = internalShortcuts;
-        shortcutAliases = map (s: s.alias) shortcutEntries;
-        entriesByName = lib.listToAttrs (map (entry: lib.nameValuePair entry.name entry) commandEntries);
-        resolveShortcutTarget =
-          command:
-          if entriesByName ? ${command} then
-            let
-              entry = entriesByName.${command};
-              head = builtins.head (lib.splitString " " entry.run);
-            in
-            if needsWrapper entry then
-              "${lib.getExe menuBin} ${lib.escapeShellArg entry.name}"
-            else if entry.builtinSurface == "menu" && cfg.menu.enable then
-              lib.getExe menuBin
-            else if entry.builtinSurface == "docs" && docsEnabled then
-              lib.getExe docsBin
-            else if entry.builtinSurface == "motd" && cfg.motd.enable then
-              lib.getExe motdBin
-            else
-              lib.escapeShellArg head
-          else if command == "menu" && cfg.menu.enable then
-            lib.getExe menuBin
-          else if command == "docs" && docsEnabled then
-            lib.getExe docsBin
-          else if command == "motd" && cfg.motd.enable then
-            lib.getExe motdBin
-          else
-            lib.escapeShellArg command;
-        shortcutWrappers = map (
-          s:
-          pkgs.writeTextFile {
-            # Alias may be `?` or other non-store-safe glyphs; sanitize the
-            # derivation name while keeping the bin/ entry exact.
-            name = "prelude-shortcut-${lib.replaceStrings [ "?" ":" "/" " " ] [ "q" "-" "-" "-" ] s.alias}";
-            executable = true;
-            destination = "/bin/${s.alias}";
-            text = ''
-              #!${pkgs.runtimeShell}
-              exec ${resolveShortcutTarget s.command} "$@"
-            '';
-          }
-        ) shortcutEntries;
-
-        menuPkg = pkgs.symlinkJoin {
-          name = "menu";
-          paths = [
+      menuPkg = pkgs.symlinkJoin {
+        name = "menu";
+        paths =
+          [
             menuBin
           ]
           ++ commandWrappers
           ++ shortcutWrappers
           ++ commandRuntimePackages
           ++ lib.optional docsEnabled docsPkg;
-          passthru = {
-            inherit
-              commandNames
-              commandWrappers
-              commandRuntimePackages
-              shortcutAliases
-              shortcutWrappers
-              ;
-            menuConfig = menuBin.configFile;
-            commandInvocations = map (entry: entry.invocation) commandEntries;
-            xInvocations = map (entry: entry.xInvocation) commandEntries;
-            commandWrapperNames = map (entry: entry.name) wrappedCommandEntries;
-          };
-          meta = {
-            inherit (menuBin.meta) description;
-            mainProgram = "menu";
-          };
+        passthru = {
+          inherit
+            commandNames
+            commandWrappers
+            commandRuntimePackages
+            shortcutAliases
+            shortcutWrappers
+            ;
+          menuConfig = menuBin.configFile;
+          commandInvocations = map (entry: entry.invocation) commandEntries;
+          xInvocations = map (entry: entry.xInvocation) commandEntries;
+          commandWrapperNames = map (entry: entry.name) wrappedCommandEntries;
         };
+        meta = {
+          inherit (menuBin.meta) description;
+          mainProgram = "menu";
+        };
+      };
 
-        docsBin = mkDocs deps (generatorConfig cfg.docs);
-        docsPkg =
-          if cfg.motd.enable || cfg.menu.enable then
-            docsBin
-          else
-            pkgs.symlinkJoin {
-              name = "docs";
-              paths = [ docsBin ] ++ shortcutWrappers;
-              passthru = { inherit shortcutAliases shortcutWrappers; };
-              meta = {
-                inherit (docsBin.meta) description;
-                mainProgram = "docs";
-              };
+      docsBin = mkDocs deps (generatorConfig cfg.docs);
+      docsPkg =
+        if cfg.motd.enable || cfg.menu.enable
+        then docsBin
+        else
+          pkgs.symlinkJoin {
+            name = "docs";
+            paths = [docsBin] ++ shortcutWrappers;
+            passthru = {inherit shortcutAliases shortcutWrappers;};
+            meta = {
+              inherit (docsBin.meta) description;
+              mainProgram = "docs";
             };
-        # Keep invalid local-server keys fail-closed even when a custom prompt
-        # suppresses Prelude's generated status package.
-        promptStatusPkg =
-          assert builtins.deepSeq promptLocalServer true;
-          if cfg.prompt.enable && cfg.prompt.configFile == null && promptLocalServer != null then
-            mkPromptStatus deps (
-              shared
-              // {
-                inherit (promptLocalServer)
-                  command
-                  check
-                  ttl
-                  start
-                  ;
-              }
-            )
-          else
-            null;
-        # Prompt and Blesh share one backdrop decision. The flag is false when
-        # MOTD is disabled because no Prelude process then paints the terminal.
-        windowBackgroundContext = plib.resolveWindowBackgroundContext cfg.motd.enable cfg.motd.windowBackground;
-        backdropPalette = plib.resolveBackdropPalette cfg.theme cfg.palette windowBackgroundContext;
-        promptPkg = mkPrompt deps (
-          generatorConfig cfg.prompt
-          // {
-            shortcuts = internalShortcuts;
-            inherit backdropPalette;
-          }
-        );
-
-        # Resolve the palette once for the generated prompt and shell catalogue.
-        # Starship owns prompt/status content while ble.sh owns Bash rendering,
-        # lifecycle, and native completion menus.
-        pal = backdropPalette.palette;
-
-        # The current shell is the product boundary. Checked-in shell modules
-        # own behavior; Nix injects paths and serializes the same normalized
-        # catalogue used by menu. The devshell sources this entrypoint directly.
-        shell =
-          mkShellInit
-            {
-              inherit (pkgs)
-                lib
-                writeText
-                runCommand
-                starship
-                blesh
-                bash-completion
-                stdenv
+          };
+      # Keep invalid local-server keys fail-closed even when a custom prompt
+      # suppresses Prelude's generated status package.
+      promptStatusPkg = assert builtins.deepSeq promptLocalServer true;
+        if cfg.prompt.enable && cfg.prompt.configFile == null && promptLocalServer != null
+        then
+          mkPromptStatus deps (
+            shared
+            // {
+              inherit
+                (promptLocalServer)
+                command
+                check
+                ttl
+                start
                 ;
             }
-            {
-              palette = pal;
-              inherit (backdropPalette) shadow windowBackgroundSet;
-              projectName = cfg.project;
-              navigation = internalShortcuts;
-              commandEntries = commandEntries;
-              motdCommand = if cfg.motd.enable then lib.getExe motdPkg else null;
-              statusEnabled = cfg.prompt.configFile == null;
-              promptStatusCommand = if promptStatusPkg == null then null else lib.getExe promptStatusPkg;
-              promptStatusConfig = if promptStatusPkg == null then null else promptStatusPkg.configFile;
-            };
-        shellInit = shell.init;
-        shellRuntime = shell.runtime;
+          )
+        else null;
+      # Prompt and Blesh share one backdrop decision. The flag is false when
+      # MOTD is disabled because no Prelude process then paints the terminal.
+      windowBackgroundContext = plib.resolveWindowBackgroundContext cfg.motd.enable cfg.motd.windowBackground;
+      backdropPalette = plib.resolveBackdropPalette cfg.theme cfg.palette windowBackgroundContext;
+      promptPkg = mkPrompt deps (
+        generatorConfig cfg.prompt
+        // {
+          shortcuts = internalShortcuts;
+          inherit backdropPalette;
+        }
+      );
 
-        # Canonical devshell package. Component packages already compose their
-        # enabled descendants (motd -> menu -> docs), so select only the
-        # outermost enabled component and add prompt runtimes when requested.
-        preludeComponentPaths =
-          lib.optional cfg.motd.enable motdPkg
-          ++ lib.optional (!cfg.motd.enable && cfg.menu.enable) menuPkg
-          ++ lib.optional (!cfg.motd.enable && !cfg.menu.enable && docsEnabled) docsPkg;
-        promptRuntimePackages = lib.optionals cfg.prompt.enable [
-          pkgs.starship
-          pkgs.blesh
-          pkgs.bash-completion
-        ];
-        promptStatusPackages = lib.optional (promptStatusPkg != null) promptStatusPkg;
-        preludePkg = pkgs.symlinkJoin {
-          name = "prelude";
-          paths = preludeComponentPaths ++ promptRuntimePackages ++ promptStatusPackages;
-          postBuild = lib.optionalString cfg.prompt.enable ''
-            mkdir -p "$out/nix-support" "$out/share/prelude/shell"
-            cp -f ${shellInit} "$out/share/prelude/init.bash"
-            cp -R ${shellRuntime}/. "$out/share/prelude/shell/"
-            cat > "$out/nix-support/setup-hook" <<'EOF'
-            # This generated config remains the canonical serialized menu
-            # catalogue and palette for tools that need the JSON boundary.
-            export PRELUDE_MENU_CONFIG=${menuBin.configFile}
+      # Resolve the palette once for the generated prompt and shell catalogue.
+      # Starship owns prompt/status content while ble.sh owns Bash rendering,
+      # lifecycle, and native completion menus.
+      pal = backdropPalette.palette;
 
-            # `prelude-init` mutates this shell, so it is a shell function rather
-            # than an executable subprocess. The generated file is idempotent.
-            prelude-init() {
-              # shellcheck source=/dev/null
-              . ${shellInit}
-            }
+      # The current shell is the product boundary. Checked-in shell modules
+      # own behavior; Nix injects paths and serializes the same normalized
+      # catalogue used by menu. The devshell sources this entrypoint directly.
+      shell =
+        mkShellInit
+        {
+          inherit
+            (pkgs)
+            lib
+            writeText
+            runCommand
+            starship
+            blesh
+            bash-completion
+            stdenv
+            ;
+        }
+        {
+          palette = pal;
+          inherit (backdropPalette) shadow windowBackgroundSet;
+          projectName = cfg.project;
+          navigation = internalShortcuts;
+          commandEntries = commandEntries;
+          motdCommand =
+            if cfg.motd.enable
+            then lib.getExe motdPkg
+            else null;
+          statusEnabled = cfg.prompt.configFile == null;
+          promptStatusCommand =
+            if promptStatusPkg == null
+            then null
+            else lib.getExe promptStatusPkg;
+          promptStatusConfig =
+            if promptStatusPkg == null
+            then null
+            else promptStatusPkg.configFile;
+        };
+      shellInit = shell.init;
+      shellRuntime = shell.runtime;
 
-            # setup-hooks run while Nix constructs the environment; the final
-            # shellHook is what runs in the real interactive shell. Source the
-            # init after the consumer hook so STARSHIP_CONFIG is already set.
-            if [ -z "''${_prelude_init_registered:-}" ]; then
-              _prelude_init_registered=1
-              shellHook="''${shellHook-}
-            . ${shellInit}"
-            fi
-            EOF
-          '';
-          passthru = {
+      # Canonical devshell package. Component packages already compose their
+      # enabled descendants (motd -> menu -> docs), so select only the
+      # outermost enabled component and add prompt runtimes when requested.
+      preludeComponentPaths =
+        lib.optional cfg.motd.enable motdPkg
+        ++ lib.optional (!cfg.motd.enable && cfg.menu.enable) menuPkg
+        ++ lib.optional (!cfg.motd.enable && !cfg.menu.enable && docsEnabled) docsPkg;
+      promptRuntimePackages = lib.optionals cfg.prompt.enable [
+        pkgs.starship
+        pkgs.blesh
+        pkgs.bash-completion
+      ];
+      promptStatusPackages = lib.optional (promptStatusPkg != null) promptStatusPkg;
+      preludePkg = pkgs.symlinkJoin {
+        name = "prelude";
+        paths = preludeComponentPaths ++ promptRuntimePackages ++ promptStatusPackages;
+        postBuild = lib.optionalString cfg.prompt.enable ''
+          mkdir -p "$out/nix-support" "$out/share/prelude/shell"
+          cp -f ${shellInit} "$out/share/prelude/init.bash"
+          cp -R ${shellRuntime}/. "$out/share/prelude/shell/"
+          cat > "$out/nix-support/setup-hook" <<'EOF'
+          # This generated config remains the canonical serialized menu
+          # catalogue and palette for tools that need the JSON boundary.
+          export PRELUDE_MENU_CONFIG=${menuBin.configFile}
+
+          # `prelude-init` mutates this shell, so it is a shell function rather
+          # than an executable subprocess. The generated file is idempotent.
+          prelude-init() {
+            # shellcheck source=/dev/null
+            . ${shellInit}
+          }
+
+          # setup-hooks run while Nix constructs the environment; the final
+          # shellHook is what runs in the real interactive shell. Source the
+          # init after the consumer hook so STARSHIP_CONFIG is already set.
+          if [ -z "''${_prelude_init_registered:-}" ]; then
+            _prelude_init_registered=1
+            shellHook="''${shellHook-}
+          . ${shellInit}"
+          fi
+          EOF
+        '';
+        passthru =
+          {
             inherit
               preludeComponentPaths
               promptRuntimePackages
@@ -492,19 +517,20 @@ in
           // lib.optionalAttrs cfg.prompt.enable {
             prompt = promptPkg;
           };
-          meta = {
+        meta =
+          {
             description = "Prelude devshell UI and its enabled runtime dependencies";
           }
           // lib.optionalAttrs cfg.motd.enable {
             mainProgram = "motd";
           };
-        };
+      };
 
-        mkApp = pkg: {
-          type = "app";
-          program = pkgs.lib.getExe pkg;
-        };
-      in
+      mkApp = pkg: {
+        type = "app";
+        program = pkgs.lib.getExe pkg;
+      };
+    in
       lib.mkMerge [
         {
           # Add this single package to a devshell to receive every enabled

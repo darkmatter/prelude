@@ -1,6 +1,6 @@
 # Prelude Prompt, Status, and Discovery Redesign
 
-**Date:** 2026-08-04  
+**Date:** 2026-08-04\
 **Status:** Implemented
 
 ## Purpose
@@ -56,20 +56,20 @@ The generated Starship configuration has this visual order:
 ```
 
 1. Preserve exactly the existing two blank breathing rows.
-2. Remove `right_format`; the existing Powerline must not be rendered on the
+1. Remove `right_format`; the existing Powerline must not be rendered on the
    right. Render the current Powerline segments as one additional left-aligned
    Starship row above the input row.
-3. Make the input row follow the menu visual convention: muted
+1. Make the input row follow the menu visual convention: muted
    `~/<configured project>`, bold accent2 `❯`, then the user's editable input.
    This is styling only. Do not place a fake `Type a command…` placeholder in
    the input buffer.
-4. Bash places a full-width one-cell `▄` cap immediately above the fixed status
+1. Bash places a full-width one-cell `▄` cap immediately above the fixed status
    row. Its top half blends with the terminal background and its bottom half
    blends with the status surface, matching the menu footer treatment.
-5. The fixed bottom ble.sh status row retains the exact navigation chips
+1. The fixed bottom ble.sh status row retains the exact navigation chips
    `? motd`, `m menu`, and `d docs`. Contextual discovery and local-server health
    occupy the status row's owned dynamic area without changing those chips.
-5. Bash receives the ble.sh status behavior. Zsh retains native Starship and
+1. Bash receives the ble.sh status behavior. Zsh retains native Starship and
    does not receive the fixed ble.sh status row.
 
 The dynamic Bash area must be invalidated through a ble.sh `\q` callback whose
@@ -181,23 +181,23 @@ missing or unreadable.
    a valid descriptor projects exactly its canonical command key, explicit check,
    and TTL; an unknown command key or invalid TTL fails configuration validation;
    generated status remains disabled when `configFile` is supplied.
-2. **Status callback behavior:** focused tests cover empty/default, `x`, `x `,
+1. **Status callback behavior:** focused tests cover empty/default, `x`, `x `,
    known key, current argument, and safe fallback states. The callback includes
    the live input buffer in its ble.sh hash and never evaluates the buffer.
-3. **Health cache lifecycle:** focused tests cover missing/checking, fresh healthy,
+1. **Health cache lifecycle:** focused tests cover missing/checking, fresh healthy,
    failed/stopped, stale, compact ages, configured TTL expiry, and the canonical
    start instruction for stopped/unavailable results.
-4. **No synchronous probe per edit:** focused tests or instrumentation prove that
+1. **No synchronous probe per edit:** focused tests or instrumentation prove that
    editing the input causes projection/invalidation only; no process or network
    check is run synchronously per edit or keystroke.
-5. **Normal visual output:** rendering checks prove two blank rows, a left-aligned
+1. **Normal visual output:** rendering checks prove two blank rows, a left-aligned
    Powerline row above the input, muted `~/<configured project>`, bold accent2
    `❯`, no Starship `right_format`, and no input placeholder. Bash retains the
    fixed status row and a full-width cap immediately above it with exact `? motd`,
    `m menu`, and `d docs` chips; zsh has no generated status row.
-6. **Custom configuration ownership:** a user-owned `configFile` is rendered
+1. **Custom configuration ownership:** a user-owned `configFile` is rendered
    without generated Powerline/discovery/health/status behavior, while normal
    generated configuration receives the redesign.
-7. **Boundary regressions:** tests confirm catalogue metadata comes from the
+1. **Boundary regressions:** tests confirm catalogue metadata comes from the
    generated command projection, `x --list` remains noninteractive, `d` remains
    general Markdown docs, and no CI status is introduced.

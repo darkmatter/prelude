@@ -1,6 +1,6 @@
 # MOTD, Setup, and Docs Module Deepening
 
-**Date:** 2026-08-06  
+**Date:** 2026-08-06\
 **Status:** Approved design
 
 ## Purpose
@@ -19,7 +19,7 @@ The Go flow (`src/internal/motd/run.go`) is: load Config → open Cache → Pref
 
 - `Config` (`src/internal/motd/config.go`) is the normalized JSON boundary from Nix; Go owns probes, layout, and rendering.
 - `Cache` (`src/internal/motd/cache.go`) is the single JSON map of live facts written by Preflight; entries carry identity, payload, and TTL.
-- `Preflight` (`src/internal/motd/preflight.go`) runs impure work for due Cache entries in three modes: `PreflightBlocking` (terminal size/bg, sync statuses, env), `PreflightAsync` (only async status), `PreflightAll` (both). Blocking and async are asymmetric: blocking failures abort the run; async failures write stale/pending and never abort.
+- `Preflight` (`src/internal/motd/preflight.go`) runs impure work for due Cache entries in three modes: `PreflightBlocking` (terminal size/bg, sync statuses, env), `PreflightAsync` (only async status), `PreflightAll` (both). Blocking and async are asymmetric: a blocking failure in the normal foreground run is logged as `motd: preflight:` and rendering continues with whatever Cache is available; only `--preflight-only` exits non-zero on a blocking Preflight failure. Async failures write stale/pending and never abort.
 - `Resolve` (`src/internal/motd/paintmodel.go`) builds a pure `PaintModel` from `Config` and `Cache` — no Runtime, no Cache I/O.
 - `Render` (`src/internal/motd/render.go`, `render_input.go`) produces the banner purely from `RenderInput{Config, Cache, TerminalWidth, TerminalHeight}`. Missing/stale cache yields sparse UI; never fails for live data absence.
 - Post-output: after stdout is fully written, if due async entries exist and the run is not pure, a detached async Preflight refreshes the cache (`startAsyncPreflight`). The banner has already been emitted; the refresh is for the *next* invocation.
@@ -34,8 +34,8 @@ Setup is not a standalone Nix module; it is a `writeShellApplication` in `src/pr
 The wizard (`src/internal/wizard/wizard.go`, `run.go`) is an iteration of the title form extended with `prelude.*` options. On finish (`finishWizard`, `run.go:201-260`) it materializes:
 
 1. Renders the FIGlet title and writes it atomically to `title.txt` beside the config (`titlePathBesideConfig`).
-2. If docs is enabled and `docs/getting-started.md` does not already exist, writes the starter page (`starterDocsPath`, `starterDocsPage`) — non-clobbering.
-3. Renders the Nix config template (`renderWizardConfig`) and writes it atomically to the config path (default `prelude.nix`).
+1. If docs is enabled and `docs/getting-started.md` does not already exist, writes the starter page (`starterDocsPath`, `starterDocsPage`) — non-clobbering.
+1. Renders the Nix config template (`renderWizardConfig`) and writes it atomically to the config path (default `prelude.nix`).
 
 Key invariants:
 
@@ -75,7 +75,7 @@ Source evidence establishes an intentional, tested Nix→Go seam:
 - `src/internal/menu/invocation.go` resolves the public `x <command-key>` contract through `resolveXInvocation`; the complete key is globally unique and remains public.
 - `nix/checks.nix:437-532` tests command ordering, defaults, and key uniqueness; `nix/checks.nix:1260-1353` tests MOTD/menu command runnability and shortcut resolution.
 
-This seam is intentional and tested. The Command catalogue refactor is dropped from this round because the Nix→Go seam is intentional and covered by the checks above, and palette ownership is a separate out-of-scope concern. The Command catalogue refactor is dropped from this round.
+This seam is intentional and tested. The Command catalogue refactor is dropped from this round because the Nix→Go seam is intentional and covered by the checks above, and palette ownership is a separate out-of-scope concern.
 
 ## Target behavior
 
@@ -91,7 +91,7 @@ Preserve:
 - The Config → Preflight → Cache → Resolve/Render sequence.
 - Pure Resolve/Render: no Runtime, no Cache I/O after Preflight.
 - Preflight ordering: blocking before async; `PreflightBlocking` refreshes terminal size/bg, sync statuses, env; `PreflightAsync` refreshes only async status.
-- Asymmetric cache/preflight failures: a blocking failure in the normal foreground run is logged as `motd: preflight:` and rendering continues with whatever Cache is available; only `--preflight-only` exits non-zero on a blocking Preflight failure. Async failures write stale/pending and never abort; cache read failure yields sparse UI.
+- Asymmetric cache/preflight failures: a blocking failure in the normal foreground run is logged as `motd: preflight:` and rendering continues with available Cache; only `--preflight-only` exits non-zero on a blocking Preflight failure. Async failures write stale/pending and never abort; cache read failure yields sparse UI.
 - Post-output async refresh: the banner is written to stdout before the detached async Preflight begins.
 
 Deepen internally using an orchestration plan/effect seam: the Config → Preflight → Cache → Resolve/Render sequence is expressed as a named internal orchestration that composes discrete effects (terminal probe, status check, env probe, cache read/write, render). Runtime, terminal, and Cache stay local adapters to that orchestration. No new exported interface is added — the binary entry point, JSON boundary, and `Render`/`RenderInput` public surface are unchanged.
@@ -133,11 +133,11 @@ Normalize current and legacy inputs through one internal Docs bundle-interpretat
 The module is `src/internal/motd`. The current entry point (`Run`) interleaves config load, cache open, preflight mode selection, render, and post-output async refresh in one function. Deepen by introducing an internal orchestration that names the sequence:
 
 1. **Config load** — load JSON boundary (unchanged `loadConfig`).
-2. **Preflight** — compose blocking and/or async effects against the Cache, per mode. The Runtime and terminal adapters remain local; the orchestration names which effects run in which mode and how failures map (blocking in the foreground run logs `motd: preflight:` and renders on with available Cache; `--preflight-only` exits non-zero on blocking failure; async writes-through).
-3. **Cache read** — load the post-preflight cache (or sparse empty on cache failure).
-4. **Resolve/Render** — pure, from `RenderInput`.
-5. **Output** — write banner to stdout.
-6. **Post-output async** — if due async entries exist and the run is not pure, start detached preflight.
+1. **Preflight** — compose blocking and/or async effects against the Cache, per mode. The Runtime and terminal adapters remain local; the orchestration names which effects run in which mode and how failures map (blocking in the foreground run logs `motd: preflight:` and renders on with available Cache; `--preflight-only` exits non-zero on blocking failure; async writes-through).
+1. **Cache read** — load the post-preflight cache (or sparse empty on cache failure).
+1. **Resolve/Render** — pure, from `RenderInput`.
+1. **Output** — write banner to stdout.
+1. **Post-output async** — if due async entries exist and the run is not pure, start detached preflight.
 
 The orchestration seam is internal. `Runtime` (`src/internal/motd/runtime.go`), the terminal adapter (`systemRenderTerminal`), and `Cache`/`cacheStore` remain local adapters. No new exported interface; `Render`, `RenderInput`, `Config`, `Cache`, `Preflight`, and `Resolve` keep their current signatures and JSON contract. The `--refresh-status` legacy alias and `PRELUDE_MOTD_PURE` env gate stay.
 
@@ -148,9 +148,9 @@ Locality: all deepening is within `src/internal/motd`. `src/prelude/motd.nix` is
 The module spans `src/internal/wizard` (Go) and `src/prelude/module.nix` (Nix wrapper). Deepen the `finishWizard` materialization into a named internal sequence with discrete mode transitions:
 
 1. **Title render** — FIGlet render + normalization, write `title.txt` atomically.
-2. **Docs materialization** — if docs enabled and starter page absent, write it (non-clobbering).
-3. **Config emission** — render template, write config atomically.
-4. **Stderr reporting** — write notices and import next steps.
+1. **Docs materialization** — if docs enabled and starter page absent, write it (non-clobbering).
+1. **Config emission** — render template, write config atomically.
+1. **Stderr reporting** — write notices and import next steps.
 
 The TUI (`wizardModel`, `View`, `Update`), render (`renderFIGlet`, `normalizeFIGletOutput`), filesystem (`writeAtomic`), and recipe (`loadRecipe`, `initialRecipe`) helpers stay local adapters. The `setup` wrapper in `module.nix` and the `prelude-title --wizard` entry point are unchanged. The `flake.nix` refusal, sibling `title.txt`, starter docs non-clobbering, write order, and template semantics are unchanged.
 
@@ -185,36 +185,36 @@ No slice touches a file owned by another slice. The Nix source-side (`src/prelud
 Extend the existing Go tests in `src/internal/motd/`:
 
 1. **Mode/legacy alias**: `--refresh-status` maps to `--preflight-only --async`; `PRELUDE_MOTD_PURE=1` sets pure; `--pure` skips Preflight. Assert the orchestration produces the same observable output as the current flow for each mode.
-2. **Config source**: `PRELUDE_MOTD_CONFIG` env overrides the Nix-injected default; missing config is a fatal error with the current message shape.
-3. **Cache failure policy**: cache read failure yields a sparse `Cache{}` and the banner still renders (sparse UI); blocking Preflight failure in the foreground run logs `motd: preflight:` and renders on with available Cache; `--preflight-only` exits non-zero on blocking failure; async Preflight failure writes stale/pending status and does not abort.
-4. **Foreground preflight warning behavior**: blocking Preflight with `spinner=true` on a TTY emits the MiniDot spinner on stderr; `--async` suppresses the spinner. Assert the spinner is emitted for blocking and suppressed for async.
-5. **Output-before-async behavior**: the banner is fully written to stdout before the detached async Preflight begins. Assert that stdout contains the banner and the async preflight is started (or not, when no due async entries) after the output write.
+1. **Config source**: `PRELUDE_MOTD_CONFIG` env overrides the Nix-injected default; missing config is a fatal error with the current message shape.
+1. **Cache failure policy**: cache read failure yields a sparse `Cache{}` and the banner still renders (sparse UI); blocking Preflight failure in the foreground run is logged as `motd: preflight:` and rendering continues with available Cache (non-zero exit only under `--preflight-only`); async Preflight failure writes stale/pending status and does not abort.
+1. **Foreground preflight warning behavior**: blocking Preflight with `spinner=true` on a TTY emits the MiniDot spinner on stderr; `--async` suppresses the spinner. Assert the spinner is emitted for blocking and suppressed for async.
+1. **Output-before-async behavior**: the banner is fully written to stdout before the detached async Preflight begins. Assert that stdout contains the banner and the async preflight is started (or not, when no due async entries) after the output write.
 
 ### Setup
 
 Extend the existing Go tests in `src/internal/wizard/`:
 
 1. **Public policy matrix**: assert the generated `prelude.nix` contains the expected active choices (theme, project, title text path, docs pages when enabled) and commented defaults for every other option, matching the current template fragments.
-2. **Materialization outcomes**:
+1. **Materialization outcomes**:
    - `title.txt` is written beside the config with the rendered FIGlet output and trailing newline.
    - Starter docs page is written only when docs is enabled and the file does not already exist (non-clobbering).
    - Config is written after title and starter docs (write order).
    - `flake.nix` is refused; no file is written.
    - Stderr contains write notices and import next steps.
-3. **Recipe behavior**: JSON recipe prefils text and font; unknown font is rejected; Nix recipe falls back to `nix-instantiate` outside the sandbox.
-4. **FIGlet normalization**: blank edge rows are dropped; interior blank rows survive; right-trim per row.
-5. **Terminal gates**: `--wizard` and `--generate` are mutually exclusive (non-zero exit); `--interactive` opens the chooser without a TTY.
+1. **Recipe behavior**: JSON recipe prefils text and font; unknown font is rejected; Nix recipe falls back to `nix-instantiate` outside the sandbox.
+1. **FIGlet normalization**: blank edge rows are dropped; interior blank rows survive; right-trim per row.
+1. **Terminal gates**: `--wizard` and `--generate` are mutually exclusive (non-zero exit); `--interactive` opens the chooser without a TTY.
 
 ### Docs
 
 Extend the existing Go tests in `src/internal/docs/`:
 
 1. **Current bundle input**: `config.json` with `nav` tree (groups + leaves + generate-expanded) loads into the expected `[]NavNode` with correct kinds, titles, markdown files, gap-before, and root-readme flags.
-2. **Legacy bundle input**: `config.json` with `pages` array (no `nav`) loads into `[]NavNode` leaves with `text` as Markdown, one leaf per page. Both shapes produce the same canonical structure through the interpretation seam.
-3. **Assets/errors**: `heroFile` relative to the config dir loads the hero; missing hero file falls back to empty (bold project name); empty `heroFile` skips the load. Asset read errors are non-fatal.
-4. **Group/leaf normalization**: `convertNav` maps groups to `manual.NavNode` with children and `gapBefore`; leaves map with Markdown and resolved title. Group title is preserved; leaf title follows the precedence chain.
-5. **Hero**: the FIGlet hero is baked into the bundle as `hero.txt` and referenced by `heroFile`; the viewer loads it at config load time and stores it in `Hero` (not JSON-serialized).
-6. **Titles**: explicit title wins; empty title falls back to first H1 (stripped of inline markup); no H1 falls back to `page N`; root README with empty title falls back to "README".
+1. **Legacy bundle input**: `config.json` with `pages` array (no `nav`) loads into `[]NavNode` leaves with `text` as Markdown, one leaf per page. Both shapes produce the same canonical structure through the interpretation seam.
+1. **Assets/errors**: `heroFile` relative to the config dir loads the hero; a non-empty `heroFile` that cannot be read is a fatal `loadConfig` error; an empty/absent `heroFile` skips the load and yields an empty `Hero`, allowing the manual viewer's project-name fallback.
+1. **Group/leaf normalization**: `convertNav` maps groups to `manual.NavNode` with children and `gapBefore`; leaves map with Markdown and resolved title. Group title is preserved; leaf title follows the precedence chain.
+1. **Hero**: the FIGlet hero is baked into the bundle as `hero.txt` and referenced by `heroFile`; the viewer loads it at config load time and stores it in `Hero` (not JSON-serialized).
+1. **Titles**: explicit title wins; empty title falls back to first H1 (stripped of inline markup); no H1 falls back to `page N` (supplied by `markdownTitle`, always non-empty). Because `markdownTitle` never returns empty, the `RootReadme` "README" fallback in `convertNode` is currently unreachable; assert current behavior (`page N`) for root README with empty title, and do not assert that "README" wins.
 
 ### Shared
 

@@ -116,10 +116,10 @@ func TestEmptyCommandNoteIsHidden(t *testing.T) {
 func TestCommandNoteGapPaintedWithWindowBackground(t *testing.T) {
 	cfg := Config{
 		Palette: shared.Palette{
-			Bg:           "#101010",
-			Fg:           "#ffffff",
-			Dim:          "#777777",
-			Accent:       "#00aaff",
+			Bg:     "#101010",
+			Fg:     "#ffffff",
+			Dim:    "#777777",
+			Accent: "#00aaff",
 		},
 		WindowBackground: "#112233",
 		Commands: []Command{

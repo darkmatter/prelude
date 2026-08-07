@@ -11,24 +11,23 @@
   blesh,
   bash-completion,
   stdenv,
-}:
-
-{
+}: {
   palette,
   shadow ? null,
   windowBackgroundSet ? false,
-  commandEntries ? [ ],
+  commandEntries ? [],
   projectName ? "your project",
-  navigation ? [ ],
+  navigation ? [],
   motdCommand ? null,
   statusEnabled ? false,
   promptStatusCommand ? null,
   promptStatusConfig ? null,
-}:
-
-let
-  plib = import ./lib.nix { inherit lib; };
-  resolvedShadow = if shadow == null then plib.lightenColor palette.bg else shadow;
+}: let
+  plib = import ./lib.nix {inherit lib;};
+  resolvedShadow =
+    if shadow == null
+    then plib.lightenColor palette.bg
+    else shadow;
   # Prompt markup is zero-width after ble.sh parses it, while status-row layout
   # runs before parsing. Keep a literal twin so padding always uses cell widths.
   # The status row is standalone; each `\g` span resets SGR, so spans without a
@@ -39,13 +38,14 @@ let
   navigationRendered = lib.concatStringsSep "  " (
     map (
       shortcut:
-      lib.concatStrings [
-        "\\g{fg=${palette.dim}}["
-        "\\g{bold,fg=${palette.accent2}}${shortcut.alias}"
-        "\\g{fg=${palette.dim}}]"
-        "\\g{fg=${palette.muted}} ${shortcut.command}"
-      ]
-    ) navigation
+        lib.concatStrings [
+          "\\g{fg=${palette.dim}}["
+          "\\g{bold,fg=${palette.accent2}}${shortcut.alias}"
+          "\\g{fg=${palette.dim}}]"
+          "\\g{fg=${palette.muted}} ${shortcut.command}"
+        ]
+    )
+    navigation
   );
   # Keep a visible-text twin: status.bash calculates padding before ble.sh
   # strips the trusted `\g` markup.
@@ -56,20 +56,23 @@ let
   # colors to terminal columns, so resizing moves the stops with the viewport
   # instead of tying them to hint fragments.
   gradientStopCount = 64;
-  gradientColors = lib.genList (
-    index:
-    plib.mixColor palette.bg resolvedShadow (index * 1.0 / (gradientStopCount - 1))
-  ) gradientStopCount;
+  gradientColors =
+    lib.genList (
+      index:
+        plib.mixColor palette.bg resolvedShadow (index * 1.0 / (gradientStopCount - 1))
+    )
+    gradientStopCount;
   # Fallback for an older runtime that does not understand the gradient palette.
   hintRendered = lib.concatStrings [
     "\\g{fg=${palette.dim}}${hintPrefix}"
     "\\g{bold,fg=${palette.dim}}${hintCommand}"
   ];
   catalogue = writeText "prelude-shell-catalogue.bash" (
-    import ./shell/catalogue.nix { inherit lib; } { inherit commandEntries; }
+    import ./shell/catalogue.nix {inherit lib;} {inherit commandEntries;}
   );
   schemePalette = {
-    inherit (palette)
+    inherit
+      (palette)
       bg
       surface
       secondary
@@ -95,11 +98,12 @@ let
   );
   scheme = writeText "prelude.bash" (
     lib.replaceStrings (map (token: "%prelude_${token}") schemeTokens) (map (
-      token: schemePalette.${token}
-    ) schemeTokens) (builtins.readFile ./shell/scheme.bash)
+        token: schemePalette.${token}
+      )
+      schemeTokens) (builtins.readFile ./shell/scheme.bash)
   );
 
-  runtime = runCommand "prelude-shell-runtime" { } ''
+  runtime = runCommand "prelude-shell-runtime" {} ''
     install -d "$out" "$out/contrib/scheme"
     install -m 0444 ${./shell/init.bash} "$out/init.bash"
     install -m 0444 ${./shell/bash-init.bash} "$out/bash-init.bash"
@@ -116,8 +120,16 @@ let
     _PRELUDE_BASH_COMPLETION=${lib.escapeShellArg "${bash-completion}/etc/profile.d/bash_completion.sh"}
     _PRELUDE_BLESH=${lib.escapeShellArg "${blesh}/share/blesh/ble.sh"}
     _PRELUDE_STARSHIP=${lib.escapeShellArg (lib.getExe starship)}
-    _PRELUDE_STARSHIP_STATUS_ENABLED=${if statusEnabled then "1" else "0"}
-    _PRELUDE_WINDOW_BACKGROUND_SET=${if windowBackgroundSet then "1" else "0"}
+    _PRELUDE_STARSHIP_STATUS_ENABLED=${
+      if statusEnabled
+      then "1"
+      else "0"
+    }
+    _PRELUDE_WINDOW_BACKGROUND_SET=${
+      if windowBackgroundSet
+      then "1"
+      else "0"
+    }
     _PRELUDE_PROMPT_PROJECT=${lib.escapeShellArg projectName}
     _PRELUDE_PROMPT_NAVIGATION=${lib.escapeShellArg navigationText}
     _PRELUDE_PROMPT_NAVIGATION_RENDERED=${lib.escapeShellArg navigationRendered}
@@ -127,14 +139,30 @@ let
     _PRELUDE_PROMPT_STATUS_HINT_BOLD_WIDTH=${toString (builtins.stringLength hintCommand)}
     _PRELUDE_PROMPT_STATUS_GRADIENT=${lib.escapeShellArg (lib.concatStringsSep ":" gradientColors)}
     _PRELUDE_PROMPT_STATUS_GRADIENT_FG=${lib.escapeShellArg palette.dim}
-    _PRELUDE_MOTD=${lib.escapeShellArg (if motdCommand == null then "" else motdCommand)}
+    _PRELUDE_MOTD=${lib.escapeShellArg (
+      if motdCommand == null
+      then ""
+      else motdCommand
+    )}
     _PRELUDE_PROMPT_STATUS=${
-      lib.escapeShellArg (if promptStatusCommand == null then "" else promptStatusCommand)
+      lib.escapeShellArg (
+        if promptStatusCommand == null
+        then ""
+        else promptStatusCommand
+      )
     }
     _PRELUDE_PROMPT_STATUS_CONFIG=${
-      lib.escapeShellArg (if promptStatusConfig == null then "" else promptStatusConfig)
+      lib.escapeShellArg (
+        if promptStatusConfig == null
+        then ""
+        else promptStatusConfig
+      )
     }
-    _PRELUDE_DARWIN=${if stdenv.isDarwin then "1" else ""}
+    _PRELUDE_DARWIN=${
+      if stdenv.isDarwin
+      then "1"
+      else ""
+    }
 
     # shellcheck source=/dev/null
     . ${lib.escapeShellArg "${runtime}/init.bash"}
@@ -149,7 +177,6 @@ let
     unset _PRELUDE_PROMPT_STATUS _PRELUDE_PROMPT_STATUS_CONFIG
     unset _PRELUDE_MOTD _PRELUDE_DARWIN
   '';
-in
-{
+in {
   inherit init runtime;
 }

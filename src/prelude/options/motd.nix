@@ -1,8 +1,7 @@
 # prelude.motd.* options — the static devshell welcome banner.
-{ lib, ... }:
-let
+{lib, ...}: let
   defaults = import ../defaults.nix;
-  t = import ../option-types.nix { inherit lib; };
+  t = import ../option-types.nix {inherit lib;};
 
   # One {label, url} terminal hyperlink; shared by `links` and
   # `header.statusHint.links`.
@@ -18,13 +17,12 @@ let
       };
     };
   };
-in
-{
+in {
   options.prelude.motd = {
     enable = lib.mkEnableOption "devshell MOTD banner";
 
     title = lib.mkOption {
-      default = { };
+      default = {};
       description = "MOTD title content and fallback wordmark presentation.";
       type = lib.types.submodule {
         options = {
@@ -103,12 +101,12 @@ in
     };
 
     header = lib.mkOption {
-      default = { };
+      default = {};
       description = "Filled hero bar: status chips plus tagline and subtitle activation copy beneath the title.";
       type = lib.types.submodule {
         options = {
           tagline = lib.mkOption {
-            default = { };
+            default = {};
             description = "Activation text rendered beneath the header rule.";
             type = lib.types.submodule {
               options = {
@@ -152,7 +150,7 @@ in
             example = null;
           };
           statusHint = lib.mkOption {
-            default = { };
+            default = {};
             description = "Layout for the timestamp and reload hint derived from asynchronous status checks.";
             type = lib.types.submodule {
               options.layout = lib.mkOption {
@@ -260,16 +258,16 @@ in
       example.clean-local-stack = {
         title = "spin up a clean local stack";
         steps = [
-          { comment = "start postgres + redis first"; }
-          { command = "just db:up"; }
-          { command = "just db:migrate && just db:seed"; }
-          { command = "just dev"; }
+          {comment = "start postgres + redis first";}
+          {command = "just db:up";}
+          {command = "just db:migrate && just db:seed";}
+          {command = "just dev";}
         ];
       };
     };
 
     gettingStarted = lib.mkOption {
-      default = { };
+      default = {};
       description = "Labels for the unified commands + examples region.";
       type = lib.types.submodule {
         options = {

@@ -16,15 +16,14 @@
     flake-parts.follows = "prelude/flake-parts";
   };
 
-  outputs =
-    inputs@{
-      flake-parts,
-      prelude,
-      ...
-    }:
-    flake-parts.lib.mkFlake { inherit inputs; } {
+  outputs = inputs @ {
+    flake-parts,
+    prelude,
+    ...
+  }:
+    flake-parts.lib.mkFlake {inherit inputs;} {
       # 1. Import the Prelude flake-parts module.
-      imports = [ prelude.flakeModules.default ];
+      imports = [prelude.flakeModules.default];
 
       systems = [
         "x86_64-linux"
@@ -49,17 +48,19 @@
         # };
 
         docs.pages = [
-          { text = ./docs/getting-started.md; }
+          {text = ./docs/getting-started.md;}
         ];
       };
 
-      perSystem =
-        { config, pkgs, ... }:
-        {
-          devShells.default = pkgs.mkShell {
-            packages = [ config.packages.prelude ];
-            shellHook = "motd";
-          };
+      perSystem = {
+        config,
+        pkgs,
+        ...
+      }: {
+        devShells.default = pkgs.mkShell {
+          packages = [config.packages.prelude];
+          shellHook = "motd";
         };
+      };
     };
 }

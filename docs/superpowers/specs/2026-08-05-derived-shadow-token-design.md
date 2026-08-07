@@ -1,6 +1,6 @@
 # Derived Shadow Palette Token
 
-**Date:** 2026-08-05  
+**Date:** 2026-08-05\
 **Status:** Approved design
 
 ## Purpose
@@ -104,18 +104,18 @@ palette-background fallback selected during design.
 Focused Nix checks must prove:
 
 1. Every built-in theme produces an exact, valid derived `shadow` token.
-2. A hex `prelude.palette.bg` override changes `shadow` according to the 5% rule;
+1. A hex `prelude.palette.bg` override changes `shadow` according to the 5% rule;
    a black override proves that equality is permitted when RGB precision requires
    it.
-3. Short hex and numeric color forms match Lip Gloss's canonical RGB conversion
+1. Short hex and numeric color forms match Lip Gloss's canonical RGB conversion
    before darkening.
-4. A literal `motd.windowBackground` becomes the `shadow` base; `true`, `null`,
+1. A literal `motd.windowBackground` becomes the `shadow` base; `true`, `null`,
    and `false` select the documented base/ownership states.
-5. Relative and blend window backgrounds retain ownership while falling back to
+1. Relative and blend window backgrounds retain ownership while falling back to
    the resolved palette background. Disabled MOTD always clears ownership.
-6. Generated Starship TOML and the generated ble.sh scheme agree on `shadow`.
+1. Generated Starship TOML and the generated ble.sh scheme agree on `shadow`.
    Generated `_PRELUDE_WINDOW_BACKGROUND_SET` must survive bootstrap cleanup:
    successful owned startup selects `shadow`; successful fallback, quiet, and
    failed-MOTD startup select `palette.bg`.
-7. Direct `mkPrompt` generation without module-injected context deterministically
+1. Direct `mkPrompt` generation without module-injected context deterministically
    derives `shadow` from resolved `palette.bg`.

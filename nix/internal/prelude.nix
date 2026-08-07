@@ -5,8 +5,11 @@
 #
 # Component-specific detail lives under nix/ so this file stays the thin
 # identity + catalogue surface users expect.
-{ self, lib, ... }:
-let
+{
+  self,
+  lib,
+  ...
+}: let
   # Side-eval Prelude's public options so docs generation does not close over
   # the live flake-parts option tree (cycles / noise). Same modules as docs-sync.
   preludeOptionsEval = lib.evalModules {
@@ -18,9 +21,7 @@ let
       (self + /src/prelude/options/prompt.nix)
     ];
   };
-in
-{
-
+in {
   prelude = {
     # theme = "apathy";
     colorProfile = "truecolor";
@@ -109,18 +110,18 @@ in
         options = {
           inherit (preludeOptionsEval.options) prelude;
         };
-        transformOptions = option: option // { declarations = [ ]; };
+        transformOptions = option: option // {declarations = [];};
       };
       # mdSplit → { title = "README"; text; children }; docs.nix names the
       # preamble child after project and attaches FIGlet via rootReadme.
       rootReadme = self + /README.md;
       pages = [
         (self.lib.mdSplit (self + /README.md))
-        { text = self + /docs/this-shell.md; }
-        { text = self + /docs/commands.md; }
-        { text = self + /docs/your-own-repo.md; }
-        { text = self + /docs/configuration.md; }
-        { text = self + /docs/see-also.md; }
+        {text = self + /docs/this-shell.md;}
+        {text = self + /docs/commands.md;}
+        {text = self + /docs/your-own-repo.md;}
+        {text = self + /docs/configuration.md;}
+        {text = self + /docs/see-also.md;}
         {
           generate = "nixosOptions";
           title = "Options";
@@ -165,7 +166,7 @@ in
         You are inside Prelude's own devshell — the banner, menu, docs, and prompt around you are built by this repo from `prelude.nix`, the same way a downstream project would. Run `menu` to browse every command, or `docs` for the guides — including how to set up Prelude in your own repo.
       '';
 
-      env = [ ];
+      env = [];
 
       # Commands shown in Getting Started are selected via `commands.<name>.motd`
       # (sort order) — see nix/internal/prelude.nix. `menu` is always listed bare when
@@ -175,9 +176,9 @@ in
         order = 100;
         title = "set up prelude in your own repo";
         steps = [
-          { comment = "generate config with the setup wizard"; }
-          { command = "nix run github:darkmatter/prelude"; }
-          { comment = "full walkthrough: docs, page \"Your own repo\""; }
+          {comment = "generate config with the setup wizard";}
+          {command = "nix run github:darkmatter/prelude";}
+          {comment = "full walkthrough: docs, page \"Your own repo\"";}
         ];
       };
     };
@@ -193,43 +194,39 @@ in
   };
 
   # Package-backed commands derive both their executable and runtime closure.
-  perSystem =
-    { pkgs, ... }:
-    {
-      prelude.commands = {
-        # The first colon derives menu group/label while the complete key stays
-        # public (`x go:test`). fromPkg derives the canonical `go test …`
-        # invocation and carries Go onto PATH; no extra executable is generated.
-        "test" = self.lib.fromPkg pkgs.go {
-
-          arguments = [
-            "test"
-            "-C"
-            "src"
-            "./..."
-          ];
-          description = "run the Go unit tests";
-          motd = 1;
-        };
-        "go:vet" = self.lib.fromPkg pkgs.go {
-
-          arguments = [
-            "vet"
-            "-C"
-            "src"
-            "./..."
-          ];
-          description = "vet the Go sources";
-        };
-        check = self.lib.mkCommand {
-          command = "nix flake check";
-          description = "build + render smoke tests";
-          motd = 2;
-        };
-        fmt = self.lib.fromPkg pkgs.nixfmt {
-          arguments = [ "." ];
-          description = "format nix sources";
-        };
+  perSystem = {pkgs, ...}: {
+    prelude.commands = {
+      # The first colon derives menu group/label while the complete key stays
+      # public (`x go:test`). fromPkg derives the canonical `go test …`
+      # invocation and carries Go onto PATH; no extra executable is generated.
+      "test" = self.lib.fromPkg pkgs.go {
+        arguments = [
+          "test"
+          "-C"
+          "src"
+          "./..."
+        ];
+        description = "run the Go unit tests";
+        motd = 1;
+      };
+      "go:vet" = self.lib.fromPkg pkgs.go {
+        arguments = [
+          "vet"
+          "-C"
+          "src"
+          "./..."
+        ];
+        description = "vet the Go sources";
+      };
+      check = self.lib.mkCommand {
+        command = "nix flake check";
+        description = "build + render smoke tests";
+        motd = 2;
+      };
+      fmt = self.lib.fromPkg pkgs.nixfmt {
+        arguments = ["."];
+        description = "format nix sources";
       };
     };
+  };
 }

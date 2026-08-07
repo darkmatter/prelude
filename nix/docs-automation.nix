@@ -6,8 +6,7 @@
   lib,
   config,
   ...
-}:
-let
+}: let
   ex = import ../src/prelude/examples.nix;
 
   motdDemos = import ./motd-demo-builder.nix {
@@ -15,7 +14,7 @@ let
     currentMotdConfig = config.packages.motd.motdRenderConfig;
     titlePkg = config.packages.title;
   };
-  menuDemo = import ./menu-demo-builder.nix { inherit pkgs lib; };
+  menuDemo = import ./menu-demo-builder.nix {inherit pkgs lib;};
 
   motdProgram = lib.getExe motdDemos.examplePackages.example-motd;
   menuProgram = lib.getExe menuDemo.package;
@@ -114,25 +113,22 @@ let
   # Keep fingerprints independent of host-specific store paths. Reading file
   # names and contents also avoids making the manifest depend on the dirty
   # flake source path (and therefore indirectly on the manifest itself).
-  readTree =
-    path:
-    let
-      entries = builtins.readDir path;
-      names = lib.sort builtins.lessThan (builtins.attrNames entries);
-    in
+  readTree = path: let
+    entries = builtins.readDir path;
+    names = lib.sort builtins.lessThan (builtins.attrNames entries);
+  in
     lib.concatMapStringsSep "\n" (
-      name:
-      let
+      name: let
         kind = entries.${name};
         child = path + "/${name}";
       in
-      if kind == "directory" then
-        "directory:${name}\n${readTree child}"
-      else if kind == "regular" then
-        "file:${name}\n${builtins.readFile child}"
-      else
-        "${kind}:${name}"
-    ) names;
+        if kind == "directory"
+        then "directory:${name}\n${readTree child}"
+        else if kind == "regular"
+        then "file:${name}\n${builtins.readFile child}"
+        else "${kind}:${name}"
+    )
+    names;
 
   sharedInput = builtins.concatStringsSep "\n" [
     (builtins.readFile ../flake.lock)
@@ -144,8 +140,7 @@ let
     (readTree ../src/pkg/shared)
     pkgs.vhs.version
   ];
-  fingerprint =
-    componentInput: tapeText: config:
+  fingerprint = componentInput: tapeText: config:
     builtins.hashString "sha256" (
       builtins.concatStringsSep "\n" [
         sharedInput
@@ -163,11 +158,14 @@ let
   motdFingerprint = fingerprint motdComponentInput motdTapeText ex.motd;
   minimalFingerprint = fingerprint motdComponentInput minimalTapeText ex.motdDemos.minimal;
   surfaceFingerprint = fingerprint motdComponentInput surfaceTapeText ex.motdDemos.surface;
-  menuFingerprint = fingerprint (builtins.concatStringsSep "\n" [
-    (builtins.readFile ./menu-demo-builder.nix)
-    (builtins.readFile ../src/prelude/menu.nix)
-    (readTree ../src/internal/menu)
-  ]) menuTapeText ex.menu;
+  menuFingerprint =
+    fingerprint (builtins.concatStringsSep "\n" [
+      (builtins.readFile ./menu-demo-builder.nix)
+      (builtins.readFile ../src/prelude/menu.nix)
+      (readTree ../src/internal/menu)
+    ])
+    menuTapeText
+    ex.menu;
 
   manifestData = {
     version = 1;
@@ -188,32 +186,30 @@ let
       };
       minimal = {
         fingerprint = minimalFingerprint;
-        outputs = [ "minimal.png" ];
+        outputs = ["minimal.png"];
       };
       surface = {
         fingerprint = surfaceFingerprint;
-        outputs = [ "surface.png" ];
+        outputs = ["surface.png"];
       };
     };
   };
   manifest = pkgs.writeText "prelude-doc-media-manifest.json" (builtins.toJSON manifestData + "\n");
 
-  motdModuleConfig =
-    config:
-    let
-      sharedNames = [
-        "theme"
-        "palette"
-        "colorProfile"
-        "project"
-      ];
-    in
+  motdModuleConfig = config: let
+    sharedNames = [
+      "theme"
+      "palette"
+      "colorProfile"
+      "project"
+    ];
+  in
     (lib.filterAttrs (name: _value: builtins.elem name sharedNames) config)
-    // lib.optionalAttrs ((config.commandCatalog or { }) != { }) {
+    // lib.optionalAttrs ((config.commandCatalog or {}) != {}) {
       commands = config.commandCatalog;
     }
     // {
-      motd = builtins.removeAttrs config (sharedNames ++ [ "commandCatalog" ]);
+      motd = builtins.removeAttrs config (sharedNames ++ ["commandCatalog"]);
     };
 
   gallery = pkgs.writeText "prelude-showcases.md" ''
@@ -236,7 +232,7 @@ let
     <summary>Show the configuration used for this recording</summary>
 
     ```nix
-    prelude = ${lib.generators.toPretty { } (motdModuleConfig ex.motd)};
+    prelude = ${lib.generators.toPretty {} (motdModuleConfig ex.motd)};
     ```
 
     </details>
@@ -250,7 +246,7 @@ let
     ![Minimal MOTD with explicit description styling](../media/minimal.png)
 
     ```nix
-    prelude = ${lib.generators.toPretty { } (motdModuleConfig ex.motdDemos.minimal)};
+    prelude = ${lib.generators.toPretty {} (motdModuleConfig ex.motdDemos.minimal)};
     ```
 
     ### Full-window background
@@ -263,7 +259,7 @@ let
     ![MOTD with a full-window background](../media/surface.png)
 
     ```nix
-    prelude = ${lib.generators.toPretty { } (motdModuleConfig ex.motdDemos.surface)};
+    prelude = ${lib.generators.toPretty {} (motdModuleConfig ex.motdDemos.surface)};
     ```
 
     ## Interactive command menu
@@ -283,7 +279,7 @@ let
 
     ```nix
     prelude = ${
-      lib.generators.toPretty { } {
+      lib.generators.toPretty {} {
         project = ex.menu.project;
         commands = ex.menu.commands;
       }
@@ -300,29 +296,29 @@ let
     ../src/prelude/options/docs.nix
     ../src/prelude/options/prompt.nix
   ];
-  evaluatedOptions = lib.evalModules { modules = optionModules; };
+  evaluatedOptions = lib.evalModules {modules = optionModules;};
   validatedMotdConfigs =
     map
-      (
-        config:
+    (
+      config:
         (lib.evalModules {
-          modules = optionModules ++ [ { prelude = motdModuleConfig config; } ];
+          modules = optionModules ++ [{prelude = motdModuleConfig config;}];
         }).config.prelude.motd
-      )
-      [
-        ex.motd
-        ex.motdDemos.minimal
-        ex.motdDemos.surface
-      ];
+    )
+    [
+      ex.motd
+      ex.motdDemos.minimal
+      ex.motdDemos.surface
+    ];
   optionsDoc = pkgs.nixosOptionsDoc {
     options = {
       inherit (evaluatedOptions.options) prelude;
     };
     # Store-path declarations make generated Markdown change whenever the dirty
     # flake source path changes. The option names already identify their source.
-    transformOptions = option: option // { declarations = [ ]; };
+    transformOptions = option: option // {declarations = [];};
   };
-  optionsReference = pkgs.runCommand "prelude-options-reference.md" { } ''
+  optionsReference = pkgs.runCommand "prelude-options-reference.md" {} ''
     {
       echo '# Options reference'
       echo
@@ -435,9 +431,8 @@ let
     '';
   };
 
-  docsFresh =
-    assert builtins.deepSeq validatedMotdConfigs true;
-    pkgs.runCommand "docs-generated-fresh" { } ''
+  docsFresh = assert builtins.deepSeq validatedMotdConfigs true;
+    pkgs.runCommand "docs-generated-fresh" {} ''
       failed=0
       compare() {
         expected=$1
@@ -456,7 +451,7 @@ let
       touch "$out"
     '';
 
-  mediaFresh = pkgs.runCommand "docs-media-fresh" { } ''
+  mediaFresh = pkgs.runCommand "docs-media-fresh" {} ''
     failed=0
     if [ ! -f ${../.}/docs/media/manifest.json ] \
       || ! cmp -s ${manifest} ${../.}/docs/media/manifest.json; then
@@ -475,8 +470,7 @@ let
     fi
     touch "$out"
   '';
-in
-{
+in {
   inherit
     docsFresh
     gallery

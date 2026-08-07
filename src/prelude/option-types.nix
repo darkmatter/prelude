@@ -1,7 +1,6 @@
 # Shared option types and builders for the prelude module options
 # (src/prelude/options/*.nix).
-{ lib }:
-let
+{lib}: let
   # Colors are ANSI-256 numbers (e.g. 212) or hex strings (e.g. "#dddddd").
   colorType = lib.types.either lib.types.ints.unsigned lib.types.str;
 
@@ -37,7 +36,7 @@ let
     lib.types.either lib.types.bool (lib.types.either colorType relativeBgType)
   );
 
-  widthType = lib.types.either lib.types.int (lib.types.enum [ "full" ]);
+  widthType = lib.types.either lib.types.int (lib.types.enum ["full"]);
 
   alignType = lib.types.enum [
     "left"
@@ -48,18 +47,17 @@ let
   # Styled text item. Defaults are baked into the submodule fields so partial
   # settings (e.g. `prelude.motd.description.text = "..."`) keep the per-option
   # styling. A null foreground falls back to the theme's role color.
-  mkTextOption =
-    {
-      text ? "",
-      foreground ? null,
-      background ? null,
-      bold ? false,
-      faint ? false,
-      description,
-    }:
+  mkTextOption = {
+    text ? "",
+    foreground ? null,
+    background ? null,
+    bold ? false,
+    faint ? false,
+    description,
+  }:
     lib.mkOption {
       inherit description;
-      default = { };
+      default = {};
       type = lib.types.submodule {
         options = {
           text = lib.mkOption {
@@ -97,15 +95,14 @@ let
           };
           tips = lib.mkOption {
             type = lib.types.listOf lib.types.str;
-            default = [ ];
+            default = [];
             description = "Optional tip lines under the body. Wrap commands in backticks for accent highlighting.";
           };
         };
       };
     };
 
-  mkColorOption =
-    role:
+  mkColorOption = role:
     lib.mkOption {
       type = lib.types.nullOr colorType;
       default = null;
@@ -116,20 +113,20 @@ let
   # supersede them (CSS-style). Omitted keys in `spacingDefaults` (and in
   # consumer overrides) are fine — sides default to null (fall through to the
   # axis), axes/minHeight default to 0.
-  mkSpacingOption =
-    { spacingDefaults, description }:
-    let
-      mkSide =
-        side: axis:
-        lib.mkOption {
-          type = lib.types.nullOr lib.types.ints.unsigned;
-          default = spacingDefaults.${side} or null;
-          description = "${side} spacing; supersedes `${axis}` when set.";
-        };
-    in
+  mkSpacingOption = {
+    spacingDefaults,
+    description,
+  }: let
+    mkSide = side: axis:
+      lib.mkOption {
+        type = lib.types.nullOr lib.types.ints.unsigned;
+        default = spacingDefaults.${side} or null;
+        description = "${side} spacing; supersedes `${axis}` when set.";
+      };
+  in
     lib.mkOption {
       inherit description;
-      default = { };
+      default = {};
       type = lib.types.submodule {
         options = {
           x = lib.mkOption {
@@ -264,7 +261,7 @@ let
       };
       options = lib.mkOption {
         type = lib.types.listOf lib.types.str;
-        default = [ ];
+        default = [];
         description = "Suggested values, offered as choices.";
       };
     };
@@ -272,7 +269,6 @@ let
 
   commandType = lib.types.submodule {
     options = {
-
       exec = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
@@ -296,7 +292,7 @@ let
 
       runtimePackages = lib.mkOption {
         type = lib.types.listOf lib.types.package;
-        default = [ ];
+        default = [];
         internal = true;
         description = "Packages automatically bundled for this command by prelude.lib.mkCommand.";
       };
@@ -322,12 +318,12 @@ let
       };
       examples = lib.mkOption {
         type = lib.types.listOf lib.types.str;
-        default = [ ];
+        default = [];
         description = "Worked example invocations.";
       };
       args = lib.mkOption {
         type = lib.types.listOf argType;
-        default = [ ];
+        default = [];
         description = "Arguments/flags; presence triggers arg-entry mode in the menu.";
       };
 
@@ -374,13 +370,13 @@ let
       };
       steps = lib.mkOption {
         type = lib.types.listOf recipeStepType;
-        default = [ ];
+        default = [];
         description = "Recipe steps: { command = \"...\"; } or { comment = \"...\"; }.";
       };
       # Legacy free-form lines; normalized into steps by lib.normalizeRecipes.
       lines = lib.mkOption {
         type = lib.types.listOf lib.types.str;
-        default = [ ];
+        default = [];
         description = "Legacy display lines (# comments / commands). Prefer steps.";
       };
     };
@@ -406,8 +402,7 @@ let
       };
     };
   };
-in
-{
+in {
   inherit
     colorType
     relativeBgType

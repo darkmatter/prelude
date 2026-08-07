@@ -7,15 +7,14 @@
     flake-parts.follows = "prelude/flake-parts";
   };
 
-  outputs =
-    inputs@{
-      flake-parts,
-      prelude,
-      ...
-    }:
-    flake-parts.lib.mkFlake { inherit inputs; } {
+  outputs = inputs @ {
+    flake-parts,
+    prelude,
+    ...
+  }:
+    flake-parts.lib.mkFlake {inherit inputs;} {
       # 1. Import flake-parts mdule
-      imports = [ prelude.flakeModules.default ];
+      imports = [prelude.flakeModules.default];
 
       systems = [
         "x86_64-linux"
@@ -58,8 +57,8 @@
           recipes.first-run = {
             title = "build and run the example";
             steps = [
-              { command = "nix build .#hello"; }
-              { command = "nix run .#hello"; }
+              {command = "nix build .#hello";}
+              {command = "nix run .#hello";}
             ];
           };
         };
@@ -70,54 +69,55 @@
         };
 
         docs.pages = [
-          { text = ./docs/getting-started.md; }
-          { text = ./docs/customization.md; }
+          {text = ./docs/getting-started.md;}
+          {text = ./docs/customization.md;}
         ];
 
         prompt.enable = true;
       };
 
-      perSystem =
-        { config, pkgs, ... }:
-        let
-          hello = pkgs.writeShellApplication {
-            name = "hello";
-            text = ''
-              echo "hello from the Prelude reference example"
-            '';
-          };
-          helloApp = {
-            type = "app";
-            program = pkgs.lib.getExe hello;
-          };
-          packages = {
-            inherit hello;
-            default = hello;
-          };
-          apps = {
-            hello = helloApp;
-            default = helloApp;
-          };
-          checks.hello = pkgs.runCommand "reference-hello-check" { nativeBuildInputs = [ hello ]; } ''
-            hello > "$out"
-            grep -q "Prelude reference example" "$out"
+      perSystem = {
+        config,
+        pkgs,
+        ...
+      }: let
+        hello = pkgs.writeShellApplication {
+          name = "hello";
+          text = ''
+            echo "hello from the Prelude reference example"
           '';
-        in
-        {
-          inherit packages apps checks;
-
-          prelude.commands.hello = prelude.lib.fromPkg packages.hello {
-            description = "run the example application";
-            motd = 1;
-          };
-
-          devShells.default = pkgs.mkShell {
-            packages = [ config.packages.prelude ];
-            shellHook = ''
-              export STARSHIP_CONFIG=${config.packages.prompt}
-              motd >&2
-            '';
-          };
         };
+        helloApp = {
+          type = "app";
+          program = pkgs.lib.getExe hello;
+        };
+        packages = {
+          inherit hello;
+          default = hello;
+        };
+        apps = {
+          hello = helloApp;
+          default = helloApp;
+        };
+        checks.hello = pkgs.runCommand "reference-hello-check" {nativeBuildInputs = [hello];} ''
+          hello > "$out"
+          grep -q "Prelude reference example" "$out"
+        '';
+      in {
+        inherit packages apps checks;
+
+        prelude.commands.hello = prelude.lib.fromPkg packages.hello {
+          description = "run the example application";
+          motd = 1;
+        };
+
+        devShells.default = pkgs.mkShell {
+          packages = [config.packages.prelude];
+          shellHook = ''
+            export STARSHIP_CONFIG=${config.packages.prompt}
+            motd >&2
+          '';
+        };
+      };
     };
 }

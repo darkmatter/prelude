@@ -4,14 +4,14 @@
   lib,
   currentMotdConfig,
   titlePkg,
-}:
-let
+}: let
   ex = import ../src/prelude/examples.nix;
-  plib = import ../src/prelude/lib.nix { inherit lib; };
+  plib = import ../src/prelude/lib.nix {inherit lib;};
   presets = import ../src/prelude/wizard-presets.nix;
   mkMotd = import ../src/prelude/motd.nix {
     inherit lib;
-    inherit (pkgs)
+    inherit
+      (pkgs)
       writeShellApplication
       writeText
       buildGoModule
@@ -19,49 +19,54 @@ let
   };
   themePackages = lib.genAttrs plib.themeNames (
     theme:
-    mkMotd (
-      currentMotdConfig
-      // {
-        inherit theme;
-        # The pager owns clearing between pages; banner content and layout stay
-        # identical to the current module-produced MOTD.
-        clearScreen = false;
-      }
-    )
+      mkMotd (
+        currentMotdConfig
+        // {
+          inherit theme;
+          # The pager owns clearing between pages; banner content and layout stay
+          # identical to the current module-produced MOTD.
+          clearScreen = false;
+        }
+      )
   );
 
   # FIGlet wordmark the wizard would write next to prelude.nix.
   wizardTitle =
     pkgs.runCommand "wizard-preset-title.txt"
+    {
+      nativeBuildInputs = [
+        titlePkg
+        pkgs.figlet
+      ];
+    }
+    ''
+      cat > recipe.nix <<EOF
       {
-        nativeBuildInputs = [
-          titlePkg
-          pkgs.figlet
-        ];
+        text = ${builtins.toJSON presets.project};
+        font = ${builtins.toJSON presets.font};
       }
-      ''
-        cat > recipe.nix <<EOF
-        {
-          text = ${builtins.toJSON presets.project};
-          font = ${builtins.toJSON presets.font};
-        }
-        EOF
-        prelude-title --generate --recipe ./recipe.nix -o "$out"
-      '';
+      EOF
+      prelude-title --generate --recipe ./recipe.nix -o "$out"
+    '';
 
   # Active fields only — same surface the wizard sets. Everything else falls
   # through to defaults.nix (as if left commented in the generated module).
   wizardCommandCatalog = lib.listToAttrs (
     lib.imap1 (i: command: {
       name = command.name;
-      value = {
-        description = command.description or "";
-        motd = if presets.motd then i else null;
-      }
-      // lib.optionalAttrs (command ? exec && command.exec != null && command.exec != "") {
-        exec = command.exec;
-      };
-    }) presets.commands
+      value =
+        {
+          description = command.description or "";
+          motd =
+            if presets.motd
+            then i
+            else null;
+        }
+        // lib.optionalAttrs (command ? exec && command.exec != null && command.exec != "") {
+          exec = command.exec;
+        };
+    })
+    presets.commands
   );
 
   wizardMotd = mkMotd {
@@ -123,8 +128,7 @@ let
     '';
     meta.description = "Preview MOTD (or config) from stock setup wizard presets";
   };
-in
-{
+in {
   examplePackages =
     lib.mapAttrs' (name: config: lib.nameValuePair "example-${name}" (mkMotd config)) ex.motdDemos
     // {
@@ -137,7 +141,8 @@ in
           commands=(${
             lib.concatMapStringsSep " " (
               theme: lib.escapeShellArg (lib.getExe themePackages.${theme})
-            ) plib.themeNames
+            )
+            plib.themeNames
           })
           n=''${#themes[@]}
 

@@ -12,8 +12,7 @@ Prelude supplies these whenever the components are enabled:
 Project commands declared in `nix/internal/prelude.nix`:
 
 - **`x go:test`**, **`x go:vet`** — public catalogue commands grouped under
-  `go`; they dispatch to canonical `go test -C src ./...` / `go vet -C src
-./...` without generating duplicate executables.
+  `go`; they dispatch to canonical `go test -C src ./...` / `go vet -C src ./...` without generating duplicate executables.
 - **`x check`** — `nix flake check`: builds every package and render check.
 - **`x fmt`** — `nixfmt` over the repository.
 - **`x build <target>`** — `nix build` with flake-output suggestions.

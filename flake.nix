@@ -50,20 +50,21 @@
     treefmt-nix.url = "github:numtide/treefmt-nix";
   };
 
-  outputs =
-    inputs:
-    inputs.flake-parts.lib.mkFlake { inherit inputs; } (
-      { self, flake-parts-lib, ... }:
-      let
+  outputs = inputs:
+    inputs.flake-parts.lib.mkFlake {inherit inputs;} (
+      {
+        self,
+        flake-parts-lib,
+        ...
+      }: let
         # importApply keeps the exported module's error locations pointing at
         # module.nix and lets it close over this flake (localFlake).
         preludeModule = flake-parts-lib.importApply ./src/prelude/module.nix {
           inherit flake-parts-lib;
           localFlake = self;
         };
-        preludeLib = import ./nix/lib.nix { lib = inputs.nixpkgs.lib; };
-      in
-      {
+        preludeLib = import ./nix/lib.nix {lib = inputs.nixpkgs.lib;};
+      in {
         systems = [
           "x86_64-linux"
           "aarch64-linux"
@@ -92,7 +93,7 @@
           };
         };
 
-        perSystem = import ./nix/per-system.nix { inherit flake-parts-lib; };
+        perSystem = import ./nix/per-system.nix {inherit flake-parts-lib;};
       }
     );
 }

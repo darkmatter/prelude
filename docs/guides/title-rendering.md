@@ -18,14 +18,14 @@ FIGlet previews, and press Enter to select one.
 
 Pager keys:
 
-| Key                                | Action                     |
+| Key | Action |
 | ---------------------------------- | -------------------------- |
-| `←`, `↑`, `h`, `k`, `Shift-Tab`    | Previous style             |
-| `→`, `↓`, `j`, `l`, `Tab`, `Space` | Next style                 |
-| `Home` / `End`                     | First / last style         |
-| `Enter`                            | Confirm the selected style |
-| `Esc` / `Backspace`                | Return to the title field  |
-| `q` / `Ctrl-C`                     | Cancel                     |
+| `←`, `↑`, `h`, `k`, `Shift-Tab` | Previous style |
+| `→`, `↓`, `j`, `l`, `Tab`, `Space` | Next style |
+| `Home` / `End` | First / last style |
+| `Enter` | Confirm the selected style |
+| `Esc` / `Backspace` | Return to the title field |
+| `q` / `Ctrl-C` | Cancel |
 
 ## Setup
 
@@ -135,9 +135,9 @@ The title workflow treats FIGlet rendering as three user-facing choices:
 
 1. **Font** — glyph design, height, and overall geometry. The current pager
    exposes Prelude's 23 bundled fonts.
-2. **Spacing** — how adjacent FIGcharacters combine. The agreed chooser shape is
+1. **Spacing** — how adjacent FIGcharacters combine. The agreed chooser shape is
    `Font default`, `Smushed`, `Kerned`, or `Full width`.
-3. **Width** — the fixed FIGlet output width used for wrapping. A fixed value is
+1. **Width** — the fixed FIGlet output width used for wrapping. A fixed value is
    reproducible; terminal-derived width is not.
 
 Spacing and width are the next chooser controls. Until they are exposed, Prelude

@@ -6,15 +6,13 @@
 #     { project = "acme-web"; commandCatalog.dev.exec = "pnpm dev"; }
 #
 # mkMenu additionally takes { writeShellApplication, symlinkJoin }.
-{ lib }:
-let
-  internal = import ../src/prelude/lib.nix { inherit lib; };
-in
-{
-  fromPkg = import ../src/prelude/from-pkg.nix { inherit lib; };
-  mkCommand = import ../src/prelude/task.nix { inherit lib; };
+{lib}: let
+  internal = import ../src/prelude/lib.nix {inherit lib;};
+in {
+  fromPkg = import ../src/prelude/from-pkg.nix {inherit lib;};
+  mkCommand = import ../src/prelude/task.nix {inherit lib;};
   # Compatibility alias for callers migrating from the grouped task schema.
-  mkTask = import ../src/prelude/task.nix { inherit lib; };
+  mkTask = import ../src/prelude/task.nix {inherit lib;};
   mkMotd = import ../src/prelude/motd.nix;
   mkMenu = import ../src/prelude/menu.nix;
   mkDocs = import ../src/prelude/docs.nix;

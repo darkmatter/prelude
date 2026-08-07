@@ -16,7 +16,7 @@
 {
   # Theme name (see themes.nix) + per-token palette overrides.
   theme = "minted";
-  palette = { };
+  palette = {};
 
   # Color depth: "auto" detects the terminal profile, "truecolor" forces
   # 24-bit output, and "ansi256" forces quantization to 256 colors.
@@ -222,7 +222,7 @@
 
     # Terminal hyperlinks rendered beneath the description.
     # Item: { label; url; }
-    links = [ ];
+    links = [];
 
     # Env info chips, rendered in order. Each item sets exactly one of:
     #   { label; value; }  — static chip
@@ -250,19 +250,19 @@
         order = 100;
         title = "spin up a clean local stack";
         steps = [
-          { comment = "start services, migrate, then run the app"; }
-          { command = "x database:up"; }
-          { command = "x database:migrate"; }
-          { command = "dev"; }
+          {comment = "start services, migrate, then run the app";}
+          {command = "x database:up";}
+          {command = "x database:migrate";}
+          {command = "dev";}
         ];
       };
       ship = {
         order = 200;
         title = "ship a release";
         steps = [
-          { comment = "verify, build, then deploy"; }
-          { command = "test && build"; }
-          { command = "x ops:deploy"; }
+          {comment = "verify, build, then deploy";}
+          {command = "test && build";}
+          {command = "x ops:deploy";}
         ];
       };
     };
@@ -305,7 +305,7 @@
   # `configFile` replaces the generated config and disables that transfer.
 
   prompt = {
-    settings = { };
+    settings = {};
     configFile = null;
     # Private direct-generator input. module.nix injects a resolved backdrop
     # envelope instead; direct mkPrompt consumers deterministically fall back to bg.
@@ -320,10 +320,10 @@
   # in the navigable docs viewer.
 
   docs = {
-    pages = [ ];
+    pages = [];
     rootReadme = null;
     nixosOptions = {
-      options = { };
+      options = {};
     };
   };
 }

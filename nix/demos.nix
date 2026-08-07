@@ -5,69 +5,68 @@
   lib,
   config,
   ...
-}:
-let
+}: let
   motdDemos = import ./motd-demo-builder.nix {
     inherit pkgs lib;
     currentMotdConfig = config.packages.motd.motdRenderConfig;
     titlePkg = config.packages.title;
   };
-  menuDemo = import ./menu-demo-builder.nix { inherit pkgs lib; };
+  menuDemo = import ./menu-demo-builder.nix {inherit pkgs lib;};
   ex = import ../src/prelude/examples.nix;
-  typescriptPrelude = (import ../examples/typescript/prelude.nix { inherit lib; }).prelude;
+  typescriptPrelude = (import ../examples/typescript/prelude.nix {inherit lib;}).prelude;
   typescriptMenu = menuDemo.mkMenu (
     {
       inherit (typescriptPrelude) project commands;
     }
-    // lib.removeAttrs typescriptPrelude.menu [ "enable" ]
+    // lib.removeAttrs typescriptPrelude.menu ["enable"]
   );
 
   # Feature demos — `example-<name>` packages/apps.
-  examplePackages = motdDemos.examplePackages // {
-    example-menu = menuDemo.package;
-    example-typescript-menu = typescriptMenu;
-  };
+  examplePackages =
+    motdDemos.examplePackages
+    // {
+      example-menu = menuDemo.package;
+      example-typescript-menu = typescriptMenu;
+    };
 
   # `nix run .#examples` — on a tty: a pager, one demo per screen,
   # ←/→ to navigate. Piped (CI): every demo rendered in sequence.
-  examplesRunner =
-    let
-      entries =
-        map (name: {
-          label = "example-${name}";
-          hint = "nix run .#example-${name}";
-          cmd = lib.getExe examplePackages."example-${name}";
-        }) (lib.attrNames ex.motdDemos)
-        ++ [
-          {
-            label = "example-default";
-            hint = "nix run .#example-default";
-            cmd = lib.getExe examplePackages.example-default;
-          }
-          {
-            label = "example-motd";
-            hint = "nix run .#example-motd";
-            cmd = lib.getExe examplePackages.example-motd;
-          }
-          {
-            label = "example-themes";
-            hint = "nix run .#example-themes";
-            cmd = lib.getExe examplePackages.example-themes;
-          }
-          {
-            label = "example-menu x --list";
-            hint = "x --list  # from the example-menu package";
-            cmd = "${lib.getExe' examplePackages.example-menu "x"} --list";
-          }
-          {
-            label = "example-typescript-menu x --list";
-            hint = "x --list  # from the example-typescript-menu package";
-            cmd = "${lib.getExe' examplePackages.example-typescript-menu "x"} --list";
-          }
-        ];
-      bashArray =
-        name: f: "${name}=(${lib.concatMapStringsSep " " (e: lib.escapeShellArg (f e)) entries})";
-    in
+  examplesRunner = let
+    entries =
+      map (name: {
+        label = "example-${name}";
+        hint = "nix run .#example-${name}";
+        cmd = lib.getExe examplePackages."example-${name}";
+      }) (lib.attrNames ex.motdDemos)
+      ++ [
+        {
+          label = "example-default";
+          hint = "nix run .#example-default";
+          cmd = lib.getExe examplePackages.example-default;
+        }
+        {
+          label = "example-motd";
+          hint = "nix run .#example-motd";
+          cmd = lib.getExe examplePackages.example-motd;
+        }
+        {
+          label = "example-themes";
+          hint = "nix run .#example-themes";
+          cmd = lib.getExe examplePackages.example-themes;
+        }
+        {
+          label = "example-menu x --list";
+          hint = "x --list  # from the example-menu package";
+          cmd = "${lib.getExe' examplePackages.example-menu "x"} --list";
+        }
+        {
+          label = "example-typescript-menu x --list";
+          hint = "x --list  # from the example-typescript-menu package";
+          cmd = "${lib.getExe' examplePackages.example-typescript-menu "x"} --list";
+        }
+      ];
+    bashArray = name: f: "${name}=(${lib.concatMapStringsSep " " (e: lib.escapeShellArg (f e)) entries})";
+  in
     pkgs.writeShellApplication {
       name = "prelude-examples";
       text = ''
@@ -114,7 +113,6 @@ let
         fi
       '';
     };
-in
-{
+in {
   inherit examplePackages examplesRunner;
 }

@@ -1,6 +1,5 @@
 # prelude.docs.* — nested Markdown nav + optional nixosOptionsDoc source.
-{ lib, ... }:
-let
+{lib, ...}: let
   defaults = import ../defaults.nix;
   inherit (lib) mkOption types;
 
@@ -22,13 +21,13 @@ let
       };
       children = mkOption {
         type = types.listOf nodeType;
-        default = [ ];
+        default = [];
         # Document this option, but do not walk nested children.* for the manual.
         visible = "shallow";
         description = "Child nodes for a group. Non-empty implies this node is a group.";
       };
       generate = mkOption {
-        type = types.nullOr (types.enum [ "nixosOptions" ]);
+        type = types.nullOr (types.enum ["nixosOptions"]);
         default = null;
         description = ''
           When set to "nixosOptions", expand using prelude.docs.nixosOptions
@@ -52,8 +51,7 @@ let
       };
     };
   };
-in
-{
+in {
   options.prelude.docs = {
     pages = mkOption {
       type = types.listOf nodeType;
@@ -99,13 +97,13 @@ in
         options = {
           options = mkOption {
             type = types.lazyAttrsOf types.raw;
-            default = { };
+            default = {};
             description = "Module options attrset; same as nixosOptionsDoc's options argument.";
           };
         };
       };
       default = {
-        options = { };
+        options = {};
       };
       defaultText = lib.literalExpression "{ options = { }; }";
       description = ''

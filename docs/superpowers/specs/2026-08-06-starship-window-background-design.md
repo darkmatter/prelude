@@ -1,6 +1,6 @@
 # Starship Window-Background Alignment
 
-**Date:** 2026-08-06  
+**Date:** 2026-08-06\
 **Status:** Approved design
 
 ## Purpose
@@ -85,14 +85,14 @@ When `prelude.prompt.configFile` is set, Prelude continues to return that file v
 Extend the existing `prompt-shadow-palette` check in `nix/checks.nix` with focused generated-config assertions:
 
 1. A direct prompt with no window context emits a canonical `window` token derived from `palette.bg` but does not emit the outer `(bg:window)` wrapper.
-2. A `windowBackground = true` context emits `window` equal to the canonical resolved `palette.bg` and includes `(bg:window)` in the format.
-3. A literal window context emits the canonical literal color and includes `(bg:window)`.
-4. Relative and blend contexts retain `windowBackgroundSet = true`, use the canonical `palette.bg` fallback, and include `(bg:window)`.
-5. Numeric and short-hex `palette.bg`/literal values are emitted as canonical six-digit truecolor values.
-6. The existing `shadow` assertions remain unchanged and continue to prove the selected-base contract.
-7. The MOTD, menu, and docs palette JSON objects contain no `window` or `shadow` key; the Starship-only envelope fields remain outside the Go-safe palette.
-8. A rendered `starship prompt` smoke test with `TERM=xterm-256color` confirms that the true case emits the expected truecolor background SGR.
-9. A supplied `configFile` remains byte-for-byte user-owned and receives no generated backdrop styling.
+1. A `windowBackground = true` context emits `window` equal to the canonical resolved `palette.bg` and includes `(bg:window)` in the format.
+1. A literal window context emits the canonical literal color and includes `(bg:window)`.
+1. Relative and blend contexts retain `windowBackgroundSet = true`, use the canonical `palette.bg` fallback, and include `(bg:window)`.
+1. Numeric and short-hex `palette.bg`/literal values are emitted as canonical six-digit truecolor values.
+1. The existing `shadow` assertions remain unchanged and continue to prove the selected-base contract.
+1. The MOTD, menu, and docs palette JSON objects contain no `window` or `shadow` key; the Starship-only envelope fields remain outside the Go-safe palette.
+1. A rendered `starship prompt` smoke test with `TERM=xterm-256color` confirms that the true case emits the expected truecolor background SGR.
+1. A supplied `configFile` remains byte-for-byte user-owned and receives no generated backdrop styling.
 
 Run the focused Nix check, then the repository's normal `nix flake check` and Go checks as required by CI. Do not use generated docs or media refreshes; this change does not modify options or documentation source content.
 

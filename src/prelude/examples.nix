@@ -19,11 +19,9 @@ let
   # optional args with suggestions, boolean flags, required positional args,
   # and free text.
   commands = {
-
     "general:clean" = {
       description = "remove build artifacts & caches";
       exec = "rm -rf .next .turbo node_modules/.cache";
-
     };
     dev = {
       description = "start the dev server with hot reload";
@@ -58,23 +56,19 @@ let
     build = {
       description = "compile an optimized production bundle";
       exec = "pnpm build";
-
     };
     test = {
       description = "run the unit test suite";
       exec = "pnpm test";
       motd = 2;
-
     };
     "database:up" = {
       description = "start postgres & redis in the background";
       exec = "docker compose up -d db redis";
-
     };
     "database:migrate" = {
       description = "apply pending schema migrations";
       exec = "drizzle-kit migrate";
-
     };
     "ops:deploy" = {
       description = "ship the current build to production";
@@ -160,23 +154,22 @@ let
       clean-local-stack = {
         title = "spin up a clean local stack";
         steps = [
-          { comment = "start postgres + redis first"; }
-          { command = "just db:up"; }
-          { command = "just db:migrate && just db:seed"; }
-          { command = "just dev"; }
+          {comment = "start postgres + redis first";}
+          {command = "just db:up";}
+          {command = "just db:migrate && just db:seed";}
+          {command = "just dev";}
         ];
       };
       ship-hotfix = {
         title = "ship a hotfix to production";
         steps = [
-          { command = "git checkout -b fix/login"; }
-          { comment = "verify before deploying"; }
-          { command = "just test && just build"; }
-          { command = "just deploy"; }
+          {command = "git checkout -b fix/login";}
+          {comment = "verify before deploying";}
+          {command = "just test && just build";}
+          {command = "just deploy";}
         ];
       };
     };
-
   };
 
   # `nix run .#example-menu` — the interactive command menu (`x --list`
@@ -234,8 +227,7 @@ let
       description.text = "Every cell, gutter, and line remainder carries the background.";
     };
   };
-in
-{
+in {
   inherit
     commands
     motd

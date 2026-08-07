@@ -60,10 +60,10 @@ The tool that owns a workflow also owns its underlying invocation:
 
 | Catalogue key | Canonical invocation |
 | ------------- | -------------------- |
-| `test`        | `bun run test`       |
-| `check`       | `just check`         |
-| `deploy`      | `nix run .#deploy`   |
-| `go:test`     | `go test ./...`      |
+| `test` | `bun run test` |
+| `check` | `just check` |
+| `deploy` | `nix run .#deploy` |
+| `go:test` | `go test ./...` |
 
 `x` dispatches to these commands; it does not translate every workflow into
 `nix run`. The Nix devshell provides dependencies and environment. Once inside

@@ -8,18 +8,17 @@
   docsAutomation,
   previews,
   ...
-}:
-let
+}: let
   mkApp = pkg: {
     type = "app";
     program = lib.getExe pkg;
   };
 in
-{
-  default = config.apps.menu;
-  examples = mkApp demos.examplesRunner;
-  previews = mkApp previews;
-  docs-record = mkApp docsAutomation.record;
-  docs-sync = mkApp docsAutomation.sync;
-}
-// lib.mapAttrs (_name: mkApp) demos.examplePackages
+  {
+    default = config.apps.menu;
+    examples = mkApp demos.examplesRunner;
+    previews = mkApp previews;
+    docs-record = mkApp docsAutomation.record;
+    docs-sync = mkApp docsAutomation.sync;
+  }
+  // lib.mapAttrs (_name: mkApp) demos.examplePackages

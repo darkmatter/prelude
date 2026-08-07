@@ -185,6 +185,10 @@ let
     in
     "#${channel rgb.r}${channel rgb.g}${channel rgb.b}";
 
+  # Starship palette tokens require canonical truecolor. Reuse the accepted
+  # color conversion instead of serializing short hex or numeric forms raw.
+  canonicalColor = value: rgbToHex (colorToRGB value);
+
   # Lighten a color by mixing 2.5% toward white (255). Used for the shadow
   # surface: a subtle shade just lighter than bg so chrome bars (status line,
   # cap) are visible against the terminal background.
@@ -237,10 +241,12 @@ let
       context = if windowBackgroundContext == null then { } else windowBackgroundContext;
       windowBackgroundSet = context.set or false;
       base = context.base or null;
+      staticBase = if windowBackgroundSet && base != null then base else palette.bg;
     in
     {
       inherit palette windowBackgroundSet;
-      shadow = lightenColor (if windowBackgroundSet && base != null then base else palette.bg);
+      window = canonicalColor staticBase;
+      shadow = lightenColor staticBase;
     };
 
   # Resolve a spacing spec into explicit sides. `x`/`y` are axis shorthands
@@ -646,6 +652,7 @@ in
     themes
     themeNames
     resolvePalette
+    canonicalColor
     lightenColor
     mixColor
     resolveWindowBackgroundContext
