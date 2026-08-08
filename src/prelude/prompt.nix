@@ -67,24 +67,26 @@ let
     "[](fg:fg bg:surface)"
     "$git_status"
     "$git_metrics"
-    "[$fill](fg:surface)[${keymap}](fg:muted)[─╮](fg:surface)"
+    "[$fill](fg:surface)[${keymap}](fg:muted bg:window)[─╮](fg:surface bg:window)"
   ];
 
   defaultSettings = {
     # Preserve two breathing rows, then keep context above the editable input.
     # Starship paints this whole projection; the shell owns only the input buffer.
-    format = "[${leftSegments}\n[╰─](fg:accent) ]${
+    format = "[${leftSegments}\n[╰─](fg:accent bg:window) ]${
       if backdrop.windowBackgroundSet then "(bg:window)" else "()"
     }";
     add_newline = true;
 
     right_format = lib.concatStrings [
-      "[──╯](fg:surface)"
+      "[──╯](fg:surface bg:window)"
       "\n\n"
     ];
 
     fill.symbol = "─";
-    fill.style = "surface";
+    fill.style = "fg:surface bg:window";
+
+    character.format = "[$symbol](bg:window) ";
 
     palette = "prelude";
     palettes.prelude = pal // {

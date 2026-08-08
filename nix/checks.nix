@@ -140,6 +140,7 @@ in
                 test -f ${config.packages.prelude}/share/prelude/shell/status-cap.bash
                 test -f ${config.packages.prelude}/share/prelude/shell/catalogue.bash
                 test -f ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
+                test -f ${config.packages.prelude}/share/prelude/shell/textarea-background.bash
                 test -f ${config.packages.prelude}/nix-support/setup-hook
                 grep -Fq 'prelude-init()' ${config.packages.prelude}/nix-support/setup-hook
                 grep -Fq '. ${config.packages.prelude.shellInit}' ${config.packages.prelude}/nix-support/setup-hook
@@ -149,7 +150,7 @@ in
                 grep -Fq 'bleopt color_scheme=prelude' ${config.packages.prelude}/share/prelude/shell/bash-init.bash
                 grep -Fq 'function ble/contrib/scheme:prelude/initialize' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
                 grep -Fq "ble-face -d prelude_status_cap" ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
-                test "$(grep -c '^  ble-face -[sd] ' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash)" -eq 75
+                test "$(grep -c '^  ble-face -[sd] ' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash)" -eq 76
                 ! grep -Fq '%prelude_' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
                 ! grep -Eq '#[[:xdigit:]]{6}[[:alnum:]_]' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
                 ! grep -Fq 'right_format' ${config.packages.prompt}
@@ -436,6 +437,7 @@ in
                 shellcheck -x ${config.packages.prelude}/share/prelude/init.bash
                 shellcheck -x ${config.packages.prelude}/share/prelude/shell/init.bash
                 shellcheck -x -e SC1091,SC2154 ${config.packages.prelude}/share/prelude/shell/bash-init.bash
+                shellcheck -x -e SC1091,SC2154 ${config.packages.prelude}/share/prelude/shell/textarea-background.bash
                 shellcheck -x -e SC2016,SC2154 ${config.packages.prelude}/share/prelude/shell/status.bash
                 shellcheck -x -e SC2154 ${config.packages.prelude}/share/prelude/shell/completion.bash
                 shellcheck -e SC2154 ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
@@ -619,6 +621,8 @@ in
               windowBackground = {
                 blend = 0.15;
               };
+              border = true;
+              verticalAlign = "center";
               header = {
                 tagline = {
                   text = "test-tagline";
@@ -655,6 +659,8 @@ in
       padding = evaluated.config.prelude.motd.padding;
       links = evaluated.config.prelude.motd.links;
       windowBackground = evaluated.config.prelude.motd.windowBackground;
+      border = evaluated.config.prelude.motd.border;
+      verticalAlign = evaluated.config.prelude.motd.verticalAlign;
       shellStatus = header.status.shell;
       exposesShortcutOption = evaluated.options.prelude.motd ? shortcuts;
     in
@@ -684,6 +690,8 @@ in
     assert padding.left == null;
     assert padding.right == null;
     assert windowBackground.blend == 0.15;
+    assert border;
+    assert verticalAlign == "center";
     assert !exposesShortcutOption;
 
     pkgs.runCommand "motd-header-options" { } "touch $out";
@@ -934,6 +942,7 @@ in
         configFile = customPromptSource;
         windowBackgroundContext = themeWindowContext;
       };
+      ptyMotd = pkgs.writeShellScript "prelude-pty-motd" "exit 0";
       disabledWindowContext = internalLib.resolveWindowBackgroundContext false "#202020";
       noWindowContext = internalLib.resolveWindowBackgroundContext true null;
       transparentWindowContext = internalLib.resolveWindowBackgroundContext true false;
@@ -942,7 +951,14 @@ in
       relativeWindowContext = internalLib.resolveWindowBackgroundContext true { relative = -0.05; };
       blendWindowContext = internalLib.resolveWindowBackgroundContext true { blend = 0.4; };
       mkShell =
-        shadow: windowBackgroundSet:
+        {
+          shadow,
+          window ? null,
+          windowBackgroundSet,
+          promptWindowManaged ? true,
+          motdCommand ? null,
+          statusEnabled ? false,
+        }:
         (import ../src/prelude/shell-init.nix {
           inherit (pkgs)
             lib
@@ -955,10 +971,31 @@ in
             ;
         }) {
           palette = internalLib.resolvePalette "apathy" { };
-          inherit shadow windowBackgroundSet;
+          inherit shadow window windowBackgroundSet promptWindowManaged motdCommand statusEnabled;
         };
-      ownedShell = mkShell "#1e1e1e" true;
-      fallbackShell = mkShell "#0d0a12" false;
+      ownedShell = mkShell {
+        shadow = "#1e1e1e";
+        window = "#202020";
+        windowBackgroundSet = true;
+      };
+      fallbackShell = mkShell {
+        shadow = "#0d0a12";
+        windowBackgroundSet = false;
+      };
+      customPromptShell = mkShell {
+        shadow = "#1e1e1e";
+        window = "#202020";
+        windowBackgroundSet = true;
+        promptWindowManaged = false;
+      };
+      ptyShell = mkShell {
+        shadow = "#1e1e1e";
+        window = "#202020";
+        windowBackgroundSet = true;
+        motdCommand = ptyMotd;
+        statusEnabled = true;
+      };
+      ptyPython = pkgs.python3.withPackages (pythonPackages: [ pythonPackages.pyte ]);
     in
     assert !disabledWindowContext.set;
     assert disabledWindowContext.base == null;
@@ -1014,6 +1051,13 @@ in
       grep -Faq '48;2;14;11;19' "$TMPDIR/window-render"
       grep -Fq '_PRELUDE_WINDOW_BACKGROUND_SET=1' ${ownedShell.init}
       grep -Fq '_PRELUDE_WINDOW_BACKGROUND_SET=0' ${fallbackShell.init}
+      grep -Fq '_PRELUDE_PROMPT_WINDOW_MANAGED=1' ${ownedShell.init}
+      grep -Fq '_PRELUDE_PROMPT_WINDOW_MANAGED=0' ${customPromptShell.init}
+      grep -Fq 'unset _PRELUDE_WINDOW_BACKGROUND_SET' ${ownedShell.init}
+      grep -Fq 'unset _PRELUDE_PROMPT_WINDOW_MANAGED' ${ownedShell.init}
+      grep -Fq '_prelude_prompt_window_managed=''${_PRELUDE_PROMPT_WINDOW_MANAGED:-0}' ${ownedShell.runtime}/bash-init.bash
+      grep -Fq "ble-face -d prelude_textarea_window    'bg=#202020'" ${ownedShell.runtime}/contrib/scheme/prelude.bash
+      grep -Fq "ble-face -d prelude_textarea_window    'bg=#0e0b13'" ${fallbackShell.runtime}/contrib/scheme/prelude.bash
       cat > "$TMPDIR/probe-cap-face.bash" <<'EOF'
       set -euo pipefail
       scheme=$1
@@ -1138,6 +1182,29 @@ in
       scheme_line=$(grep -n -Fx 'bleopt color_scheme=prelude' ${ownedShell.runtime}/bash-init.bash | cut -d: -f1)
       motd_line=$(grep -n -Fx '_prelude_init_show_motd' ${ownedShell.runtime}/bash-init.bash | cut -d: -f1)
       test "$scheme_line" -lt "$motd_line"
+      ${lib.getExe pkgs.bash} ${./textarea-background-test.bash} \
+        ${pkgs.blesh}/share/blesh/ble.sh \
+        ${ownedShell.runtime}/contrib/scheme/prelude.bash \
+        ${ownedShell.runtime}/textarea-background.bash
+      ${lib.getExe pkgs.bash} ${./textarea-background-test.bash} \
+        ${pkgs.blesh}/share/blesh/ble.sh \
+        ${ownedShell.runtime}/contrib/scheme/prelude.bash \
+        ${ownedShell.runtime}/textarea-background.bash guard
+      ${lib.getExe ptyPython} ${./textarea-background-pty-test.py} \
+        ${lib.getExe pkgs.bash} \
+        ${ptyShell.init} \
+        ${literalWindow} \
+        ${lib.escapeShellArg (lib.makeBinPath [
+          pkgs.bash
+          pkgs.starship
+          pkgs.coreutils
+          pkgs.findutils
+          pkgs.gawk
+          pkgs.gnugrep
+          pkgs.gnused
+          pkgs.ncurses
+          pkgs.procps
+        ])}
       ${lib.getExe pkgs.bash} -n ${ownedShell.runtime}/bash-init.bash
       ${lib.getExe pkgs.bash} -n ${ownedShell.runtime}/contrib/scheme/prelude.bash
       touch "$out"

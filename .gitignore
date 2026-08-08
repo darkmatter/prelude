@@ -53,3 +53,4 @@ src/.tmp-motd-region-test/
 .codex/
 .envrc.local
 .work/
+.ruff_cache/

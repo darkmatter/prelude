@@ -20,14 +20,18 @@ if [ -n "${_PRELUDE_DARWIN-}" ]; then
   ble/bin/stty/.instantiate() { return 0; }
 fi
 
-# Start conservatively. `init.bash` promotes this only after MOTD succeeds,
-# before generated inputs are unset, so Blesh carries an actual ownership fact.
+# Start conservatively. `init.bash` promotes window ownership only after MOTD
+# succeeds. Prompt ownership is a configuration fact, so persist its generated
+# input before the wrapper unsets implementation details.
 _prelude_window_background_set=0
+_prelude_prompt_window_managed=${_PRELUDE_PROMPT_WINDOW_MANAGED:-0}
 
 # Prelude is a regular ble.sh contrib color scheme. Prepending the generated
 # runtime keeps the user's existing import path available for other contribs.
 bleopt import_path="$_PRELUDE_SHELL_RUNTIME/contrib${bleopt_import_path:+:$bleopt_import_path}"
 bleopt color_scheme=prelude
+# shellcheck source=./textarea-background.bash
+. "$_PRELUDE_SHELL_RUNTIME/textarea-background.bash"
 
 # Cursor: blinking vertical bar (DECSCUSR 5) in the emacs keymap, and the same
 # shape whenever ble.sh yields the terminal to external commands.
@@ -47,6 +51,10 @@ if ((${#_prelude_catalogue_direct_names[@]})); then
 fi
 
 eval "$("$_PRELUDE_STARSHIP" init bash)"
+# Rewrite submitted multiline prompts to Starship's character module.
+# shellcheck disable=SC2016
+bleopt prompt_ps1_final='$(starship module character)'
+
 if [ "$_prelude_status_enabled" = 1 ]; then
   # Blesh's status panel is one row. Its menu-inspired cap is a sibling panel,
   # so status markup stays one row and Blesh owns both bottom-docked heights.

@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"strings"
 
+	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -12,8 +13,9 @@ import (
 
 // The wizard is an iteration of the title form: the same title/font pages,
 // extended with the main prelude.* options so a new project can be configured
-// in one pass. On finish it writes the config to -o (default prelude.nix) and
-// a sibling title.txt beside it. The interactive UI renders on stderr.
+// in one pass. On finish it writes the config to -o (default prelude.nix), a
+// sibling title.txt beside it, and optionally a project-root .envrc. The
+// interactive UI renders on stderr.
 
 type wizardStep uint8
 
@@ -23,10 +25,13 @@ const (
 	stepProject
 	stepTheme
 	stepProfile
-	stepComponents
 	stepCommands
+	stepComponents
+	stepMotdContent
+	stepMotdLayout
+	stepMotdSpacing
+	stepMotdSurface
 	stepConfirm
-	wizardStepCount = int(stepConfirm) + 1
 )
 
 // commandEntryPhase tracks the sub-flow of the commands step: browsing the
@@ -53,8 +58,17 @@ type wizardCommand struct {
 // options/shared.nix; the order puts the default first.
 var colorProfiles = []string{"auto", "truecolor", "ansi256"}
 
+const (
+	componentMotd = iota
+	componentMenu
+	componentPrompt
+	componentDocs
+	componentEnvrc
+	componentCount
+)
+
 // componentNames drive the toggle step; the order is the emission order.
-var componentNames = [4]string{"motd", "menu", "prompt", "docs"}
+var componentNames = [componentCount]string{"motd", "menu", "prompt", "docs", ".envrc"}
 
 type wizardModel struct {
 	cfg    Config
@@ -69,15 +83,39 @@ type wizardModel struct {
 
 	fontIndex int
 	preview   string
+	// motdWordmark is rendered with the fixed compact preview font, never the
+	// user-selected title font. The selected font still controls title.txt.
+	motdWordmark string
+
+	motdContent          wizardMotdContent
+	motdContentPhase     motdContentPhase
+	motdContentInput     textinput.Model
+	motdDescriptionInput textarea.Model
+	motdStatusCursor     int
+	motdDefaultProject   string
 
 	themeIndex   int
 	profileIndex int
 
 	componentIndex int
-	// components holds the enable toggles in componentNames order:
-	// motd, menu, prompt, docs. Docs starts off because enabling it requires
-	// authoring Markdown pages.
-	components [4]bool
+	// components holds the enable toggles in componentNames order. Docs starts
+	// off because enabling it requires authoring Markdown pages; all other
+	// setup choices, including .envrc installation, start on.
+	components [componentCount]bool
+
+	motdLayoutCursor          int
+	motdAlignIndex            int
+	motdVerticalAlignIndex    int
+	motdTitleAlignIndex       int
+	motdSpacingCursor         int
+	motdMarginIndex           int
+	motdPaddingIndex          int
+	motdWidthIndex            int
+	motdSurfaceCursor         int
+	motdBackgroundIndex       int
+	motdWindowBackgroundIndex int
+	motdBorder                bool
+	motdClearScreen           bool
 
 	commands       []wizardCommand
 	commandPhase   commandEntryPhase
@@ -96,15 +134,20 @@ type wizardModel struct {
 // wizardResult is the pure outcome of a completed wizard run; rendering it to
 // Nix is separated from the model so emission is unit-testable.
 type wizardResult struct {
-	Recipe       Recipe
-	Project      string
-	Theme        string
-	ColorProfile string
-	Motd         bool
-	Menu         bool
-	Prompt       bool
-	Docs         bool
-	Commands     []wizardCommand
+	Recipe         Recipe
+	Project        string
+	Theme          string
+	ColorProfile   string
+	Motd           bool
+	Menu           bool
+	Prompt         bool
+	Docs           bool
+	Envrc          bool
+	Commands       []wizardCommand
+	MotdContent    wizardMotdContent
+	MotdContentSet bool
+	MotdStyle      motdStyle
+	MotdStyleSet   bool
 }
 
 func newWizard(cfg Config, recipe Recipe, render renderFunc) wizardModel {
@@ -128,6 +171,20 @@ func newWizard(cfg Config, recipe Recipe, render renderFunc) wizardModel {
 	commandIn.SetWidth(56)
 	commandIn.SetVirtualCursor(true)
 
+	motdContentIn := textinput.New()
+	motdContentIn.Prompt = ""
+	motdContentIn.SetWidth(56)
+	motdContentIn.SetVirtualCursor(true)
+
+	motdDescriptionIn := textarea.New()
+	motdDescriptionIn.Prompt = ""
+	motdDescriptionIn.ShowLineNumbers = false
+	motdDescriptionIn.SetWidth(56)
+	motdDescriptionIn.SetHeight(5)
+	motdDescriptionIn.MaxHeight = 5
+	motdDescriptionIn.MaxContentHeight = 40
+	motdDescriptionIn.SetVirtualCursor(true)
+
 	fontIndex := cfg.fontIndex(recipe.Font)
 	if fontIndex < 0 {
 		fontIndex = cfg.fontIndex(cfg.DefaultFont)
@@ -141,17 +198,31 @@ func newWizard(cfg Config, recipe Recipe, render renderFunc) wizardModel {
 	}
 
 	return wizardModel{
-		cfg:          cfg,
-		render:       render,
-		titleInput:   titleIn,
-		projectInput: projectIn,
-		commandInput: commandIn,
-		projectAuto:  true,
-		fontIndex:    fontIndex,
-		themeIndex:   themeIndex,
-		components:   [4]bool{true, true, true, false},
-		width:        80,
-		height:       24,
+		cfg:                       cfg,
+		render:                    render,
+		titleInput:                titleIn,
+		projectInput:              projectIn,
+		commandInput:              commandIn,
+		motdContentInput:          motdContentIn,
+		motdDescriptionInput:      motdDescriptionIn,
+		motdContent:               defaultWizardMotdContent(recipe.Text),
+		motdDefaultProject:        strings.TrimSpace(recipe.Text),
+		projectAuto:               true,
+		fontIndex:                 fontIndex,
+		themeIndex:                themeIndex,
+		components:                [componentCount]bool{true, true, true, false, true},
+		motdAlignIndex:            1,     // defaults.motd.align = "center"
+		motdVerticalAlignIndex:    2,     // defaults.motd.verticalAlign = "bottom"
+		motdTitleAlignIndex:       1,     // defaults.motd.title.align = "center"
+		motdMarginIndex:           1,     // defaults.motd.margin = balanced
+		motdPaddingIndex:          1,     // defaults.motd.padding = roomy
+		motdWidthIndex:            1,     // defaults.motd.width = "full", maxWidth = 100
+		motdBackgroundIndex:       0,     // defaults.motd.background = false
+		motdWindowBackgroundIndex: 1,     // defaults.motd.windowBackground = true
+		motdBorder:                false, // defaults.motd.border = false
+		motdClearScreen:           true,
+		width:                     80,
+		height:                    24,
 	}
 }
 
@@ -184,6 +255,14 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateComponents(msg)
 		case stepCommands:
 			return m.updateCommands(msg)
+		case stepMotdContent:
+			return m.updateMotdContent(msg)
+		case stepMotdLayout:
+			return m.updateMotdLayout(msg)
+		case stepMotdSpacing:
+			return m.updateMotdSpacing(msg)
+		case stepMotdSurface:
+			return m.updateMotdSurface(msg)
 		case stepConfirm:
 			return m.updateConfirm(msg)
 		}
@@ -199,6 +278,12 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case stepCommands:
 		if m.commandPhase != commandList {
 			m.commandInput, cmd = m.commandInput.Update(msg)
+		}
+	case stepMotdContent:
+		if m.motdContentPhase == motdContentDescription {
+			m.motdDescriptionInput, cmd = m.motdDescriptionInput.Update(msg)
+		} else if m.motdContentPhase != motdContentStatus {
+			m.motdContentInput, cmd = m.motdContentInput.Update(msg)
 		}
 	}
 	return m, cmd
@@ -273,6 +358,10 @@ func (m wizardModel) updateProject(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.projectInput.SetValue(project)
+		if m.motdContent.Description == defaultWizardMotdDescription(m.motdDefaultProject) {
+			m.motdContent.Description = defaultWizardMotdDescription(project)
+		}
+		m.motdDefaultProject = project
 		m.projectInput.Blur()
 		m.step = stepTheme
 		return m, nil
@@ -288,6 +377,7 @@ func (m wizardModel) updateProject(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.projectInput.Value() != before {
 		m.err = ""
 		m.projectAuto = false
+		m.refreshMotdWordmark()
 	}
 	return m, cmd
 }
@@ -322,7 +412,8 @@ func (m wizardModel) updateProfile(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "down", "j", "tab":
 		m.profileIndex = wrap(m.profileIndex+1, len(colorProfiles))
 	case "enter":
-		m.step = stepComponents
+		m.step = stepCommands
+		m.commandPhase = commandList
 	case "esc", "backspace":
 		m.step = stepTheme
 	case "q":
@@ -341,10 +432,13 @@ func (m wizardModel) updateComponents(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) 
 	case "space", "x":
 		m.components[m.componentIndex] = !m.components[m.componentIndex]
 	case "enter":
+		m.step = m.firstStepAfterComponents()
+		if m.step == stepMotdContent {
+			m.beginMotdContent()
+		}
+	case "esc", "backspace":
 		m.step = stepCommands
 		m.commandPhase = commandList
-	case "esc", "backspace":
-		m.step = stepProfile
 	case "q":
 		m.canceled = true
 		return m, tea.Quit
@@ -358,8 +452,11 @@ func (m wizardModel) updateConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.done = true
 		return m, tea.Quit
 	case "esc", "backspace":
-		m.step = stepCommands
-		m.commandPhase = commandList
+		if m.components[componentMotd] {
+			m.step = stepMotdSurface
+		} else {
+			m.step = stepComponents
+		}
 	case "q":
 		m.canceled = true
 		return m, tea.Quit
@@ -393,9 +490,9 @@ func (m wizardModel) updateCommands(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				m.commandCursor = wrap(m.commandCursor+1, len(m.commands))
 			}
 		case "enter":
-			m.step = stepConfirm
-		case "esc", "backspace":
 			m.step = stepComponents
+		case "esc", "backspace":
+			m.step = stepProfile
 		case "q":
 			m.canceled = true
 			return m, tea.Quit
@@ -488,11 +585,27 @@ func (m *wizardModel) refreshPreview() {
 	preview, err := m.render(m.cfg.Fonts[m.fontIndex], m.titleInput.Value())
 	if err != nil {
 		m.preview = ""
+		m.refreshMotdWordmark()
 		m.err = err.Error()
 		return
 	}
 	m.preview = preview
+	m.refreshMotdWordmark()
 	m.err = ""
+}
+
+func (m *wizardModel) refreshMotdWordmark() {
+	fontIndex := m.cfg.fontIndex(motdPreviewFontName)
+	if fontIndex < 0 {
+		m.motdWordmark = "◆ " + motdPreviewSampleText
+		return
+	}
+	preview, err := m.render(m.cfg.Fonts[fontIndex], motdPreviewSampleText)
+	if err != nil {
+		m.motdWordmark = "◆ " + motdPreviewSampleText
+		return
+	}
+	m.motdWordmark = preview
 }
 
 func (m *wizardModel) resizeInputs() {
@@ -506,6 +619,8 @@ func (m *wizardModel) resizeInputs() {
 	m.titleInput.SetWidth(width)
 	m.projectInput.SetWidth(width)
 	m.commandInput.SetWidth(width)
+	m.motdContentInput.SetWidth(width)
+	m.motdDescriptionInput.SetWidth(width)
 }
 
 func wrap(index, length int) int {
@@ -518,14 +633,19 @@ func (m wizardModel) result() wizardResult {
 			Text: strings.TrimSpace(m.titleInput.Value()),
 			Font: m.cfg.Fonts[m.fontIndex].Name,
 		},
-		Project:      strings.TrimSpace(m.projectInput.Value()),
-		Theme:        m.cfg.Themes[m.themeIndex].Name,
-		ColorProfile: colorProfiles[m.profileIndex],
-		Motd:         m.components[0],
-		Menu:         m.components[1],
-		Prompt:       m.components[2],
-		Docs:         m.components[3],
-		Commands:     m.commands,
+		Project:        strings.TrimSpace(m.projectInput.Value()),
+		Theme:          m.cfg.Themes[m.themeIndex].Name,
+		ColorProfile:   colorProfiles[m.profileIndex],
+		Motd:           m.components[componentMotd],
+		Menu:           m.components[componentMenu],
+		Prompt:         m.components[componentPrompt],
+		Docs:           m.components[componentDocs],
+		Envrc:          m.components[componentEnvrc],
+		Commands:       m.commands,
+		MotdContent:    m.motdContent,
+		MotdContentSet: true,
+		MotdStyle:      m.selectedMotdStyle(),
+		MotdStyleSet:   true,
 	}
 }
 
@@ -533,7 +653,8 @@ func (m wizardModel) result() wizardResult {
 
 func (m wizardModel) View() tea.View {
 	s := newFormStyles()
-	step := fmt.Sprintf("step %d/%d", int(m.step)+1, wizardStepCount)
+	stepNumber, stepTotal := m.stepProgress()
+	step := fmt.Sprintf("step %d/%d", stepNumber, stepTotal)
 	var body string
 	switch m.step {
 	case stepTitle:
@@ -589,11 +710,12 @@ func (m wizardModel) View() tea.View {
 			"j/k move  ·  enter choose  ·  esc back  ·  q cancel",
 		)
 	case stepComponents:
-		hints := [4]string{
+		hints := [componentCount]string{
 			"welcome banner on shell entry",
 			"interactive command picker",
 			"themed starship prompt",
 			"Markdown docs viewer (needs pages)",
+			"use flake with automatic direnv loading",
 		}
 		rows := make([]string, len(componentNames))
 		for i, name := range componentNames {
@@ -605,18 +727,44 @@ func (m wizardModel) View() tea.View {
 		}
 		rows = append(rows, "", m.componentPreview())
 		body = s.listBody(
-			"Toggle components",
-			"The card shows the highlighted component in your theme.  ·  "+step,
+			"Toggle setup features",
+			"The card previews the highlighted choice.  ·  "+step,
 			rows,
 			m.err,
 			"j/k move  ·  space toggle  ·  enter continue  ·  esc back",
 		)
 	case stepCommands:
 		body = m.commandsBody(s, step)
+	case stepMotdContent:
+		body = m.motdContentBody(s, step)
+	case stepMotdLayout:
+		body = s.listBody(
+			"Shape the MOTD",
+			"Place the banner and its title, then watch the live preview.  ·  "+step,
+			m.motdLayoutRows(s),
+			m.err,
+			"j/k field  ·  h/l change  ·  enter continue  ·  esc back",
+		)
+	case stepMotdSpacing:
+		body = s.listBody(
+			"Tune MOTD spacing",
+			"Margin and padding matter most away from center/center.  ·  "+step,
+			m.motdSpacingRows(s),
+			m.err,
+			"j/k field  ·  h/l change  ·  enter continue  ·  esc back",
+		)
+	case stepMotdSurface:
+		body = s.listBody(
+			"Set the MOTD surface",
+			"Choose card/window fills, border framing, and clear-screen behavior.  ·  "+step,
+			m.motdSurfaceRows(s),
+			m.err,
+			"j/k field  ·  h/l change  ·  esc back  ·  enter review",
+		)
 	case stepConfirm:
 		body = s.listBody(
 			"Review",
-			"The config prints to stdout; the title is written next to it.  ·  "+step,
+			"Review setup choices before printing the config.  ·  "+step,
 			m.summaryRows(s),
 			m.err,
 			"enter print config  ·  esc back  ·  q cancel",
@@ -738,15 +886,14 @@ func (m wizardModel) componentPreview() string {
 		return strings.Join([]string{
 			ts.line("bg",
 				ts.seg("bg", "accent", " "+project, true),
-				ts.seg("bg", "fg", "  Dev Shell Activated", false),
+				ts.seg("bg", "fg", "  "+fitPreview(m.motdContent.Tagline, max(sampleWidth-lipgloss.Width(project)-3, 8), 1), false),
 			),
 			ts.line("bg",
-				ts.seg("bg", "muted", "   your environment is ready", false),
+				ts.seg("bg", "muted", "   "+fitPreview(m.motdContent.Description, sampleWidth-3, 1), false),
 			),
 			ts.line("bg",
 				ts.seg("bg", "dim", " $ ", false),
-				ts.seg("bg", "accent", "check", false),
-				ts.seg("bg", "muted", " ····· build + render smoke tests", false),
+				ts.seg("bg", "accent", fitPreview(m.motdPreviewCommands(), sampleWidth-4, 1), false),
 			),
 		}, "\n")
 	case "menu":
@@ -788,6 +935,18 @@ func (m wizardModel) componentPreview() string {
 			),
 			ts.line("surface",
 				ts.seg("surface", "fg", " Each Markdown file is one page.", false),
+			),
+		}, "\n")
+	case ".envrc":
+		return strings.Join([]string{
+			ts.line("surface",
+				ts.seg("surface", "accent", " .envrc", true),
+			),
+			ts.line("surface",
+				ts.seg("surface", "fg", " use flake", false),
+			),
+			ts.line("surface",
+				ts.seg("surface", "muted", " direnv loads the development shell", false),
 			),
 		}, "\n")
 	}
@@ -843,6 +1002,28 @@ func (m wizardModel) commandsBody(s formStyles, step string) string {
 	)
 }
 
+func (m wizardModel) stepProgress() (int, int) {
+	steps := []wizardStep{
+		stepTitle,
+		stepFont,
+		stepProject,
+		stepTheme,
+		stepProfile,
+		stepCommands,
+		stepComponents,
+	}
+	if m.components[componentMotd] {
+		steps = append(steps, stepMotdContent, stepMotdLayout, stepMotdSpacing, stepMotdSurface)
+	}
+	steps = append(steps, stepConfirm)
+	for index, step := range steps {
+		if step == m.step {
+			return index + 1, len(steps)
+		}
+	}
+	return 1, len(steps)
+}
+
 func (m wizardModel) summaryRows(s formStyles) []string {
 	result := m.result()
 	onOff := func(enabled bool) string {
@@ -851,8 +1032,11 @@ func (m wizardModel) summaryRows(s formStyles) []string {
 		}
 		return "off"
 	}
+	valueWidth := min(max(m.width-20, 20), 68)
 	line := func(label, value string) string {
-		return s.dim.Render(fmt.Sprintf("%-10s", label)) + s.base.Render(value)
+		value = strings.Join(strings.Fields(value), " ")
+		value = fitPreview(value, valueWidth, 1)
+		return s.dim.Render(fmt.Sprintf("%-12s", label)) + s.base.Render(value)
 	}
 	commands := "none"
 	if len(result.Commands) > 0 {
@@ -862,6 +1046,14 @@ func (m wizardModel) summaryRows(s formStyles) []string {
 		}
 		commands = strings.Join(names, ", ")
 	}
+	style := result.MotdStyle
+	margin := motdMarginPresets[boundedIndex(m.motdMarginIndex, len(motdMarginPresets))]
+	padding := motdPaddingPresets[boundedIndex(m.motdPaddingIndex, len(motdPaddingPresets))]
+	width := motdWidthPresets[boundedIndex(m.motdWidthIndex, len(motdWidthPresets))]
+	devServerStatus := "off"
+	if result.MotdContent.DevServerStatus {
+		devServerStatus = result.MotdContent.DevServerHealthURL
+	}
 	return []string{
 		line("title", result.Recipe.Text+"  ("+result.Recipe.Font+")"),
 		line("project", result.Project),
@@ -869,9 +1061,17 @@ func (m wizardModel) summaryRows(s formStyles) []string {
 		line("colors", result.ColorProfile),
 		line("commands", commands),
 		line("motd", onOff(result.Motd)),
+		line("tagline", result.MotdContent.Tagline),
+		line("description", result.MotdContent.Description),
+		line("flake", onOff(result.MotdContent.NixFlakeCheck)),
+		line("dev server", devServerStatus),
+		line("layout", style.Align+" / "+style.VerticalAlign+" / title "+style.TitleAlign),
+		line("spacing", margin.Name+" margin · "+padding.Name+" padding · "+width.Name+" width"),
+		line("surface", m.motdBackgroundLabel(m.motdBackgroundIndex)+" card · "+m.motdBackgroundLabel(m.motdWindowBackgroundIndex)+" window · border "+onOff(m.motdBorder)+" · clear "+onOff(m.motdClearScreen)),
 		line("menu", onOff(result.Menu)),
 		line("prompt", onOff(result.Prompt)),
 		line("docs", onOff(result.Docs)),
+		line(".envrc", onOff(result.Envrc)),
 	}
 }
 

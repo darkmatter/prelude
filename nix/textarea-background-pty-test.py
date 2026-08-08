@@ -19,23 +19,10 @@ BACKGROUND_SEQUENCES = (b"48;2;32;32;32", b"48:2::32:32:32")
 INPUT_MARKER = "Z"
 
 WINDOW_BACKGROUND = "202020"
-DEFAULT_BACKGROUND = "default"
-
-
-def require_default_cells(
-    label: str, screen: NonBceScreen, row: int, start: int, end: int
-) -> None:
-    for column in range(start, min(end, screen.columns)):
-        cell = screen.buffer[row][column]
-        if cell.bg.lower() not in (DEFAULT_BACKGROUND, ""):
-            fail(
-                f"{label} cell ({column}, {row}) has background {cell.bg!r}",
-                screen_dump(screen),
-            )
 
 
 class NonBceScreen(pyte.Screen):
-    """Model Warp: EL and ECH erase cells without carrying the active SGR."""
+    """Model Warp's non-BCE erase behavior."""
 
     def erase_characters(self, count: int | None = None) -> None:
         self.dirty.add(self.cursor.y)
@@ -276,6 +263,7 @@ def main() -> None:
         )
         os.makedirs(environment["HOME"], exist_ok=True)
         os.makedirs(environment["XDG_CACHE_HOME"], exist_ok=True)
+        os.chdir(environment["HOME"])
         os.execve(bash, [bash, "--noprofile", "--norc", "-i"], environment)
 
     screen = NonBceScreen(48, 14)
@@ -348,57 +336,19 @@ def main() -> None:
             fail("resize emitted no terminal output")
         require_background("resize", resized)
         require_wrapped_input("resize", screen, 41)
-        # Clear any leftover input from the wrapped-input test before
-        # running ordinary command output.  \x15 on a non-empty line redraws;
-        # on an empty line it emits nothing, so drain without requiring output.
-        transact(master, b"\x15", "pre-echo clear", 3.0, terminal=terminal)
-        # Ordinary command output: `echo hi` glyphs carry the window background.
-        # Use octal-escaped output absent from the command bytes so
-        # locate_text finds the output row, not the editable command.
-        echo_output = transact(
-            master,
-            b"printf '\\150\\151\\n'\r",
-            "echo handoff",
-            until_any=b"hi".split(),
-            terminal=terminal,
-        )
-        echo_row, echo_col = locate_text(screen, "hi")
-        require_window_cells("echo handoff", screen, echo_row, echo_col, echo_col + 2)
 
-        # Child reset boundary: an explicit SGR 0 returns subsequent glyphs
-        # to the terminal default, proving Prelude does not rewrite child output.
-        # Octal escapes keep the marker out of the command bytes.
-        read_until_idle(master, 1.0, terminal=terminal)
-        transact(
-            master,
-            b"printf '\\033[0m\\101\\102\\n'\r",
-            "child reset",
-            until_any=b"AB".split(),
-            terminal=terminal,
-        )
-        reset_row, reset_col = locate_text(screen, "AB")
-        require_default_cells("child reset", screen, reset_row, reset_col, reset_col + 2)
-
-        # Redirected exit: `exit >file` must not contaminate the file with
-        # any Prelude SGR bytes (including the reset sequence itself), and
-        # the terminal must receive the cleanup reset on the TUI FD.
-        read_until_idle(master, 1.0, terminal=terminal)
-        exit_output = transact(
-            master,
-            b"exit >/tmp/prelude-exit-test\r",
-            "redirected exit",
-            8.0,
-            terminal=terminal,
-        )
-        try:
-            with open("/tmp/prelude-exit-test", "rb") as handle:
-                exit_file = handle.read()
-        except FileNotFoundError:
-            exit_file = b""
-        if b"\x1b" in exit_file:
-            fail("redirected exit file contains escape bytes", exit_file)
-        if b"\x1b[0m" not in exit_output and b"\x1b[m" not in exit_output:
-            fail("redirected exit emitted no SGR reset on the TUI", exit_output)
+        # Submitted history keeps only Starship's character, not its multiline
+        # prompt chrome.
+        transact(master, b"\x15", "pre-submit clear", terminal=terminal)
+        final_command = ": prelude-final-prompt"
+        transact(master, final_command.encode(), "final command", terminal=terminal)
+        transact(master, b"\r", "final prompt rewrite", 10.0, 1.0, terminal=terminal)
+        submitted_row, command_start = locate_text(screen, final_command)
+        if screen.display[submitted_row][:command_start] != "❯ ":
+            fail(
+                "submitted prompt did not collapse to Starship's character",
+                screen_dump(screen),
+            )
     finally:
         terminate(pid, master)
 

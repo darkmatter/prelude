@@ -2,12 +2,14 @@ package wizard
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 func testWizard() wizardModel {
@@ -19,8 +21,8 @@ func testWizard() wizardModel {
 		},
 		DefaultTheme: "phosphor",
 		Themes: []Theme{
-			{Name: "nord", Palette: map[string]string{"accent": "#88c0d0", "bg": "#2e3440"}},
-			{Name: "phosphor", Palette: map[string]string{"accent": "#68e371", "bg": "#0c110e"}},
+			{Name: "nord", Palette: map[string]string{"accent": "#88c0d0", "bg": "#2e3440", "surface": "#3b4252", "fg": "#eceff4", "muted": "#d8dee9"}},
+			{Name: "phosphor", Palette: map[string]string{"accent": "#68e371", "bg": "#0c110e", "surface": "#172119", "fg": "#d8f3dc", "muted": "#9fc8a5"}},
 		},
 	}
 	return newWizard(cfg, Recipe{Text: "acme", Font: "thin"}, func(font Font, text string) (string, error) {
@@ -46,6 +48,11 @@ func enter(t *testing.T, m wizardModel) wizardModel {
 func letter(t *testing.T, m wizardModel, r rune) wizardModel {
 	t.Helper()
 	return pressKey(t, m, tea.KeyPressMsg{Code: r, Text: string(r)})
+}
+
+func ctrlD(t *testing.T, m wizardModel) wizardModel {
+	t.Helper()
+	return pressKey(t, m, tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
 }
 
 func TestWizardWalksEveryStepAndCollectsSelections(t *testing.T) {
@@ -87,17 +94,7 @@ func TestWizardWalksEveryStepAndCollectsSelections(t *testing.T) {
 	m = letter(t, m, 'j')
 	m = enter(t, m)
 
-	// Components: toggle docs on (motd, menu, prompt stay on).
-	if m.step != stepComponents {
-		t.Fatalf("step = %d, want components", m.step)
-	}
-	m = letter(t, m, 'j')
-	m = letter(t, m, 'j')
-	m = letter(t, m, 'j')
-	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
-	m = enter(t, m)
-
-	// Commands: add one via the three-field entry sub-flow.
+	// Commands come before every component/MOTD preview so previews can use them.
 	if m.step != stepCommands || m.commandPhase != commandList {
 		t.Fatalf("step = %d phase = %d, want commands list", m.step, m.commandPhase)
 	}
@@ -125,8 +122,55 @@ func TestWizardWalksEveryStepAndCollectsSelections(t *testing.T) {
 	}
 	m = enter(t, m)
 
-	// Integration is no longer a separate step after moving to JSON emission.
-	// Confirm.
+	// Components: the MOTD preview already contains dev; toggle docs on.
+	if m.step != stepComponents {
+		t.Fatalf("step = %d, want components", m.step)
+	}
+	if preview := m.componentPreview(); !strings.Contains(preview, "dev") {
+		t.Fatalf("component preview does not use configured commands:\n%s", preview)
+	}
+	m = letter(t, m, 'j')
+	m = letter(t, m, 'j')
+	m = letter(t, m, 'j')
+	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+	m = enter(t, m)
+
+	if m.step != stepMotdContent || m.motdContentPhase != motdContentTagline {
+		t.Fatalf("step=%d content phase=%d, want MOTD tagline", m.step, m.motdContentPhase)
+	}
+	m.motdContentInput.SetValue("Ship confidently")
+	m = enter(t, m)
+	m.motdDescriptionInput.SetValue("Everything needed to build, test,\nand ship.")
+	m = ctrlD(t, m)
+	if m.motdContentPhase != motdContentStatus || !m.motdContent.NixFlakeCheck {
+		t.Fatalf("status phase=%d flake=%v, want default flake toggle", m.motdContentPhase, m.motdContent.NixFlakeCheck)
+	}
+	m = letter(t, m, 'j')
+	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+	m = enter(t, m)
+	if m.motdContentPhase != motdContentDevServerURL {
+		t.Fatalf("content phase = %d, want dev server URL", m.motdContentPhase)
+	}
+	m.motdContentInput.SetValue("http://127.0.0.1:8080/health")
+	m = enter(t, m)
+	if m.step != stepMotdLayout {
+		t.Fatalf("step = %d, want MOTD layout after content", m.step)
+	}
+	renderedPreview := m.motdPreview()
+	for _, fragment := range []string{"dev", "Ship confidently", "Everything needed", "flake", "dev server"} {
+		if !strings.Contains(renderedPreview, fragment) {
+			t.Fatalf("MOTD preview does not use %q from commands/content:\n%s", fragment, renderedPreview)
+		}
+	}
+	m = enter(t, m)
+	if m.step != stepMotdSpacing {
+		t.Fatalf("step = %d, want MOTD spacing", m.step)
+	}
+	m = enter(t, m)
+	if m.step != stepMotdSurface {
+		t.Fatalf("step = %d, want MOTD surface", m.step)
+	}
+	m = enter(t, m)
 	if m.step != stepConfirm {
 		t.Fatalf("step = %d, want confirm", m.step)
 	}
@@ -146,10 +190,533 @@ func TestWizardWalksEveryStepAndCollectsSelections(t *testing.T) {
 		Menu:         true,
 		Prompt:       true,
 		Docs:         true,
+		Envrc:        true,
 		Commands:     []wizardCommand{{Name: "dev", Exec: "make", Description: "run"}},
+		MotdContent: wizardMotdContent{
+			Tagline:            "Ship confidently",
+			Description:        "Everything needed to build, test,\nand ship.",
+			NixFlakeCheck:      true,
+			DevServerStatus:    true,
+			DevServerHealthURL: "http://127.0.0.1:8080/health",
+		},
+		MotdContentSet: true,
+		MotdStyle:      defaultMotdStyle(),
+		MotdStyleSet:   true,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("result = %#v, want %#v", got, want)
+	}
+}
+
+func TestWizardEnvrcToggleDefaultsOnAndCanBeDisabled(t *testing.T) {
+	m := testWizard()
+	m.step = stepComponents
+	m.componentIndex = componentEnvrc
+
+	if !m.components[componentEnvrc] || !m.result().Envrc {
+		t.Fatal(".envrc toggle should default on")
+	}
+	view := m.View().Content
+	for _, fragment := range []string{"[x] .envrc", "use flake"} {
+		if !strings.Contains(view, fragment) {
+			t.Fatalf(".envrc toggle view missing %q:\n%s", fragment, view)
+		}
+	}
+
+	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+	if m.components[componentEnvrc] || m.result().Envrc {
+		t.Fatal(".envrc toggle did not turn off")
+	}
+}
+
+func TestWizardMOTDStyleStepsCollectSelectionsAndPreview(t *testing.T) {
+	m := testWizard()
+	for range 5 {
+		m = enter(t, m)
+	}
+	if m.step != stepCommands {
+		t.Fatalf("step = %d, want commands before components", m.step)
+	}
+	m = enter(t, m)
+	if m.step != stepComponents {
+		t.Fatalf("step = %d, want components after commands", m.step)
+	}
+	m.themeIndex = 0 // use the complete nord palette for explicit background emission
+
+	m = enter(t, m) // components -> MOTD content
+	m = enter(t, m) // tagline
+	m = ctrlD(t, m) // description
+	m = enter(t, m) // default flake status on; dev server off
+	if m.step != stepMotdLayout {
+		t.Fatalf("step = %d, want MOTD layout", m.step)
+	}
+	m = letter(t, m, 'l') // block center -> right
+	m = letter(t, m, 'j') // vertical field
+	m = letter(t, m, 'h') // bottom -> center
+	m = letter(t, m, 'j') // title field
+	m = letter(t, m, 'l') // title center -> right
+	if !strings.Contains(m.motdPreview(), "right block · center vertical") {
+		t.Fatalf("preview does not reflect layout choices: %s", m.motdPreview())
+	}
+	m = enter(t, m)
+
+	m = letter(t, m, 'l') // margin balanced -> spacious
+	m = letter(t, m, 'j') // padding field
+	m = letter(t, m, 'l') // padding roomy -> generous
+	m = letter(t, m, 'j') // width field
+	m = letter(t, m, 'h') // width wide -> compact
+	m = enter(t, m)
+
+	m = letter(t, m, 'l')                                              // card transparent -> theme background
+	m = letter(t, m, 'j')                                              // window background field
+	m = letter(t, m, 'l')                                              // theme background -> surface color
+	m = letter(t, m, 'j')                                              // border field
+	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}) // border on
+	m = letter(t, m, 'j')                                              // clear-screen field
+	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}) // clear off
+	m = enter(t, m)
+	if m.step != stepConfirm {
+		t.Fatalf("step = %d, want confirmation after MOTD pages", m.step)
+	}
+
+	got := m.result()
+	wantStyle := motdStyle{
+		Align:            "right",
+		VerticalAlign:    "center",
+		TitleAlign:       "right",
+		Border:           true,
+		Background:       "true",
+		WindowBackground: `"#3b4252"`,
+		ClearScreen:      false,
+		MarginX:          6,
+		MarginY:          3,
+		PaddingX:         6,
+		PaddingY:         3,
+		Width:            "80",
+		MaxWidth:         "80",
+	}
+	if !reflect.DeepEqual(got.MotdStyle, wantStyle) || !got.MotdStyleSet {
+		t.Fatalf("MOTD style = %#v (set=%v), want %#v", got.MotdStyle, got.MotdStyleSet, wantStyle)
+	}
+}
+
+func TestWizardSkipsMOTDStepsWhenDisabled(t *testing.T) {
+	m := testWizard()
+	m.components[0] = false
+	m.step = stepCommands
+	m = enter(t, m)
+	if m.step != stepComponents {
+		t.Fatalf("step = %d, want components after commands", m.step)
+	}
+	current, total := m.stepProgress()
+	if current != 7 || total != 8 {
+		t.Fatalf("progress = %d/%d, want 7/8", current, total)
+	}
+	m = enter(t, m)
+	if m.step != stepConfirm {
+		t.Fatalf("step = %d, want confirm when MOTD is disabled", m.step)
+	}
+}
+
+func TestWizardMOTDDefaultsUseProjectAndRequestedCopy(t *testing.T) {
+	m := testWizard()
+	if got := m.motdContent.Tagline; got != motdDefaultTagline {
+		t.Fatalf("tagline = %q, want %q", got, motdDefaultTagline)
+	}
+	if got := m.motdContent.Description; got != defaultWizardMotdDescription("acme") {
+		t.Fatalf("description = %q, want project-aware default", got)
+	}
+	if !m.motdContent.NixFlakeCheck || m.motdContent.DevServerStatus {
+		t.Fatalf("default statuses: flake=%v server=%v", m.motdContent.NixFlakeCheck, m.motdContent.DevServerStatus)
+	}
+	if got := m.motdContent.DevServerHealthURL; got != motdDevServerHealthURLPlaceholder {
+		t.Fatalf("health URL = %q, want %q", got, motdDevServerHealthURLPlaceholder)
+	}
+
+	m.step = stepProject
+	m.projectInput.SetValue("prelude")
+	m = enter(t, m)
+	if got := m.motdContent.Description; got != defaultWizardMotdDescription("prelude") {
+		t.Fatalf("updated description = %q, want project-aware default", got)
+	}
+
+	m.step = stepMotdContent
+	m.focusMotdContentField(motdContentTagline)
+	if got := m.motdContentInput.Placeholder; got != motdDefaultTagline {
+		t.Fatalf("tagline placeholder = %q, want %q", got, motdDefaultTagline)
+	}
+	if view := m.View().Content; !strings.Contains(view, "Write a one-line description of your project") {
+		t.Fatalf("tagline guidance missing from view:\n%s", view)
+	}
+
+	m.focusMotdContentField(motdContentDescription)
+	if view := m.View().Content; !strings.Contains(view, "Write your welcome message (multiline okay)") {
+		t.Fatalf("welcome heading missing from view:\n%s", view)
+	}
+}
+
+func TestWizardMOTDDescriptionAcceptsMultipleLines(t *testing.T) {
+	m := testWizard()
+	m.step = stepMotdContent
+	m.focusMotdContentField(motdContentDescription)
+	m.motdDescriptionInput.SetValue("First line")
+	m.motdDescriptionInput.MoveToEnd()
+
+	m = enter(t, m)
+	if m.motdContentPhase != motdContentDescription || !strings.Contains(m.motdDescriptionInput.Value(), "\n") {
+		t.Fatalf("enter did not add a description line: phase=%d value=%q", m.motdContentPhase, m.motdDescriptionInput.Value())
+	}
+	m.motdDescriptionInput.SetValue("First line\nSecond line")
+	m = ctrlD(t, m)
+	if m.motdContentPhase != motdContentStatus || m.motdContent.Description != "First line\nSecond line" {
+		t.Fatalf("multiline description not committed: phase=%d value=%q", m.motdContentPhase, m.motdContent.Description)
+	}
+}
+
+func TestWizardMOTDStatusTogglesAndHealthURLDefault(t *testing.T) {
+	m := testWizard()
+	m.step = stepMotdContent
+	m.focusMotdContentField(motdContentStatus)
+
+	if !m.motdContent.NixFlakeCheck || m.motdContent.DevServerStatus {
+		t.Fatalf("unexpected defaults: flake=%v server=%v", m.motdContent.NixFlakeCheck, m.motdContent.DevServerStatus)
+	}
+	m = letter(t, m, 'j')
+	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+	if !m.motdContent.DevServerStatus {
+		t.Fatal("dev server status did not toggle on")
+	}
+	m = enter(t, m)
+	if m.motdContentPhase != motdContentDevServerURL {
+		t.Fatalf("phase = %d, want health URL", m.motdContentPhase)
+	}
+	if got := m.motdContentInput.Placeholder; got != motdDevServerHealthURLPlaceholder {
+		t.Fatalf("URL placeholder = %q, want %q", got, motdDevServerHealthURLPlaceholder)
+	}
+	if got := m.motdContentInput.Value(); got != motdDevServerHealthURLPlaceholder {
+		t.Fatalf("URL default = %q, want placeholder value", got)
+	}
+
+	m.motdContentInput.SetValue("")
+	m = enter(t, m)
+	if m.step != stepMotdLayout || m.motdContent.DevServerHealthURL != motdDevServerHealthURLPlaceholder {
+		t.Fatalf("empty URL did not retain default: step=%d url=%q", m.step, m.motdContent.DevServerHealthURL)
+	}
+}
+
+func TestMOTDDevServerHealthCommandQuotesURL(t *testing.T) {
+	if got := motdDevServerHealthCommand(motdDevServerHealthURLPlaceholder); got != motdDevServerHealthCommandDefault {
+		t.Fatalf("default health command = %q, want %q", got, motdDevServerHealthCommandDefault)
+	}
+	editedAppHostURL := `${APP_HOST:-http://127.0.0.1:3000}/ready`
+	if err := validateMotdDevServerHealthURL(editedAppHostURL); err != nil {
+		t.Fatalf("edited APP_HOST URL rejected: %v", err)
+	}
+	if got := motdDevServerHealthCommand(editedAppHostURL); got != `curl -fsS "${APP_HOST:-http://127.0.0.1:3000}/ready"` {
+		t.Fatalf("edited APP_HOST command = %q", got)
+	}
+	if got := motdDevServerHealthCommand("http://localhost:3000/it's-ready"); got != `curl -fsS 'http://localhost:3000/it'"'"'s-ready'` {
+		t.Fatalf("quoted health command = %q", got)
+	}
+}
+
+func TestWizardMOTDRejectsInvalidHealthURL(t *testing.T) {
+	m := testWizard()
+	m.step = stepMotdContent
+	m.motdContent.DevServerStatus = true
+	m.focusMotdContentField(motdContentDevServerURL)
+	m.motdContentInput.SetValue("curl example.com/health")
+
+	m = enter(t, m)
+	if m.step != stepMotdContent || m.motdContentPhase != motdContentDevServerURL || m.err == "" {
+		t.Fatalf("invalid health URL accepted: step=%d phase=%d err=%q", m.step, m.motdContentPhase, m.err)
+	}
+}
+
+func TestWizardMOTDStatusViewsShowTogglesAndURLWithoutOverflow(t *testing.T) {
+	m := testWizard()
+	m.step = stepMotdContent
+	m.width = 80
+	m.focusMotdContentField(motdContentStatus)
+
+	view := m.View().Content
+	for _, fragment := range []string{"[x] nix flake check", "[ ] dev server"} {
+		if !strings.Contains(view, fragment) {
+			t.Fatalf("status toggle view missing %q:\n%s", fragment, view)
+		}
+	}
+
+	m.motdContent.DevServerStatus = true
+	m.focusMotdContentField(motdContentDevServerURL)
+	view = m.View().Content
+	for _, fragment := range []string{"APP_HOST", "127.0.0.1:3000"} {
+		if !strings.Contains(view, fragment) {
+			t.Fatalf("health URL view missing %q:\n%s", fragment, view)
+		}
+	}
+	for index, line := range strings.Split(view, "\n") {
+		if got := lipgloss.Width(line); got > m.width {
+			t.Fatalf("health URL row %d width = %d, want <= %d:\n%s", index, got, m.width, view)
+		}
+	}
+}
+
+func TestWizardMOTDContentBackNavigation(t *testing.T) {
+	m := testWizard()
+	m.step = stepMotdContent
+	m.focusMotdContentField(motdContentStatus)
+	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	if m.motdContentPhase != motdContentDescription {
+		t.Fatalf("esc from statuses: phase=%d, want description", m.motdContentPhase)
+	}
+
+	m.step = stepMotdLayout
+	m.motdContent.DevServerStatus = false
+	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	if m.step != stepMotdContent || m.motdContentPhase != motdContentStatus {
+		t.Fatalf("esc from layout without server: step=%d phase=%d", m.step, m.motdContentPhase)
+	}
+
+	m.step = stepMotdLayout
+	m.motdContent.DevServerStatus = true
+	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	if m.step != stepMotdContent || m.motdContentPhase != motdContentDevServerURL {
+		t.Fatalf("esc from layout with server: step=%d phase=%d", m.step, m.motdContentPhase)
+	}
+	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	if m.motdContentPhase != motdContentStatus {
+		t.Fatalf("esc from URL: phase=%d, want statuses", m.motdContentPhase)
+	}
+}
+
+func TestMOTDPreviewWidthPresetsScaleTo80ColumnCanvas(t *testing.T) {
+	wantWidths := []int{48, 64, 72}
+	for index, want := range wantWidths {
+		if got := motdWidthPresets[index].PreviewWidth; got != want {
+			t.Fatalf("%s preview width = %d, want %d", motdWidthPresets[index].Name, got, want)
+		}
+	}
+
+	cardWidth, contentWidth, _ := previewCardDimensions(
+		motdPreviewCanvasWidth,
+		motdWidthPresets[1].PreviewWidth,
+		motdMarginPresets[1].X,
+		motdPaddingPresets[1].X,
+		true,
+	)
+	if cardWidth != 64 || contentWidth != 54 {
+		t.Fatalf("default bordered preview dimensions = %d/%d, want card/content 64/54", cardWidth, contentWidth)
+	}
+}
+
+func TestMOTDPreviewUsesStaticCanvasAndFitsContent(t *testing.T) {
+	if motdPreviewCanvasWidth != 80 {
+		t.Fatalf("preview canvas width = %d, want 80", motdPreviewCanvasWidth)
+	}
+
+	m := testWizard()
+	m.preview = strings.Repeat("wide title ", 8)
+	var baseline string
+	for _, width := range []int{24, 30, 40, 56, 80, 120} {
+		m.width = width
+		rendered := m.motdPreview()
+		if baseline == "" {
+			baseline = rendered
+		} else if rendered != baseline {
+			t.Fatalf("preview changed at window width %d; preview canvas should stay static", width)
+		}
+		for _, line := range strings.Split(rendered, "\n") {
+			if got := lipgloss.Width(line); got > motdPreviewCanvasWidth {
+				t.Fatalf("width %d: preview line width = %d, want <= %d:\n%s", width, got, motdPreviewCanvasWidth, rendered)
+			}
+		}
+	}
+}
+
+func TestMOTDPreviewBorderDefaultsOffAndToggles(t *testing.T) {
+	m := testWizard()
+	withoutBorder := m.motdPreview()
+	if strings.Contains(withoutBorder, "╭") || strings.Contains(withoutBorder, "╰") {
+		t.Fatalf("default MOTD preview rendered a border:\n%s", withoutBorder)
+	}
+
+	m.motdBorder = true
+	withBorder := m.motdPreview()
+	if !strings.Contains(withBorder, "╭") || !strings.Contains(withBorder, "╰") {
+		t.Fatalf("enabled MOTD border was not rendered:\n%s", withBorder)
+	}
+}
+
+func TestPreviewTitleAlignmentPreservesFIGletShape(t *testing.T) {
+	const title = "AA\nAAAA"
+	for _, test := range []struct {
+		align  string
+		offset int
+	}{
+		{align: "left", offset: 0},
+		{align: "center", offset: 8},
+		{align: "right", offset: 16},
+	} {
+		t.Run(test.align, func(t *testing.T) {
+			lines := strings.Split(alignPreviewTitleBlock(title, 20, test.align), "\n")
+			if len(lines) != 2 {
+				t.Fatalf("aligned title has %d lines, want 2: %q", len(lines), lines)
+			}
+			for index, line := range lines {
+				if got := len(line) - len(strings.TrimLeft(line, " ")); got != test.offset {
+					t.Fatalf("line %d leading spaces = %d, want %d: %q", index, got, test.offset, line)
+				}
+			}
+		})
+	}
+}
+
+func TestMOTDPreviewRendersFixedCardShape(t *testing.T) {
+	m := testWizard()
+	m.motdBorder = true
+	m.motdWordmark = motdPreviewSampleText
+	m.commands = []wizardCommand{{Name: "check"}, {Name: "test"}, {Name: "build"}}
+	m.motdContent.NixFlakeCheck = true
+	m.motdContent.DevServerStatus = true
+
+	rendered := m.motdPreview()
+	lines := strings.Split(rendered, "\n")
+	if len(lines) < 15 {
+		t.Fatalf("MOTD preview has %d lines, want at least 15:\n%s", len(lines), rendered)
+	}
+	if got := lipgloss.Width(rendered); got != motdPreviewCanvasWidth {
+		t.Fatalf("MOTD preview width = %d, want static canvas width %d:\n%s", got, motdPreviewCanvasWidth, rendered)
+	}
+	for _, fragment := range []string{
+		"live MOTD preview",
+		"╭",
+		motdPreviewSampleText,
+		"flake  pending",
+		"dev server  pending",
+		"Fancy devshells for your nix",
+		"check  ·  test  ·  build",
+		"You are now in",
+		"center block",
+	} {
+		if !strings.Contains(rendered, fragment) {
+			t.Fatalf("MOTD preview missing %q:\n%s", fragment, rendered)
+		}
+	}
+	titleLine, dividerLine, statusLine, taglineLine := -1, -1, -1, -1
+	for index, line := range lines {
+		switch {
+		case titleLine < 0 && strings.Contains(line, motdPreviewSampleText):
+			titleLine = index
+		case titleLine >= 0 && statusLine < 0 && strings.Contains(line, "─"):
+			dividerLine = index
+		case strings.Contains(line, "flake  pending"):
+			statusLine = index
+		case strings.Contains(line, "Fancy devshells"):
+			taglineLine = index
+		}
+	}
+	if !(titleLine < dividerLine && dividerLine < statusLine && statusLine < taglineLine) {
+		t.Fatalf(
+			"preview status is not beneath the divider: title=%d divider=%d status=%d tagline=%d\n%s",
+			titleLine,
+			dividerLine,
+			statusLine,
+			taglineLine,
+			rendered,
+		)
+	}
+	// The first and last lines belong to the preview label and metadata. Every
+	// viewport row is padded to the static canvas width, including empty rows
+	// used for vertical placement.
+	viewport := lines[1 : len(lines)-1]
+	for index, line := range viewport {
+		if got := lipgloss.Width(line); got != motdPreviewCanvasWidth {
+			t.Fatalf("viewport row %d width = %d, want %d:\n%s", index, got, motdPreviewCanvasWidth, rendered)
+		}
+	}
+
+	t.Logf("rendered MOTD preview:\n%s", rendered)
+}
+
+func TestMOTDPreviewUsesConfiguredMarginAndPadding(t *testing.T) {
+	base := testWizard()
+	base.motdWordmark = motdPreviewSampleText
+	base.motdAlignIndex = 0         // left
+	base.motdVerticalAlignIndex = 0 // top
+	base.motdMarginIndex = 0        // compact
+	base.motdPaddingIndex = 0       // compact
+	baseRendered := base.motdPreview()
+
+	padding := base
+	padding.motdPaddingIndex = 2 // generous
+	paddingRendered := padding.motdPreview()
+	if got, want := lipgloss.Height(paddingRendered) > lipgloss.Height(baseRendered), true; got != want {
+		t.Fatalf("generous padding did not increase preview height:\nbase:\n%s\n\ngenerous:\n%s", baseRendered, paddingRendered)
+	}
+
+	margin := base
+	margin.motdMarginIndex = 2 // spacious
+	marginRendered := margin.motdPreview()
+	if got, want := lipgloss.Height(marginRendered) > lipgloss.Height(baseRendered), true; got != want {
+		t.Fatalf("spacious margin did not increase preview height:\nbase:\n%s\n\nspacious:\n%s", baseRendered, marginRendered)
+	}
+
+	for name, rendered := range map[string]string{
+		"base":    baseRendered,
+		"padding": paddingRendered,
+		"margin":  marginRendered,
+	} {
+		if got := lipgloss.Width(rendered); got != motdPreviewCanvasWidth {
+			t.Fatalf("%s preview width = %d, want %d", name, got, motdPreviewCanvasWidth)
+		}
+	}
+	if !strings.Contains(baseRendered, "left block · top vertical") {
+		t.Fatalf("base preview does not show the configured non-centered layout:\n%s", baseRendered)
+	}
+
+	rightBottom := base
+	rightBottom.motdAlignIndex = 2
+	rightBottom.motdVerticalAlignIndex = 2
+	if rendered := rightBottom.motdPreview(); !strings.Contains(rendered, "right block · bottom vertical") {
+		t.Fatalf("preview does not show the alternate layout:\n%s", rendered)
+	}
+}
+
+func TestRefreshMOTDWordmarkUsesFixedMiniFont(t *testing.T) {
+	m := testWizard()
+	m.cfg.Fonts = append(m.cfg.Fonts, Font{Name: motdPreviewFontName, Path: "/mini"})
+
+	m.refreshPreview()
+	if m.preview != "thin:acme" {
+		t.Fatalf("selected-font preview = %q, want thin:acme", m.preview)
+	}
+	if m.motdWordmark != "mini:acme" {
+		t.Fatalf("MOTD wordmark = %q, want mini:acme", m.motdWordmark)
+	}
+}
+
+func TestRefreshMOTDWordmarkAlwaysUsesAcmeSample(t *testing.T) {
+	m := testWizard()
+	m.cfg.Fonts = append(m.cfg.Fonts, Font{Name: motdPreviewFontName, Path: "/mini"})
+	m.titleInput.SetValue("custom title")
+	m.projectInput.SetValue("customer-project")
+
+	m.refreshMotdWordmark()
+	if m.motdWordmark != "mini:"+motdPreviewSampleText {
+		t.Fatalf("MOTD wordmark = %q, want mini:%s", m.motdWordmark, motdPreviewSampleText)
+	}
+}
+
+func TestMOTDPreviewIgnoresSelectedFontOutput(t *testing.T) {
+	m := testWizard()
+	m.cfg.Fonts = append(m.cfg.Fonts, Font{Name: motdPreviewFontName, Path: "/mini"})
+	m.refreshMotdWordmark()
+
+	m.preview = strings.Repeat("selected FIGlet output ", 20)
+	baseline := m.motdPreview()
+	m.preview = "another selected font with different geometry"
+	if got := m.motdPreview(); got != baseline {
+		t.Fatalf("MOTD preview changed with selected-font output:\nbase:\n%s\n\ngot:\n%s", baseline, got)
 	}
 }
 
@@ -191,6 +758,26 @@ func TestWizardEscapeBacktracksWithoutCanceling(t *testing.T) {
 	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	if m.step != stepTitle || m.canceled {
 		t.Fatalf("esc from font: step=%d canceled=%v", m.step, m.canceled)
+	}
+}
+
+func TestWizardReviewFitsLongMultilineWelcomeMessage(t *testing.T) {
+	m := testWizard()
+	m.step = stepConfirm
+	m.width = 80
+	m.motdContent.Description = strings.Repeat("Long welcome copy ", 12) + "\nSecond paragraph"
+
+	for index, row := range m.summaryRows(newFormStyles()) {
+		if strings.Contains(row, "\n") {
+			t.Fatalf("summary row %d contains a raw newline: %q", index, row)
+		}
+	}
+	view := m.View().Content
+	for index, line := range strings.Split(view, "\n") {
+		line = strings.TrimSuffix(line, "\r")
+		if got := lipgloss.Width(line); got > m.width {
+			t.Fatalf("review row %d width = %d, want <= %d:\n%s", index, got, m.width, view)
+		}
 	}
 }
 
@@ -239,17 +826,23 @@ func TestRenderWizardConfigEmitsOptionsTemplate(t *testing.T) {
 		"# args = [ ];",
 		"title = {",
 		"text = ./title.txt;",
-		`# align = "center";`,
-		"# background = false;",
-		"# windowBackground = false;",
-		"# maxWidth = 120;",
-		"# margin = {",
-		"#   x = 4;",
-		"#   bottom = 4;",
-		"#   minHeight = 40;",
-		`#     text = "everything you need to build, test & ship";`,
-		"#   statusHint = {",
-		`#     layout = "inline";`,
+		`align = "center";`,
+		"background = false;",
+		"windowBackground = true;",
+		"border = false;",
+		`verticalAlign = "bottom";`,
+		"maxWidth = 100;",
+		"margin = {",
+		"x = 4;",
+		"minHeight = 40;",
+		"padding = {",
+		`text = "Fancy devshells for your nix flake";`,
+		`text = "You are now in the acme-web dev environment, powered by Nix Flakes. All required dependencies, project scripts, and documentation are available in this environment.";`,
+		"flake = {",
+		`check = "nix flake check";`,
+		`# devServer = { label = "dev server";`,
+		"# statusHint = {",
+		`#   layout = "inline";`,
 		"menu = {",
 		"enable = true;",
 		"# height = 20;",
@@ -264,6 +857,123 @@ func TestRenderWizardConfigEmitsOptionsTemplate(t *testing.T) {
 	}
 	if strings.Contains(got, "prelude.json") || strings.Contains(got, "fromJSON") {
 		t.Fatalf("template must not use JSON sidecar:\n%s", got)
+	}
+}
+
+func TestRenderWizardConfigEmitsSelectedMOTDStyle(t *testing.T) {
+	result := wizardResult{
+		Recipe:       Recipe{Text: "acme", Font: "thin"},
+		Project:      "acme",
+		Theme:        "nord",
+		ColorProfile: "auto",
+		Motd:         true,
+		Menu:         false,
+		Prompt:       false,
+		MotdStyle: motdStyle{
+			Align:            "right",
+			VerticalAlign:    "center",
+			TitleAlign:       "left",
+			Border:           true,
+			Background:       `"#112233"`,
+			WindowBackground: "false",
+			ClearScreen:      false,
+			MarginX:          6,
+			MarginY:          3,
+			MarginMinHeight:  30,
+			PaddingX:         1,
+			PaddingY:         0,
+			Width:            "80",
+			MaxWidth:         "80",
+		},
+		MotdStyleSet: true,
+	}
+	for name, rendered := range map[string]string{
+		"flake-parts": renderWizardConfig(result, "title.txt"),
+		"standalone":  renderStandaloneConfig(result, "title.txt"),
+	} {
+		for _, fragment := range []string{
+			`align = "left";`,
+			`background = "#112233";`,
+			"windowBackground = false;",
+			"border = true;",
+			"clearScreen = false;",
+			`align = "right";`,
+			`verticalAlign = "center";`,
+			"width = 80;",
+			"maxWidth = 80;",
+			"x = 6;",
+			"y = 3;",
+			"minHeight = 30;",
+			"padding = {",
+		} {
+			if !strings.Contains(rendered, fragment) {
+				t.Fatalf("%s template missing selected MOTD fragment %q:\n%s", name, fragment, rendered)
+			}
+		}
+	}
+}
+
+func TestRenderWizardConfigEmitsMOTDContentAndStatus(t *testing.T) {
+	result := wizardResult{
+		Recipe:       Recipe{Text: "acme", Font: "thin"},
+		Project:      "acme",
+		Theme:        "nord",
+		ColorProfile: "auto",
+		Motd:         true,
+		MotdContent: wizardMotdContent{
+			Tagline:            "Ready to ship",
+			Description:        "Everything needed for local development.\nWelcome aboard.",
+			NixFlakeCheck:      true,
+			DevServerStatus:    true,
+			DevServerHealthURL: motdDevServerHealthURLPlaceholder,
+		},
+		MotdContentSet: true,
+	}
+	for name, rendered := range map[string]string{
+		"flake-parts": renderWizardConfig(result, "title.txt"),
+		"standalone":  renderStandaloneConfig(result, "title.txt"),
+	} {
+		for _, fragment := range []string{
+			`text = "Ready to ship";`,
+			`text = "Everything needed for local development.\nWelcome aboard.";`,
+			"flake = {",
+			`label = "flake";`,
+			`check = "nix flake check";`,
+			"devServer = {",
+			`label = "dev server";`,
+			`check = "curl -fsS \"\${APP_HOST:-http://127.0.0.1:3000}/health\"";`,
+			"async = true;",
+		} {
+			if !strings.Contains(rendered, fragment) {
+				t.Fatalf("%s template missing MOTD content fragment %q:\n%s", name, fragment, rendered)
+			}
+		}
+	}
+}
+
+func TestRenderWizardConfigHonorsDisabledMOTDStatuses(t *testing.T) {
+	result := wizardResult{
+		Recipe:       Recipe{Text: "acme", Font: "thin"},
+		Project:      "acme",
+		Theme:        "nord",
+		ColorProfile: "auto",
+		Motd:         true,
+		MotdContent: wizardMotdContent{
+			Tagline:            motdDefaultTagline,
+			Description:        defaultWizardMotdDescription("acme"),
+			DevServerHealthURL: motdDevServerHealthURLPlaceholder,
+		},
+		MotdContentSet: true,
+	}
+	for name, rendered := range map[string]string{
+		"flake-parts": renderWizardConfig(result, "title.txt"),
+		"standalone":  renderStandaloneConfig(result, "title.txt"),
+	} {
+		for _, active := range []string{"\n          flake = {", "\n          devServer = {"} {
+			if strings.Contains(rendered, active) {
+				t.Fatalf("%s template emitted disabled status %q:\n%s", name, active, rendered)
+			}
+		}
 	}
 }
 
@@ -308,6 +1018,7 @@ func TestFinishWizardWritesTitleStarterDocsAndConfig(t *testing.T) {
 		Menu:         true,
 		Prompt:       true,
 		Docs:         true,
+		Envrc:        true,
 	}
 	var stderr bytes.Buffer
 	code := finishWizard(m.cfg, m.render, result, "prelude.nix", &stderr)
@@ -322,6 +1033,10 @@ func TestFinishWizardWritesTitleStarterDocsAndConfig(t *testing.T) {
 	if err != nil || !strings.Contains(string(page), "# Getting started") {
 		t.Fatalf("starter docs page = %q, err %v", page, err)
 	}
+	envrc, err := os.ReadFile(wizardEnvrcPath)
+	if err != nil || string(envrc) != wizardEnvrcContents {
+		t.Fatalf("%s = %q, err %v", wizardEnvrcPath, envrc, err)
+	}
 	if _, err := os.Stat("prelude.json"); !os.IsNotExist(err) {
 		t.Fatalf("prelude.json should not be written, err=%v", err)
 	}
@@ -334,15 +1049,20 @@ func TestFinishWizardWritesTitleStarterDocsAndConfig(t *testing.T) {
 		`project = "acme";`,
 		"text = ./title.txt;",
 		"docs.pages = [ { text = ./docs/getting-started.md; } ];",
-		"# background = false;",
-		"# maxWidth = 120;",
+		"background = false;",
+		"windowBackground = true;",
+		"border = false;",
+		`verticalAlign = "bottom";`,
+		"maxWidth = 100;",
 	} {
 		if !strings.Contains(string(nixData), fragment) {
 			t.Fatalf("prelude.nix missing %q:\n%s", fragment, nixData)
 		}
 	}
-	if !strings.Contains(stderr.String(), "wrote title.txt\n") || !strings.Contains(stderr.String(), "wrote prelude.nix\n") {
-		t.Fatalf("stderr missing write notices: %s", stderr.String())
+	for _, notice := range []string{"wrote title.txt\n", "wrote " + wizardEnvrcPath + "\n", "wrote prelude.nix\n"} {
+		if !strings.Contains(stderr.String(), notice) {
+			t.Fatalf("stderr missing %q: %s", notice, stderr.String())
+		}
 	}
 	if !strings.Contains(stderr.String(), "import this module from your flake.nix") {
 		t.Fatalf("stderr missing import next steps: %s", stderr.String())
@@ -352,6 +1072,46 @@ func TestFinishWizardWritesTitleStarterDocsAndConfig(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "direnv log lines") || !strings.Contains(stderr.String(), "log_format = \"-\"") {
 		t.Fatalf("stderr missing direnv tip (MOTD enabled): %s", stderr.String())
+	}
+}
+
+func TestFinishWizardSkipsEnvrcWhenDisabled(t *testing.T) {
+	t.Chdir(t.TempDir())
+	m := testWizard()
+	result := wizardResult{
+		Recipe:  Recipe{Text: "acme", Font: "thin"},
+		Project: "acme", Theme: "nord", ColorProfile: "auto",
+		Motd: true, Menu: true, Prompt: true, Envrc: false,
+	}
+	var stderr bytes.Buffer
+	if code := finishWizard(m.cfg, m.render, result, "prelude.nix", &stderr); code != 0 {
+		t.Fatalf("finishWizard = %d, stderr: %s", code, stderr.String())
+	}
+	if _, err := os.Lstat(wizardEnvrcPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("%s should not be written when disabled, err=%v", wizardEnvrcPath, err)
+	}
+	if strings.Contains(stderr.String(), wizardEnvrcPath) {
+		t.Fatalf("stderr should not mention disabled %s: %s", wizardEnvrcPath, stderr.String())
+	}
+}
+
+func TestMaterializeWizardEnvrcKeepsExistingFile(t *testing.T) {
+	t.Chdir(t.TempDir())
+	const existing = "source_env .envrc.local\n"
+	if err := os.WriteFile(wizardEnvrcPath, []byte(existing), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stderr bytes.Buffer
+	if err := materializeWizardEnvrc(&stderr); err != nil {
+		t.Fatalf("materializeWizardEnvrc: %v", err)
+	}
+	got, err := os.ReadFile(wizardEnvrcPath)
+	if err != nil || string(got) != existing {
+		t.Fatalf("existing %s was changed: %q, err %v", wizardEnvrcPath, got, err)
+	}
+	if !strings.Contains(stderr.String(), "kept existing "+wizardEnvrcPath) {
+		t.Fatalf("stderr missing keep notice: %s", stderr.String())
 	}
 }
 
@@ -395,7 +1155,7 @@ func TestFinishWizardWritesTitleBesideNestedConfig(t *testing.T) {
 	result := wizardResult{
 		Recipe:  Recipe{Text: "acme", Font: "thin"},
 		Project: "acme", Theme: "nord", ColorProfile: "auto",
-		Motd: true, Menu: true, Prompt: true,
+		Motd: true, Menu: true, Prompt: true, Envrc: true,
 	}
 	var stderr bytes.Buffer
 	if code := finishWizard(m.cfg, m.render, result, "nix/prelude.nix", &stderr); code != 0 {
@@ -407,6 +1167,13 @@ func TestFinishWizardWritesTitleBesideNestedConfig(t *testing.T) {
 	}
 	if _, err := os.Stat("nix/prelude.json"); !os.IsNotExist(err) {
 		t.Fatalf("nested JSON should not be written, err=%v", err)
+	}
+	envrc, err := os.ReadFile(wizardEnvrcPath)
+	if err != nil || string(envrc) != wizardEnvrcContents {
+		t.Fatalf("project-root %s = %q, err %v", wizardEnvrcPath, envrc, err)
+	}
+	if _, err := os.Stat("nix/.envrc"); !os.IsNotExist(err) {
+		t.Fatalf("nested .envrc should not be written, err=%v", err)
 	}
 	nixData, err := os.ReadFile("nix/prelude.nix")
 	if err != nil {

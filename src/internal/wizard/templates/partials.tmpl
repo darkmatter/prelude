@@ -82,88 +82,97 @@ motd = {
 };
 {{- end }}
 
-{{/* Body of motd options (title + commented defaults from defaults.nix). */}}
+{{/* Body of motd options. Wizard-selected style fields are active; the rest
+    remain commented defaults from defaults.nix. */}}
 {{define "motdOptions"}}
       title = {
         text = {{ .TitlePath }};  # multiline title file; null uses the project-name wordmark
-        # align = "center";  # left|center|right; default "center"
+        align = {{ nixString .MotdStyle.TitleAlign }};  # left|center|right
         # style = "spine";  # wordmark when text is null: plain|spine|bracketed|label|inline|inverted
       };
 
-      # background = false;  # block fill: null/false | true (theme bg) | color | { relative } | { blend }
-      # windowBackground = false;  # full-width window fill; same value forms as background
-      # clearScreen = true;  # clear the terminal before rendering
-      # align = "center";  # horizontal placement of the MOTD block: left|center|right
-      # width = "full";  # content width or "full"
-      # maxWidth = 120;  # maximum content width
+      background = {{ .MotdStyle.Background }};  # block fill: false/true, a color, or a relative/blend value
+      windowBackground = {{ .MotdStyle.WindowBackground }};  # full-width window fill
+      border = {{ bool .MotdStyle.Border }};  # rounded frame around the block
+      clearScreen = {{ bool .MotdStyle.ClearScreen }};  # clear the terminal before rendering
+      align = {{ nixString .MotdStyle.Align }};  # horizontal placement: left|center|right
+      verticalAlign = {{ nixString .MotdStyle.VerticalAlign }};  # vertical placement after clear: top|center|bottom
+      width = {{ .MotdStyle.Width }};  # content width or "full"
+      maxWidth = {{ .MotdStyle.MaxWidth }};  # maximum content width
       # fullscreen = false;  # fill terminal width with no cap (width=full + maxWidth=null)
 
-      # Outer spacing: top/bottom blank lines, left/right columns (sides supersede x/y).
-      # Omitted sides are fine — they fall through to the axis (or 0).
-      # margin = {
-      #   x = 4;           # horizontal shorthand
-      #   y = 0;           # vertical shorthand
-      #   top = null;      # supersedes y
-      #   bottom = 4;      # supersedes y; gated by minHeight
-      #   left = null;     # supersedes x
-      #   right = null;    # supersedes x
-      #   minHeight = 40;  # apply vertical sides only at/above this terminal height
-      # };
+      # Outer spacing selected by the wizard (sides may be added after setup).
+      margin = {
+        x = {{ .MotdStyle.MarginX }};
+        y = {{ .MotdStyle.MarginY }};
+        minHeight = {{ .MotdStyle.MarginMinHeight }};
+        # top = null;      # supersedes y
+        # bottom = null;   # supersedes y; gated by minHeight
+        # left = null;     # supersedes x
+        # right = null;    # supersedes x
+      };
 
-      # Inner spacing between content and block edge (sides supersede x/y).
-      # padding = {
-      #   x = 4;
-      #   y = 2;
-      #   # top = null;
-      #   # bottom = null;
-      #   # left = null;
-      #   # right = null;
-      #   minHeight = 0;
-      # };
+      # Inner spacing selected by the wizard (sides may be added after setup).
+      padding = {
+        x = {{ .MotdStyle.PaddingX }};
+        y = {{ .MotdStyle.PaddingY }};
+        minHeight = {{ .MotdStyle.PaddingMinHeight }};
+        # top = null;
+        # bottom = null;
+        # left = null;
+        # right = null;
+      };
 
-      # Hero: tagline, status lights, activation copy.
-      # header = {
-      #   tagline = {
-      #     text = "everything you need to build, test & ship";
-      #     subtitle = "edit prelude.nix to replace this ACME example with your project";
-      #     layout = "stack";  # "stack" | "inline"
-      #     align = "left";  # "left" | "center"
-      #   };
-      #   background = false;  # true = raised bar; null/false = transparent; color | { relative }
-      #   statusHint = {
-      #     layout = "inline";  # "below" | "inline"
-      #     links = [ ];  # terminal hyperlinks after the reload hint: { label, url }
-      #   };
-      #   # Keyed lights, sorted by order then name. Static: { status }. Live: { check, … }.
-      #   status = {
-      #     ready = { label = "devshell"; status = "ready"; };
-      #     # nix = {
-      #     #   order = 100;
-      #     #   label = "nix";
-      #     #   check = "nix --version >/dev/null";
-      #     #   async = true;  # background refresh
-      #     #   ok = "ok";
-      #     #   fail = "fail";
-      #     #   failLevel = "error";  # "error" | "warning"
-      #     #   output = "";  # "" | "light" | "diagnostic"
-      #     # };
-      #   };
-      # };
+      # Hero: wizard-selected tagline and asynchronous status checks.
+      header = {
+        tagline = {
+          text = {{ nixString .MotdContent.Tagline }};
+          # subtitle = "";
+          # layout = "stack";  # "stack" | "inline"
+          # align = "left";  # "left" | "center"
+        };
+        # background = false;  # true = raised bar; null/false = transparent; color | { relative }
+        # statusHint = {
+        #   layout = "inline";  # "below" | "inline"
+        #   links = [ ];  # terminal hyperlinks after the reload hint: { label, url }
+        # };
+        status = {
+{{ if .MotdContent.NixFlakeCheck }}
+          flake = {
+            order = 10;
+            label = "flake";
+            check = "nix flake check";
+            async = true;  # refresh in the background; shell entry stays fast
+            # ok = "ok";
+            # fail = "fail";
+            # failLevel = "error";  # "error" | "warning"
+            # output = "";  # "" | "light" | "diagnostic"
+          };
+{{ else }}
+          # flake = { label = "flake"; check = "nix flake check"; async = true; };
+{{ end }}
+{{ if .MotdContent.DevServerStatus }}
+          devServer = {
+            order = 20;
+            label = "dev server";
+            check = {{ nixString .MotdContent.DevServerHealthCheck }};
+            async = true;
+          };
+{{ else }}
+          # devServer = { label = "dev server"; check = "curl -fsS \"\${APP_HOST:-http://127.0.0.1:3000}/health\""; async = true; };
+{{ end }}
+        };
+      };
 
       # Styled text under the header; empty text hides it.
-      # description = {
-      #   text = ''
-      #     You are inside the ACME example devshell — the out-of-the-box Prelude
-      #     welcome banner. Set prelude.project, rewrite the tagline and this
-      #     description, and replace prelude.commands with your real workflows.
-      #     Run menu to browse every command.
-      #   '';
-      #   foreground = null;  # null uses the theme role color
-      #   background = null;  # null/false | true | color | { relative }
-      #   bold = false;
-      #   italic = false;
-      #   faint = false;
-      # };
+      description = {
+        text = {{ nixString .MotdContent.Description }};
+        # foreground = null;  # null uses the theme role color
+        # background = null;  # null/false | true | color | { relative }
+        # bold = false;
+        # italic = false;
+        # faint = false;
+      };
 
       # links = [ ];  # terminal hyperlinks under the description: { label, url }
       # env = [  # info chips; each sets exactly one of value (static) or probe (command)

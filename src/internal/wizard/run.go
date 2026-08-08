@@ -141,6 +141,11 @@ func fail(err error) int {
 // never flake.nix — so existing flakes import it instead of being replaced.
 const defaultWizardConfigPath = "prelude.nix"
 
+const (
+	wizardEnvrcPath     = ".envrc"
+	wizardEnvrcContents = "use flake\n"
+)
+
 // runWizard drives the setup-wizard iteration of the chooser. The TUI renders
 // on stderr. -o selects the config path (default prelude.nix); the FIGlet
 // wordmark is written as title.txt next to that file.
@@ -195,9 +200,9 @@ func titlePathBesideConfig(configPath string) string {
 }
 
 // finishWizard materializes a completed wizard: the rendered title file beside
-// the config, the starter docs page when the docs viewer was enabled, and the
-// full options-template config at -o. Split from runWizard so the file contract
-// is testable without a terminal.
+// the config, the starter docs page when the docs viewer was enabled, the
+// optional project-root .envrc, and the full options-template config at -o.
+// Split from runWizard so the file contract is testable without a terminal.
 func finishWizard(cfg Config, render renderFunc, result wizardResult, configPath string, stderr io.Writer) int {
 	index := cfg.fontIndex(result.Recipe.Font)
 	if index < 0 {
@@ -226,6 +231,12 @@ func finishWizard(cfg Config, render renderFunc, result wizardResult, configPath
 		}
 	}
 
+	if result.Envrc {
+		if err := materializeWizardEnvrc(stderr); err != nil {
+			return fail(err)
+		}
+	}
+
 	// Config always references the sibling title by name so the path is valid
 	// relative to the config file, regardless of directory.
 	if isFlakeNixPath(configPath) {
@@ -238,6 +249,23 @@ func finishWizard(cfg Config, render renderFunc, result wizardResult, configPath
 	fmt.Fprintf(stderr, "wrote %s\n", configPath)
 	printWizardNextSteps(stderr, configPath, result.Motd)
 	return 0
+}
+
+// materializeWizardEnvrc installs the default direnv entrypoint in the current
+// project directory without replacing an existing file or symlink.
+func materializeWizardEnvrc(stderr io.Writer) error {
+	if _, err := os.Lstat(wizardEnvrcPath); err == nil {
+		fmt.Fprintf(stderr, "kept existing %s\n", wizardEnvrcPath)
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("inspect %s: %w", wizardEnvrcPath, err)
+	}
+
+	if err := writeAtomic(wizardEnvrcPath, []byte(wizardEnvrcContents)); err != nil {
+		return fmt.Errorf("write %s: %w", wizardEnvrcPath, err)
+	}
+	fmt.Fprintf(stderr, "wrote %s\n", wizardEnvrcPath)
+	return nil
 }
 
 // isFlakeNixPath reports paths whose base name is flake.nix (with or without

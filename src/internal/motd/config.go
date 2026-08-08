@@ -22,9 +22,12 @@ type Config struct {
 	WindowBackgroundRelative float64        `json:"windowBackgroundRelative"`
 	WindowBackgroundBlend    float64        `json:"windowBackgroundBlend"`
 	WindowBackgroundBlendSet bool           `json:"windowBackgroundBlendSet"`
+	Border                   bool           `json:"border"`
 	ClearScreen              bool           `json:"clearScreen"`
 	Margin                   Spacing        `json:"margin"`
 	Align                    string         `json:"align"`
+	// VerticalAlign is applied to unused cleared-window rows: top, center, or bottom.
+	VerticalAlign string `json:"verticalAlign"`
 	// Padding: horizontal inset applies to tagline, middle content, and footer
 	// shortcuts (header bar stays edge-to-edge). Top and bottom pad the whole
 	// card, outside the title and shortcut rows.

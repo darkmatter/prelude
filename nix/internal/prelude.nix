@@ -23,7 +23,7 @@
   };
 in {
   prelude = {
-    # theme = "apathy";
+    theme = "phosphor";
     colorProfile = "truecolor";
     project = "prelude";
 

@@ -30,6 +30,10 @@ _prelude_init_show_motd() {
     type prelude/status/cap/refresh-face >/dev/null 2>&1; then
     prelude/status/cap/refresh-face "$_prelude_window_background_set"
   fi
+  if [ -n "${BASH_VERSION-}" ] &&
+    type prelude/textarea/background/sync-ownership >/dev/null 2>&1; then
+    prelude/textarea/background/sync-ownership
+  fi
 }
 
 if [ -n "${BASH_VERSION-}" ]; then

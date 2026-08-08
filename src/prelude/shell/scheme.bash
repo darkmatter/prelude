@@ -21,6 +21,9 @@ function ble/contrib/scheme:prelude/initialize {
   ble-face -s vbell_erase               'bg=%prelude_secondary'
   ble-face -s vbell_flash               'fg=%prelude_selection_fg,bg=%prelude_error,bold'
   ble-face -s prompt_status_line        'fg=%prelude_dim,bg=%prelude_shadow'
+  # Private editable-surface fill. The adapter applies it only to Blesh's
+  # textarea after Prelude successfully paints the matching MOTD window.
+  ble-face -d prelude_textarea_window    'bg=%prelude_window'
   # This state starts static; init promotes it only after MOTD successfully
   # paints the window.
   ble-face -d prelude_status_cap        'fg=%prelude_surface,bg=%prelude_bg'

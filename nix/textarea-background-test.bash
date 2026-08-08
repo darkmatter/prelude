@@ -31,29 +31,8 @@ if [[ $mode == guard ]]; then
   source "$adapter" 2>"$diagnostic"
   grep -Fq 'disabled Blesh textarea background adapter' "$diagnostic"
   [[ $(declare -f ble/textarea#render) != *'ble/function#advice/.proc'* ]]
-  [[ ${_ble_hook_h_PREEXEC[*]-} != *'prelude/window/background/preexec'* ]]
-  [[ ${_ble_hook_h_EXIT[*]-} != *'prelude/window/background/restore'* ]]
-  [[ ${_ble_hook_h_DETACH[*]-} != *'prelude/window/background/restore'* ]]
   exit 0
 fi
-
-# Pre-existing user hooks are registered before the adapter sources so the
-# install-order assertions prove unique-prepend (PREEXEC) and unique-append
-# (EXIT/DETACH) preserve relative position.
-function prelude/test/preexec { :; }
-function prelude/test/exit { :; }
-function prelude/test/detach { :; }
-blehook PREEXEC+='prelude/test/preexec'
-blehook EXIT+='prelude/test/exit'
-blehook DETACH+='prelude/test/detach'
-
-# The handoff and teardown emit to Blesh's live TUI stdout FD, never to
-# inherited command stdout.  Point that FD at a dedicated capture file and
-# keep inherited stdout separate so the test proves the contract.
-tui_capture=$(mktemp)
-inherited=$(mktemp)
-exec {_prelude_tui_fd}>"$tui_capture"
-_ble_util_fd_tui_stdout=$_prelude_tui_fd
 
 _prelude_window_background_set=1
 _prelude_prompt_window_managed=1
@@ -61,86 +40,6 @@ _ble_attached=1
 # shellcheck source=/dev/null
 source "$adapter"
 [[ ${_prelude_textarea_background_installed:-0} == 1 ]]
-
-# Install order: PREEXEC is unique-prepended, EXIT/DETACH unique-appended.
-[[ ${_ble_hook_h_PREEXEC[0]} == prelude/window/background/preexec ]]
-[[ ${_ble_hook_h_PREEXEC[1]} == prelude/test/preexec ]]
-[[ ${_ble_hook_h_EXIT[0]} == prelude/test/exit ]]
-[[ ${_ble_hook_h_EXIT[1]} == prelude/window/background/restore ]]
-[[ ${_ble_hook_h_DETACH[0]} == prelude/test/detach ]]
-[[ ${_ble_hook_h_DETACH[1]} == prelude/window/background/restore ]]
-
-# Exact removal and re-install preserve order.
-blehook PREEXEC-='prelude/window/background/preexec'
-blehook EXIT-='prelude/window/background/restore'
-blehook DETACH-='prelude/window/background/restore'
-[[ ${#_ble_hook_h_PREEXEC[@]} == 1 ]]
-[[ ${_ble_hook_h_PREEXEC[0]} == prelude/test/preexec ]]
-[[ ${#_ble_hook_h_EXIT[@]} == 1 ]]
-[[ ${_ble_hook_h_EXIT[0]} == prelude/test/exit ]]
-[[ ${#_ble_hook_h_DETACH[@]} == 1 ]]
-[[ ${_ble_hook_h_DETACH[0]} == prelude/test/detach ]]
-blehook PREEXEC+-='prelude/window/background/preexec'
-blehook EXIT-+='prelude/window/background/restore'
-blehook DETACH-+='prelude/window/background/restore'
-[[ ${_ble_hook_h_PREEXEC[0]} == prelude/window/background/preexec ]]
-[[ ${_ble_hook_h_PREEXEC[1]} == prelude/test/preexec ]]
-[[ ${_ble_hook_h_EXIT[0]} == prelude/test/exit ]]
-[[ ${_ble_hook_h_EXIT[1]} == prelude/window/background/restore ]]
-[[ ${_ble_hook_h_DETACH[0]} == prelude/test/detach ]]
-[[ ${_ble_hook_h_DETACH[1]} == prelude/window/background/restore ]]
-
-# Active and attached: the handoff emits the resolved window SGR to the TUI
-# FD, nothing to inherited stdout, and sets the handoff flag.
-: >"$tui_capture"
-: >"$inherited"
-_prelude_window_background_handed_off=0
-prelude/window/background/preexec >"$inherited"
-[[ $(<"$tui_capture") == "$_prelude_textarea_window_sgr" ]]
-[[ ! -s "$inherited" ]]
-[[ ${_prelude_window_background_handed_off:-0} == 1 ]]
-[[ ${_prelude_window_background_set:-0} == 1 ]]
-[[ ${_prelude_prompt_window_managed:-0} == 1 ]]
-
-# Detached: preexec emits nothing, preserves ownership, is-inactive is false.
-# Truncate the capture BEFORE the call so an erroneous emission is caught.
-_ble_attached=
-_prelude_window_background_handed_off=1
-: >"$tui_capture"
-: >"$inherited"
-prelude/window/background/preexec >"$inherited"
-[[ ! -s "$tui_capture" ]]
-[[ ! -s "$inherited" ]]
-[[ ${_prelude_window_background_set:-0} == 1 ]]
-[[ ${_prelude_prompt_window_managed:-0} == 1 ]]
-if prelude/textarea/background/is-active; then
-  exit 1
-fi
-
-# Detached restore with a prior handoff emits the original SGR reset to the
-# TUI FD and clears the handoff flag.
-: >"$tui_capture"
-: >"$inherited"
-prelude/window/background/restore >"$inherited"
-[[ $(<"$tui_capture") == "$_prelude_textarea_original_sgr0" ]]
-[[ ! -s "$inherited" ]]
-[[ ${_prelude_window_background_handed_off:-0} == 0 ]]
-
-# A second restore with no active handoff emits nothing.
-: >"$tui_capture"
-prelude/window/background/restore >"$inherited"
-[[ ! -s "$tui_capture" ]]
-
-# Reattach restores styling without repainting the MOTD.
-_ble_attached=1
-prelude/textarea/background/is-active
-: >"$tui_capture"
-prelude/window/background/preexec >"$inherited"
-[[ -s "$tui_capture" ]]
-[[ ${_prelude_window_background_handed_off:-0} == 1 ]]
-
-exec {_prelude_tui_fd}>&-
-rm -f "$tui_capture" "$inherited"
 
 ble/color/face2g syntax_command
 command_g=$ret
@@ -378,31 +277,13 @@ ble/color/g2sgr "$command_g"
 [[ $ret == "$command_sgr" ]]
 
 
-# Source-idempotency: re-running the installer preserves the confirmed
-# install, does not emit the diagnostic, and never duplicates hooks.
-_prelude_window_background_handed_off=1
+# Source-idempotency: re-running the installer preserves the confirmed advice
+# graph and emits no compatibility diagnostic.
+render_definition=$(declare -f ble/textarea#render)
 re_source_diagnostic=$(mktemp)
 # shellcheck source=/dev/null
 source "$adapter" 2>"$re_source_diagnostic"
 [[ ${_prelude_textarea_background_installed:-0} == 1 ]]
+[[ $(declare -f ble/textarea#render) == "$render_definition" ]]
 [[ ! -s "$re_source_diagnostic" ]]
-[[ ${_prelude_window_background_handed_off:-0} == 1 ]]
-preexec_hooks=0
-exit_hooks=0
-detach_hooks=0
-user_preexec_hooks=0
-for hook in "${_ble_hook_h_PREEXEC[@]}"; do
-  [[ $hook != prelude/window/background/preexec ]] || ((preexec_hooks += 1))
-  [[ $hook != prelude/test/preexec ]] || ((user_preexec_hooks += 1))
-done
-for hook in "${_ble_hook_h_EXIT[@]}"; do
-  [[ $hook != prelude/window/background/restore ]] || ((exit_hooks += 1))
-done
-for hook in "${_ble_hook_h_DETACH[@]}"; do
-  [[ $hook != prelude/window/background/restore ]] || ((detach_hooks += 1))
-done
-[[ $preexec_hooks == 1 ]]
-[[ $exit_hooks == 1 ]]
-[[ $detach_hooks == 1 ]]
-[[ $user_preexec_hooks == 1 ]]
 rm -f "$re_source_diagnostic"

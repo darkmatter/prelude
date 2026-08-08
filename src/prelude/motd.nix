@@ -213,8 +213,10 @@ config: let
       inherit backgroundRelative backgroundBlend backgroundBlendSet;
       windowBackground = jsonColor windowBackground;
       inherit windowBackgroundRelative windowBackgroundBlend windowBackgroundBlendSet;
+      border = m.border;
       clearScreen = m.clearScreen;
       align = m.align;
+      verticalAlign = m.verticalAlign;
       inherit padding;
       header = {
         inherit
@@ -275,6 +277,11 @@ in
     "center"
     "right"
   ];
+  assert lib.assertOneOf "motd verticalAlign" m.verticalAlign [
+    "top"
+    "center"
+    "bottom"
+  ];
   assert lib.assertOneOf "motd title.align" titleAlign [
     "left"
     "center"
@@ -318,7 +325,7 @@ in
       subPackages = ["cmd/motd"];
       # Banner layout is still in flux — don't block package builds on render tests.
       doCheck = false;
-      vendorHash = "sha256-qHpXE7MVG06KxY/2eLnqUva3/FHjAdQceH6A/5sn7mU=";
+      vendorHash = "sha256-BHrU5pKVDuGDq0ZHbHKcUBa5olzHzfgoJXzv2IGXY4U=";
       ldflags = [
         "-s"
         "-w"

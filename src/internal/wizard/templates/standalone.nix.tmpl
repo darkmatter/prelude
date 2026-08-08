@@ -48,22 +48,42 @@ in
     (shared // {
       title = {
         text = {{ .TitlePath }};
-        # align = "center";  # left|center|right; default "center"
+        align = {{ nixString .MotdStyle.TitleAlign }};
         # style = "spine";  # wordmark when text is null: plain|spine|bracketed|label|inline|inverted
       };
       commandCatalog = commands;
-      # commandGroupOrder = [ "develop" ];  # preferred group order
-      # background = null;
-      # windowBackground = null;
-      # clearScreen = true;
-      # align = "center";
-      # width = "full";
-      # maxWidth = 120;
-      # fullscreen = false;
-      # margin = { x = 4; bottom = 4; minHeight = 40; };
-      # padding = { };
-      # header.tagline.text = "Dev Shell Activated";
-      # description.text = "";
+      background = {{ .MotdStyle.Background }};
+      windowBackground = {{ .MotdStyle.WindowBackground }};
+      border = {{ bool .MotdStyle.Border }};
+      clearScreen = {{ bool .MotdStyle.ClearScreen }};
+      align = {{ nixString .MotdStyle.Align }};
+      verticalAlign = {{ nixString .MotdStyle.VerticalAlign }};
+      width = {{ .MotdStyle.Width }};
+      maxWidth = {{ .MotdStyle.MaxWidth }};
+      margin = { x = {{ .MotdStyle.MarginX }}; y = {{ .MotdStyle.MarginY }}; minHeight = {{ .MotdStyle.MarginMinHeight }}; };
+      padding = { x = {{ .MotdStyle.PaddingX }}; y = {{ .MotdStyle.PaddingY }}; minHeight = {{ .MotdStyle.PaddingMinHeight }}; };
+      header = {
+        tagline.text = {{ nixString .MotdContent.Tagline }};
+        status = {
+{{ if .MotdContent.NixFlakeCheck }}
+          flake = {
+            order = 10;
+            label = "flake";
+            check = "nix flake check";
+            async = true;
+          };
+{{ end }}
+{{ if .MotdContent.DevServerStatus }}
+          devServer = {
+            order = 20;
+            label = "dev server";
+            check = {{ nixString .MotdContent.DevServerHealthCheck }};
+            async = true;
+          };
+{{ end }}
+        };
+      };
+      description.text = {{ nixString .MotdContent.Description }};
       # links = [ ];
       # env = [ ];
       # recipes = { };

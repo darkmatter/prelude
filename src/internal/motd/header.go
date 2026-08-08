@@ -45,30 +45,85 @@ func (x HeaderView) Divider() string {
 
 func (x HeaderView) renderGeneratedTitle() []string {
 	titleBlock := strings.TrimRight(x.r.model.Config.Title, "\n")
-	titleBlock = lipgloss.NewStyle().Width(lipgloss.Width(titleBlock)).Align(lipgloss.Left).Render(titleBlock)
 	lines := strings.Split(titleBlock, "\n")
-	out := make([]string, 0, len(lines)+1)
+	titleWidth := lipgloss.Width(titleBlock)
+	offset := titleBlockOffset(x.r.cardWidth, titleWidth, x.r.model.Config.TitleAlign)
+	out := make([]string, 0, len(lines))
 	for _, line := range lines {
-		title := ui.Inline(x.r.st.headerAccent).Bold(true).Render(line)
-		out = append(out, x.titleHeaderLine(title))
+		lineWidth := lipgloss.Width(line)
+		if lineWidth < titleWidth {
+			// Normalize every FIGlet row to the block width before applying the
+			// outer alignment. Otherwise left/right alignment moves each row by
+			// its own width and destroys the wordmark's geometry.
+			line += strings.Repeat(" ", titleWidth-lineWidth)
+		}
+		title := strings.Repeat(" ", offset) + line
+		title = ui.Inline(x.r.st.headerAccent).Bold(true).Render(title)
+		out = append(out, x.fillHeaderLine(title, x.r.cardWidth))
 	}
 	return out
 }
 
-func (x HeaderView) titleHeaderLine(content string) string {
-	position := lipgloss.Left
-	switch strings.ToLower(x.r.model.Config.TitleAlign) {
-	case "center":
-		position = lipgloss.Center
-	case "right":
-		position = lipgloss.Right
+// generatedTitleStatus renders status beneath a generated title's divider.
+// The status stays inside the content inset while links remain footer-owned.
+func (x HeaderView) generatedTitleStatus() string {
+	if x.r.model.Config.Title == "" {
+		return ""
 	}
-	return lipgloss.PlaceHorizontal(
+
+	items := StatusItems{r: x.r}
+	if x.r.model.Config.Header.StatusHintLayout == "inline" {
+		if row := items.InlineHint(x.r.model.Status, x.r.contentWidth, false); row != "" {
+			return ui.PlaceContentLine(
+				row,
+				x.r.cardWidth,
+				x.r.contentWidth,
+				x.r.model.Padding.Left,
+				lipgloss.Left,
+				x.r.st.blockFill,
+			)
+		}
+	}
+
+	status := items.Render(x.r.model.Status, false)
+	if lipgloss.Width(status) > x.r.contentWidth {
+		status = items.Render(x.r.model.Status, true)
+	}
+	if status == "" {
+		return ""
+	}
+
+	rows := []string{ui.PlaceContentLine(
+		status,
 		x.r.cardWidth,
-		position,
-		content,
-		lipgloss.WithWhitespaceStyle(x.r.st.headerFill),
-	)
+		x.r.contentWidth,
+		x.r.model.Padding.Left,
+		lipgloss.Right,
+		x.r.st.blockFill,
+	)}
+	if hint := items.Hint(false); hint != "" {
+		rows = append(rows, ui.PlaceContentLine(
+			hint,
+			x.r.cardWidth,
+			x.r.contentWidth,
+			x.r.model.Padding.Left,
+			lipgloss.Right,
+			x.r.st.blockFill,
+		))
+	}
+	return strings.Join(rows, "\n")
+}
+
+func titleBlockOffset(cardWidth, titleWidth int, align string) int {
+	available := max(cardWidth-titleWidth, 0)
+	switch strings.ToLower(align) {
+	case "right":
+		return available
+	case "center":
+		return available / 2
+	default:
+		return 0
+	}
 }
 
 // renderRowHeader is the header-owned title/status row plus its trailing space.

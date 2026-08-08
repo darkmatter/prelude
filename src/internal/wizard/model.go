@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -244,6 +245,20 @@ func (s formStyles) inputBody(heading, subtitle, label string, input textinput.M
 		Padding(0, 1).
 		Width(max(input.Width()+2, 24)).
 		Render(input.View())
+	return s.fieldBody(heading, subtitle, label, field, errMsg, footer)
+}
+
+// textareaBody renders a multiline form page while preserving the same field
+// treatment as the wizard's single-line inputs.
+func (s formStyles) textareaBody(heading, subtitle, label string, input textarea.Model, errMsg, footer string) string {
+	field := s.base.
+		Padding(0, 1).
+		Width(max(input.Width()+2, 24)).
+		Render(input.View())
+	return s.fieldBody(heading, subtitle, label, field, errMsg, footer)
+}
+
+func (s formStyles) fieldBody(heading, subtitle, label, field, errMsg, footer string) string {
 	parts := []string{
 		s.title.Render(heading),
 		s.muted.Render(subtitle),

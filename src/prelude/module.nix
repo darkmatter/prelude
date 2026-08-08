@@ -439,7 +439,8 @@ in {
         }
         {
           palette = pal;
-          inherit (backdropPalette) shadow windowBackgroundSet;
+          inherit (backdropPalette) shadow window windowBackgroundSet;
+          promptWindowManaged = cfg.prompt.configFile == null;
           projectName = cfg.project;
           navigation = internalShortcuts;
           commandEntries = commandEntries;

@@ -14,7 +14,9 @@
 }: {
   palette,
   shadow ? null,
+  window ? null,
   windowBackgroundSet ? false,
+  promptWindowManaged ? true,
   commandEntries ? [],
   projectName ? "your project",
   navigation ? [],
@@ -28,6 +30,10 @@
     if shadow == null
     then plib.lightenColor palette.bg
     else shadow;
+  resolvedWindow =
+    if window == null
+    then plib.canonicalColor palette.bg
+    else window;
   # Prompt markup is zero-width after ble.sh parses it, while status-row layout
   # runs before parsing. Keep a literal twin so padding always uses cell widths.
   # The status row is standalone; each `\g` span resets SGR, so spans without a
@@ -90,6 +96,7 @@
     accent_border = palette.accentBorder;
     selection_fg = palette.selectionFg;
     shadow = resolvedShadow;
+    window = resolvedWindow;
   };
   # Replace longer names first (`accent_border` and `accent2` before `accent`)
   # because the semantic markers intentionally share readable prefixes.
@@ -107,6 +114,7 @@
     install -d "$out" "$out/contrib/scheme"
     install -m 0444 ${./shell/init.bash} "$out/init.bash"
     install -m 0444 ${./shell/bash-init.bash} "$out/bash-init.bash"
+    install -m 0444 ${./shell/textarea-background.bash} "$out/textarea-background.bash"
     install -m 0444 ${./shell/status.bash} "$out/status.bash"
     install -m 0444 ${./shell/status-cap.bash} "$out/status-cap.bash"
     install -m 0444 ${./shell/completion.bash} "$out/completion.bash"
@@ -127,6 +135,11 @@
     }
     _PRELUDE_WINDOW_BACKGROUND_SET=${
       if windowBackgroundSet
+      then "1"
+      else "0"
+    }
+    _PRELUDE_PROMPT_WINDOW_MANAGED=${
+      if promptWindowManaged
       then "1"
       else "0"
     }
@@ -170,6 +183,7 @@
     unset _PRELUDE_SHELL_RUNTIME _PRELUDE_BASH_COMPLETION _PRELUDE_BLESH
     unset _PRELUDE_STARSHIP _PRELUDE_STARSHIP_STATUS_ENABLED _PRELUDE_PROMPT_PROJECT
     unset _PRELUDE_WINDOW_BACKGROUND_SET
+    unset _PRELUDE_PROMPT_WINDOW_MANAGED
     unset _PRELUDE_PROMPT_NAVIGATION _PRELUDE_PROMPT_NAVIGATION_RENDERED
     unset _PRELUDE_PROMPT_STATUS_HINT _PRELUDE_PROMPT_STATUS_HINT_RENDERED
     unset _PRELUDE_PROMPT_STATUS_HINT_BOLD_START _PRELUDE_PROMPT_STATUS_HINT_BOLD_WIDTH

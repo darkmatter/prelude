@@ -89,7 +89,7 @@ config: let
     src = ../.;
     subPackages = ["cmd/menu"];
     doCheck = false;
-    vendorHash = "sha256-qHpXE7MVG06KxY/2eLnqUva3/FHjAdQceH6A/5sn7mU=";
+    vendorHash = "sha256-BHrU5pKVDuGDq0ZHbHKcUBa5olzHzfgoJXzv2IGXY4U=";
     ldflags = [
       "-s"
       "-w"

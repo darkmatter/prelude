@@ -26,11 +26,22 @@ type configData struct {
 	Project       string
 	TitlePath     string // already a Nix path literal
 	Motd          bool
+	MotdStyle     motdStyle
+	MotdContent   motdContentData
 	Menu          bool
 	Prompt        bool
 	Docs          bool
 	Commands      []commandData
 	PaletteTokens []string
+}
+
+// motdContentData is the template-ready MOTD copy and status checks.
+type motdContentData struct {
+	Tagline              string
+	Description          string
+	NixFlakeCheck        bool
+	DevServerStatus      bool
+	DevServerHealthCheck string
 }
 
 // commandData is one prelude.commands entry for the template.
@@ -125,6 +136,18 @@ func renderStandaloneConfig(r wizardResult, titlePath string) string {
 
 func newConfigData(r wizardResult, titlePath string) configData {
 	const pad = "      " // flake-parts: under prelude.commands
+	motdStyle := r.MotdStyle
+	if !r.MotdStyleSet {
+		motdStyle = defaultMotdStyle()
+	}
+	motdContent := r.MotdContent
+	if !r.MotdContentSet {
+		motdContent = defaultWizardMotdContent(r.Project)
+	}
+	devServerHealthURL := strings.TrimSpace(motdContent.DevServerHealthURL)
+	if devServerHealthURL == "" {
+		devServerHealthURL = motdDevServerHealthURLPlaceholder
+	}
 	commands := make([]commandData, len(r.Commands))
 	for i, command := range r.Commands {
 		inferred := inferredCommandExec(command.Name)
@@ -153,11 +176,19 @@ func newConfigData(r wizardResult, titlePath string) configData {
 		commands[i] = entry
 	}
 	return configData{
-		Theme:         r.Theme,
-		ColorProfile:  r.ColorProfile,
-		Project:       r.Project,
-		TitlePath:     nixPath(titlePath),
-		Motd:          r.Motd,
+		Theme:        r.Theme,
+		ColorProfile: r.ColorProfile,
+		Project:      r.Project,
+		TitlePath:    nixPath(titlePath),
+		Motd:         r.Motd,
+		MotdStyle:    motdStyle,
+		MotdContent: motdContentData{
+			Tagline:              strings.TrimSpace(motdContent.Tagline),
+			Description:          strings.TrimSpace(motdContent.Description),
+			NixFlakeCheck:        motdContent.NixFlakeCheck,
+			DevServerStatus:      motdContent.DevServerStatus,
+			DevServerHealthCheck: motdDevServerHealthCommand(devServerHealthURL),
+		},
 		Menu:          r.Menu,
 		Prompt:        r.Prompt,
 		Docs:          r.Docs,

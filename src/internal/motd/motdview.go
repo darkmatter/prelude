@@ -3,6 +3,8 @@ package motd
 import (
 	"strings"
 
+	"charm.land/lipgloss/v2"
+
 	"prelude/pkg/ui"
 )
 
@@ -13,13 +15,19 @@ type MOTDView struct{ r renderer }
 
 // Render paints the MOTD in its terminal window.
 func (v MOTDView) Render() string {
+	var body string
+	if v.r.model.Config.Border {
+		body = v.renderBorderedBody()
+	} else {
+		body = v.renderBody()
+	}
 	output := ui.Window{
 		Context:      v.r.windowUI,
 		Width:        v.r.terminalWidth,
 		Offset:       v.r.horizontalOffset,
 		TopMargin:    v.r.model.Margin.Top,
 		BottomMargin: v.r.model.Margin.Bottom,
-	}.Render(v.renderBody())
+	}.Render(body)
 	if !v.r.model.Config.ClearScreen {
 		return output
 	}
@@ -35,22 +43,54 @@ func (v MOTDView) Render() string {
 		clearScreen = v.r.st.windowFill.Render(clearScreen)
 	}
 
-	// Fill-above: emit full-width rows for every terminal line the MOTD body
-	// does not occupy. Placed before the body, they push the MOTD toward the
-	// bottom of the terminal so the shell prompt lands directly under it.
-	// This is layout, not coloring — the rows are emitted regardless of
-	// window background. When a background is set each row carries the SGR
-	// explicitly so non-BCE terminals still see the fill; when transparent
-	// the rows are blank but still occupy vertical space. The last fill row
-	// ends with \n so the body starts on a fresh row.
-	fillAbove := ""
+	// Fill rows occupy the unused part of the cleared terminal. Bottom is the
+	// historical behavior (the prompt lands directly under the MOTD); top and
+	// center make the banner's vertical placement explicit without changing the
+	// output contract or the total number of terminal rows.
 	fillRows := v.r.terminalHeight - bodyRows - 1
-	if fillRows > 0 {
-		row := v.r.st.windowFill.Width(v.r.terminalWidth).Render("")
-		fillAbove = strings.Repeat(row+"\n", fillRows)
+	aboveRows, belowRows := verticalFillRows(v.r.model.Config.VerticalAlign, fillRows)
+	row := v.r.st.windowFill.Width(v.r.terminalWidth).Render("")
+	fill := func(rows int) string {
+		if rows <= 0 {
+			return ""
+		}
+		return strings.Repeat(row+"\n", rows)
 	}
 
-	return clearScreen + fillAbove + output
+	return clearScreen + fill(aboveRows) + output + fill(belowRows)
+}
+
+// renderBorderedBody renders the body one border cell narrower, then wraps it
+// in the optional outer frame. The model's card width remains the outer width
+// so alignment and margin offsets continue to describe the full MOTD block.
+func (v MOTDView) renderBorderedBody() string {
+	inner := v
+	inner.r.cardWidth = max(v.r.cardWidth-2, 1)
+	inner.r.contentWidth = max(v.r.contentWidth-2, 1)
+	body := inner.renderBody()
+	frame := v.r.blockUI.Border().
+		Border(lipgloss.RoundedBorder()).
+		Width(v.r.cardWidth)
+	if !v.r.st.blockTransparent {
+		frame = frame.Background(v.r.st.blockBg)
+	}
+	return frame.Render(body)
+}
+
+func verticalFillRows(align string, rows int) (above, below int) {
+	if rows <= 0 {
+		return 0, 0
+	}
+	switch align {
+	case "top":
+		return 0, rows
+	case "center":
+		above = rows / 2
+		return above, rows - above
+	default:
+		// Empty and "bottom" retain the original prompt-adjacent layout.
+		return rows, 0
+	}
 }
 
 // renderBody collapses the MOTD into three sibling sections at one shared
@@ -107,6 +147,9 @@ func (v MOTDView) renderHeaderSection() string {
 	// each side. Other header variants retain their existing spacing.
 	if v.r.model.Config.Title != "" {
 		parts = append(parts, header.BlankLine(), header.Divider(), card.Blank())
+		if status := header.generatedTitleStatus(); status != "" {
+			parts = append(parts, status, card.Blank())
+		}
 	} else if div := header.Divider(); div != "" {
 		parts = append(parts, div)
 	}
@@ -132,8 +175,8 @@ func (v MOTDView) renderBodySection() string {
 	return v.renderMiddle()
 }
 
-// renderFooterSection owns status badges and terminal links. Returns "" when
-// FooterView has nothing to paint.
+// renderFooterSection owns terminal links. Returns "" when FooterView has
+// nothing to paint.
 func (v MOTDView) renderFooterSection() string {
 	return (FooterView{r: v.r}).Render()
 }

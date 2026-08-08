@@ -16,12 +16,14 @@ With prelude, the only command anyone would need to remember is `nix develop`. A
 
 ## Quickstart (Setup Wizard)
 
-Prelude ships with a setup wizard that generates a basic configuration for you. It will
-create a `prelude.nix` file and a `title.txt` which contains your figlet title:
+Prelude ships with a setup wizard that generates a basic configuration for you. It
+creates `prelude.nix`, a `title.txt` containing your FIGlet title, and—by default—a
+project-root `.envrc` containing `use flake`:
 
 ```bash
 $ nix run github:darkmatter/prelude#setup
 wrote title.txt
+wrote .envrc
 wrote prelude.nix
 
 # or specify a path:
@@ -29,6 +31,9 @@ $ nix run github:darkmatter/prelude#setup -- -o nix/prelude.nix
 ```
 
 ![demo](docs/recording.gif)
+
+The `.envrc` setup toggle starts on. Turn it off to skip the file; if `.envrc`
+already exists, setup keeps it unchanged.
 
 If you want to customize things further, all other options are also included but
 commented out in the generated config, along with documentation and the default value.

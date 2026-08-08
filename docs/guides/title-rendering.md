@@ -18,22 +18,30 @@ FIGlet previews, and press Enter to select one.
 
 Pager keys:
 
-| Key | Action |
+| Key                                | Action                     |
 | ---------------------------------- | -------------------------- |
-| `←`, `↑`, `h`, `k`, `Shift-Tab` | Previous style |
-| `→`, `↓`, `j`, `l`, `Tab`, `Space` | Next style |
-| `Home` / `End` | First / last style |
-| `Enter` | Confirm the selected style |
-| `Esc` / `Backspace` | Return to the title field |
-| `q` / `Ctrl-C` | Cancel |
+| `←`, `↑`, `h`, `k`, `Shift-Tab`    | Previous style             |
+| `→`, `↓`, `j`, `l`, `Tab`, `Space` | Next style                 |
+| `Home` / `End`                     | First / last style         |
+| `Enter`                            | Confirm the selected style |
+| `Esc` / `Backspace`                | Return to the title field  |
+| `q` / `Ctrl-C`                     | Cancel                     |
 
 ## Setup
 
 `setup` opens the project setup flow. After the title and style pages it
-collects the project name, theme (with live palette preview), color depth,
-component toggles (each previewed in your theme), initial project commands
-(name, exec, description), and the config shape, then writes a ready-to-use
-config next to a sibling title file:
+collects the project name, theme (with live palette preview), color depth, and
+initial project commands (name, exec, description) before component toggles.
+That ordering lets the first three commands appear in every component and MOTD
+preview. When MOTD is enabled, setup then asks for a one-line project tagline
+and a multiline welcome message before the status page. The asynchronous
+`nix flake check` item is enabled by default. A separate dev-server toggle asks
+only for its health URL, prefilled as
+`${APP_HOST:-http://127.0.0.1:3000}/health`; setup builds the `curl -fsS` check
+for the user. The layout, spacing, and surface pages then cover
+horizontal and vertical placement, title alignment, margin and padding presets,
+width, backgrounds, an optional border, and clear-screen behavior. Setup writes
+a ready-to-use config next to a sibling title file:
 
 ```sh
 nix run .#setup
@@ -41,10 +49,15 @@ nix run .#setup
 ```
 
 That writes a **sidecar** `prelude.nix` and `title.txt` in the current
-directory — never `flake.nix` (refused if you pass `-o flake.nix`). Point `-o`
-at another config path to relocate both files — the wordmark is always
-`title.txt` beside the config (e.g. `-o nix/prelude.nix` → `nix/prelude.nix`
-and `nix/title.txt`). An existing file at either path is replaced.
+directory — never `flake.nix` (refused if you pass `-o flake.nix`). The
+`.envrc` setup toggle is on by default and writes `use flake` to `.envrc` in
+the directory where setup runs. Turn it off to skip that file; an existing
+`.envrc` is kept unchanged.
+
+Point `-o` at another config path to relocate the config and wordmark — the
+wordmark is always `title.txt` beside the config (e.g. `-o nix/prelude.nix` →
+`nix/prelude.nix` and `nix/title.txt`). `.envrc` remains in the setup working
+directory. An existing config or wordmark at either output path is replaced.
 
 The generated file is an options template as well as a working module: every
 supported Prelude option appears once with a short comment. Wizard choices
@@ -61,10 +74,11 @@ imports = [
 ];
 ```
 
-The setup UI renders on stderr; status lines (`wrote …`) and a short import
-hint go there too. The previous `nix run .#title -- --wizard` invocation
-remains available for compatibility. Enabling the docs viewer also writes a
-starter `docs/getting-started.md`, but an existing page is kept untouched.
+The setup UI renders on stderr; status lines (`wrote …` or `kept existing …`)
+and a short import hint go there too. The previous
+`nix run .#title -- --wizard` invocation remains available for compatibility.
+Enabling the docs viewer also writes a starter `docs/getting-started.md`, but
+an existing page is kept untouched.
 
 Commented defaults in the generated file mirror `src/prelude/defaults.nix` so
 the config doubles as the option surface.
@@ -123,8 +137,9 @@ prelude.motd.title = {
 ```
 
 `title.align` controls placement of the complete rectangular wordmark inside
-the MOTD. Do not use FIGlet justification to bake left or right padding into the
-artifact.
+the MOTD. Prelude pads each FIGlet row to the wordmark's bounding width before
+moving the whole block, so left/right alignment preserves the original art.
+Do not use FIGlet justification to bake padding into the artifact.
 
 `title.style` is unrelated to the FIGlet font. It only controls the fallback
 project-name treatment when `title.text` is `null`.

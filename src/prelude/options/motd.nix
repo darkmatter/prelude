@@ -67,6 +67,12 @@ in {
       };
     };
 
+    border = lib.mkOption {
+      type = lib.types.bool;
+      default = defaults.motd.border;
+      description = "Draw a rounded frame around the MOTD block.";
+    };
+
     windowBackground = lib.mkOption {
       type = t.terminalBgType;
       default = defaults.motd.windowBackground;
@@ -93,6 +99,16 @@ in {
       type = t.alignType;
       default = defaults.motd.align;
       description = "Horizontal placement of the motd block against the terminal window (content inside stays left-aligned).";
+    };
+
+    verticalAlign = lib.mkOption {
+      type = lib.types.enum [
+        "top"
+        "center"
+        "bottom"
+      ];
+      default = defaults.motd.verticalAlign;
+      description = "Vertical placement of the cleared MOTD body: top, center, or bottom (bottom preserves the prompt-adjacent default).";
     };
 
     padding = t.mkSpacingOption {

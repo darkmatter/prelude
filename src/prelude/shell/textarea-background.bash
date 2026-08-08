@@ -8,14 +8,13 @@
 # the terminal's default background or unrelated Blesh panels.
 
 # State reset is unconditional for the initial source but must not wipe a
-# confirmed install on re-source: the adapter short-circuits install when
-# already installed, preserving hooks and handoff state.
+# confirmed install on re-source: the adapter short-circuits installation and
+# preserves its renderer state.
 if [[ ${_prelude_textarea_background_installed:-0} != 1 ]]; then
   _prelude_textarea_background_installed=0
   _prelude_textarea_background_epoch=0
   _prelude_textarea_background_cache_epoch=0
 fi
-_prelude_window_background_handed_off=${_prelude_window_background_handed_off:-0}
 
 function prelude/textarea/background/is-active {
   [[ ${_prelude_window_background_set:-0} == 1 &&
@@ -26,7 +25,6 @@ function prelude/textarea/background/is-active {
 function prelude/textarea/background/validate {
   local name definition
   for name in \
-    blehook \
     ble/function#advice \
     ble/function#advice/do \
     ble/textarea#render \
@@ -54,7 +52,7 @@ function prelude/textarea/background/validate {
     ble/is-function "$name" || return 1
     definition=$(declare -f "$name")
     case $name in
-      "ble/function#advice" | "ble/function#advice/do" | "blehook") ;;
+      "ble/function#advice" | "ble/function#advice/do") ;;
       *)
         [[ $definition != *'ble/function#advice/.proc'* ]] || return 1
         ;;
@@ -63,13 +61,7 @@ function prelude/textarea/background/validate {
 
   [[ ${_ble_textarea_panel+x} && ${_ble_term_bce+x} &&
     ${_ble_term_sgr0+x} && ${_ble_term_el+x} && ${_ble_term_ech+x} &&
-    ${_ble_term_cub+x} && ${_ble_canvas_x+x} && ${_ble_canvas_y+x} &&
-    ${_ble_util_fd_tui_stdout+x} ]] || return 1
-  # blehook/declare creates empty arrays; Bash reports ${arr+x} as unset for
-  # zero-element arrays, so use declare -p to confirm the hook exists.
-  declare -p _ble_hook_h_PREEXEC &>/dev/null || return 1
-  declare -p _ble_hook_h_EXIT &>/dev/null || return 1
-  declare -p _ble_hook_h_DETACH &>/dev/null || return 1
+    ${_ble_term_cub+x} && ${_ble_canvas_x+x} && ${_ble_canvas_y+x} ]] || return 1
 
   definition=$(declare -f ble/textarea#render/.erase-forward-line.draw)
   [[ $definition == *'_ble_term_sgr0'* && $definition == *'_ble_term_el'* ]] || return 1
@@ -130,17 +122,11 @@ function prelude/textarea/background/render {
     active=1
     local _prelude_textarea_background_rendering=1
     local _ble_term_sgr0=$_prelude_textarea_original_sgr0$_prelude_textarea_window_sgr
-    if ((_ble_term_bce)); then
-      ble/function#advice/do || :
-    else
-      # Every ECH inside the pinned renderer must take its literal-space path:
-      # non-BCE terminals erase with their default background.
-      local _ble_term_ech=
-      ble/function#advice/do || :
-    fi
-  else
-    ble/function#advice/do || :
+    # Every ECH inside the pinned renderer must take its literal-space path
+    # on non-BCE terminals: they erase with their default background.
+    ((_ble_term_bce)) || local _ble_term_ech=
   fi
+  ble/function#advice/do || :
 
   local render_exit=$ADVICE_EXIT
   # Blesh populates the cache inside render; tag those bytes with the ownership
@@ -321,43 +307,22 @@ function prelude/textarea/background/install-advice {
   _prelude_textarea_background_advised+=("$target")
 }
 
-function prelude/textarea/background/install-hook {
-  # Record hook registrations for transactional rollback.  Unlike advice
-  # targets, hooks are removed with `blehook <name>-=<command>` exact-string
-  # matching, so each record is a `name:command` pair.  The operator is
-  # `+-=` (unique-prepend) for PREEXEC and `-+=` (unique-append) for
-  # EXIT/DETACH cleanup so user hooks keep their relative position.
-  local name=$1 command=$2 op=${3:-+-=}
-  blehook "$name$op$command" || return 1
-  _prelude_textarea_background_hooked+=("$name:$command")
-}
-
 function prelude/textarea/background/disable {
-  local target entry name command
+  local target
   for target in "${_prelude_textarea_background_advised[@]}"; do
     ble/function#advice remove "$target" || :
   done
   _prelude_textarea_background_advised=()
-  for entry in "${_prelude_textarea_background_hooked[@]}"; do
-    name=${entry%%:*}
-    command=${entry#*:}
-    blehook "$name-=$command" || :
-  done
-  _prelude_textarea_background_hooked=()
   printf '%s\n' 'prelude: disabled Blesh textarea background adapter (unsupported Blesh internals)' >&2
 }
 
 function prelude/textarea/background/install {
-  # Short-circuit a confirmed existing install on re-source.  The hook
-  # operators are idempotent but re-advising already-advised targets
-  # fails validation, so preserve the living install rather than reinstall.
+  # Short-circuit a confirmed existing install on re-source. Re-advising
+  # already-advised targets fails validation, so preserve the living install.
   [[ ${_prelude_textarea_background_installed:-0} == 1 ]] && return 0
-  # Bash dynamic scope exposes these transaction-local rollback lists to
-  # disable without retaining installation bookkeeping after a successful
-  # install.  Advice targets and hook registrations are tracked separately
-  # because they require different removal primitives.
+  # Bash dynamic scope exposes this transaction-local rollback list to disable
+  # without retaining installation bookkeeping after a successful install.
   local -a _prelude_textarea_background_advised=()
-  local -a _prelude_textarea_background_hooked=()
   if ! prelude/textarea/background/validate; then
     prelude/textarea/background/disable
     return 0
@@ -395,41 +360,12 @@ function prelude/textarea/background/install {
     ! prelude/textarea/background/install-advice ble/textarea#render/.cleanup-trailing-spaces-after-newline \
       prelude/textarea/background/cleanup-trailing-spaces ||
     ! prelude/textarea/background/install-advice ble/canvas/panel#set-height.draw \
-      prelude/textarea/background/set-height ||
-    ! prelude/textarea/background/install-hook PREEXEC prelude/window/background/preexec ||
-    ! prelude/textarea/background/install-hook EXIT prelude/window/background/restore -+= ||
-    ! prelude/textarea/background/install-hook DETACH prelude/window/background/restore -+=; then
+      prelude/textarea/background/set-height; then
     prelude/textarea/background/disable
     return 0
   fi
   _prelude_textarea_background_installed=1
   prelude/textarea/background/sync-ownership
-}
-
-# Ordinary command output handoff.  Blesh's PREEXEC hook fires after the
-# command-layout transition and before the Bash command runs.  Emit the
-# already-resolved background-only window SGR to Blesh's live TUI stdout
-# FD, never to inherited command stdout, so command redirections never
-# receive Prelude SGR bytes.  The handler does not reset foreground or
-# other graphics attributes; Blesh has already left its internal rendering
-# state and the emitted sequence adds only the background.
-function prelude/window/background/preexec {
-  prelude/textarea/background/is-active || return 0
-  builtin printf '%s' "$_prelude_textarea_window_sgr" >&"$_ble_util_fd_tui_stdout"
-  _prelude_window_background_handed_off=1
-}
-
-# Bounded exit/detach cleanup.  Blesh clears `_ble_attached` before invoking
-# the DETACH hook and restores it before attach-time rendering, so the
-# attachment-aware guard suppresses Blesh's post-DETACH final textarea render
-# without permanently clearing MOTD or prompt ownership.  The reset goes to
-# the live TUI FD, never inherited command stdout, and only if Prelude
-# previously performed an active handoff.  A second call with no active
-# handoff emits nothing.
-function prelude/window/background/restore {
-  [[ ${_prelude_window_background_handed_off:-0} == 1 ]] || return 0
-  builtin printf '%s' "$_prelude_textarea_original_sgr0" >&"$_ble_util_fd_tui_stdout"
-  _prelude_window_background_handed_off=0
 }
 
 prelude/textarea/background/install

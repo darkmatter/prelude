@@ -139,6 +139,10 @@
     # unset.
     background = false;
 
+    # Optional rounded frame around the MOTD block. Off preserves the
+    # edge-to-edge default, especially useful for left/right layouts.
+    border = false;
+
     # Window background: paints the full terminal width — margins,
     # alignment gutters, and line remainders. null/false = transparent,
     # true = theme `bg` token, or an explicit color.
@@ -166,6 +170,10 @@
     # Horizontal placement of the motd block against the terminal window
     # (content inside stays left-aligned).
     align = "center";
+
+    # Vertical placement when clearScreen paints the terminal window.
+    # Bottom preserves the original shell-entry behavior.
+    verticalAlign = "bottom";
 
     # Inner padding between content and the block edge. Header stays
     # edge-to-edge horizontally; tagline, middle, and footer shortcuts take
