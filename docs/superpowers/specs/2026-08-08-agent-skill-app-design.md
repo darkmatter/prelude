@@ -94,7 +94,9 @@ directory and proves:
 
 1. Bare `skill` contains the published `nix run github:darkmatter/prelude#skill`
    instruction and directs callers to `list`.
-2. `list` advertises `install`, `options`, and the guide selectors.
+2. `list` advertises the complete selector contract: `install`, `options`,
+   `commands`, `configuration`, `guide command-conventions`, and
+   `guide title-rendering`.
 3. Each primary selector emits identifying text from its authoritative Markdown
    source.
 4. An unknown selector, `skill install extra`, and `skill guide` each exit
