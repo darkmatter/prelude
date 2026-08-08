@@ -89,15 +89,19 @@ messages go to stderr so valid Markdown output is cleanly machine-readable.
 
 ## Verification
 
-Add a focused Nix check that runs the built executable and proves:
+Add a focused Nix check that runs the built executable from an empty temporary
+directory and proves:
 
 1. Bare `skill` contains the published `nix run github:darkmatter/prelude#skill`
    instruction and directs callers to `list`.
 2. `list` advertises `install`, `options`, and the guide selectors.
 3. Each primary selector emits identifying text from its authoritative Markdown
    source.
-4. An unknown selector exits nonzero, produces no Markdown on stdout, and
-   directs the caller to `list` on stderr.
+4. An unknown selector, `skill install extra`, and `skill guide` each exit
+   nonzero, emit no Markdown on stdout, and direct the caller to `list` on
+   stderr.
+5. `nix build .#skill` and `nix run .#skill` resolve to the same executable,
+   whose Markdown paths work without a caller checkout.
 
 Exercise the same remote-style argument shape locally with `nix run .#skill`
 and `nix run .#skill -- <selector>`, then run the focused check and the
