@@ -1,7 +1,7 @@
 <div align="center">
   <img width="584" height="110" alt="image" src="https://github.com/user-attachments/assets/95281deb-ca09-4953-8c5d-9a41c4612ba1" />
   <br/><strong>Make your devshell easy to use and nice to look at</strong><br/>
-  <sub>Conventional commands • Documentation TUI • Powerful command menu • Highly customizable • Beautiful themes</sub><br /><br />
+  <br />
 </div>
 
 Prelude is a DX-focused utility that provides a consistent, beautiful interface for your devshell. It's built on the idea that programs should be self-documenting, and that the information about _how_ to use a program (docs) should be available close to _where_ you run that program. Flakes help make this true for dependencies as well - use `docs` to learn about the current project, or `nix run github:org/repo#docs` to learn about any prelude-enabled dependency.
