@@ -97,11 +97,13 @@ directory and proves:
 2. `list` advertises the complete selector contract: `install`, `options`,
    `commands`, `configuration`, `guide command-conventions`, and
    `guide title-rendering`.
-3. Each primary selector emits identifying text from its authoritative Markdown
-   source.
-4. An unknown selector, `skill install extra`, and `skill guide` each exit
-   nonzero, emit no Markdown on stdout, and direct the caller to `list` on
-   stderr.
+3. `install`, `options`, `commands`, `configuration`,
+   `guide command-conventions`, and `guide title-rendering` each emit
+   identifying text from their authoritative Markdown source.
+4. An unknown selector, `skill install extra`, `skill guide`,
+   `skill guide nonexistent`, and `skill guide command-conventions extra`
+   each exit nonzero, emit no Markdown on stdout, and direct the caller to
+   `list` on stderr.
 5. `nix build .#skill` and `nix run .#skill` resolve to the same executable,
    whose Markdown paths work without a caller checkout.
 
