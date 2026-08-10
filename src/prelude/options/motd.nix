@@ -278,22 +278,22 @@ in {
         options = {
           heading = lib.mkOption {
             type = lib.types.str;
-            default = defaults.motd.gettingStarted.heading;
+            default = defaults.motd.gettingStarted.heading or "";
             description = "Centered heading above the commands/examples groups.";
           };
           commandsLabel = lib.mkOption {
             type = lib.types.str;
-            default = defaults.motd.gettingStarted.commandsLabel;
+            default = defaults.motd.gettingStarted.commandsLabel or "";
             description = "Dim sub-label above the commands list.";
           };
           examplesLabel = lib.mkOption {
             type = lib.types.str;
-            default = defaults.motd.gettingStarted.examplesLabel;
+            default = defaults.motd.gettingStarted.examplesLabel or "";
             description = "Dim sub-label above the recipe codeblocks.";
           };
           commandNote = lib.mkOption {
             type = lib.types.str;
-            default = defaults.motd.gettingStarted.commandNote;
+            default = defaults.motd.gettingStarted.commandNote or "";
             description = "Dim note under the commands list. Empty string hides it. Wrap commands in backticks for accent.";
           };
         };

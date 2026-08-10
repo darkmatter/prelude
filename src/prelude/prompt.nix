@@ -12,6 +12,11 @@
 # `nix develop` already started; it does not launch or reconstruct another
 # shell. Non-interactive direnv evaluation stays inert so the user's existing
 # login-shell prompt remains in control.
+#
+# Returns `{ live, final }`:
+#   live  — active editable prompt (packages.prompt)
+#   final — muted copy used by bleopt prompt_ps1_final after submit (null when
+#           configFile is user-owned)
 {
   lib,
   formats,
@@ -31,6 +36,7 @@ config: let
     map (shortcut: mkKey shortcut.alias shortcut.command) (config.shortcuts or [])
   );
 
+
   # Styles reference palette tokens by name (bg:surface, fg:accent2, …);
   # `palettes.prelude` maps them to the resolved theme hex values, mirroring
   # how a hand-written starship config names its palette.
@@ -46,7 +52,7 @@ config: let
   # The full-width context and editable input occupy separate rows above Blesh's
   # bottom-docked status row. Unbounded cells remain transparent; only named
   # Powerline segments paint a background.
-  leftSegments = lib.concatStrings [
+  mkLeftSegments = isFinal: lib.concatStrings [
     "[╭░▒▓](fg:accent)"
     "[ π ](bold bg:accent fg:bg)"
     "[](fg:accent bg:bg)"
@@ -56,16 +62,16 @@ config: let
     "[](fg:fg bg:surface)"
     "$git_status"
     "$git_metrics"
-    "[$fill](fg:surface)[${keymap}](fg:muted)[─╮](fg:surface)"
+    "[$fill](fg:surface)[${if isFinal then keymap else "⏱︎ $cmd_duration"}](fg:muted)[─╮](fg:surface)"
   ];
 
   defaultSettings = {
     # One breathing row, then separate context and editable-input rows. The
     # input row stays distinct from Bash's fixed status row.
-    format = "[${leftSegments}\n[│](fg:accent)\n[╰─](fg:accent) ]()";
+    format = "[${mkLeftSegments true}\n[│](fg:accent)\n[╰─](fg:accent) ]()";
     add_newline = true;
 
-    right_format = "[│](fg:surface)\n[──╯](fg:surface)\n\n\n";
+    right_format = "\n[──╯](fg:surface)\n\n\n";
 
     fill.symbol = "─";
     fill.style = "fg:surface";
@@ -114,7 +120,56 @@ config: let
   };
 
   settings = lib.recursiveUpdate defaultSettings m.settings;
+
+  # Submitted-prompt rewrite (bleopt prompt_ps1_final only): same geometry,
+  # desaturated + slightly dimmed palette, no bold. Command text and command
+  # output are outside this rewrite and stay at full live styling.
+  stripBold = value:
+    if builtins.isString value
+    then lib.replaceStrings ["(bold "] ["("] value
+    else if builtins.isAttrs value
+    then lib.mapAttrs (_: stripBold) value
+    else if builtins.isList value
+    then map stripBold value
+    else value;
+
+  # History chrome only: cut chroma, then ease a little toward bg for brightness.
+  # Remap accent → surface so the submitted frame uses the quieter surface tone
+  # instead of the live accent hue (after the same mute treatment).
+  muteColor = color:
+    plib.mixColor (plib.desaturateColor color 0.72) pal.bg 0.06;
+  mutedSurface = muteColor pal.surface;
+  mutedPalette = lib.mapAttrs (
+    name: value:
+      if name == "bg"
+      then value
+      else if name == "accent"
+      then mutedSurface
+      else muteColor value
+  )
+  pal;
+
+  finalSettings =
+    (stripBold settings)
+    // {
+      format = "[${mkLeftSegments false}\n[│](fg:accent)\n[╰─](fg:accent) ]()";
+      # Historical lines should not insert an extra blank above the muted chrome.
+      add_newline = false;
+      # Right chrome is live-only (status / rps1); leave rewrite is left PS1.
+      right_format = "";
+      palette = "prelude";
+      palettes.prelude = mutedPalette;
+      continuation_prompt = "[·](fg:${mutedPalette.dim}) ";
+    };
+
+  generate = name: value: (formats.toml {}).generate name value;
 in
   if m.configFile != null
-  then m.configFile
-  else (formats.toml {}).generate "starship.toml" settings
+  then {
+    live = m.configFile;
+    final = null;
+  }
+  else {
+    live = generate "starship.toml" settings;
+    final = generate "starship-final.toml" finalSettings;
+  }

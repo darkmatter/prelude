@@ -135,6 +135,7 @@ in {
               test -f ${config.packages.prelude}/share/prelude/shell/status-cap.bash
               test -f ${config.packages.prelude}/share/prelude/shell/catalogue.bash
               test -f ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
+              test -f ${config.packages.prelude}/share/prelude/shell/airline/prelude.bash
               test -f ${config.packages.prelude}/nix-support/setup-hook
               grep -Fq 'prelude-init()' ${config.packages.prelude}/nix-support/setup-hook
               grep -Fq '. ${config.packages.prelude.shellInit}' ${config.packages.prelude}/nix-support/setup-hook
@@ -147,6 +148,11 @@ in {
               test "$(grep -c '^  ble-face -[sd] ' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash)" -eq 75
               ! grep -Fq '%prelude_' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
               ! grep -Eq '#[[:xdigit:]]{6}[[:alnum:]_]' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
+              grep -Fq 'function ble/lib/vim-airline/theme:prelude/initialize' ${config.packages.prelude}/share/prelude/shell/airline/prelude.bash
+              grep -Fq 'ble-face -r vim_airline_@' ${config.packages.prelude}/share/prelude/shell/airline/prelude.bash
+              test "$(grep -c '^  ble-face -s ' ${config.packages.prelude}/share/prelude/shell/airline/prelude.bash)" -eq 17
+              ! grep -Fq '%prelude_' ${config.packages.prelude}/share/prelude/shell/airline/prelude.bash
+              ! grep -Eq '#[[:xdigit:]]{6}[[:alnum:]_]' ${config.packages.prelude}/share/prelude/shell/airline/prelude.bash
               grep -Fq 'right_format' ${config.packages.prompt}
               grep -Fq '╰─' ${config.packages.prompt}
               ! grep -Fq ']()$character' ${config.packages.prompt}
@@ -161,11 +167,14 @@ in {
               grep -Fq "bleopt prompt_status_line='\\q{prelude/status}'" ${config.packages.prelude}/share/prelude/shell/bash-init.bash
               grep -Fq "blehook PRECMD!='prelude/status/update'" ${config.packages.prelude}/share/prelude/shell/bash-init.bash
               grep -Fq 'prelude/status/cap/install' ${config.packages.prelude}/share/prelude/shell/bash-init.bash
+              grep -Fq '_PRELUDE_STARSHIP_FINAL_CONFIG=' ${config.packages.prelude}/share/prelude/init.bash
+              grep -Fq 'STARSHIP_CONFIG=' ${config.packages.prelude}/share/prelude/shell/bash-init.bash
+              grep -Fq 'starship prompt --terminal-width=' ${config.packages.prelude}/share/prelude/shell/bash-init.bash
               (
                 COLUMNS=200
                 _PRELUDE_STARSHIP_STATUS_ENABLED=1
-                _PRELUDE_PROMPT_NAVIGATION='[?] motd  [m] x  [d] docs'
-                _PRELUDE_PROMPT_NAVIGATION_RENDERED='\g{fg=#555555,bg=#101010}[\g{bold,fg=#00ff00,bg=#101010}?\g{fg=#555555,bg=#101010}]\g{fg=#777777,bg=#101010} motd  \g{fg=#555555,bg=#101010}[\g{bold,fg=#00ff00,bg=#101010}m\g{fg=#555555,bg=#101010}]\g{fg=#777777,bg=#101010} x  \g{fg=#555555,bg=#101010}[\g{bold,fg=#00ff00,bg=#101010}d\g{fg=#555555,bg=#101010}]\g{fg=#777777,bg=#101010} docs'
+                _PRELUDE_PROMPT_NAVIGATION='[?] motd  [x] menu  [d] docs'
+                _PRELUDE_PROMPT_NAVIGATION_RENDERED='\g{fg=#555555,bg=#101010}[\g{bold,fg=#00ff00,bg=#101010}?\g{fg=#555555,bg=#101010}]\g{fg=#777777,bg=#101010} motd  \g{fg=#555555,bg=#101010}[\g{bold,fg=#00ff00,bg=#101010}x\g{fg=#555555,bg=#101010}]\g{fg=#777777,bg=#101010} menu  \g{fg=#555555,bg=#101010}[\g{bold,fg=#00ff00,bg=#101010}d\g{fg=#555555,bg=#101010}]\g{fg=#777777,bg=#101010} docs'
                 _PRELUDE_PROMPT_PROJECT=demo
                 _PRELUDE_PROMPT_STATUS_HINT=' hint  | '
                 _PRELUDE_PROMPT_STATUS_HINT_RENDERED='\g{bold,fg=#101010,bg=#00ff00} hint \g{fg=#00ff00,bg=#101010}\g{fg=#555555,bg=#101010} | \g{fg=#777777,bg=#101010}'
@@ -395,7 +404,7 @@ in {
                 prelude/status/cap#panel::render 4 0 0
                 test "$_prelude_cap_reallocation_count" -eq 1
                 test "$_prelude_cap_goto" = 4:0:0
-                test "$_prelude_cap_output" = '    '
+                test "$_prelude_cap_output" = '<reset>    '
                 test "$_prelude_cap_cursor" = 4:4:0
                 # Blesh enters command layout through this exact collapse hook.
                 ble/prompt/status#collapse
@@ -420,12 +429,14 @@ in {
                 ${pkgs.bash}/bin/bash -n "$source"
               done
               ${pkgs.bash}/bin/bash -n ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
+              ${pkgs.bash}/bin/bash -n ${config.packages.prelude}/share/prelude/shell/airline/prelude.bash
               shellcheck -x ${config.packages.prelude}/share/prelude/init.bash
               shellcheck -x ${config.packages.prelude}/share/prelude/shell/init.bash
               shellcheck -x -e SC1091,SC2154 ${config.packages.prelude}/share/prelude/shell/bash-init.bash
               shellcheck -x -e SC2016,SC2154 ${config.packages.prelude}/share/prelude/shell/status.bash
               shellcheck -x -e SC2154 ${config.packages.prelude}/share/prelude/shell/completion.bash
               shellcheck -e SC2154 ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
+              shellcheck -e SC2154 ${config.packages.prelude}/share/prelude/shell/airline/prelude.bash
               touch "$out"
     '';
 
@@ -700,8 +711,8 @@ in {
         alias = "?";
       }
       {
-        command = "x";
-        alias = "m";
+        command = "menu";
+        alias = "x";
       }
       {
         command = "docs";
@@ -711,8 +722,8 @@ in {
     assert menuOnly
     == [
       {
-        command = "x";
-        alias = "m";
+        command = "menu";
+        alias = "x";
       }
     ];
       pkgs.runCommand "component-shortcuts" {} "touch $out";
@@ -834,11 +845,12 @@ in {
     assert (cfg.heroFile or "") != "";
       pkgs.runCommand "mdSplit-readme-nav" {} "touch $out";
   prompt-shadow-palette = let
-    mkPrompt = promptConfig:
+    mkPromptArtifacts = promptConfig:
       (import ../src/prelude/prompt.nix {
         inherit (pkgs) lib formats;
       })
       promptConfig;
+    mkPrompt = promptConfig: (mkPromptArtifacts promptConfig).live;
     internalLib = import ../src/prelude/lib.nix {inherit lib;};
     themeCases = {
       phosphor = "#121614";
@@ -906,14 +918,15 @@ in {
         shadow = "#1e1e1e";
         motdCommand = pkgs.writeShellScript "prelude-pty-motd" "exit 0";
         statusEnabled = true;
+        promptFinalConfig = (mkPromptArtifacts {theme = "apathy";}).final;
         navigation = [
           {
             alias = "?";
             command = "motd";
           }
           {
-            alias = "m";
-            command = "x";
+            alias = "x";
+            command = "menu";
           }
           {
             alias = "d";
@@ -967,6 +980,14 @@ in {
       grep -Fq "ble-face -s prompt_status_line        'fg=#4d4a56,bg=#1e1e1e'" "$scheme"
       grep -Fq "ble-face -d prelude_status_cap        'fg=#1b1629,bg=#1e1e1e'" "$scheme"
 
+      airline="$runtime/airline/prelude.bash"
+      grep -Fq 'function ble/lib/vim-airline/theme:prelude/initialize' "$airline"
+      grep -Fq "ble-face -s vim_airline_a              'fg=#0e0b13,bg=#77f5c9'" "$airline"
+      grep -Fq "ble-face -s vim_airline_a_insert       'fg=#0e0b13,bg=#82aaff'" "$airline"
+      grep -Fq "ble-face -s vim_airline_b              'fg=#77f5c9,bg=#2a2441'" "$airline"
+      grep -Fq "ble-face -s vim_airline_c              'fg=#7d7a8b,bg=#1b1629'" "$airline"
+      ! grep -Fq '%prelude_' "$airline"
+
       ${lib.getExe ptyPython} ${./prompt-final-pty-test.py} \
         ${lib.getExe pkgs.bash} \
         "$init" \
@@ -975,6 +996,7 @@ in {
       ${lib.getExe pkgs.bash} -n "$runtime/init.bash"
       ${lib.getExe pkgs.bash} -n "$runtime/bash-init.bash"
       ${lib.getExe pkgs.bash} -n "$scheme"
+      ${lib.getExe pkgs.bash} -n "$runtime/airline/prelude.bash"
       touch "$out"
     '';
 
@@ -1226,7 +1248,7 @@ in {
   motd-shortcuts-runnable = assert config.packages.motd.shortcutAliases
   == [
     "?"
-    "m"
+    "x"
     "d"
   ];
     mkRunnableCheck "motd-shortcuts-runnable" "built-in shortcuts" config.packages.motd.shortcutAliases;

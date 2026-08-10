@@ -194,6 +194,20 @@
       b = mix ra.b rb.b;
     };
 
+  # Reduce chroma while preserving approximate Rec.709 luminance.
+  # amount ∈ 0.0–1.0: 0 keeps the color, 1 collapses to gray of the same luma.
+  desaturateColor = value: amount: let
+    rgb = colorToRGB value;
+    # Floor after weighting; good enough for palette tokens (not perceptual OKLCH).
+    luma = builtins.floor (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b);
+    blend = channel: builtins.floor (channel + (luma - channel) * amount);
+  in
+    rgbToHex {
+      r = blend rgb.r;
+      g = blend rgb.g;
+      b = blend rgb.b;
+    };
+
   # Keep the shell-only shadow beside the Go-safe palette rather than merging
   # it into it: Go decoders reject unknown palette JSON fields.
   resolveBackdropPalette = theme: overrides: let
@@ -357,9 +371,8 @@
     ]
     ++ lib.optionals enabled.menu [
       {
-        # Public entrypoint is bare `x`; `m` remains the accelerator.
-        command = "x";
-        alias = "m";
+        command = "menu";
+        alias = "x";
       }
     ]
     ++ lib.optionals enabled.docs [
@@ -619,6 +632,7 @@ in {
     canonicalColor
     lightenColor
     mixColor
+    desaturateColor
     resolveBackdropPalette
     resolveSpacing
     textDefaults

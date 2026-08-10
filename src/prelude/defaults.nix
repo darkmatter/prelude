@@ -277,7 +277,7 @@
       # Dim note under the commands list. Commands render bare (they are on
       # PATH); the note points at the `x` dispatcher as the fallback when
       # another command shadows one. Empty string hides the note.
-      commandNote = "prefix with `x` if a command is shadowed";
+      # commandNote = "prefix with `x` if a command is shadowed";
     };
 
     width = "full";

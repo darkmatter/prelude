@@ -249,9 +249,22 @@ def main() -> None:
         transact(master, final_command.encode(), "final command", terminal=terminal)
         transact(master, b"\r", "final prompt rewrite", 10.0, 1.0, terminal)
         submitted_row, command_start = locate_text(screen, final_command)
-        if screen.display[submitted_row][:command_start] != "❯ ":
+        prefix = screen.display[submitted_row][:command_start]
+        if not prefix.startswith("╰─ "):
             fail(
-                "submitted prompt did not collapse to Starship's character",
+                "submitted prompt did not keep the framed ╰─ row "
+                f"(prefix={prefix!r})",
+                screen_dump(screen),
+            )
+        if "❯" in prefix:
+            fail(
+                "submitted prompt still collapsed to the character module",
+                screen_dump(screen),
+            )
+        # Full muted chrome should leave a context row above the command row.
+        if submitted_row < 2 or "╭" not in screen.display[submitted_row - 2]:
+            fail(
+                "submitted prompt lost the muted context row above ╰─",
                 screen_dump(screen),
             )
 

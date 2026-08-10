@@ -19,6 +19,7 @@
   navigation ? [],
   motdCommand ? null,
   statusEnabled ? false,
+  promptFinalConfig ? null,
   promptStatusCommand ? null,
   promptStatusConfig ? null,
 }: let
@@ -101,15 +102,25 @@
       )
       schemeTokens) (builtins.readFile ./shell/scheme.bash)
   );
+  # Same palette, rendered into a vim-airline theme. Installed as
+  # `airline/prelude.bash` beside contrib/ so `bleopt vim_airline_theme=prelude`
+  # resolves it through the runtime already on ble.sh's import_path.
+  airlineTheme = writeText "prelude-airline.bash" (
+    lib.replaceStrings (map (token: "%prelude_${token}") schemeTokens) (map (
+        token: schemePalette.${token}
+      )
+      schemeTokens) (builtins.readFile ./shell/airline-theme.bash)
+  );
 
   runtime = runCommand "prelude-shell-runtime" {} ''
-    install -d "$out" "$out/contrib/scheme"
+    install -d "$out" "$out/contrib/scheme" "$out/airline"
     install -m 0444 ${./shell/init.bash} "$out/init.bash"
     install -m 0444 ${./shell/bash-init.bash} "$out/bash-init.bash"
     install -m 0444 ${./shell/status.bash} "$out/status.bash"
     install -m 0444 ${./shell/status-cap.bash} "$out/status-cap.bash"
     install -m 0444 ${./shell/completion.bash} "$out/completion.bash"
     install -m 0444 ${scheme} "$out/contrib/scheme/prelude.bash"
+    install -m 0444 ${airlineTheme} "$out/airline/prelude.bash"
     install -m 0444 ${catalogue} "$out/catalogue.bash"
   '';
 
@@ -119,6 +130,11 @@
     _PRELUDE_BASH_COMPLETION=${lib.escapeShellArg "${bash-completion}/etc/profile.d/bash_completion.sh"}
     _PRELUDE_BLESH=${lib.escapeShellArg "${blesh}/share/blesh/ble.sh"}
     _PRELUDE_STARSHIP=${lib.escapeShellArg (lib.getExe starship)}
+    _PRELUDE_STARSHIP_FINAL_CONFIG=${lib.escapeShellArg (
+      if promptFinalConfig == null
+      then ""
+      else promptFinalConfig
+    )}
     _PRELUDE_STARSHIP_STATUS_ENABLED=${
       if statusEnabled
       then "1"
@@ -162,7 +178,8 @@
     . ${lib.escapeShellArg "${runtime}/init.bash"}
 
     unset _PRELUDE_SHELL_RUNTIME _PRELUDE_BASH_COMPLETION _PRELUDE_BLESH
-    unset _PRELUDE_STARSHIP _PRELUDE_STARSHIP_STATUS_ENABLED _PRELUDE_PROMPT_PROJECT
+    unset _PRELUDE_STARSHIP _PRELUDE_STARSHIP_FINAL_CONFIG _PRELUDE_STARSHIP_STATUS_ENABLED
+    unset _PRELUDE_PROMPT_PROJECT
     unset _PRELUDE_PROMPT_NAVIGATION _PRELUDE_PROMPT_NAVIGATION_RENDERED
     unset _PRELUDE_PROMPT_STATUS_HINT _PRELUDE_PROMPT_STATUS_HINT_RENDERED
     unset _PRELUDE_PROMPT_STATUS_HINT_BOLD_START _PRELUDE_PROMPT_STATUS_HINT_BOLD_WIDTH

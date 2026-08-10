@@ -182,14 +182,14 @@ x --list          # print the command table (non-interactive)
 The interactive picker is a Go/bubbletea TUI (config baked to JSON at build
 time, one shared binary per system):
 
-| Keys | Action |
+| Keys                | Action                                                   |
 | ------------------- | -------------------------------------------------------- |
-| type | filter commands (name, usage, description, group) |
-| `↑` `↓` / `⌃n` `⌃p` | move selection |
-| `⇥` | list: expand details · args: cycle suggested-value chips |
-| `↵` | run selection / append focused chip / submit args |
-| `esc` | collapse → clear query → quit; args: back to list |
-| backspace (empty) | args: back to the list |
+| type                | filter commands (name, usage, description, group)        |
+| `↑` `↓` / `⌃n` `⌃p` | move selection                                           |
+| `⇥`                 | list: expand details · args: cycle suggested-value chips |
+| `↵`                 | run selection / append focused chip / submit args        |
+| `esc`               | collapse → clear query → quit; args: back to list        |
+| backspace (empty)   | args: back to the list                                   |
 
 Selecting a command with declared `args` opens argument entry: every argument
 is listed with its token, a required/flag/optional tag, description, and
@@ -247,12 +247,12 @@ Explicit colors on text items always beat the theme; `foreground = null`
 The palettes are truecolor hex. The Go renderers use the terminal environment
 and output capabilities to select the effective color depth:
 
-| Environment | Result |
+| Environment                            | Result                      |
 | -------------------------------------- | --------------------------- |
 | `COLORTERM=truecolor` + 256-color TERM | 24-bit color (`38;2;r;g;b`) |
-| no `COLORTERM` (e.g. Apple Terminal) | quantized to 256 (`38;5;n`) |
-| `TERM=screen` (default tmux) | no color at all |
-| piped / non-tty | no color at all |
+| no `COLORTERM` (e.g. Apple Terminal)   | quantized to 256 (`38;5;n`) |
+| `TERM=screen` (default tmux)           | no color at all             |
+| piped / non-tty                        | no color at all             |
 
 If colors look flat, set `prelude.colorProfile = "truecolor"` to force 24-bit
 output. `"ansi256"` forces quantization instead; `"auto"` (default) detects the
@@ -273,16 +273,16 @@ remain in the displayed suffix (`test:unit:watch` → group `test`, name
 Commands feed the interactive menu; only deliberately ungrouped commands become
 convenience executables:
 
-| Field | Type | Default | Description |
+| Field         | Type        | Default    | Description                                                              |
 | ------------- | ----------- | ---------- | ------------------------------------------------------------------------ |
-| `description` | str | `""` | One-line description. |
-| `exec` | str / null | key suffix | Shell command executed by the menu. |
-| `invocation` | str / null | `exec` | Canonical underlying command metadata; exact duplicates fail evaluation. |
-| `key` | str / null | `null` | Single-key accelerator (`x <key>` fast path). |
-| `usage` | str / null | `null` | Usage form shown in the menu details. |
-| `details` | str / null | `null` | Extended description shown before argument entry. |
-| `examples` | list of str | `[ ]` | Worked example invocations. |
-| `args` | list of arg | `[ ]` | Arguments; presence triggers arg-entry mode in the menu. |
+| `description` | str         | `""`       | One-line description.                                                    |
+| `exec`        | str / null  | key suffix | Shell command executed by the menu.                                      |
+| `invocation`  | str / null  | `exec`     | Canonical underlying command metadata; exact duplicates fail evaluation. |
+| `key`         | str / null  | `null`     | Single-key accelerator (`x <key>` fast path).                            |
+| `usage`       | str / null  | `null`     | Usage form shown in the menu details.                                    |
+| `details`     | str / null  | `null`     | Extended description shown before argument entry.                        |
+| `examples`    | list of str | `[ ]`      | Worked example invocations.                                              |
+| `args`        | list of arg | `[ ]`      | Arguments; presence triggers arg-entry mode in the menu.                 |
 
 Package-backed commands belong under `perSystem` and use `prelude.lib.fromPkg`:
 
@@ -463,7 +463,7 @@ project-name fallback used only when `motd.title.text` is null.
 See the [options reference](docs/reference/options.md) for the complete list of `prelude.motd.*` fields, types, and defaults.
 
 Navigation shortcuts are internal: enabled MOTD, menu, and docs components add
-`[?] motd`, `[m] x`, and `[d] docs` respectively. Their aliases are installed
+`[?] motd`, `[x] menu`, and `[d] docs` respectively. Their aliases are installed
 on `PATH`; consumers cannot hide a shortcut while its component is enabled.
 
 ## menu options (`prelude.menu.*`)
@@ -489,7 +489,7 @@ ble.sh's bottom status line:
 
 ```
 ❯
-░▒▓ prelude  …/prelude   main  ✘»+⇡   ···  [?] motd  [m] x  [d] docs
+░▒▓ prelude  …/prelude   main  ✘»+⇡   ···  [?] motd  [x] menu  [d] docs
 ```
 
 Status: ramp + project pill on `secondary`, then continuous Powerline
@@ -531,6 +531,14 @@ The resolved Prelude palette is also compiled into a native ble.sh
 `contrib/scheme/prelude.bash` color scheme. It maps ble.sh's editing, syntax,
 command, filename, variable, validation, and completion faces to the same
 semantic theme roles used by the MOTD, menu, docs, status line, and Starship.
+
+The same palette is compiled into a vim-airline theme at
+`airline/prelude.bash`, discoverable through the runtime's `import_path`. With
+ble.sh's `lib/vim-airline` status line enabled, `bleopt
+vim_airline_theme=prelude` paints the mode, git, and path segments from the
+active theme: `accent` for normal mode, `info` for insert, `error` for
+replace, `warning` for visual, and `accent2` for command-line, over
+`secondary`/`surface` chrome.
 
 **Tab** remains owned by ble.sh's native completion menu. Prelude contributes
 catalogue-aware candidates and descriptions for `x` commands and their

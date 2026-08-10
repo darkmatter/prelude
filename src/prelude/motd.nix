@@ -225,15 +225,7 @@ config: let
         background = jsonColor description.background;
       };
       links = m.links;
-      gettingStarted = {
-        inherit
-          (gettingStarted)
-          heading
-          commandsLabel
-          examplesLabel
-          commandNote
-          ;
-      };
+      inherit gettingStarted;
       width =
         if m.fullscreen or false
         then 0

@@ -409,13 +409,15 @@ in {
       # Resolve the palette and shell-only shadow once for every consumer.
       backdropPalette = plib.resolveBackdropPalette cfg.theme cfg.palette;
       pal = backdropPalette.palette;
-      promptPkg = mkPrompt deps (
+      promptArtifacts = mkPrompt deps (
         generatorConfig cfg.prompt
         // {
           shortcuts = internalShortcuts;
           resolvedPalette = pal;
         }
       );
+      promptPkg = promptArtifacts.live;
+      promptFinalPkg = promptArtifacts.final;
 
       # Starship owns prompt/status content while ble.sh owns Bash rendering,
       # lifecycle, and native completion menus.
@@ -448,6 +450,7 @@ in {
             then lib.getExe motdPkg
             else null;
           statusEnabled = cfg.prompt.configFile == null;
+          promptFinalConfig = promptFinalPkg;
           promptStatusCommand =
             if promptStatusPkg == null
             then null

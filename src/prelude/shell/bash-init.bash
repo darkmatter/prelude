@@ -65,7 +65,7 @@ if [ "$_prelude_status_enabled" = 1 ]; then
   prelude/status/cap/install || :
   blehook PRECMD!='prelude/status/update'
   prelude/status/update
-  bleopt prompt_status_align=left
+  bleopt prompt_status_align=right
   bleopt prompt_status_line='\q{prelude/status}'
 fi
 
