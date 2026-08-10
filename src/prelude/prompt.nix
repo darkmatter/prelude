@@ -36,7 +36,6 @@ config: let
     map (shortcut: mkKey shortcut.alias shortcut.command) (config.shortcuts or [])
   );
 
-
   # Styles reference palette tokens by name (bg:surface, fg:accent2, …);
   # `palettes.prelude` maps them to the resolved theme hex values, mirroring
   # how a hand-written starship config names its palette.
@@ -52,14 +51,23 @@ config: let
   # The full-width context and editable input occupy separate rows above Blesh's
   # bottom-docked status row. Unbounded cells remain transparent; only named
   # Powerline segments paint a background.
-  mkLeftSegments = isFinal: lib.concatStrings [
-    "[╭░▒▓](fg:accent)"
-    "[ π ](bold bg:accent fg:bg)"
-    "[](fg:accent bg:bg)"
-    "( $directory)"
-    "${if isFinal then "[](fg:bg bg:fg)$git_branch[](fg:fg bg:surface)$git_status$git_metrics" else ""}"
-    "[$fill](fg:surface)[${if isFinal then keymap else "$cmd_duration"}](fg:muted)[─╮](fg:surface)"
-  ];
+  mkLeftSegments = isFinal:
+    lib.concatStrings [
+      "[╭░▒▓](fg:accent)"
+      "[ π ](bold bg:accent fg:bg)"
+      "[](fg:accent bg:bg)"
+      "( $directory)"
+      "${
+        if isFinal
+        then "[](fg:bg bg:fg)$git_branch[](fg:fg bg:surface)$git_status$git_metrics"
+        else ""
+      }"
+      "[$fill](fg:surface)[${
+        if isFinal
+        then keymap
+        else "$cmd_duration"
+      }](fg:muted)[─╮](fg:surface)"
+    ];
 
   defaultSettings = {
     # One breathing row, then separate context and editable-input rows. The
@@ -135,15 +143,16 @@ config: let
   muteColor = color:
     plib.mixColor (plib.desaturateColor color 0.72) pal.bg 0.06;
   mutedSurface = muteColor pal.surface;
-  mutedPalette = lib.mapAttrs (
-    name: value:
-      if name == "bg"
-      then value
-      else if name == "accent"
-      then mutedSurface
-      else muteColor value
-  )
-  pal;
+  mutedPalette =
+    lib.mapAttrs (
+      name: value:
+        if name == "bg"
+        then value
+        else if name == "accent"
+        then mutedSurface
+        else muteColor value
+    )
+    pal;
 
   finalSettings =
     (stripBold settings)

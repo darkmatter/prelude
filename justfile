@@ -25,3 +25,9 @@ demos: nixsh
 # Preview all the themes
 themes: nixsh
   x themes
+
+
+[group('development')]
+ci: nixsh
+  x build
+  x check

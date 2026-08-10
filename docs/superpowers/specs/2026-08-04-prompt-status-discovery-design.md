@@ -86,13 +86,13 @@ The status projection classifies input conservatively. Classification is metadat
 lookup and safe tokenization only; it never invokes a shell parser by evaluating the
 buffer and never executes the buffer.
 
-| Input state                          | Discovery content                                                                                                                                    |
+| Input state | Discovery content |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Empty/default input                  | Welcome the configured project. Teach bare `x` for the interactive picker, `x --list` for a noninteractive listing, and Tab for inline completion.   |
-| `x` or `x `                          | Teach selecting a command key and show that the inline chooser/completion is available.                                                              |
-| Known `x <key>`                      | Show the catalogue description and canonical invocation. Direct users to bare `x` then Tab for expanded usage, details, and examples.                |
+| Empty/default input | Welcome the configured project. Teach bare `x` for the interactive picker, `x --list` for a noninteractive listing, and Tab for inline completion. |
+| `x` or `x ` | Teach selecting a command key and show that the inline chooser/completion is available. |
+| Known `x <key>` | Show the catalogue description and canonical invocation. Direct users to bare `x` then Tab for expanded usage, details, and examples. |
 | Current argument for a known command | Show the current argument token, whether it is required or optional, its description, and bounded candidate values when the catalogue supplies them. |
-| Unknown, quoted, or incomplete input | Show safe generic discovery hints only. Never evaluate, execute, or partially interpret it as a command.                                             |
+| Unknown, quoted, or incomplete input | Show safe generic discovery hints only. Never evaluate, execute, or partially interpret it as a command. |
 
 The generated command catalogue is the only metadata source. The implementation must
 not invent a second registry, infer command-specific documentation from display

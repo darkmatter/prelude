@@ -51,16 +51,17 @@ in {
   menu-default = config.packages.menu;
   menu-just-config = let
     justfile = pkgs.writeText "menu-justfile" "build:\n  echo build\n";
-    menu = (import ../src/prelude/menu.nix {
-      inherit (pkgs) lib writeShellApplication writeText symlinkJoin;
-      buildGoModule = args: args;
-    }) {
-      just = {
-        enable = true;
-        inherit justfile;
-        group = "just";
+    menu =
+      (import ../src/prelude/menu.nix {
+        inherit (pkgs) lib writeShellApplication writeText symlinkJoin;
+        buildGoModule = args: args;
+      }) {
+        just = {
+          enable = true;
+          inherit justfile;
+          group = "just";
+        };
       };
-    };
   in
     pkgs.runCommand "menu-just-config" {nativeBuildInputs = [pkgs.jq];} ''
       test "$(jq -r '.just.enable' ${menu.configFile})" = true
@@ -797,7 +798,7 @@ in {
   in
     assert node.title == "README";
     assert node ? text; # always set (toFile for string src)
-
+    
     assert builtins.length children == 4;
     # Pure mdSplit keeps H1-derived preamble title; docs.nix renames to project.
     assert titles
