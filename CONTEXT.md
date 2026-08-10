@@ -12,7 +12,7 @@ Shell-entry welcome banner. One public command (`motd`) that preflights when nee
 _Avoid_: splash, banner app, session (as the paint model)
 
 **Menu**:
-Interactive task picker and non-interactive dispatcher over the command catalogue (`menu`, `x`).
+Interactive task picker and non-interactive dispatcher over the command catalogue (`x`).
 
 **Docs**:
 Full-screen Markdown viewer over pages embedded at build time.

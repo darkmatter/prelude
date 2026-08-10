@@ -23,9 +23,9 @@ func TestGeneratedTitleAlignsWholeFIGletBlock(t *testing.T) {
 	} {
 		t.Run(test.align, func(t *testing.T) {
 			model := Resolve(Config{
-				Title:            title,
-				TitleAlign:       test.align,
-				WindowBackground: "",
+				Title:      title,
+				TitleAlign: test.align,
+				Width:      20,
 				Palette: shared.Palette{
 					Fg:           "#ffffff",
 					Muted:        "#aaaaaa",
@@ -36,7 +36,7 @@ func TestGeneratedTitleAlignsWholeFIGletBlock(t *testing.T) {
 					Bg:           "#112233",
 					Surface:      "#223344",
 				},
-			}, Cache{}, 20, 24, time.Now())
+			}, Cache{}, 22, 24, time.Now())
 			lines := strings.Split((HeaderView{r: newRenderer(model)}).Render(), "\n")
 			if len(lines) != 2 {
 				t.Fatalf("rendered %d lines, want 2: %q", len(lines), lines)

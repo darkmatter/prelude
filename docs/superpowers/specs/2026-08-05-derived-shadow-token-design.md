@@ -3,6 +3,10 @@
 **Date:** 2026-08-05\
 **Status:** Approved design
 
+> **Superseded:** [Feathered MOTD Card](./2026-08-08-feathered-motd-card-design.md)
+> removes terminal-wide background ownership. This document remains the
+> historical record of the previously implemented design.
+
 ## Purpose
 
 Prelude needs one low-contrast color below its effective terminal backdrop. The

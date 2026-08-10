@@ -1,12 +1,12 @@
 # shellcheck shell=bash
-# A one-cell cap immediately above Prelude's fixed status row.
+# One blank row immediately above Prelude's fixed status row.
 #
-# Blesh owns the bottom status panel and pins it to one row. The menu's footer
-# gets its soft edge from a separate `▄` row, so replicate that geometry as an
-# adjacent bottom-docked panel instead of putting a newline in
-# `prompt_status_line`. The panel registry is Blesh-private; install validates
+# Blesh owns the bottom status panel and pins it to one row. Insert a sibling
+# bottom-docked panel for breathing room above the status instead of moving the
+# editable cursor off ╰─. The panel registry is Blesh-private; install validates
 # the pinned layout before changing it so an upstream change cannot silently
 # corrupt the terminal canvas.
+
 
 _prelude_status_cap_panel=
 _prelude_status_cap_dirty=
@@ -61,22 +61,23 @@ function prelude/status/cap#panel::render {
   [[ $_prelude_status_cap_dirty ]] || return 0
   _prelude_status_cap_dirty=
 
-  local cols=${COLUMNS-} cap
+  local cols=${COLUMNS-} spacer
   ((cols > 0)) || return 0
   ((_ble_term_xenl || cols--))
   ((cols > 0)) || return 0
 
-  local ret
-  ble/color/face2g prelude_status_cap
-  ble/color/g2sgr "$ret"
-  local sgr=$ret
-  ble/string#repeat ▄ "$cols"
-  cap=$ret
+  # Transparent blank row: no face/background. Spaces only, so the gap reads as
+  # empty terminal cells immediately above the docked status. Avoid nested
+  # single quotes inside this eval body. Reset SGR first — put.draw only
+  # buffers the string and would otherwise inherit a prior background.
+  local ret space=" "
+  ble/string#repeat "$space" "$cols"
+  spacer=$_ble_term_sgr0$ret
   ble/canvas/panel#goto.draw "$index"
-  # The final two arguments are the Blesh-tracked cursor position after draw.
-  # A full-width cap leaves the terminal at its right margin. Preserving that
-  # nonzero position makes Blesh emit the CR before following status paint.
-  ble/canvas/panel#put.draw "$index" "$sgr$cap$_ble_term_sgr0" "$cols" 0
+  # Final two args are Blesh-tracked cursor position after draw. A full-width
+  # row leaves the terminal at its right margin; preserving that nonzero
+  # position makes Blesh emit CR before the following status paint.
+  ble/canvas/panel#put.draw "$index" "$spacer" "$cols" 0
   ble/canvas/bflush.draw
 }
 '

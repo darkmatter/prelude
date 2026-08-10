@@ -8,12 +8,68 @@ import (
 	"prelude/pkg/ui"
 )
 
-// FooterView owns the MOTD's configured links. Status badges belong to the
-// header for every title layout, so links remain the final centered rows.
+// FooterView owns the MOTD's closing rows for resolved status badges, the async
+// hint, and configured links. Links always render as the final centered row so
+// the URL sits at the very bottom of the card regardless of which status
+// variant is active.
 type FooterView struct{ r renderer }
 
+// Render places status badges in generated-title layouts, optionally split
+// left/right with the async hint, followed by a centered links row.
 func (x FooterView) Render() string {
-	return x.linksRow()
+	rows := x.statusRows()
+	if linkRow := x.linksRow(); linkRow != "" {
+		rows = append(rows, linkRow)
+	}
+	return strings.Join(rows, "\n\n")
+}
+
+// statusRows emits the status badges and optional async hint.
+func (x FooterView) statusRows() []string {
+	if x.r.model.Config.Title != "" && x.r.model.Config.Header.StatusHintLayout == "inline" {
+		if row := (StatusItems{r: x.r}).InlineHint(x.r.model.Status, x.r.contentWidth, false); row != "" {
+			return []string{ui.PlaceContentLine(
+				row,
+				x.r.cardWidth,
+				x.r.contentWidth,
+				x.r.model.Padding.Left,
+				lipgloss.Left,
+				x.r.st.blockFill,
+			)}
+		}
+	}
+
+	content := ""
+	if x.r.model.Config.Title != "" {
+		content = x.statusItems()
+	}
+	if content == "" {
+		return nil
+	}
+
+	line := ui.PlaceContentLine(
+		content,
+		x.r.cardWidth,
+		x.r.contentWidth,
+		x.r.model.Padding.Left,
+		lipgloss.Center,
+		x.r.st.blockFill,
+	)
+	hint := (StatusItems{r: x.r}).Hint(false)
+	if hint == "" {
+		return []string{line}
+	}
+	return []string{
+		line,
+		ui.PlaceContentLine(
+			hint,
+			x.r.cardWidth,
+			x.r.contentWidth,
+			x.r.model.Padding.Left,
+			lipgloss.Center,
+			x.r.st.blockFill,
+		),
+	}
 }
 
 // linksRow renders configured links as one centered content line per wrapped
@@ -36,4 +92,12 @@ func (x FooterView) linksRow() string {
 		))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func (x FooterView) statusItems() string {
+	status := (StatusItems{r: x.r}).Render(x.r.model.Status, false)
+	if lipgloss.Width(status) <= x.r.contentWidth {
+		return status
+	}
+	return (StatusItems{r: x.r}).Render(x.r.model.Status, true)
 }

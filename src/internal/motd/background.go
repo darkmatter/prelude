@@ -4,7 +4,6 @@ package motd
 // relative or blend value that must be resolved against the terminal color.
 func needsRelativeBackgrounds(cfg Config) bool {
 	return cfg.BackgroundRelative != 0 || cfg.BackgroundBlendSet ||
-		cfg.WindowBackgroundRelative != 0 || cfg.WindowBackgroundBlendSet ||
 		cfg.Description.BackgroundRelative != 0 ||
 		cfg.Header.BackgroundRelative != 0
 }
@@ -12,14 +11,8 @@ func needsRelativeBackgrounds(cfg Config) bool {
 // needsTerminalBackground reports whether rendering needs the terminal
 // background color. This is used by Preflight to decide whether to probe.
 func needsTerminalBackground(cfg Config) bool {
-	// Any window background needs the terminal color to fade the margins.
-	if cfg.WindowBackground != "" {
-		return true
-	}
-	// Card/window/header relative values (or description with no card color)
-	// need a query.
+	// Card/header relative values need a terminal-color query.
 	if cfg.BackgroundRelative != 0 || cfg.BackgroundBlendSet ||
-		cfg.WindowBackgroundRelative != 0 || cfg.WindowBackgroundBlendSet ||
 		cfg.Header.BackgroundRelative != 0 {
 		return true
 	}

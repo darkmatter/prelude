@@ -225,21 +225,22 @@ prelude = {
 };
 ```
 
-### Full-window background
+### Bounded opaque card
 
-With `prelude.motd.clearScreen = true`, `windowBackground = true` paints
-the entire cleared terminal with the theme background. Without clearing,
-it fills the gutters and line remainders of emitted rows. Static keyed
+An opaque `prelude.motd.background` paints only the card. Margins, gutters,
+cleared rows, and the surrounding terminal remain transparent. The card
+uses all width available inside its configured margins; static keyed
 statuses appear in the header without running environment probes.
 
-![MOTD with a full-window background](../media/surface.png)
+![MOTD with a bounded opaque background](../media/surface.png)
 
 ```nix
 prelude = {
   motd = {
+    background = true;
     clearScreen = false;
     description = {
-      text = "Every cell, gutter, and line remainder carries the background.";
+      text = "Only the bounded card paints a background; surrounding cells stay terminal-transparent.";
     };
     header = {
       status = {
@@ -255,14 +256,13 @@ prelude = {
         };
       };
       tagline = {
-        text = "windowBackground = true paints the whole window";
+        text = "the card stays visually bounded within the terminal";
       };
     };
     margin = {
       bottom = 1;
       top = 1;
     };
-    windowBackground = true;
   };
   project = "surface";
 };

@@ -99,7 +99,7 @@ func runTUI(cfg *Config, st styles, argTask *Task) {
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: menu [--config path]")
 	fmt.Fprintln(os.Stderr, "       x [--config path] [--list | <command-key> [args…]]")
-	fmt.Fprintln(os.Stderr, "shortcuts: motd|?  menu|m  docs|d")
+	fmt.Fprintln(os.Stderr, "shortcuts: motd|?  x|m  docs|d")
 	os.Exit(0)
 }
 

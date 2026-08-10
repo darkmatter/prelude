@@ -202,11 +202,11 @@ let
       };
     };
 
-    # Window background fill + status on the header bar.
+    # Bounded opaque card + header status.
     surface = {
       project = "surface";
       header = {
-        tagline.text = "windowBackground = true paints the whole window";
+        tagline.text = "the card stays visually bounded within the terminal";
         status = {
           api = {
             order = 100;
@@ -223,8 +223,8 @@ let
       clearScreen = false;
       margin.top = 1;
       margin.bottom = 1;
-      windowBackground = true;
-      description.text = "Every cell, gutter, and line remainder carries the background.";
+      background = true;
+      description.text = "Only the bounded card paints a background; surrounding cells stay terminal-transparent.";
     };
   };
 in {

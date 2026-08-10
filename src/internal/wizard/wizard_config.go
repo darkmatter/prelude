@@ -210,7 +210,7 @@ func inferredCommandExec(name string) string {
 // "prelude", colon keys use the first segment, everything else is "develop".
 func inferredCommandGroup(name string) string {
 	switch name {
-	case "menu", "docs":
+	case "x", "docs":
 		return "prelude"
 	}
 	if i := strings.IndexByte(name, ':'); i > 0 {

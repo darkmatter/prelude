@@ -18,8 +18,7 @@ const (
 	titleStyleInverted  = "inverted" // solid accent chip, selectionFg text
 )
 
-// HeaderView renders the MOTD header chrome. React-style, one component per
-// file: it owns title, divider, and header-status presentation.
+// HeaderView renders the MOTD title and divider chrome.
 type HeaderView struct{ r renderer }
 
 // Render paints only the region above the divider. The divider itself belongs
@@ -62,56 +61,6 @@ func (x HeaderView) renderGeneratedTitle() []string {
 		out = append(out, x.fillHeaderLine(title, x.r.cardWidth))
 	}
 	return out
-}
-
-// generatedTitleStatus renders status beneath a generated title's divider.
-// The status stays inside the content inset while links remain footer-owned.
-func (x HeaderView) generatedTitleStatus() string {
-	if x.r.model.Config.Title == "" {
-		return ""
-	}
-
-	items := StatusItems{r: x.r}
-	if x.r.model.Config.Header.StatusHintLayout == "inline" {
-		if row := items.InlineHint(x.r.model.Status, x.r.contentWidth, false); row != "" {
-			return ui.PlaceContentLine(
-				row,
-				x.r.cardWidth,
-				x.r.contentWidth,
-				x.r.model.Padding.Left,
-				lipgloss.Left,
-				x.r.st.blockFill,
-			)
-		}
-	}
-
-	status := items.Render(x.r.model.Status, false)
-	if lipgloss.Width(status) > x.r.contentWidth {
-		status = items.Render(x.r.model.Status, true)
-	}
-	if status == "" {
-		return ""
-	}
-
-	rows := []string{ui.PlaceContentLine(
-		status,
-		x.r.cardWidth,
-		x.r.contentWidth,
-		x.r.model.Padding.Left,
-		lipgloss.Right,
-		x.r.st.blockFill,
-	)}
-	if hint := items.Hint(false); hint != "" {
-		rows = append(rows, ui.PlaceContentLine(
-			hint,
-			x.r.cardWidth,
-			x.r.contentWidth,
-			x.r.model.Padding.Left,
-			lipgloss.Right,
-			x.r.st.blockFill,
-		))
-	}
-	return strings.Join(rows, "\n")
 }
 
 func titleBlockOffset(cardWidth, titleWidth int, align string) int {
@@ -206,22 +155,22 @@ func (x HeaderView) inlineTitleRule(title string) string {
 	labelWidth := lipgloss.Width(label)
 	start := max((x.r.cardWidth-labelWidth)/2, 0)
 	peak := x.r.st.headerUnderlinePk
-	base := x.r.st.windowBg
+	base := x.r.st.blockBg
 	grad := lipgloss.Blend2D(x.r.cardWidth, 1, 0, base, peak, base)
 
 	var b strings.Builder
 	labelRunes := []rune(label)
-	for col := 0; col < x.r.cardWidth; col++ {
+	for col := range x.r.cardWidth {
 		if col >= start && col < start+labelWidth {
 			ch := string(labelRunes[col-start])
 			if ch == " " {
-				b.WriteString(x.r.st.windowFill.Render(" "))
+				b.WriteString(x.r.st.blockFill.Render(" "))
 			} else {
-				b.WriteString(ui.Inline(x.r.st.onWindow(x.r.st.h.Color(string(x.r.st.pal.Fg))).Bold(true)).Render(ch))
+				b.WriteString(ui.Inline(x.r.st.onBlock(x.r.st.h.Color(string(x.r.st.pal.Fg))).Bold(true)).Render(ch))
 			}
 			continue
 		}
-		b.WriteString(x.r.st.onWindow(grad[col]).Inline(true).Render("━"))
+		b.WriteString(x.r.st.onBlock(grad[col]).Inline(true).Render("━"))
 	}
 	return b.String()
 }
@@ -229,10 +178,10 @@ func (x HeaderView) inlineTitleRule(title string) string {
 // headerUnderline is the accent glow rule under the wordmark. Peak is a
 // slightly darkened accent so the center reads softer than pure accent.
 func (x HeaderView) headerUnderline() string {
-	grad := lipgloss.Blend2D(x.r.cardWidth, 1, 0, x.r.st.windowBg, x.r.st.headerUnderlinePk, x.r.st.windowBg)
+	grad := lipgloss.Blend2D(x.r.cardWidth, 1, 0, x.r.st.blockBg, x.r.st.headerUnderlinePk, x.r.st.blockBg)
 	var b strings.Builder
 	for col := range x.r.cardWidth {
-		b.WriteString(x.r.st.onWindow(grad[col]).Render("━"))
+		b.WriteString(x.r.st.onBlock(grad[col]).Render("━"))
 	}
 	return b.String()
 }

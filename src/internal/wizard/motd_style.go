@@ -27,7 +27,6 @@ type motdStyle struct {
 	TitleAlign       string
 	Border           bool
 	Background       string
-	WindowBackground string
 	ClearScreen      bool
 	MarginX          int
 	MarginY          int
@@ -105,27 +104,25 @@ const (
 
 const (
 	motdSurfaceCardField = iota
-	motdSurfaceWindowField
 	motdSurfaceBorderField
 	motdSurfaceClearField
 )
 
 func defaultMotdStyle() motdStyle {
 	return motdStyle{
-		Align:            "center",
-		VerticalAlign:    "bottom",
-		TitleAlign:       "center",
-		Border:           false,
-		Background:       "false",
-		WindowBackground: "true",
-		ClearScreen:      true,
-		MarginX:          4,
-		MarginY:          2,
-		MarginMinHeight:  40,
-		PaddingX:         4,
-		PaddingY:         2,
-		Width:            `"full"`,
-		MaxWidth:         "100",
+		Align:           "center",
+		VerticalAlign:   "bottom",
+		TitleAlign:      "center",
+		Border:          false,
+		Background:      "true",
+		ClearScreen:     true,
+		MarginX:         4,
+		MarginY:         2,
+		MarginMinHeight: 40,
+		PaddingX:        4,
+		PaddingY:        2,
+		Width:           `"full"`,
+		MaxWidth:        "100",
 	}
 }
 
@@ -150,7 +147,6 @@ func (m wizardModel) selectedMotdStyle() motdStyle {
 		TitleAlign:       motdTitleAlignments[boundedIndex(m.motdTitleAlignIndex, len(motdTitleAlignments))],
 		Border:           m.motdBorder,
 		Background:       m.motdBackgroundNix(m.motdBackgroundIndex),
-		WindowBackground: m.motdBackgroundNix(m.motdWindowBackgroundIndex),
 		ClearScreen:      m.motdClearScreen,
 		MarginX:          margin.X,
 		MarginY:          margin.Y,
@@ -294,9 +290,9 @@ func (m *wizardModel) cycleMotdSpacingValue(delta int) {
 func (m wizardModel) updateMotdSurface(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up", "k", "shift+tab":
-		m.motdSurfaceCursor = cycleIndex(m.motdSurfaceCursor, -1, 4)
+		m.motdSurfaceCursor = cycleIndex(m.motdSurfaceCursor, -1, 3)
 	case "down", "j", "tab":
-		m.motdSurfaceCursor = cycleIndex(m.motdSurfaceCursor, 1, 4)
+		m.motdSurfaceCursor = cycleIndex(m.motdSurfaceCursor, 1, 3)
 	case "left", "h":
 		m.cycleMotdSurfaceValue(-1)
 	case "right", "l", "space":
@@ -316,8 +312,6 @@ func (m *wizardModel) cycleMotdSurfaceValue(delta int) {
 	switch m.motdSurfaceCursor {
 	case motdSurfaceCardField:
 		m.motdBackgroundIndex = cycleIndex(m.motdBackgroundIndex, delta, len(motdBackgroundOptions))
-	case motdSurfaceWindowField:
-		m.motdWindowBackgroundIndex = cycleIndex(m.motdWindowBackgroundIndex, delta, len(motdBackgroundOptions))
 	case motdSurfaceBorderField:
 		m.motdBorder = !m.motdBorder
 	case motdSurfaceClearField:
@@ -351,7 +345,6 @@ func (m wizardModel) motdSpacingRows(s formStyles) []string {
 func (m wizardModel) motdSurfaceRows(s formStyles) []string {
 	return []string{
 		motdSettingRow(s, m.motdSurfaceCursor == motdSurfaceCardField, "card bg", m.motdBackgroundLabel(m.motdBackgroundIndex), motdBackgroundOptions[m.motdBackgroundIndex].Hint),
-		motdSettingRow(s, m.motdSurfaceCursor == motdSurfaceWindowField, "window bg", m.motdBackgroundLabel(m.motdWindowBackgroundIndex), motdBackgroundOptions[m.motdWindowBackgroundIndex].Hint),
 		motdSettingRow(s, m.motdSurfaceCursor == motdSurfaceBorderField, "border", onOff(m.motdBorder), "rounded frame around the card"),
 		motdSettingRow(s, m.motdSurfaceCursor == motdSurfaceClearField, "clear screen", onOff(m.motdClearScreen), "erase before rendering"),
 		"",
@@ -380,6 +373,7 @@ func (m wizardModel) motdPreview() string {
 	margin := motdMarginPresets[boundedIndex(m.motdMarginIndex, len(motdMarginPresets))]
 	padding := motdPaddingPresets[boundedIndex(m.motdPaddingIndex, len(motdPaddingPresets))]
 	width := motdWidthPresets[boundedIndex(m.motdWidthIndex, len(motdWidthPresets))]
+	cardBackground, cardIsOpaque := m.motdBackgroundColor(m.motdBackgroundIndex)
 	cardWidth, innerWidth, paddingX := previewCardDimensions(previewWidth, width.PreviewWidth, margin.X, padding.X, m.motdBorder)
 
 	title := strings.TrimSpace(m.motdWordmark)
@@ -423,35 +417,29 @@ func (m wizardModel) motdPreview() string {
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(colorOr(ts, "accent"))
 	}
-	if background, ok := m.motdBackgroundColor(m.motdBackgroundIndex); ok {
-		cardStyle = cardStyle.Background(background)
+	if cardIsOpaque {
+		cardStyle = cardStyle.Background(cardBackground)
 	}
 	card := cardStyle.Render(strings.Join(cardLines, "\n"))
 
-	windowStyle := lipgloss.NewStyle()
-	if background, ok := m.motdBackgroundColor(m.motdWindowBackgroundIndex); ok {
-		windowStyle = windowStyle.Background(background)
-	}
-	viewportHeight := max(lipgloss.Height(card)+6, 13) + margin.Y
+	viewportHeight := max(lipgloss.Height(card)+2, 13) + margin.Y
 	viewport := lipgloss.Place(
 		previewWidth,
 		viewportHeight,
 		horizontalPosition(motdAlignments[m.motdAlignIndex]),
 		verticalPosition(motdVerticalAlignments[m.motdVerticalAlignIndex]),
 		card,
-		lipgloss.WithWhitespaceStyle(windowStyle),
 	)
 
 	s := newFormStyles()
 	meta := fmt.Sprintf(
-		"%s block · %s vertical · border %s · %s margin · %s padding · %s card · %s window · clear %s",
+		"%s block · %s vertical · border %s · %s margin · %s padding · %s card · clear %s",
 		motdAlignments[m.motdAlignIndex],
 		motdVerticalAlignments[m.motdVerticalAlignIndex],
 		onOff(m.motdBorder),
 		margin.Name,
 		padding.Name,
 		motdBackgroundOptions[m.motdBackgroundIndex].Label,
-		motdBackgroundOptions[m.motdWindowBackgroundIndex].Label,
 		onOff(m.motdClearScreen),
 	)
 	meta = fitPreview(meta, previewWidth, 1)

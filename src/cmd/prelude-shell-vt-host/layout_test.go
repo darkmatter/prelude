@@ -99,9 +99,13 @@ func TestPinModeCyclesThroughEveryModeAndWraps(t *testing.T) {
 	}
 
 	want := []pinMode{pinOff, pinMotd, pinMenu, pinDocs}
+	wantLabels := []string{"off", "motd", "x", "docs"}
 	for index, mode := range want {
 		if seen[index] != mode {
 			t.Fatalf("cycle position %d = %q, want %q", index, seen[index].label(), mode.label())
+		}
+		if mode.label() != wantLabels[index] {
+			t.Fatalf("label for cycle position %d = %q, want %q", index, mode.label(), wantLabels[index])
 		}
 	}
 }

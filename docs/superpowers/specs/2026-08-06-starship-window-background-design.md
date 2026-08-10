@@ -3,6 +3,10 @@
 **Date:** 2026-08-06\
 **Status:** Approved design
 
+> **Superseded:** [Feathered MOTD Card](./2026-08-08-feathered-motd-card-design.md)
+> removes terminal-wide background ownership. This document remains the
+> historical record of the previously implemented design.
+
 ## Purpose
 
 When Prelude's MOTD owns the terminal window background, the generated Starship prompt must paint the same effective background. The current generated format references `bg:window`, but the generated `prelude` palette does not define a `window` token. This leaves the prompt background unrelated to the MOTD fill.

@@ -1,7 +1,7 @@
 # Dogfood devshell: explicitly compose Prelude's generated packages with the
 # project-specific tools and hooks.
 #
-# Prelude supplies the `menu` and `docs` commands. The project only adds `r`
+# Prelude supplies the `x` and `docs` commands. The project only adds `r`
 # as a local convenience for replacing the current shell.
 {
   pkgs,

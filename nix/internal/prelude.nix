@@ -23,7 +23,7 @@
   };
 in {
   prelude = {
-    theme = "phosphor";
+    theme = "minted";
     colorProfile = "truecolor";
     project = "prelude";
 
@@ -140,7 +140,7 @@ in {
       header = {
         tagline = {
           text = "Devshell UI for Nix flakes";
-          subtitle = "MOTD, command menu, docs viewer, and prompt from one flake-parts module";
+          # subtitle = "MOTD, command menu, docs viewer, and prompt from one flake-parts module";
         };
         statusHint = {
           links = [
@@ -163,24 +163,24 @@ in {
       };
 
       description.text = ''
-        You are inside Prelude's own devshell — the banner, menu, docs, and prompt around you are built by this repo from `prelude.nix`, the same way a downstream project would. Run `menu` to browse every command, or `docs` for the guides — including how to set up Prelude in your own repo.
+        You are inside Prelude's own devshell — the banner, menu, docs, and prompt around you are built by this repo from `prelude.nix`, the same way a downstream project would. Run `x` to browse every command, or `docs` for the guides — including how to set up Prelude in your own repo.
       '';
 
       env = [];
 
       # Commands shown in Getting Started are selected via `commands.<name>.motd`
-      # (sort order) — see nix/internal/prelude.nix. `menu` is always listed bare when
-      # enabled. Recipes are separate multi-step workflows.
+      # (sort order) — see nix/internal/prelude.nix. The menu component is always
+      # listed as bare `x` when enabled. Recipes are separate multi-step workflows.
 
-      recipes.your-own-repo = {
-        order = 100;
-        title = "set up prelude in your own repo";
-        steps = [
-          {comment = "generate config with the setup wizard";}
-          {command = "nix run github:darkmatter/prelude";}
-          {comment = "full walkthrough: docs, page \"Your own repo\"";}
-        ];
-      };
+      # recipes.your-own-repo = {
+      #   order = 100;
+      #   title = "set up prelude in your own repo";
+      #   steps = [
+      #     {comment = "generate config with the setup wizard";}
+      #     {command = "nix run github:darkmatter/prelude";}
+      #     {comment = "full walkthrough: docs, page \"Your own repo\"";}
+      #   ];
+      # };
     };
 
     # Preferred command-group order. Unlisted groups follow alphabetically;
@@ -207,21 +207,10 @@ in {
           "./..."
         ];
         description = "run the Go unit tests";
-        motd = 1;
-      };
-      "go:vet" = self.lib.fromPkg pkgs.go {
-        arguments = [
-          "vet"
-          "-C"
-          "src"
-          "./..."
-        ];
-        description = "vet the Go sources";
       };
       check = self.lib.mkCommand {
         command = "nix flake check";
         description = "build + render smoke tests";
-        motd = 2;
       };
       fmt = self.lib.fromPkg pkgs.nixfmt {
         arguments = ["."];

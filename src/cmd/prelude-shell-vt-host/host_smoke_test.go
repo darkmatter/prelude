@@ -174,7 +174,7 @@ func TestHostKeepsPinnedRowsThroughAChildScreenClear(t *testing.T) {
 		return anyRowContains(rows, "smoke-before")
 	})
 
-	// Ctrl+G three times: off -> motd -> menu -> docs.
+	// Ctrl+G three times: off -> motd -> x -> docs.
 	for range 3 {
 		host.send("\x07")
 		time.Sleep(400 * time.Millisecond)
@@ -241,7 +241,7 @@ func TestHostPropagatesTheChildExitStatus(t *testing.T) {
 	}
 }
 
-// pinToDocs cycles the real binary to the docs pin: off -> motd -> menu -> docs.
+// pinToDocs cycles the real binary to the docs pin: off -> motd -> x -> docs.
 func pinToDocs(host *outerScreen, banner string) {
 	for range 3 {
 		host.send("\x07")

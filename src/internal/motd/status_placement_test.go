@@ -8,13 +8,13 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-func TestGeneratedTitleStatusRendersInHeaderNotFooter(t *testing.T) {
+func TestGeneratedTitleStatusRendersInFooter(t *testing.T) {
 	model := Resolve(Config{
 		Title: "ACME",
 		Header: Header{
 			Tagline: "Fancy devshells for your nix flake",
 			Status: []HeaderStatus{{
-				Label:  "flake",
+				Label:  "build",
 				Status: "pending",
 			}},
 		},
@@ -25,30 +25,39 @@ func TestGeneratedTitleStatusRendersInHeaderNotFooter(t *testing.T) {
 	r := newRenderer(model)
 
 	footer := ansi.Strip((FooterView{r: r}).Render())
-	if strings.Contains(footer, "flake") {
-		t.Fatalf("generated-title footer still contains status:\n%s", footer)
+	statusIndex := strings.Index(footer, "build")
+	linkIndex := strings.Index(footer, "docs")
+	if statusIndex < 0 || linkIndex < 0 {
+		t.Fatalf("generated-title footer is missing status or links:\n%s", footer)
 	}
-	if !strings.Contains(footer, "docs") {
-		t.Fatalf("footer lost configured links:\n%s", footer)
+	if statusIndex >= linkIndex {
+		t.Fatalf("footer status must precede links:\n%s", footer)
 	}
 
 	output := ansi.Strip((MOTDView{r: r}).Render())
 	titleIndex := strings.Index(output, "ACME")
 	dividerIndex := strings.Index(output, "━")
-	statusIndex := strings.Index(output, "flake")
 	taglineIndex := strings.Index(output, "Fancy devshells")
 	descriptionIndex := strings.Index(output, "Welcome to the dev environment.")
-	if titleIndex < 0 || dividerIndex < 0 || statusIndex < 0 || taglineIndex < 0 || descriptionIndex < 0 {
+	statusIndex = strings.Index(output, "build")
+	linkIndex = strings.Index(output, "docs")
+	if titleIndex < 0 || dividerIndex < 0 || taglineIndex < 0 ||
+		descriptionIndex < 0 || statusIndex < 0 || linkIndex < 0 {
 		t.Fatalf("render is missing expected content:\n%s", output)
 	}
-	if !(titleIndex < dividerIndex && dividerIndex < statusIndex && statusIndex < taglineIndex && taglineIndex < descriptionIndex) {
+	if !(titleIndex < dividerIndex &&
+		dividerIndex < taglineIndex &&
+		taglineIndex < descriptionIndex &&
+		descriptionIndex < statusIndex &&
+		statusIndex < linkIndex) {
 		t.Fatalf(
-			"unexpected generated-title order: title=%d divider=%d status=%d tagline=%d description=%d\n%s",
+			"unexpected generated-title order: title=%d divider=%d tagline=%d description=%d status=%d links=%d\n%s",
 			titleIndex,
 			dividerIndex,
-			statusIndex,
 			taglineIndex,
 			descriptionIndex,
+			statusIndex,
+			linkIndex,
 			output,
 		)
 	}

@@ -39,8 +39,8 @@ func loadPanel(request panelRequest, env []string) (*surface, error) {
 		if err == nil {
 			return surface, nil
 		}
-		// `x` is the project task runner; `menu -x --list` is the same
-		// listing from the menu binary when the wrapper is not on PATH.
+		// Prefer public `x --list`; fall back to the menu binary's
+		// `--x --list` path when only that wrapper is on PATH.
 		return capturePanel(panelCapture{
 			name: "menu", args: []string{"-x", "--list"}, cols: cols, rows: rows, env: env,
 		})

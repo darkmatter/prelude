@@ -28,7 +28,7 @@
     parts = lib.splitString ":" sourceName;
     grouped = builtins.length parts > 1;
     builtin = lib.elem sourceName [
-      "menu"
+      "x"
       "docs"
     ];
     group =
@@ -57,12 +57,12 @@
     };
 
   # Built-in Prelude entrypoints that have their own store-path binaries.
-  # Commands named menu/docs/motd with no explicit exec, or with an exec equal
+  # Commands named x/docs/motd with no explicit exec, or with an exec equal
   # to their name, are the surface binaries — not user commands that happen to
-  # share the name.
+  # share the name. Legacy `menu` is only a PATH compatibility wrapper.
   builtinSurface = name: exec:
-    if name == "menu" && (exec == null || exec == "menu")
-    then "menu"
+    if name == "x" && (exec == null || exec == "x")
+    then "x"
     else if name == "docs" && (exec == null || exec == "docs")
     then "docs"
     else if name == "motd" && (exec == null || exec == "motd")
@@ -147,7 +147,7 @@
 
   # Select commands for the MOTD Getting Started list.
   # - Commands with `motd` set appear at that sort order.
-  # - `menu` is always included when present (opens the command palette).
+  # - `x` is always included when present (opens the command palette).
   # - Ungrouped commands render bare: each one is on PATH (generated wrapper
   #   or first-class entrypoint), so the row matches what the user types. The
   #   `x` dispatcher remains the fallback when another command shadows them.
@@ -155,14 +155,14 @@
   #   only callable through `x`, so those rows keep the `x` dispatch form.
   # Returns `{ name, command, description }` rows in display order.
   selectCommands = commands: let
-    isMenu = entry: entry.name == "menu";
+    isPalette = entry: entry.name == "x";
     motdOrder = entry: let
       order = entry.raw.motd or null;
     in
-      # Menu shortcuts default ahead of project next-steps unless explicitly ordered.
+      # Palette entry defaults ahead of project next-steps unless explicitly ordered.
       if order != null
       then order
-      else if isMenu entry
+      else if isPalette entry
       then 0
       else null;
     motdEntries = lib.filter (entry: motdOrder entry != null) commands;

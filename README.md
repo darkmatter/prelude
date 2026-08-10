@@ -145,7 +145,7 @@ Docs are incredibly simple to use, since they just parse markdown in your repo:
 }
 ```
 
-Entering the devshell prints the MOTD; `menu` opens the interactive picker and
+Entering the devshell prints the MOTD; `x` opens the interactive picker and
 `docs` opens the configured Markdown pages.
 
 ### Package-backed commands
@@ -169,10 +169,10 @@ a second output schema.
 
 ### Running commands
 
-The public catalogue entrypoint is **`x`**. Bare `menu` opens the interactive picker.
+The public catalogue entrypoint is **`x`**.
 
 ```
-x                 # open the interactive menu (same as `menu`)
+x                 # open the interactive menu
 x dev             # run a command by catalogue key
 x d               # …or by its single-key accelerator
 x dev --port 80   # extra CLI args skip argument entry
@@ -262,7 +262,7 @@ terminal profile. For tmux, the cleaner global fix is advertising truecolor:
 ## Command schema
 
 `prelude.commands` is keyed by the public command name used by `x`. Prelude adds
-`menu` whenever the menu is enabled, plus `docs` whenever documentation pages
+`x` whenever the menu is enabled, plus `docs` whenever documentation pages
 exist.
 
 The first colon derives menu presentation while the complete key remains public:
@@ -325,9 +325,9 @@ derivations actually built.
 
 A command appears on the MOTD Getting Started list when its `motd` field is
 set to an integer sort order. Commands with `motd = null` (the default) are
-hidden, except `menu`: when the menu is enabled it is always listed first
-(override with an explicit `motd` order) as the bare command `menu` — no `x`
-prefix — so newcomers can open the command palette. `docs` stays off this list.
+hidden, except `x`: when the menu is enabled it is always listed first
+(override with an explicit `motd` order) as the bare command `x` so newcomers
+can open the command palette. `docs` stays off this list.
 Displayed commands and descriptions are
 derived from `prelude.commands`, so they cannot drift from the runnable menu
 commands.
@@ -336,7 +336,7 @@ commands.
 prelude.commands.check = {
   description = "verify the flake";
   exec = "nix flake check";
-  motd = 1;  # shown on the MOTD after menu, sorts first among project rows
+  motd = 1;  # shown on the MOTD after x, sorts first among project rows
 };
 ```
 
@@ -463,7 +463,7 @@ project-name fallback used only when `motd.title.text` is null.
 See the [options reference](docs/reference/options.md) for the complete list of `prelude.motd.*` fields, types, and defaults.
 
 Navigation shortcuts are internal: enabled MOTD, menu, and docs components add
-`[?] motd`, `[m] menu`, and `[d] docs` respectively. Their aliases are installed
+`[?] motd`, `[m] x`, and `[d] docs` respectively. Their aliases are installed
 on `PATH`; consumers cannot hide a shortcut while its component is enabled.
 
 ## menu options (`prelude.menu.*`)
@@ -489,7 +489,7 @@ ble.sh's bottom status line:
 
 ```
 ❯
-░▒▓ prelude  …/prelude   main  ✘»+⇡   ···  [?] motd  [m] menu  [d] docs
+░▒▓ prelude  …/prelude   main  ✘»+⇡   ···  [?] motd  [m] x  [d] docs
 ```
 
 Status: ramp + project pill on `secondary`, then continuous Powerline
@@ -574,14 +574,14 @@ pre-applied.
 
 This flake dogfoods like a consumer: it imports [`prelude.nix`](prelude.nix)
 next to `flakeModules.default`, with docs pages under [`docs/`](docs/).
-`nix develop` greets you with Prelude's own MOTD, and `menu` drives the project
+`nix develop` greets you with Prelude's own MOTD, and `x` drives the project
 from inside the shell. `.#motd` and `.#menu` are this repo's real UI;
 `.#example-motd` / `.#example-menu` carry the separate acme-web showcase configs.
 
 ```sh
-nix develop                   # our own motd + menu, built by our own module
+nix develop                   # our own motd + x, built by our own module
 nix run .#motd                # this repo's welcome banner
-nix run .#menu                # this repo's command menu
+nix run .#menu                # this repo's command catalogue package
 nix run .#previews            # build the render checks and show their output
 nix run .#previews -- motd-renders   # …or just specific checks
 nix run .#example-default     # MOTD from stock setup wizard presets

@@ -9,23 +9,19 @@ import (
 // Config is the normalized JSON boundary produced by motd.nix.
 // Nix owns defaults and ordering; Go owns probes, layout, and rendering.
 type Config struct {
-	Project                  string         `json:"project"`
-	Title                    string         `json:"title"`
-	TitleAlign               string         `json:"titleAlign"`
-	ColorProfile             string         `json:"colorProfile"`
-	Palette                  shared.Palette `json:"palette"`
-	Background               string         `json:"background"`
-	BackgroundRelative       float64        `json:"backgroundRelative"`
-	BackgroundBlend          float64        `json:"backgroundBlend"`
-	BackgroundBlendSet       bool           `json:"backgroundBlendSet"`
-	WindowBackground         string         `json:"windowBackground"`
-	WindowBackgroundRelative float64        `json:"windowBackgroundRelative"`
-	WindowBackgroundBlend    float64        `json:"windowBackgroundBlend"`
-	WindowBackgroundBlendSet bool           `json:"windowBackgroundBlendSet"`
-	Border                   bool           `json:"border"`
-	ClearScreen              bool           `json:"clearScreen"`
-	Margin                   Spacing        `json:"margin"`
-	Align                    string         `json:"align"`
+	Project            string         `json:"project"`
+	Title              string         `json:"title"`
+	TitleAlign         string         `json:"titleAlign"`
+	ColorProfile       string         `json:"colorProfile"`
+	Palette            shared.Palette `json:"palette"`
+	Background         string         `json:"background"`
+	BackgroundRelative float64        `json:"backgroundRelative"`
+	BackgroundBlend    float64        `json:"backgroundBlend"`
+	BackgroundBlendSet bool           `json:"backgroundBlendSet"`
+	Border             bool           `json:"border"`
+	ClearScreen        bool           `json:"clearScreen"`
+	Margin             Spacing        `json:"margin"`
+	Align              string         `json:"align"`
 	// VerticalAlign is applied to unused cleared-window rows: top, center, or bottom.
 	VerticalAlign string `json:"verticalAlign"`
 	// Padding: horizontal inset applies to tagline, middle content, and footer

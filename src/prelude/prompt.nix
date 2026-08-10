@@ -17,26 +17,18 @@
   formats,
   ...
 }:
-
 # Component config: shared theme fields plus settings/configFile options.
-# `shortcuts` is synthesized and injected by the flake-parts module.
-config:
-
-let
+config: let
   d = import ./defaults.nix;
-  plib = import ./lib.nix { inherit lib; };
-
+  plib = import ./lib.nix {inherit lib;};
   m = d.prompt // config;
-  project = config.project or d.project;
-  backdrop =
-    config.backdropPalette
-      or (plib.resolveBackdropPalette (config.theme or d.theme) (config.palette or d.palette
-      ) m.windowBackgroundContext);
-  pal = backdrop.palette;
+  pal =
+    config.resolvedPalette
+    or (plib.resolvePalette (config.theme or d.theme) (config.palette or d.palette));
 
   mkKey = char: label: "\\[[${char}](bold fg:accent)\\][─](fg:surface)${label}";
   keymap = lib.concatStringsSep "[──](fg:surface)" (
-    map (s: mkKey s.alias s.command) (config.shortcuts or [ ])
+    map (shortcut: mkKey shortcut.alias shortcut.command) (config.shortcuts or [])
   );
 
   # Styles reference palette tokens by name (bg:surface, fg:accent2, …);
@@ -45,21 +37,18 @@ let
   #
   # Layout (cross-shell via Starship, with fixed status chrome only in Bash):
   #
-  #   Context: ░▒▓ project  path  branch  status  duration
-  #   Prompt:  ~/project ❯
+  #   Context: ╭░▒▓ π  path  branch  status  duration ── [keys] ─╮
+  #   Prompt:  ╰─
   #
-  # Shortcut chips are rendered by the Bash status callback and never by
-  # Starship's normal prompt or right-format output.
-  #
-  # Each Powerline separator inherits the background of the segment on its left
+  # Each Powerline separator inherits the background of the segment at its left
   # as its foreground and the next segment's background as its own background.
   # `\[`/`\]` are literal brackets in Starship format strings.
-  # The Powerline context is a separate, left-aligned row. Shortcut chips
-  # belong to Bash's fixed status row and must never leak into Starship output.
+  # The full-width context and editable input occupy separate rows above Blesh's
+  # bottom-docked status row. Unbounded cells remain transparent; only named
+  # Powerline segments paint a background.
   leftSegments = lib.concatStrings [
     "[╭░▒▓](fg:accent)"
     "[ π ](bold bg:accent fg:bg)"
-    # "[ ${project} ](bg:secondary bold fg:accent2)"
     "[](fg:accent bg:bg)"
     "( $directory)"
     "[](fg:bg bg:fg)"
@@ -67,31 +56,24 @@ let
     "[](fg:fg bg:surface)"
     "$git_status"
     "$git_metrics"
-    "[$fill](fg:surface)[${keymap}](fg:muted bg:window)[─╮](fg:surface bg:window)"
+    "[$fill](fg:surface)[${keymap}](fg:muted)[─╮](fg:surface)"
   ];
 
   defaultSettings = {
-    # Preserve two breathing rows, then keep context above the editable input.
-    # Starship paints this whole projection; the shell owns only the input buffer.
-    format = "[${leftSegments}\n[╰─](fg:accent bg:window) ]${
-      if backdrop.windowBackgroundSet then "(bg:window)" else "()"
-    }";
+    # One breathing row, then separate context and editable-input rows. The
+    # input row stays distinct from Bash's fixed status row.
+    format = "[${leftSegments}\n[│](fg:accent)\n[╰─](fg:accent) ]()";
     add_newline = true;
 
-    right_format = lib.concatStrings [
-      "[──╯](fg:surface bg:window)"
-      "\n\n"
-    ];
+    right_format = "[│](fg:surface)\n[──╯](fg:surface)\n\n\n";
 
     fill.symbol = "─";
-    fill.style = "fg:surface bg:window";
+    fill.style = "fg:surface";
 
-    character.format = "[$symbol](bg:window) ";
+    character.format = "[$symbol]() ";
 
     palette = "prelude";
-    palettes.prelude = pal // {
-      inherit (backdrop) window shadow;
-    };
+    palettes.prelude = pal;
 
     directory = {
       style = "bg:bg fg:fg";
@@ -100,7 +82,11 @@ let
       truncation_symbol = "";
       truncate_to_repo = true;
       substitutions = [
-        { from = "^[^~/][^/]*/"; to = "/"; regex = true; }
+        {
+          from = "^[^~/][^/]*/";
+          to = "/";
+          regex = true;
+        }
       ];
     };
     git_branch = {
@@ -125,9 +111,10 @@ let
     # Always-on inside the devshell — pure noise there.
     nix_shell.disabled = true;
     continuation_prompt = "[·](fg:${pal.dim}) ";
-
   };
 
   settings = lib.recursiveUpdate defaultSettings m.settings;
 in
-if m.configFile != null then m.configFile else (formats.toml { }).generate "starship.toml" settings
+  if m.configFile != null
+  then m.configFile
+  else (formats.toml {}).generate "starship.toml" settings

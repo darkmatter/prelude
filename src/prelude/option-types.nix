@@ -333,8 +333,8 @@
         description = ''
           When set, this command appears on the MOTD Getting Started list at this
           sort order (ascending, ties broken by command name). When null/undefined
-          the command is hidden from the MOTD, except `menu` which is always
-          listed (bare, without the `x` prefix) whenever the menu is enabled.
+          the command is hidden from the MOTD, except `x` which is always
+          listed (bare) whenever the menu component is enabled.
           Other navigation commands (`docs`) stay off this list.
         '';
       };

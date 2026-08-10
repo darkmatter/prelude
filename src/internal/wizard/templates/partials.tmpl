@@ -91,8 +91,7 @@ motd = {
         # style = "spine";  # wordmark when text is null: plain|spine|bracketed|label|inline|inverted
       };
 
-      background = {{ .MotdStyle.Background }};  # block fill: false/true, a color, or a relative/blend value
-      windowBackground = {{ .MotdStyle.WindowBackground }};  # full-width window fill
+      background = {{ .MotdStyle.Background }};  # card fill: false/true, a color, or a relative/blend value
       border = {{ bool .MotdStyle.Border }};  # rounded frame around the block
       clearScreen = {{ bool .MotdStyle.ClearScreen }};  # clear the terminal before rendering
       align = {{ nixString .MotdStyle.Align }};  # horizontal placement: left|center|right

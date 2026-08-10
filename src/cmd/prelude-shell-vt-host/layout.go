@@ -25,7 +25,7 @@ const (
 )
 
 // pinLabels doubles as the cycle order: ^G advances one step and wraps.
-var pinLabels = [...]string{"off", "motd", "menu", "docs"}
+var pinLabels = [...]string{"off", "motd", "x", "docs"}
 
 func (m pinMode) next() pinMode { return (m + 1) % pinMode(len(pinLabels)) }
 

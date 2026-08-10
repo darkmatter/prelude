@@ -15,50 +15,44 @@ type MOTDView struct{ r renderer }
 
 // Render paints the MOTD in its terminal window.
 func (v MOTDView) Render() string {
+	if v.r.cardWidth < minimumCardWidth {
+		return ""
+	}
+
 	var body string
 	if v.r.model.Config.Border {
 		body = v.renderBorderedBody()
 	} else {
 		body = v.renderBody()
 	}
+	if body == "" {
+		return ""
+	}
+
 	output := ui.Window{
-		Context:      v.r.windowUI,
+		Context:      ui.Context{Transparent: true},
 		Width:        v.r.terminalWidth,
 		Offset:       v.r.horizontalOffset,
 		TopMargin:    v.r.model.Margin.Top,
 		BottomMargin: v.r.model.Margin.Bottom,
 	}.Render(body)
 	if !v.r.model.Config.ClearScreen {
-		return output
+		return defaultBackground + output + defaultBackground
 	}
-	// Count emitted rows so the scroll-fill can paint exactly the remaining
-	// terminal height without over-scrolling.
+
 	bodyRows := strings.Count(output, "\n")
-
-	// Painted erase: sets the window background SGR, then Erase Display.
-	// Terminals with Background Color Erase (BCE) fill every cell; terminals
-	// without it (Warp) ignore the SGR during erase, so we also scroll-fill.
-	clearScreen := "\x1b[2J\x1b[H"
-	if !v.r.st.windowTransparent {
-		clearScreen = v.r.st.windowFill.Render(clearScreen)
-	}
-
-	// Fill rows occupy the unused part of the cleared terminal. Bottom is the
-	// historical behavior (the prompt lands directly under the MOTD); top and
-	// center make the banner's vertical placement explicit without changing the
-	// output contract or the total number of terminal rows.
 	fillRows := v.r.terminalHeight - bodyRows - 1
 	aboveRows, belowRows := verticalFillRows(v.r.model.Config.VerticalAlign, fillRows)
-	row := v.r.st.windowFill.Width(v.r.terminalWidth).Render("")
-	fill := func(rows int) string {
-		if rows <= 0 {
-			return ""
-		}
-		return strings.Repeat(row+"\n", rows)
-	}
 
-	return clearScreen + fill(aboveRows) + output + fill(belowRows)
+	return defaultBackground +
+		"\x1b[2J\x1b[H" +
+		defaultBackground + strings.Repeat("\n", aboveRows) +
+		output +
+		defaultBackground + strings.Repeat("\n", belowRows) +
+		defaultBackground
 }
+
+const defaultBackground = "\x1b[49m"
 
 // renderBorderedBody renders the body one border cell narrower, then wraps it
 // in the optional outer frame. The model's card width remains the outer width
@@ -147,9 +141,6 @@ func (v MOTDView) renderHeaderSection() string {
 	// each side. Other header variants retain their existing spacing.
 	if v.r.model.Config.Title != "" {
 		parts = append(parts, header.BlankLine(), header.Divider(), card.Blank())
-		if status := header.generatedTitleStatus(); status != "" {
-			parts = append(parts, status, card.Blank())
-		}
 	} else if div := header.Divider(); div != "" {
 		parts = append(parts, div)
 	}
@@ -175,8 +166,8 @@ func (v MOTDView) renderBodySection() string {
 	return v.renderMiddle()
 }
 
-// renderFooterSection owns terminal links. Returns "" when FooterView has
-// nothing to paint.
+// renderFooterSection owns status badges and terminal links. Returns "" when
+// FooterView has nothing to paint.
 func (v MOTDView) renderFooterSection() string {
 	return (FooterView{r: v.r}).Render()
 }

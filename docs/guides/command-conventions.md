@@ -16,9 +16,9 @@ x --list           # list available commands
 x --help           # show command help
 ```
 
-The menu and `x` are two views of the same catalogue. Menu-only commands are not
-allowed. Selecting an entry interactively and invoking its key through `x`
-reaches the same dispatcher and canonical command.
+The interactive picker and `x` are two views of the same catalogue. Menu-only
+commands are not allowed. Selecting an entry interactively and invoking its key
+through `x` reaches the same dispatcher and canonical command.
 
 Prelude generates only the `x` dispatcher, not one executable per catalogue
 entry. This keeps `PATH` small and avoids synthetic aliases such as `go-test`.
@@ -70,7 +70,7 @@ The tool that owns a workflow also owns its underlying invocation:
 that shell, Prelude invokes the owning tool directly.
 
 The MOTD advertises project commands bare — each ungrouped command is on PATH,
-so the row matches what you type — and always lists bare `menu` so the command
+so the row matches what you type — and always lists bare `x` so the command
 palette is discoverable from the banner. Grouped keys (`go:test`) have no PATH
 entry, so those rows keep the `x go:test` dispatch form. If another command
 shadows a bare name, `x <name>` still runs the catalogue command; the banner

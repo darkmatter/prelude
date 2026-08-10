@@ -57,10 +57,10 @@ in {
       type = t.terminalBgType;
       default = defaults.motd.background;
       description = ''
-        Block background fill: true uses the theme `bg` token, a color, or
+        Card background fill: true uses the theme `bg` token, a color,
         `{ relative = ±n; }` relative to the terminal background, or
         `{ blend = n; }` blending from the terminal toward theme `bg` (0..1).
-        Falls back to windowBackground when unset. Detection failure uses theme bg.
+        Detection failure uses theme bg.
       '';
       example = {
         relative = -0.05;
@@ -71,17 +71,6 @@ in {
       type = lib.types.bool;
       default = defaults.motd.border;
       description = "Draw a rounded frame around the MOTD block.";
-    };
-
-    windowBackground = lib.mkOption {
-      type = t.terminalBgType;
-      default = defaults.motd.windowBackground;
-      description = ''
-        Window background: with `clearScreen`, paints the entire cleared terminal;
-        otherwise paints the full width of emitted rows (margins, gutters, and
-        line remainders). true uses theme `bg`, a color, `{ relative = ±n; }`,
-        or `{ blend = n; }` from the terminal toward theme `bg` (0..1).
-      '';
     };
 
     clearScreen = lib.mkOption {
@@ -132,8 +121,8 @@ in {
                   description = "Bold accent2 activation line (e.g. \"Dev Shell Activated\").";
                 };
                 subtitle = lib.mkOption {
-                  type = lib.types.str;
-                  default = defaults.motd.header.tagline.subtitle;
+                  type = lib.types.nullOr lib.types.str;
+                  default = defaults.motd.header.tagline.subtitle or null;
                   description = "Faint muted supporting text (e.g. \"Your environment is ready\").";
                 };
                 layout = lib.mkOption {
@@ -269,8 +258,8 @@ in {
 
     recipes = lib.mkOption {
       type = lib.types.attrsOf t.recipeType;
-      default = defaults.motd.recipes;
-      description = "Project workflows keyed by name for setup, build, test, deploy, and similar work. Prefer `steps` ({ command } | { comment }); legacy `lines` are normalized into steps.";
+      default = defaults.motd.recipes or {};
+      description = "Optional project workflows keyed by name for setup, build, test, deploy, and similar work. Prefer `steps` ({ command } | { comment }); legacy `lines` are normalized into steps.";
       example.clean-local-stack = {
         title = "spin up a clean local stack";
         steps = [

@@ -1,12 +1,13 @@
 # Per-system apps. motd/menu apps come from the prelude module
-# (config.apps.*); this adds the default alias, the demo runner, previews,
-# and one app per feature demo.
+# (including the standalone agent skill), the demo runner, previews, and one
+# app per feature demo.
 {
   lib,
   config,
   demos,
   docsAutomation,
   previews,
+  skill,
   ...
 }: let
   mkApp = pkg: {
@@ -20,5 +21,6 @@ in
     previews = mkApp previews;
     docs-record = mkApp docsAutomation.record;
     docs-sync = mkApp docsAutomation.sync;
+    skill = mkApp skill;
   }
   // lib.mapAttrs (_name: mkApp) demos.examplePackages

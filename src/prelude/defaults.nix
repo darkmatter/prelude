@@ -27,7 +27,7 @@
 
   # Example catalogue for ACME. The first colon infers the menu group; the
   # complete key stays callable through `x`. Commands with `motd = N` appear
-  # on the Getting Started list (ascending order). `menu` is always listed
+  # on the Getting Started list (ascending order). `x` is always listed
   # when the menu component is enabled.
   #
   # Shape: { exec ? key, description ? "", key ? null, usage ? null,
@@ -134,19 +134,13 @@
       style = "spine";
     };
 
-    # Block background fill: null/false = transparent, true = theme `bg`
-    # token, or an explicit color. Falls back to windowBackground when
-    # unset.
+    # Card background fill: null/false = transparent, true = theme `bg`
+    # token, or an explicit/terminal-relative color.
     background = false;
 
     # Optional rounded frame around the MOTD block. Off preserves the
     # edge-to-edge default, especially useful for left/right layouts.
     border = false;
-
-    # Window background: paints the full terminal width — margins,
-    # alignment gutters, and line remainders. null/false = transparent,
-    # true = theme `bg` token, or an explicit color.
-    windowBackground = true;
 
     # Clear the terminal before rendering so shell entry feels like a
     # clean greeting screen.
@@ -173,7 +167,7 @@
 
     # Vertical placement when clearScreen paints the terminal window.
     # Bottom preserves the original shell-entry behavior.
-    verticalAlign = "bottom";
+    verticalAlign = "center";
 
     # Inner padding between content and the block edge. Header stays
     # edge-to-edge horizontally; tagline, middle, and footer shortcuts take
@@ -188,7 +182,7 @@
     header = {
       tagline = {
         text = "everything you need to build, test & ship";
-        subtitle = "edit prelude.nix to replace this ACME example with your project";
+        # subtitle = "edinixt prelude.nix to replace this ACME example with your project";
         # stack = two lines; inline = "text · subtitle" on one row.
         layout = "stack";
         # left | center
@@ -224,7 +218,7 @@
         You are inside the ACME example devshell — the out-of-the-box Prelude
         welcome banner. Set `prelude.project`, rewrite the tagline and this
         description, and replace `prelude.commands` with your real workflows.
-        Run `menu` to browse every command.
+        Run `x` to browse every command.
       '';
     };
 
@@ -253,27 +247,27 @@
 
     # Multi-step workflows keyed by name. Prefer `steps`; legacy `lines`
     # are normalized into steps at the Nix boundary.
-    recipes = {
-      first-run = {
-        order = 100;
-        title = "spin up a clean local stack";
-        steps = [
-          {comment = "start services, migrate, then run the app";}
-          {command = "x database:up";}
-          {command = "x database:migrate";}
-          {command = "dev";}
-        ];
-      };
-      ship = {
-        order = 200;
-        title = "ship a release";
-        steps = [
-          {comment = "verify, build, then deploy";}
-          {command = "test && build";}
-          {command = "x ops:deploy";}
-        ];
-      };
-    };
+    # recipes = {
+    #   first-run = {
+    #     order = 100;
+    #     title = "spin up a clean local stack";
+    #     steps = [
+    #       {comment = "start services, migrate, then run the app";}
+    #       {command = "x database:up";}
+    #       {command = "x database:migrate";}
+    #       {command = "dev";}
+    #     ];
+    #   };
+    #   ship = {
+    #     order = 200;
+    #     title = "ship a release";
+    #     steps = [
+    #       {comment = "verify, build, then deploy";}
+    #       {command = "test && build";}
+    #       {command = "x ops:deploy";}
+    #     ];
+    #   };
+    # };
 
     # Unified commands + examples region labels.
     gettingStarted = {
@@ -287,7 +281,7 @@
     };
 
     width = "full";
-    maxWidth = 100;
+    maxWidth = 80;
   };
 
   # --- menu --------------------------------------------------------------------
@@ -315,12 +309,6 @@
   prompt = {
     settings = {};
     configFile = null;
-    # Private direct-generator input. module.nix injects a resolved backdrop
-    # envelope instead; direct mkPrompt consumers deterministically fall back to bg.
-    windowBackgroundContext = {
-      set = false;
-      base = null;
-    };
   };
 
   # --- docs --------------------------------------------------------------------

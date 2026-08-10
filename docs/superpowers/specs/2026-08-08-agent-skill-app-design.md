@@ -1,6 +1,6 @@
 # Agent Skill App
 
-**Date:** 2026-08-08  
+**Date:** 2026-08-08\
 **Status:** Approved design
 
 ## Goal
@@ -94,17 +94,17 @@ directory and proves:
 
 1. Bare `skill` contains the published `nix run github:darkmatter/prelude#skill`
    instruction and directs callers to `list`.
-2. `list` advertises the complete selector contract: `install`, `options`,
+1. `list` advertises the complete selector contract: `install`, `options`,
    `commands`, `configuration`, `guide command-conventions`, and
    `guide title-rendering`.
-3. `install`, `options`, `commands`, `configuration`,
+1. `install`, `options`, `commands`, `configuration`,
    `guide command-conventions`, and `guide title-rendering` each emit
    identifying text from their authoritative Markdown source.
-4. An unknown selector, `skill install extra`, `skill guide`,
+1. An unknown selector, `skill install extra`, `skill guide`,
    `skill guide nonexistent`, and `skill guide command-conventions extra`
    each exit nonzero, emit no Markdown on stdout, and direct the caller to
    `list` on stderr.
-5. `nix build .#skill` and `nix run .#skill` resolve to the same executable,
+1. `nix build .#skill` and `nix run .#skill` resolve to the same executable,
    whose Markdown paths work without a caller checkout.
 
 Exercise the same remote-style argument shape locally with `nix run .#skill`

@@ -2,10 +2,9 @@
 
 Prelude supplies these whenever the components are enabled:
 
-- **`x`** — public catalogue entrypoint. `x` alone opens the menu; `x <key>`
-  runs a catalogue command (e.g. `x go:test`, `x docs`).
-- **`menu`** (`m`) — interactive picker only; `x --list` prints the table
-  non-interactively. Prefer `x` for day-to-day runs.
+- **`x`** (`m`) — public catalogue entrypoint. `x` alone opens the interactive
+  picker; `x <key>` runs a catalogue command (e.g. `x go:test`, `x docs`).
+  `x --list` prints the table non-interactively.
 - **`motd`** (`?`) — reprints the welcome banner.
 - **`docs`** (`d`) — this viewer (`x docs`).
 

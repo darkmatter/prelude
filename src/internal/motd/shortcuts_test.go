@@ -17,14 +17,14 @@ func TestConfiguredShortcutsRenderWithoutGeneratedTitle(t *testing.T) {
 		Header: Header{Tagline: "Dev Shell Activated"},
 		Shortcuts: []Shortcut{
 			{Command: "motd", Alias: "?"},
-			{Command: "menu", Alias: "m"},
+			{Command: "x", Alias: "m"},
 			{Command: "docs", Alias: "d"},
 		},
 		Width: 80,
 	}
 
 	output := (MOTDView{r: newRenderer(Resolve(cfg, Cache{}, 80, 20, time.Now()))}).Render()
-	for _, want := range []string{"motd", "menu", "docs"} {
+	for _, want := range []string{"motd", "x", "docs"} {
 		if count := strings.Count(output, want); count != 1 {
 			t.Errorf("MOTD output contains shortcut %q %d times, want once: %q", want, count, output)
 		}

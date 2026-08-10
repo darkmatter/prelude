@@ -3,6 +3,10 @@
 **Date:** 2026-08-07\
 **Status:** Approved design; implemented.
 
+> **Superseded:** [Feathered MOTD Card](./2026-08-08-feathered-motd-card-design.md)
+> removes terminal-wide background ownership. This document remains the
+> historical record of the previously implemented design.
+
 ## Goal
 
 When Prelude's MOTD successfully paints `prelude.motd.windowBackground`, the Bash editable surface must use the same effective static background:

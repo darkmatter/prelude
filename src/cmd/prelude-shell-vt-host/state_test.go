@@ -26,7 +26,7 @@ func TestTurningThePinOffClearsThePanelWithoutACapture(t *testing.T) {
 	state, _, _ := newState(80, 24, 10).cyclePin() // motd
 	state = state.applyPanel(panelResult{generation: state.generation, surface: newSurface(4, 1, pinCell)})
 
-	// motd -> menu -> docs -> off; the last step is the one under test.
+	// motd -> x -> docs -> off; the last step is the one under test.
 	state, _, _ = state.cyclePin()
 	state, _, _ = state.cyclePin()
 	state, _, spawn := state.cyclePin()

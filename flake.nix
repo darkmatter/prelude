@@ -10,7 +10,7 @@
 # This flake dogfoods its own module: `flakeModules.default` is created with
 # flake-parts' importApply, imported below, and configured via root `prelude.nix`
 # (the same shape a consumer gets from setup) — `nix develop` greets you with our
-# own motd and `menu` drives the project.
+# own motd and `x` drives the project.
 #
 # Downstream usage (see src/prelude/module.nix for the full option set):
 #
@@ -29,8 +29,8 @@
 #
 # Entry points:
 #
-#   nix develop .        # devshell greeted by our own motd; `menu` inside
-#   nix run .#motd / .#menu / .#previews / .#examples / .#example-*
+#   nix develop .        # devshell greeted by our own motd; `x` inside
+#   nix run .#motd / .#menu / .#skill / .#previews / .#examples / .#example-*
 #   nix flake check      # build + render smoke tests
 #
 # Layout: flake outputs are one file per output under nix/; root `prelude.nix`

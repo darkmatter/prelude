@@ -14,7 +14,7 @@ nix develop ./examples/reference --override-input prelude path:. --no-write-lock
 Inside the development shell:
 
 ```sh
-menu       # interactive command picker
+x          # interactive command picker / catalogue dispatcher
 docs       # Markdown reference viewer
 hello      # package-backed example command
 ```

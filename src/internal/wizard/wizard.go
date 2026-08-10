@@ -94,8 +94,9 @@ type wizardModel struct {
 	motdStatusCursor     int
 	motdDefaultProject   string
 
-	themeIndex   int
-	profileIndex int
+	themeIndex       int
+	themeBackgrounds bool
+	profileIndex     int
 
 	componentIndex int
 	// components holds the enable toggles in componentNames order. Docs starts
@@ -103,19 +104,18 @@ type wizardModel struct {
 	// setup choices, including .envrc installation, start on.
 	components [componentCount]bool
 
-	motdLayoutCursor          int
-	motdAlignIndex            int
-	motdVerticalAlignIndex    int
-	motdTitleAlignIndex       int
-	motdSpacingCursor         int
-	motdMarginIndex           int
-	motdPaddingIndex          int
-	motdWidthIndex            int
-	motdSurfaceCursor         int
-	motdBackgroundIndex       int
-	motdWindowBackgroundIndex int
-	motdBorder                bool
-	motdClearScreen           bool
+	motdLayoutCursor       int
+	motdAlignIndex         int
+	motdVerticalAlignIndex int
+	motdTitleAlignIndex    int
+	motdSpacingCursor      int
+	motdMarginIndex        int
+	motdPaddingIndex       int
+	motdWidthIndex         int
+	motdSurfaceCursor      int
+	motdBackgroundIndex    int
+	motdBorder             bool
+	motdClearScreen        bool
 
 	commands       []wizardCommand
 	commandPhase   commandEntryPhase
@@ -198,31 +198,31 @@ func newWizard(cfg Config, recipe Recipe, render renderFunc) wizardModel {
 	}
 
 	return wizardModel{
-		cfg:                       cfg,
-		render:                    render,
-		titleInput:                titleIn,
-		projectInput:              projectIn,
-		commandInput:              commandIn,
-		motdContentInput:          motdContentIn,
-		motdDescriptionInput:      motdDescriptionIn,
-		motdContent:               defaultWizardMotdContent(recipe.Text),
-		motdDefaultProject:        strings.TrimSpace(recipe.Text),
-		projectAuto:               true,
-		fontIndex:                 fontIndex,
-		themeIndex:                themeIndex,
-		components:                [componentCount]bool{true, true, true, false, true},
-		motdAlignIndex:            1,     // defaults.motd.align = "center"
-		motdVerticalAlignIndex:    2,     // defaults.motd.verticalAlign = "bottom"
-		motdTitleAlignIndex:       1,     // defaults.motd.title.align = "center"
-		motdMarginIndex:           1,     // defaults.motd.margin = balanced
-		motdPaddingIndex:          1,     // defaults.motd.padding = roomy
-		motdWidthIndex:            1,     // defaults.motd.width = "full", maxWidth = 100
-		motdBackgroundIndex:       0,     // defaults.motd.background = false
-		motdWindowBackgroundIndex: 1,     // defaults.motd.windowBackground = true
-		motdBorder:                false, // defaults.motd.border = false
-		motdClearScreen:           true,
-		width:                     80,
-		height:                    24,
+		cfg:                    cfg,
+		render:                 render,
+		titleInput:             titleIn,
+		projectInput:           projectIn,
+		commandInput:           commandIn,
+		motdContentInput:       motdContentIn,
+		motdDescriptionInput:   motdDescriptionIn,
+		motdContent:            defaultWizardMotdContent(recipe.Text),
+		motdDefaultProject:     strings.TrimSpace(recipe.Text),
+		projectAuto:            true,
+		fontIndex:              fontIndex,
+		themeIndex:             themeIndex,
+		themeBackgrounds:       true,
+		components:             [componentCount]bool{true, true, true, false, true},
+		motdAlignIndex:         1,     // defaults.motd.align = "center"
+		motdVerticalAlignIndex: 2,     // defaults.motd.verticalAlign = "bottom"
+		motdTitleAlignIndex:    1,     // defaults.motd.title.align = "center"
+		motdMarginIndex:        1,     // defaults.motd.margin = balanced
+		motdPaddingIndex:       1,     // defaults.motd.padding = roomy
+		motdWidthIndex:         1,     // defaults.motd.width = "full", maxWidth = 100
+		motdBackgroundIndex:    1,     // defaults.motd.background = true
+		motdBorder:             false, // defaults.motd.border = false
+		motdClearScreen:        true,
+		width:                  80,
+		height:                 24,
 	}
 }
 
@@ -388,6 +388,8 @@ func (m wizardModel) updateTheme(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.themeIndex = wrap(m.themeIndex-1, len(m.cfg.Themes))
 	case "down", "j", "tab":
 		m.themeIndex = wrap(m.themeIndex+1, len(m.cfg.Themes))
+	case "space":
+		m.themeBackgrounds = !m.themeBackgrounds
 	case "home":
 		m.themeIndex = 0
 	case "end":
@@ -694,7 +696,7 @@ func (m wizardModel) View() tea.View {
 			"One palette drives every component.  ·  "+step,
 			append(m.themeRows(), "", m.themePreview()),
 			m.err,
-			"j/k move  ·  enter choose  ·  esc back  ·  q cancel",
+			"j/k move  ·  space toggle backgrounds  ·  enter choose  ·  esc back  ·  q cancel",
 		)
 	case stepProfile:
 		rows := make([]string, len(colorProfiles))
@@ -773,14 +775,13 @@ func (m wizardModel) View() tea.View {
 	return s.canvas(body, m.width, m.height)
 }
 
-// themeRows renders each theme as a chip strip painted on the theme's own
-// background, so adjacent rows separate visually even when accent hues are
-// close: the strip's background and text sample change per theme.
+// themeRows renders each theme as a chip strip. The viewer can suppress
+// palette backgrounds to compare foregrounds against the terminal instead.
 func (m wizardModel) themeRows() []string {
 	s := newFormStyles()
 	rows := make([]string, len(m.cfg.Themes))
 	for i, theme := range m.cfg.Themes {
-		ts := themeSample{theme: theme}
+		ts := themeSample{theme: theme, transparent: !m.themeBackgrounds}
 		var strip strings.Builder
 		strip.WriteString(ts.seg("bg", "", " ", false))
 		strip.WriteString(ts.seg("bg", "fg", "Aa ", false))
@@ -803,8 +804,12 @@ const sampleWidth = 44
 
 // themeSample paints sample content with a theme's own palette tokens,
 // skipping any token the palette does not define so sparse palettes stay
-// renderable.
-type themeSample struct{ theme Theme }
+// renderable. Transparent samples retain foregrounds but omit background
+// escape sequences so the terminal's native background stays visible.
+type themeSample struct {
+	theme       Theme
+	transparent bool
+}
 
 func (ts themeSample) color(token string) (color.Color, bool) {
 	hex, ok := ts.theme.Palette[token]
@@ -818,8 +823,10 @@ func (ts themeSample) color(token string) (color.Color, bool) {
 // surrounding style rather than failing.
 func (ts themeSample) seg(bgToken, fgToken, text string, bold bool) string {
 	style := lipgloss.NewStyle().Bold(bold)
-	if bg, ok := ts.color(bgToken); ok {
-		style = style.Background(bg)
+	if !ts.transparent {
+		if bg, ok := ts.color(bgToken); ok {
+			style = style.Background(bg)
+		}
 	}
 	if fg, ok := ts.color(fgToken); ok {
 		style = style.Foreground(fg)
@@ -851,10 +858,10 @@ func (m wizardModel) sampleProject() string {
 }
 
 // themePreview renders a mini devshell card in the selected theme: one line
-// per background layer (bg, surface, secondary) with the semantic colors in
-// context, which separates themes far better than isolated dots.
+// per background layer (bg, surface, secondary) with semantic colors in
+// context. Its backgrounds can be suppressed with the theme viewer toggle.
 func (m wizardModel) themePreview() string {
-	ts := themeSample{theme: m.cfg.Themes[m.themeIndex]}
+	ts := themeSample{theme: m.cfg.Themes[m.themeIndex], transparent: !m.themeBackgrounds}
 	project := m.sampleProject()
 	return strings.Join([]string{
 		ts.line("bg",
@@ -921,7 +928,7 @@ func (m wizardModel) componentPreview() string {
 			),
 			ts.line("bg",
 				ts.seg("bg", "accent2", " ❯ ", true),
-				ts.seg("bg", "fg", "menu", false),
+				ts.seg("bg", "fg", "x", false),
 			),
 		}, "\n")
 	case "docs":
@@ -1067,7 +1074,7 @@ func (m wizardModel) summaryRows(s formStyles) []string {
 		line("dev server", devServerStatus),
 		line("layout", style.Align+" / "+style.VerticalAlign+" / title "+style.TitleAlign),
 		line("spacing", margin.Name+" margin · "+padding.Name+" padding · "+width.Name+" width"),
-		line("surface", m.motdBackgroundLabel(m.motdBackgroundIndex)+" card · "+m.motdBackgroundLabel(m.motdWindowBackgroundIndex)+" window · border "+onOff(m.motdBorder)+" · clear "+onOff(m.motdClearScreen)),
+		line("surface", m.motdBackgroundLabel(m.motdBackgroundIndex)+" card · border "+onOff(m.motdBorder)+" · clear "+onOff(m.motdClearScreen)),
 		line("menu", onOff(result.Menu)),
 		line("prompt", onOff(result.Prompt)),
 		line("docs", onOff(result.Docs)),

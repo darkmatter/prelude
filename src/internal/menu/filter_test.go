@@ -29,30 +29,30 @@ func TestFilterEmptyQueryReturnsAll(t *testing.T) {
 
 func TestFilterFuzzySubsequence(t *testing.T) {
 	cfg := testMenuConfig(
-		Task{Name: "menu", Description: "open picker"},
+		Task{Name: "check", Description: "open picker"},
 		Task{Name: "motd", Description: "banner"},
 		Task{Name: "docs", Description: "manual"},
 	)
 	m := newModel(cfg, newStyles(cfg), nil)
-	// Non-contiguous subsequence unique to "menu".
-	m.prompt = m.prompt.WithValue("meu")
+	// Non-contiguous subsequence unique to "check".
+	m.prompt = m.prompt.WithValue("chk")
 	m.filter()
 
 	if len(m.matches) == 0 {
-		t.Fatal("fuzzy filter matched nothing for \"meu\"")
+		t.Fatal("fuzzy filter matched nothing for \"chk\"")
 	}
 	found := false
 	for _, idx := range m.matches {
 		name := m.flat[idx].Name
-		if name == "menu" {
+		if name == "check" {
 			found = true
 		}
 		if name == "docs" || name == "motd" {
-			t.Fatalf("%s should not fuzzy-match \"meu\"", name)
+			t.Fatalf("%s should not fuzzy-match \"chk\"", name)
 		}
 	}
 	if !found {
-		t.Fatalf("menu did not fuzzy-match \"meu\": %#v", m.matches)
+		t.Fatalf("check did not fuzzy-match \"chk\": %#v", m.matches)
 	}
 }
 

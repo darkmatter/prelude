@@ -2,7 +2,7 @@
 #
 # Imports Prelude's flake-parts module and configures a minimal MOTD, command
 # menu, and docs viewer. Run `nix develop` to enter the shell — the MOTD
-# prints automatically; `menu` opens the interactive picker and `docs`
+# prints automatically; `x` opens the interactive picker and `docs`
 # browses the Markdown pages under ./docs.
 #
 # Add project commands under prelude.commands (keyed by public `x` name;

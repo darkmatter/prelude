@@ -191,13 +191,8 @@ func (s sections) commandsHeader(label, note string) (string, bool) {
 	// so the background survives the \x1b[m resets that the styled segments
 	// emit. A plain strings.Repeat + blockFill.Width().Render wrapper cannot
 	// do this: the reset after "commands" clears any wrapper-level background
-	// before the gap begins. Fall back to the window fill when the block surface
-	// is transparent so windowBackground still paints the gap.
-	fill := s.r.st.blockFill
-	if s.r.st.blockTransparent && !s.r.st.windowTransparent {
-		fill = s.r.st.windowFill
-	}
-	return ui.PlaceRight(s.r.contentWidth, left, right, fill), true
+	// before the gap begins.
+	return ui.PlaceRight(s.r.contentWidth, left, right, s.r.st.blockFill), true
 }
 
 // commandNote renders the note prose in a single dim tone (accent only for
@@ -239,7 +234,12 @@ func (s sections) description() []string {
 	if d.Text != "" {
 		fillStyle := s.descFill(d)
 		for _, line := range (Markdown{r: s.r}).Render(d.Text, d, s.r.contentWidth) {
-			lines.Write(fillStyle.Render(line))
+			// Glamour's word wrap can overshoot contentWidth when styled
+			// spans carry ANSI codes; hard-wrap each line so the card fill
+			// never overflows into the gutter.
+			for _, wrapped := range strings.Split(lipgloss.Wrap(line, s.r.contentWidth, ""), "\n") {
+				lines.Write(fillStyle.Render(wrapped))
+			}
 		}
 	}
 

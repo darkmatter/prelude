@@ -11,7 +11,7 @@
     lib.filter (
       entry:
         !lib.elem entry.name [
-          "menu"
+          "x"
           "docs"
         ]
     )

@@ -18,7 +18,7 @@ sequence the child can emit that addresses a row it does not own.
 
 ```
 ┌──────────────────────────┐  pin band    captured through its own emulator
-│ MOTD / Menu / Docs       │
+│ MOTD / x / Docs          │
 ├──────────────────────────┤  shell band  child's virtual screen + scrollback
 │ $ …                      │
 ├──────────────────────────┤  status row  host state
@@ -35,7 +35,7 @@ blit either way, and nothing needs coordinate translation.
 A pin mode is one of two things, and the difference decides everything else
 about it.
 
-**Captured** (MOTD, Menu) runs a command once, photographs the terminal it
+**Captured** (MOTD, x) runs a command once, photographs the terminal it
 painted, kills it, and keeps the cells. Right for a program that produces a
 picture and exits.
 
@@ -91,7 +91,7 @@ in a single row.
 
 | Key | Action |
 | --- | --- |
-| **Ctrl+G** | cycle pin: off → MOTD → Menu → Docs → off |
+| **Ctrl+G** | cycle pin: off → MOTD → x → Docs → off |
 | **Ctrl+O** | move input between the shell and a live pane |
 | **Shift+PgUp / PgDn** | scroll the child's history |
 | `exit` / **Ctrl+D** | leave; the host exits with the child's status |
@@ -213,5 +213,5 @@ placeholder. The real docs TUI runs in the band, and Ctrl+O hands it the
 keyboard so its pages can actually be turned.
 
 Still open: the pin is cycled with Ctrl+G rather than driven by a command the
-child shell can run, and MOTD and Menu remain captured surfaces — correctly, in
+child shell can run, and MOTD and x remain captured surfaces — correctly, in
 their case, since both paint once and exit.

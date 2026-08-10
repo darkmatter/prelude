@@ -35,7 +35,7 @@ config: let
   motdCommands = lib.filter (
     command:
       !lib.elem command.name [
-        "menu"
+        "x"
         "docs"
       ]
   ) (plib.selectCommands tasks);

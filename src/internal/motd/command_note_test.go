@@ -107,13 +107,10 @@ func TestEmptyCommandNoteIsHidden(t *testing.T) {
 	}
 }
 
-// TestCommandNoteGapPaintedWithWindowBackground verifies that the gap between
-// the commands label and the command note is painted with the window background
-// when windowBackground is set without a block background. The gap must carry
-// an explicit background SGR — wrapping with a fill style is insufficient
-// because the \x1b[m reset after the styled label clears any wrapper-level
-// background before the gap begins.
-func TestCommandNoteGapPaintedWithWindowBackground(t *testing.T) {
+// TestCommandNoteGapPaintedWithCardBackground verifies that the gap between
+// the commands label and note carries the same explicit fill as the card.
+// Styled segments reset SGR, so a wrapper-level background is insufficient.
+func TestCommandNoteGapPaintedWithCardBackground(t *testing.T) {
 	cfg := Config{
 		Palette: shared.Palette{
 			Bg:     "#101010",
@@ -121,7 +118,7 @@ func TestCommandNoteGapPaintedWithWindowBackground(t *testing.T) {
 			Dim:    "#777777",
 			Accent: "#00aaff",
 		},
-		WindowBackground: "#112233",
+		Background: "#112233",
 		Commands: []Command{
 			{Command: "test", Description: "run the tests"},
 		},
@@ -141,7 +138,7 @@ func TestCommandNoteGapPaintedWithWindowBackground(t *testing.T) {
 		}
 		// #112233 → 48;2;17;34;51 in truecolor SGR.
 		if !strings.Contains(line, "\x1b[48;2;17;34;51m") {
-			t.Errorf("gap is not painted with the window background;\nrow: %q", line)
+			t.Errorf("gap is not painted with the card background;\nrow: %q", line)
 		}
 		return
 	}

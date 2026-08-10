@@ -20,18 +20,11 @@ if [ -n "${_PRELUDE_DARWIN-}" ]; then
   ble/bin/stty/.instantiate() { return 0; }
 fi
 
-# Start conservatively. `init.bash` promotes window ownership only after MOTD
-# succeeds. Prompt ownership is a configuration fact, so persist its generated
-# input before the wrapper unsets implementation details.
-_prelude_window_background_set=0
-_prelude_prompt_window_managed=${_PRELUDE_PROMPT_WINDOW_MANAGED:-0}
 
 # Prelude is a regular ble.sh contrib color scheme. Prepending the generated
 # runtime keeps the user's existing import path available for other contribs.
 bleopt import_path="$_PRELUDE_SHELL_RUNTIME/contrib${bleopt_import_path:+:$bleopt_import_path}"
 bleopt color_scheme=prelude
-# shellcheck source=./textarea-background.bash
-. "$_PRELUDE_SHELL_RUNTIME/textarea-background.bash"
 
 # Cursor: blinking vertical bar (DECSCUSR 5) in the emacs keymap, and the same
 # shape whenever ble.sh yields the terminal to external commands.
@@ -51,19 +44,31 @@ if ((${#_prelude_catalogue_direct_names[@]})); then
 fi
 
 eval "$("$_PRELUDE_STARSHIP" init bash)"
-# Rewrite submitted multiline prompts to Starship's character module.
-# shellcheck disable=SC2016
-bleopt prompt_ps1_final='$(starship module character)'
+# Submitted history rewrites only the left PS1 chrome (muted palette). The
+# typed command text and command stdout/stderr are not restyled. Bake the
+# config path into the leave-rewrite string so it survives init env cleanup.
+# Falls back to the character module when no final config is generated
+# (user-owned configFile).
+if [ -n "${_PRELUDE_STARSHIP_FINAL_CONFIG-}" ]; then
+  # STARSHIP_SHELL=plain omits bash \[\] non-print markers; ble parses raw ANSI.
+  # shellcheck disable=SC2016,SC2089,SC2090
+  bleopt prompt_ps1_final='$(STARSHIP_CONFIG='"$(printf '%q' "$_PRELUDE_STARSHIP_FINAL_CONFIG")"' STARSHIP_SHELL=plain starship prompt --terminal-width="$COLUMNS")'
+else
+  # shellcheck disable=SC2016
+  bleopt prompt_ps1_final='$(starship module character)'
+fi
 
 if [ "$_prelude_status_enabled" = 1 ]; then
-  # Blesh's status panel is one row. Its menu-inspired cap is a sibling panel,
-  # so status markup stays one row and Blesh owns both bottom-docked heights.
-  # prelude/status/cap/install || :
+  # Blesh's status panel is one row. A blank sibling panel sits immediately
+  # above it so the gap is docked to status, not glued under ╰─ (cursor stays
+  # on the framed input row). configFile keeps statusEnabled=0 and skips this.
+  prelude/status/cap/install || :
   blehook PRECMD!='prelude/status/update'
   prelude/status/update
   bleopt prompt_status_align=left
   bleopt prompt_status_line='\q{prelude/status}'
 fi
+
 
 _prelude_init_show_motd
 

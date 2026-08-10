@@ -16,7 +16,6 @@ type renderer struct {
 	st               styles
 	blockUI          ui.Context
 	headerUI         ui.Context
-	windowUI         ui.Context
 	terminalWidth    int
 	terminalHeight   int
 	cardWidth        int
@@ -31,7 +30,6 @@ func newRenderer(model PaintModel) renderer {
 		st:               st,
 		blockUI:          ui.NewContext(model.Config.Palette, st.blockBg, st.blockTransparent),
 		headerUI:         ui.NewContext(model.Config.Palette, st.headerBg, st.headerTransparent),
-		windowUI:         ui.NewContext(model.Config.Palette, st.windowBg, st.windowTransparent),
 		terminalWidth:    model.TerminalWidth,
 		terminalHeight:   model.TerminalHeight,
 		cardWidth:        model.CardWidth,

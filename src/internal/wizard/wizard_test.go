@@ -5,11 +5,13 @@ import (
 	"errors"
 	"os"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func testWizard() wizardModel {
@@ -229,6 +231,36 @@ func TestWizardEnvrcToggleDefaultsOnAndCanBeDisabled(t *testing.T) {
 	}
 }
 
+var ansiBackgroundParam = regexp.MustCompile(`\x1b\[[0-9;]*48;(?:2;\d+;\d+;\d+|5;\d+)m`)
+
+func TestWizardThemeBackgroundToggleAffectsOnlyViewer(t *testing.T) {
+	m := testWizard()
+	m.step = stepTheme
+	wantIndex := m.themeIndex
+	wantResult := m.result()
+
+	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+	viewerWithoutBackgrounds := strings.Join(append(m.themeRows(), m.themePreview()), "\n")
+	if ansiBackgroundParam.MatchString(viewerWithoutBackgrounds) {
+		t.Fatalf("theme viewer still emits ANSI background parameters when disabled:\n%q", viewerWithoutBackgrounds)
+	}
+	if m.themeIndex != wantIndex {
+		t.Fatalf("themeIndex = %d, want %d after toggling backgrounds", m.themeIndex, wantIndex)
+	}
+	if got := m.result(); !reflect.DeepEqual(got, wantResult) {
+		t.Fatalf("result changed after toggling theme viewer backgrounds:\n got: %#v\nwant: %#v", got, wantResult)
+	}
+	if footer := ansi.Strip(m.View().Content); !strings.Contains(footer, "space toggle backgrounds") {
+		t.Fatalf("theme viewer footer does not advertise the background toggle:\n%s", footer)
+	}
+
+	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+	viewerWithBackgrounds := strings.Join(append(m.themeRows(), m.themePreview()), "\n")
+	if !ansiBackgroundParam.MatchString(viewerWithBackgrounds) {
+		t.Fatalf("theme viewer did not restore ANSI background parameters:\n%q", viewerWithBackgrounds)
+	}
+}
+
 func TestWizardMOTDStyleStepsCollectSelectionsAndPreview(t *testing.T) {
 	m := testWizard()
 	for range 5 {
@@ -267,9 +299,7 @@ func TestWizardMOTDStyleStepsCollectSelectionsAndPreview(t *testing.T) {
 	m = letter(t, m, 'h') // width wide -> compact
 	m = enter(t, m)
 
-	m = letter(t, m, 'l')                                              // card transparent -> theme background
-	m = letter(t, m, 'j')                                              // window background field
-	m = letter(t, m, 'l')                                              // theme background -> surface color
+	m = letter(t, m, 'l')                                              // card theme background -> surface color
 	m = letter(t, m, 'j')                                              // border field
 	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}) // border on
 	m = letter(t, m, 'j')                                              // clear-screen field
@@ -281,19 +311,18 @@ func TestWizardMOTDStyleStepsCollectSelectionsAndPreview(t *testing.T) {
 
 	got := m.result()
 	wantStyle := motdStyle{
-		Align:            "right",
-		VerticalAlign:    "center",
-		TitleAlign:       "right",
-		Border:           true,
-		Background:       "true",
-		WindowBackground: `"#3b4252"`,
-		ClearScreen:      false,
-		MarginX:          6,
-		MarginY:          3,
-		PaddingX:         6,
-		PaddingY:         3,
-		Width:            "80",
-		MaxWidth:         "80",
+		Align:         "right",
+		VerticalAlign: "center",
+		TitleAlign:    "right",
+		Border:        true,
+		Background:    `"#3b4252"`,
+		ClearScreen:   false,
+		MarginX:       6,
+		MarginY:       3,
+		PaddingX:      6,
+		PaddingY:      3,
+		Width:         "80",
+		MaxWidth:      "80",
 	}
 	if !reflect.DeepEqual(got.MotdStyle, wantStyle) || !got.MotdStyleSet {
 		t.Fatalf("MOTD style = %#v (set=%v), want %#v", got.MotdStyle, got.MotdStyleSet, wantStyle)
@@ -571,6 +600,13 @@ func TestPreviewTitleAlignmentPreservesFIGletShape(t *testing.T) {
 	}
 }
 
+func TestMOTDPreviewOmitsDitherFringe(t *testing.T) {
+	rendered := ansi.Strip(testWizard().motdPreview())
+	if strings.ContainsAny(rendered, "░▒▓") {
+		t.Fatalf("MOTD preview rendered obsolete fringe glyphs:\n%s", rendered)
+	}
+}
+
 func TestMOTDPreviewRendersFixedCardShape(t *testing.T) {
 	m := testWizard()
 	m.motdBorder = true
@@ -827,8 +863,7 @@ func TestRenderWizardConfigEmitsOptionsTemplate(t *testing.T) {
 		"title = {",
 		"text = ./title.txt;",
 		`align = "center";`,
-		"background = false;",
-		"windowBackground = true;",
+		"background = true;",
 		"border = false;",
 		`verticalAlign = "bottom";`,
 		"maxWidth = 100;",
@@ -870,20 +905,19 @@ func TestRenderWizardConfigEmitsSelectedMOTDStyle(t *testing.T) {
 		Menu:         false,
 		Prompt:       false,
 		MotdStyle: motdStyle{
-			Align:            "right",
-			VerticalAlign:    "center",
-			TitleAlign:       "left",
-			Border:           true,
-			Background:       `"#112233"`,
-			WindowBackground: "false",
-			ClearScreen:      false,
-			MarginX:          6,
-			MarginY:          3,
-			MarginMinHeight:  30,
-			PaddingX:         1,
-			PaddingY:         0,
-			Width:            "80",
-			MaxWidth:         "80",
+			Align:           "right",
+			VerticalAlign:   "center",
+			TitleAlign:      "left",
+			Border:          true,
+			Background:      `"#112233"`,
+			ClearScreen:     false,
+			MarginX:         6,
+			MarginY:         3,
+			MarginMinHeight: 30,
+			PaddingX:        1,
+			PaddingY:        0,
+			Width:           "80",
+			MaxWidth:        "80",
 		},
 		MotdStyleSet: true,
 	}
@@ -894,7 +928,6 @@ func TestRenderWizardConfigEmitsSelectedMOTDStyle(t *testing.T) {
 		for _, fragment := range []string{
 			`align = "left";`,
 			`background = "#112233";`,
-			"windowBackground = false;",
 			"border = true;",
 			"clearScreen = false;",
 			`align = "right";`,
@@ -1049,8 +1082,7 @@ func TestFinishWizardWritesTitleStarterDocsAndConfig(t *testing.T) {
 		`project = "acme";`,
 		"text = ./title.txt;",
 		"docs.pages = [ { text = ./docs/getting-started.md; } ];",
-		"background = false;",
-		"windowBackground = true;",
+		"background = true;",
 		"border = false;",
 		`verticalAlign = "bottom";`,
 		"maxWidth = 100;",

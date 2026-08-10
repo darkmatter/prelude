@@ -21,17 +21,15 @@ const (
 // styles holds every lipgloss style derived from the theme palette.
 // Presentation only — no layout widths or content decisions live here.
 //
-// Semantic styles come from a surface → ui.Context map (block / header /
-// window). Fills and exceptional colors (codeBg, frame, divider peaks) stay
-// explicit because they are blended surfaces, not palette tokens.
+// Semantic styles come from a surface → ui.Context map (block / header).
+// Fills and exceptional blended or structural colors stay explicit rather than
+// becoming palette tokens.
 type styles struct {
 	pal shared.Palette
 	h   shared.PaletteHelper
 
 	blockBg           color.Color
 	blockTransparent  bool
-	windowBg          color.Color
-	windowTransparent bool
 	headerBg          color.Color
 	headerTransparent bool
 	codeBg            color.Color
@@ -44,7 +42,6 @@ type styles struct {
 	surfaces map[string]ui.Context
 
 	blockFill  lipgloss.Style
-	windowFill lipgloss.Style
 	headerFill lipgloss.Style
 
 	// Block layer (page background).
@@ -96,12 +93,6 @@ func newStyles(model PaintModel) styles {
 	dividerPk := lipgloss.Darken(accentC, dividerPeakDark)
 	headerUnderlinePk := lipgloss.Darken(accentC, headerUnderlineDarken)
 
-	windowTransparent := model.WindowBackground == ""
-	windowBg := h.Color(string(p.Bg))
-	if !windowTransparent {
-		windowBg = h.Color(model.WindowBackground)
-	}
-
 	// Surface map owns semantic styles. Header falls through to block when
 	// transparent so raised/transparent headers share one derivation path.
 	headerCtxBg := headerBg
@@ -113,19 +104,15 @@ func newStyles(model PaintModel) styles {
 	surfaces := map[string]ui.Context{
 		"block":  blockContext,
 		"header": ui.NewContext(p, headerCtxBg, headerCtxTransparent),
-		"window": ui.NewContext(p, windowBg, windowTransparent),
 	}
 	blockUI := surfaces["block"]
 	headerUI := surfaces["header"]
-
 	return styles{
 		pal: p,
 		h:   h,
 
 		blockBg:           blockBg,
 		blockTransparent:  !hasBlockBg,
-		windowBg:          windowBg,
-		windowTransparent: windowTransparent,
 		headerBg:          headerBg,
 		headerTransparent: headerTransparent,
 		codeBg:            codeBg,
@@ -136,7 +123,6 @@ func newStyles(model PaintModel) styles {
 		surfaces: surfaces,
 
 		blockFill:  blockUI.Fill(),
-		windowFill: surfaces["window"].Fill(),
 		headerFill: headerUI.Fill(),
 
 		dim:    blockUI.Dim(),
@@ -170,11 +156,11 @@ func (s styles) on(bg, fg color.Color) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(fg).Background(bg)
 }
 
-func (s styles) onWindow(fg color.Color) lipgloss.Style {
-	if s.windowTransparent {
+func (s styles) onBlock(fg color.Color) lipgloss.Style {
+	if s.blockTransparent {
 		return lipgloss.NewStyle().Foreground(fg)
 	}
-	return s.on(s.windowBg, fg)
+	return s.on(s.blockBg, fg)
 }
 
 // fill is a background-only style. No-op background when c is unused by caller.

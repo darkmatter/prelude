@@ -31,7 +31,6 @@
         motd = {
           enable = true;
           clearScreen = false;
-          windowBackground = true;
 
           header = {
             tagline.text = "complete downstream configuration";

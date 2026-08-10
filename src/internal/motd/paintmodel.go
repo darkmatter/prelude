@@ -16,13 +16,11 @@ type PaintModel struct {
 	Config Config
 
 	// TerminalBackground is the detected terminal background color, used as the
-	// base for window-background fades and relative blends.
+	// base for relative and blend backgrounds.
 	TerminalBackground string
 
 	// Background is the resolved card background (explicit, relative, or blended).
 	Background string
-	// WindowBackground is the resolved window/screen background.
-	WindowBackground string
 	// HeaderBackground is the resolved header bar background.
 	HeaderBackground string
 	// DescriptionBackground is the resolved description section background.
@@ -66,23 +64,23 @@ func Resolve(cfg Config, cache Cache, terminalWidth, terminalHeight int, now tim
 	width, height := resolveTerminalSize(cache, terminalWidth, terminalHeight)
 	terminalBG := resolveTerminalBackground(cache)
 
-	background, windowBackground, headerBackground, descriptionBackground :=
-		resolveBackgrounds(cfg, terminalBG)
-
+	background, headerBackground, descriptionBackground := resolveBackgrounds(cfg, terminalBG)
 	margin := cfg.Margin.collapseVertical(height)
 	padding := cfg.Padding.collapseVertical(height)
+	cardWidth, horizontalOffset := resolveHorizontalGeometry(cfg, width, margin)
+
+	contentWidth := 0
+	if cardWidth > 0 {
+		contentWidth = max(cardWidth-max(padding.Left, 0)-max(padding.Right, 0), 1)
+	}
 
 	status, statusHint, statusAge := resolveStatus(cfg.Header.Status, cache, now)
 	env := resolveEnv(cfg.Env, cache)
 
-	cardWidth := resolveCardWidth(cfg.Width, cfg.MaxWidth, width)
-	contentWidth := max(cardWidth-max(padding.Left, 0)-max(padding.Right, 0), 1)
-
-	model := PaintModel{
+	return PaintModel{
 		Config:                cfg,
 		TerminalBackground:    terminalBG,
 		Background:            background,
-		WindowBackground:      windowBackground,
 		HeaderBackground:      headerBackground,
 		DescriptionBackground: descriptionBackground,
 		Status:                status,
@@ -95,9 +93,8 @@ func Resolve(cfg Config, cache Cache, terminalWidth, terminalHeight int, now tim
 		Padding:               padding,
 		CardWidth:             cardWidth,
 		ContentWidth:          contentWidth,
+		HorizontalOffset:      horizontalOffset,
 	}
-	model.HorizontalOffset = model.resolveHorizontalOffset()
-	return model
 }
 
 func resolveTerminalSize(cache Cache, terminalWidth, terminalHeight int) (width, height int) {
@@ -129,7 +126,7 @@ func resolveTerminalBackground(cache Cache) string {
 	return ""
 }
 
-func resolveBackgrounds(cfg Config, terminalBackground string) (background, windowBackground, headerBackground, descriptionBackground string) {
+func resolveBackgrounds(cfg Config, terminalBackground string) (background, headerBackground, descriptionBackground string) {
 	terminalBase := lipgloss.Color(terminalBackground)
 	if terminalBase == nil {
 		terminalBase = lipgloss.Color(string(cfg.Palette.Bg))
@@ -141,14 +138,6 @@ func resolveBackgrounds(cfg Config, terminalBackground string) (background, wind
 	}
 	if cfg.BackgroundBlendSet {
 		background = blendColor(terminalBase, cfg.Palette.Bg.String(), cfg.BackgroundBlend)
-	}
-
-	windowBackground = cfg.WindowBackground
-	if cfg.WindowBackgroundRelative != 0 {
-		windowBackground = relativeColor(terminalBase, cfg.WindowBackgroundRelative)
-	}
-	if cfg.WindowBackgroundBlendSet {
-		windowBackground = blendColor(terminalBase, cfg.Palette.Bg.String(), cfg.WindowBackgroundBlend)
 	}
 
 	headerBackground = cfg.Header.Background
@@ -240,26 +229,32 @@ func resolveEnv(items []EnvItem, cache Cache) []ResolvedEnv {
 	return resolved
 }
 
-func resolveCardWidth(width, maxWidth, terminalWidth int) int {
-	cardWidth := width
-	if cardWidth == 0 {
-		cardWidth = terminalWidth
+func resolveHorizontalGeometry(cfg Config, terminalWidth int, margin Spacing) (cardWidth, offset int) {
+	leftInset := max(margin.Left, 0)
+	rightInset := max(margin.Right, 0)
+	available := terminalWidth - leftInset - rightInset
+	if available < minimumCardWidth {
+		return 0, 0
 	}
-	if maxWidth > 0 && cardWidth > maxWidth {
-		cardWidth = maxWidth
-	}
-	return max(cardWidth, minimumCardWidth)
-}
 
-func (m PaintModel) resolveHorizontalOffset() int {
-	switch m.Config.Align {
-	case "right":
-		return max(m.TerminalWidth-m.CardWidth-m.Margin.Right, 0)
-	case "center":
-		return max((m.TerminalWidth-m.CardWidth)/2+m.Margin.Left-m.Margin.Right, 0)
-	default:
-		return max(m.Margin.Left, 0)
+	cardWidth = cfg.Width
+	if cardWidth == 0 || cardWidth > available {
+		cardWidth = available
 	}
+	if cfg.MaxWidth > 0 && cardWidth > cfg.MaxWidth {
+		cardWidth = cfg.MaxWidth
+	}
+	cardWidth = max(cardWidth, minimumCardWidth)
+
+	switch cfg.Align {
+	case "right":
+		offset = leftInset + available - cardWidth
+	case "center":
+		offset = leftInset + (available-cardWidth)/2
+	default:
+		offset = leftInset
+	}
+	return cardWidth, offset
 }
 
 func blendColor(terminalBase color.Color, themeBg string, amount float64) string {

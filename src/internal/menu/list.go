@@ -49,7 +49,7 @@ func printListTo(output io.Writer, environ []string, cfg *Config, st styles) {
 		}
 	}
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, st.dim.Render("run menu to pick a task interactively"))
+	fmt.Fprintln(w, st.dim.Render("run x to pick a task interactively"))
 }
 
 // listRow paints one non-interactive task line in the same language as the

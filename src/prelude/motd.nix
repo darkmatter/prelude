@@ -56,7 +56,7 @@ config: let
   header = {
     titleStyle = titleIn.style;
     tagline = taglineIn.text;
-    subtitle = taglineIn.subtitle;
+    subtitle = taglineIn.subtitle or null;
     taglineLayout = taglineIn.layout;
     taglineAlign = taglineIn.align;
     statusHintLayout = statusHintIn.layout;
@@ -74,9 +74,8 @@ config: let
   );
   recipes = plib.normalizeRecipes (m.recipes or {});
 
-  # Split a bg option into concrete color (or null), relative shade, or blend.
-  # Runtime values resolve against the terminal (card/window) or the resolved
-  # card (description).
+  # Split a card/section bg option into concrete color (or null), relative
+  # shade, or blend. Runtime values resolve against the terminal or card.
   splitBg = value:
     if value == null || value == false
     then {
@@ -113,31 +112,11 @@ config: let
       blendSet = false;
     };
 
-  windowBg = splitBg m.windowBackground;
   cardBg = splitBg m.background;
-  # An unset card inherits every window background mode, including runtime
-  # relative/blend resolution, so the card and full-width container stay solid.
-  cardInheritsWindow = m.background == null || m.background == false;
-  background =
-    if cardInheritsWindow
-    then windowBg.color
-    else cardBg.color;
-  backgroundRelative =
-    if cardInheritsWindow
-    then windowBg.relative
-    else cardBg.relative;
-  backgroundBlend =
-    if cardInheritsWindow
-    then windowBg.blend
-    else cardBg.blend;
-  backgroundBlendSet =
-    if cardInheritsWindow
-    then windowBg.blendSet
-    else cardBg.blendSet;
-  windowBackground = windowBg.color;
-  windowBackgroundRelative = windowBg.relative;
-  windowBackgroundBlend = windowBg.blend;
-  windowBackgroundBlendSet = windowBg.blendSet;
+  background = cardBg.color;
+  backgroundRelative = cardBg.relative;
+  backgroundBlend = cardBg.blend;
+  backgroundBlendSet = cardBg.blendSet;
 
   margin = plib.resolveSpacing (d.motd.margin // (m.margin or {}));
   padding = plib.resolveSpacing (d.motd.padding // (m.padding or {}));
@@ -211,8 +190,6 @@ config: let
       palette = pal;
       background = jsonColor background;
       inherit backgroundRelative backgroundBlend backgroundBlendSet;
-      windowBackground = jsonColor windowBackground;
-      inherit windowBackgroundRelative windowBackgroundBlend windowBackgroundBlendSet;
       border = m.border;
       clearScreen = m.clearScreen;
       align = m.align;

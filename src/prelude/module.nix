@@ -120,9 +120,9 @@ in {
     # stay focused on lifecycle actions such as serve, build, test, and install.
     prelude.commands = lib.mkMerge [
       (lib.mkIf cfg.menu.enable {
-        menu = {
+        x = {
           description = lib.mkDefault "open the interactive command menu";
-          exec = lib.mkDefault "menu";
+          exec = lib.mkDefault "x";
           key = lib.mkDefault "m";
         };
       })
@@ -261,7 +261,8 @@ in {
       # with its own name asserts "this command already exists on PATH"
       # (motd, docs, previews…); every other command gets a generated wrapper
       # that delegates to the public `x` dispatcher so direct and interactive
-      # invocation share one execution contract. `menu` is picker-only.
+      # invocation share one execution contract. Bare `menu` remains a
+      # picker-only compatibility wrapper outside the catalogue.
       needsWrapper = entry: builtins.head (lib.splitString " " entry.run) != entry.name;
       # Colon-grouped entries are catalogue identity only. Never turn them
       # into shell executables: the complete key stays public through x while
@@ -304,22 +305,24 @@ in {
       shortcutAliases = map (s: s.alias) shortcutEntries;
       entriesByName = lib.listToAttrs (map (entry: lib.nameValuePair entry.name entry) commandEntries);
       resolveShortcutTarget = command:
-        if entriesByName ? ${command}
+        if command == "x" && cfg.menu.enable
+        then lib.getExe' menuBin "x"
+        else if entriesByName ? ${command}
         then let
           entry = entriesByName.${command};
           head = builtins.head (lib.splitString " " entry.run);
         in
           if needsWrapper entry
-          then "${lib.getExe menuBin} ${lib.escapeShellArg entry.name}"
-          else if entry.builtinSurface == "menu" && cfg.menu.enable
-          then lib.getExe menuBin
+          then "${lib.getExe' menuBin "x"} ${lib.escapeShellArg entry.name}"
+          else if entry.builtinSurface == "x" && cfg.menu.enable
+          then lib.getExe' menuBin "x"
           else if entry.builtinSurface == "docs" && docsEnabled
           then lib.getExe docsBin
           else if entry.builtinSurface == "motd" && cfg.motd.enable
           then lib.getExe motdBin
           else lib.escapeShellArg head
         else if command == "menu" && cfg.menu.enable
-        then lib.getExe menuBin
+        then lib.getExe' menuBin "x"
         else if command == "docs" && docsEnabled
         then lib.getExe docsBin
         else if command == "motd" && cfg.motd.enable
@@ -403,22 +406,19 @@ in {
             }
           )
         else null;
-      # Prompt and Blesh share one backdrop decision. The flag is false when
-      # MOTD is disabled because no Prelude process then paints the terminal.
-      windowBackgroundContext = plib.resolveWindowBackgroundContext cfg.motd.enable cfg.motd.windowBackground;
-      backdropPalette = plib.resolveBackdropPalette cfg.theme cfg.palette windowBackgroundContext;
+      # Resolve the palette and shell-only shadow once for every consumer.
+      backdropPalette = plib.resolveBackdropPalette cfg.theme cfg.palette;
+      pal = backdropPalette.palette;
       promptPkg = mkPrompt deps (
         generatorConfig cfg.prompt
         // {
           shortcuts = internalShortcuts;
-          inherit backdropPalette;
+          resolvedPalette = pal;
         }
       );
 
-      # Resolve the palette once for the generated prompt and shell catalogue.
       # Starship owns prompt/status content while ble.sh owns Bash rendering,
       # lifecycle, and native completion menus.
-      pal = backdropPalette.palette;
 
       # The current shell is the product boundary. Checked-in shell modules
       # own behavior; Nix injects paths and serializes the same normalized
@@ -439,8 +439,7 @@ in {
         }
         {
           palette = pal;
-          inherit (backdropPalette) shadow window windowBackgroundSet;
-          promptWindowManaged = cfg.prompt.configFile == null;
+          inherit (backdropPalette) shadow;
           projectName = cfg.project;
           navigation = internalShortcuts;
           commandEntries = commandEntries;

@@ -391,8 +391,8 @@ null
 
 When set, this command appears on the MOTD Getting Started list at this
 sort order (ascending, ties broken by command name)\. When null/undefined
-the command is hidden from the MOTD, except ` menu ` which is always
-listed (bare, without the ` x ` prefix) whenever the menu is enabled\.
+the command is hidden from the MOTD, except ` x ` which is always
+listed (bare) whenever the menu component is enabled\.
 Other navigation commands (` docs `) stay off this list\.
 
 
@@ -869,10 +869,10 @@ one of “left”, “center”, “right”
 
 
 
-Block background fill: true uses the theme ` bg ` token, a color, or
+Card background fill: true uses the theme ` bg ` token, a color,
 ` { relative = ±n; } ` relative to the terminal background, or
 ` { blend = n; } ` blending from the terminal toward theme ` bg ` (0…1)\.
-Falls back to windowBackground when unset\. Detection failure uses theme bg\.
+Detection failure uses theme bg\.
 
 
 
@@ -1088,7 +1088,7 @@ string
   You are inside the ACME example devshell — the out-of-the-box Prelude
   welcome banner. Set `prelude.project`, rewrite the tagline and this
   description, and replace `prelude.commands` with your real workflows.
-  Run `menu` to browse every command.
+  Run `x` to browse every command.
 ''
 ````
 
@@ -1835,14 +1835,14 @@ Faint muted supporting text (e\.g\. “Your environment is ready”)\.
 
 
 *Type:*
-string
+null or string
 
 
 
 *Default:*
 
 ```nix
-"edit prelude.nix to replace this ACME example with your project"
+null
 ```
 
 
@@ -2115,7 +2115,7 @@ null or (unsigned integer, meaning >=0)
 *Default:*
 
 ```nix
-100
+80
 ```
 
 
@@ -2295,7 +2295,7 @@ unsigned integer, meaning >=0
 
 
 
-Project workflows keyed by name for setup, build, test, deploy, and similar work\. Prefer ` steps ` ({ command } | { comment }); legacy ` lines ` are normalized into steps\.
+Optional project workflows keyed by name for setup, build, test, deploy, and similar work\. Prefer ` steps ` ({ command } | { comment }); legacy ` lines ` are normalized into steps\.
 
 
 
@@ -2307,41 +2307,7 @@ attribute set of (submodule)
 *Default:*
 
 ```nix
-{
-  first-run = {
-    order = 100;
-    steps = [
-      {
-        comment = "start services, migrate, then run the app";
-      }
-      {
-        command = "x database:up";
-      }
-      {
-        command = "x database:migrate";
-      }
-      {
-        command = "dev";
-      }
-    ];
-    title = "spin up a clean local stack";
-  };
-  ship = {
-    order = 200;
-    steps = [
-      {
-        comment = "verify, build, then deploy";
-      }
-      {
-        command = "test && build";
-      }
-      {
-        command = "x ops:deploy";
-      }
-    ];
-    title = "ship a release";
-  };
-}
+{ }
 ```
 
 
@@ -2436,8 +2402,6 @@ list of (submodule)
 
 
 ## prelude\.motd\.recipes\.\<name>\.steps\.\*\.command
-
-
 
 Runnable command line\. Mutually exclusive with comment in practice\.
 
@@ -2606,7 +2570,7 @@ one of “top”, “center”, “bottom”
 *Default:*
 
 ```nix
-"bottom"
+"center"
 ```
 
 
@@ -2628,30 +2592,6 @@ signed integer or value “full” (singular enum)
 
 ```nix
 "full"
-```
-
-
-
-## prelude\.motd\.windowBackground
-
-
-
-Window background: with ` clearScreen `, paints the entire cleared terminal;
-otherwise paints the full width of emitted rows (margins, gutters, and
-line remainders)\. true uses theme ` bg `, a color, ` { relative = ±n; } `,
-or ` { blend = n; } ` from the terminal toward theme ` bg ` (0…1)\.
-
-
-
-*Type:*
-null or boolean or unsigned integer, meaning >=0, or string or (submodule) or (submodule)
-
-
-
-*Default:*
-
-```nix
-true
 ```
 
 

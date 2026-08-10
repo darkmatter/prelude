@@ -4,7 +4,7 @@ Welcome to your Prelude-powered devshell.
 
 ## Commands
 
-- Run `menu` to search Prelude's navigation and your configured project commands.
+- Run `x` to search Prelude's navigation and your configured project commands.
 - Run `docs` to browse these pages.
 - Run `x <name>` to run a command directly (e.g. `x dev`).
 
