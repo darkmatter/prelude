@@ -102,7 +102,7 @@ in {
 
     padding = t.mkSpacingOption {
       spacingDefaults = defaults.motd.padding;
-      description = "Inner padding between content and the block edge. The header and shortcuts stay edge-to-edge; only middle sections are inset. Sides supersede the x/y axes.";
+      description = "Inner padding between content and the block edge. The gradient divider, tagline, middle sections, and shortcuts are inset; title and status rows stay edge-to-edge. Sides supersede the x/y axes.";
     };
 
     header = lib.mkOption {

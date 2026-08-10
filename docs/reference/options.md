@@ -752,6 +752,77 @@ positive integer, meaning >0
 
 
 
+## prelude\.menu\.just\.enable
+
+
+
+Whether to enable importing public Justfile recipes into the command menu\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+
+
+*Example:*
+
+```nix
+true
+```
+
+
+
+## prelude\.menu\.just\.group
+
+
+
+Menu group for imported ungrouped Justfile recipes\.
+
+
+
+*Type:*
+string
+
+
+
+*Default:*
+
+```nix
+"just"
+```
+
+
+
+## prelude\.menu\.just\.justfile
+
+
+
+Optional Justfile path; null uses just’s normal Justfile discovery at runtime\.
+
+
+
+*Type:*
+null or absolute path
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+
+
 ## prelude\.menu\.maxWidth
 
 
@@ -1278,9 +1349,9 @@ string
 
 *Default:*
 
-````nix
-"prefix with `x` if a command is shadowed"
-````
+```nix
+""
+```
 
 
 
@@ -2340,8 +2411,6 @@ attribute set of (submodule)
 
 ## prelude\.motd\.recipes\.\<name>\.lines
 
-
-
 Legacy display lines (\# comments / commands)\. Prefer steps\.
 
 
@@ -2402,6 +2471,8 @@ list of (submodule)
 
 
 ## prelude\.motd\.recipes\.\<name>\.steps\.\*\.command
+
+
 
 Runnable command line\. Mutually exclusive with comment in practice\.
 

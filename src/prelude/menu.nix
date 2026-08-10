@@ -41,6 +41,7 @@ config: let
   ) (plib.selectCommands tasks);
 
   m = d.menu // config;
+  just = d.menu.just // (config.just or {});
 
   # --- validation ----------------------------------------------------------------
 
@@ -78,6 +79,10 @@ config: let
       palette = pal;
       groups = jsonGroups;
       inherit motdCommands;
+      just = {
+        inherit (just) enable group;
+        justfile = just.justfile;
+      };
     }
   );
 

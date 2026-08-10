@@ -169,12 +169,13 @@
     # Bottom preserves the original shell-entry behavior.
     verticalAlign = "center";
 
-    # Inner padding between content and the block edge. Header stays
-    # edge-to-edge horizontally; tagline, middle, and footer shortcuts take
-    # horizontal inset. Top pads under the title; bottom pads above shortcuts.
+    # Inner padding between content and the block edge. The gradient divider,
+    # tagline, middle, and footer shortcuts take horizontal inset; title and
+    # status rows stay edge-to-edge. Top pads under the title; bottom pads above
+    # shortcuts.
     padding = {
-      x = 4;
-      y = 2;
+      x = 6;
+      y = 4;
       minHeight = 0;
     };
 
@@ -298,6 +299,12 @@
 
     width = "full";
     maxWidth = 80;
+
+    just = {
+      enable = false;
+      justfile = null;
+      group = "just";
+    };
   };
 
   # --- prompt ------------------------------------------------------------------

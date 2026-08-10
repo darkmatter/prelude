@@ -48,6 +48,9 @@ func printListTo(output io.Writer, environ []string, cfg *Config, st styles) {
 			fmt.Fprintln(w, listRow(st, t, width))
 		}
 	}
+	if cfg.justImportWarning != "" {
+		fmt.Fprintln(w, st.dim.Render(cfg.justImportWarning))
+	}
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, st.dim.Render("run x to pick a task interactively"))
 }

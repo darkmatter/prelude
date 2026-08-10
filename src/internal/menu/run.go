@@ -37,6 +37,13 @@ func Run(defaultConfigPath string) {
 		fmt.Fprintln(os.Stderr, "menu:", err)
 		os.Exit(1)
 	}
+	if cfg.Just.Enable {
+		if tasks, err := loadJustTasks(cfg.Just); err == nil {
+			mergeJustTasks(cfg, tasks)
+		} else {
+			cfg.justImportWarning = "just recipes unavailable; check that just and a Justfile are available"
+		}
+	}
 	if path := os.Getenv("PRELUDE_MENU_DEBUG"); path != "" {
 		if f, err := tea.LogToFile(path, "menu"); err == nil {
 			defer f.Close()

@@ -354,6 +354,7 @@ in {
           ++ commandWrappers
           ++ shortcutWrappers
           ++ commandRuntimePackages
+          ++ lib.optional cfg.menu.just.enable pkgs.just
           ++ lib.optional docsEnabled docsPkg;
         passthru = {
           inherit
@@ -483,6 +484,9 @@ in {
           mkdir -p "$out/nix-support" "$out/share/prelude/shell"
           cp -f ${shellInit} "$out/share/prelude/init.bash"
           cp -R ${shellRuntime}/. "$out/share/prelude/shell/"
+          # symlinkJoin may inherit a component hook as a read-only store
+          # symlink. Replace it with Prelude's aggregate hook below.
+          rm -f "$out/nix-support/setup-hook"
           cat > "$out/nix-support/setup-hook" <<'EOF'
           # This generated config remains the canonical serialized menu
           # catalogue and palette for tools that need the JSON boundary.
@@ -504,6 +508,7 @@ in {
           . ${shellInit}"
           fi
           EOF
+          chmod +x "$out/nix-support/setup-hook"
         '';
         passthru =
           {

@@ -49,6 +49,25 @@ in {
   motd-default = config.packages.motd;
   title-default = config.packages.title;
   menu-default = config.packages.menu;
+  menu-just-config = let
+    justfile = pkgs.writeText "menu-justfile" "build:\n  echo build\n";
+    menu = (import ../src/prelude/menu.nix {
+      inherit (pkgs) lib writeShellApplication writeText symlinkJoin;
+      buildGoModule = args: args;
+    }) {
+      just = {
+        enable = true;
+        inherit justfile;
+        group = "just";
+      };
+    };
+  in
+    pkgs.runCommand "menu-just-config" {nativeBuildInputs = [pkgs.jq];} ''
+      test "$(jq -r '.just.enable' ${menu.configFile})" = true
+      test "$(jq -r '.just.group' ${menu.configFile})" = just
+      test "$(jq -r '.just.justfile' ${menu.configFile})" = ${justfile}
+      touch "$out"
+    '';
   status-gradient-width = pkgs.runCommand "status-gradient-width" {} ''
     gradient_line=$(grep '^_PRELUDE_PROMPT_STATUS_GRADIENT=' ${config.packages.prelude.shellInit})
     test "$(printf '%s' "$gradient_line" | tr -cd '#' | wc -c)" -eq 64
@@ -135,7 +154,7 @@ in {
               test -f ${config.packages.prelude}/share/prelude/shell/status-cap.bash
               test -f ${config.packages.prelude}/share/prelude/shell/catalogue.bash
               test -f ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
-              test -f ${config.packages.prelude}/share/prelude/shell/airline/prelude.bash
+              test -f ${config.packages.prelude}/share/prelude/shell/contrib/airline/prelude.bash
               test -f ${config.packages.prelude}/nix-support/setup-hook
               grep -Fq 'prelude-init()' ${config.packages.prelude}/nix-support/setup-hook
               grep -Fq '. ${config.packages.prelude.shellInit}' ${config.packages.prelude}/nix-support/setup-hook
@@ -143,16 +162,23 @@ in {
               grep -Fq '_PRELUDE_STARSHIP=${lib.getExe pkgs.starship}' ${config.packages.prelude}/share/prelude/init.bash
               grep -Fq '_PRELUDE_STARSHIP_STATUS_ENABLED=1' ${config.packages.prelude}/share/prelude/init.bash
               grep -Fq 'bleopt color_scheme=prelude' ${config.packages.prelude}/share/prelude/shell/bash-init.bash
+              grep -Fq 'bleopt_import_path=' ${config.packages.prelude}/share/prelude/shell/bash-init.bash
+              grep -Fq 'ble/prompt/backslash:lib/vim-airline' ${config.packages.prelude}/share/prelude/shell/bash-init.bash
+              # ble.sh sources ~/.blerc during load, so the runtime must be on
+              # import_path before that source line runs.
+              seed_line=$(grep -n 'bleopt_import_path=' ${config.packages.prelude}/share/prelude/shell/bash-init.bash | head -1 | cut -d: -f1)
+              blesh_line=$(grep -nF 'source "''$_PRELUDE_BLESH" --attach=none' ${config.packages.prelude}/share/prelude/shell/bash-init.bash | head -1 | cut -d: -f1)
+              test "$seed_line" -lt "$blesh_line"
               grep -Fq 'function ble/contrib/scheme:prelude/initialize' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
               grep -Fq "ble-face -d prelude_status_cap" ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
               test "$(grep -c '^  ble-face -[sd] ' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash)" -eq 75
               ! grep -Fq '%prelude_' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
               ! grep -Eq '#[[:xdigit:]]{6}[[:alnum:]_]' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
-              grep -Fq 'function ble/lib/vim-airline/theme:prelude/initialize' ${config.packages.prelude}/share/prelude/shell/airline/prelude.bash
-              grep -Fq 'ble-face -r vim_airline_@' ${config.packages.prelude}/share/prelude/shell/airline/prelude.bash
-              test "$(grep -c '^  ble-face -s ' ${config.packages.prelude}/share/prelude/shell/airline/prelude.bash)" -eq 17
-              ! grep -Fq '%prelude_' ${config.packages.prelude}/share/prelude/shell/airline/prelude.bash
-              ! grep -Eq '#[[:xdigit:]]{6}[[:alnum:]_]' ${config.packages.prelude}/share/prelude/shell/airline/prelude.bash
+              grep -Fq 'function ble/lib/vim-airline/theme:prelude/initialize' ${config.packages.prelude}/share/prelude/shell/contrib/airline/prelude.bash
+              grep -Fq 'ble-face -r vim_airline_@' ${config.packages.prelude}/share/prelude/shell/contrib/airline/prelude.bash
+              test "$(grep -c '^  ble-face -s ' ${config.packages.prelude}/share/prelude/shell/contrib/airline/prelude.bash)" -eq 17
+              ! grep -Fq '%prelude_' ${config.packages.prelude}/share/prelude/shell/contrib/airline/prelude.bash
+              ! grep -Eq '#[[:xdigit:]]{6}[[:alnum:]_]' ${config.packages.prelude}/share/prelude/shell/contrib/airline/prelude.bash
               grep -Fq 'right_format' ${config.packages.prompt}
               grep -Fq '╰─' ${config.packages.prompt}
               ! grep -Fq ']()$character' ${config.packages.prompt}
@@ -429,14 +455,14 @@ in {
                 ${pkgs.bash}/bin/bash -n "$source"
               done
               ${pkgs.bash}/bin/bash -n ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
-              ${pkgs.bash}/bin/bash -n ${config.packages.prelude}/share/prelude/shell/airline/prelude.bash
+              ${pkgs.bash}/bin/bash -n ${config.packages.prelude}/share/prelude/shell/contrib/airline/prelude.bash
               shellcheck -x ${config.packages.prelude}/share/prelude/init.bash
               shellcheck -x ${config.packages.prelude}/share/prelude/shell/init.bash
               shellcheck -x -e SC1091,SC2154 ${config.packages.prelude}/share/prelude/shell/bash-init.bash
               shellcheck -x -e SC2016,SC2154 ${config.packages.prelude}/share/prelude/shell/status.bash
               shellcheck -x -e SC2154 ${config.packages.prelude}/share/prelude/shell/completion.bash
               shellcheck -e SC2154 ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
-              shellcheck -e SC2154 ${config.packages.prelude}/share/prelude/shell/airline/prelude.bash
+              shellcheck -e SC2154 ${config.packages.prelude}/share/prelude/shell/contrib/airline/prelude.bash
               touch "$out"
     '';
 
@@ -771,7 +797,7 @@ in {
   in
     assert node.title == "README";
     assert node ? text; # always set (toFile for string src)
-    
+
     assert builtins.length children == 4;
     # Pure mdSplit keeps H1-derived preamble title; docs.nix renames to project.
     assert titles
@@ -980,13 +1006,25 @@ in {
       grep -Fq "ble-face -s prompt_status_line        'fg=#4d4a56,bg=#1e1e1e'" "$scheme"
       grep -Fq "ble-face -d prelude_status_cap        'fg=#1b1629,bg=#1e1e1e'" "$scheme"
 
-      airline="$runtime/airline/prelude.bash"
+      airline="$runtime/contrib/airline/prelude.bash"
       grep -Fq 'function ble/lib/vim-airline/theme:prelude/initialize' "$airline"
       grep -Fq "ble-face -s vim_airline_a              'fg=#0e0b13,bg=#77f5c9'" "$airline"
       grep -Fq "ble-face -s vim_airline_a_insert       'fg=#0e0b13,bg=#82aaff'" "$airline"
       grep -Fq "ble-face -s vim_airline_b              'fg=#77f5c9,bg=#2a2441'" "$airline"
       grep -Fq "ble-face -s vim_airline_c              'fg=#7d7a8b,bg=#1b1629'" "$airline"
       ! grep -Fq '%prelude_' "$airline"
+      grep -Fq 'bleopt_import_path=' "$runtime/bash-init.bash"
+      grep -Fq 'ble/prompt/backslash:lib/vim-airline' "$runtime/bash-init.bash"
+
+      # blerc-time regression: with the runtime seeded on import_path before
+      # ble.sh loads, ~/.blerc can import lib/vim-airline and select the
+      # Prelude theme without "theme 'prelude' not found", and the airline
+      # bar takes over the status row from Prelude's Starship status.
+      ${lib.getExe ptyPython} ${./airline-theme-pty-test.py} \
+        ${lib.getExe pkgs.bash} \
+        "$init" \
+        "$prompt" \
+        ${lib.escapeShellArg ptyCommandPath}
 
       ${lib.getExe ptyPython} ${./prompt-final-pty-test.py} \
         ${lib.getExe pkgs.bash} \
@@ -996,7 +1034,7 @@ in {
       ${lib.getExe pkgs.bash} -n "$runtime/init.bash"
       ${lib.getExe pkgs.bash} -n "$runtime/bash-init.bash"
       ${lib.getExe pkgs.bash} -n "$scheme"
-      ${lib.getExe pkgs.bash} -n "$runtime/airline/prelude.bash"
+      ${lib.getExe pkgs.bash} -n "$runtime/contrib/airline/prelude.bash"
       touch "$out"
     '';
 

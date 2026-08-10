@@ -18,7 +18,7 @@ With prelude, the only command anyone would need to remember is `nix develop`. A
 
 Prelude ships with a setup wizard that generates a basic configuration for you. It
 creates `prelude.nix`, a `title.txt` containing your FIGlet title, and—by default—a
-project-root `.envrc` containing `use flake`:
+project-root `.envrc` containing `use flake` and a MOTD invocation:
 
 ```bash
 $ nix run github:darkmatter/prelude#setup
@@ -533,12 +533,14 @@ command, filename, variable, validation, and completion faces to the same
 semantic theme roles used by the MOTD, menu, docs, status line, and Starship.
 
 The same palette is compiled into a vim-airline theme at
-`airline/prelude.bash`, discoverable through the runtime's `import_path`. With
-ble.sh's `lib/vim-airline` status line enabled, `bleopt
+`contrib/airline/prelude.bash`, discoverable through the runtime's
+`import_path`, which Prelude seeds before ble.sh loads so `~/.blerc` can
+select it too. With ble.sh's `lib/vim-airline` status line enabled, `bleopt
 vim_airline_theme=prelude` paints the mode, git, and path segments from the
 active theme: `accent` for normal mode, `info` for insert, `error` for
 replace, `warning` for visual, and `accent2` for command-line, over
-`secondary`/`surface` chrome.
+`secondary`/`surface` chrome. Importing `lib/vim-airline` yields Prelude's
+Starship status row to the airline bar.
 
 **Tab** remains owned by ble.sh's native completion menu. Prelude contributes
 catalogue-aware candidates and descriptions for `x` commands and their

@@ -18,6 +18,17 @@ type Config struct {
 	Palette      shared.Palette `json:"palette"`
 	Groups       []Group        `json:"groups"`
 	MOTDCommands []CommandHint  `json:"motdCommands"`
+	Just         JustConfig     `json:"just"`
+
+	justImportWarning string
+}
+
+// JustConfig controls the optional runtime import from a Justfile. A nil
+// Justfile uses just's normal discovery from the current working directory.
+type JustConfig struct {
+	Enable   bool    `json:"enable"`
+	Justfile *string `json:"justfile"`
+	Group    string  `json:"group"`
 }
 
 // CommandHint is the reduced command projection used by compact catalogue

@@ -24,9 +24,9 @@ type Config struct {
 	Align              string         `json:"align"`
 	// VerticalAlign is applied to unused cleared-window rows: top, center, or bottom.
 	VerticalAlign string `json:"verticalAlign"`
-	// Padding: horizontal inset applies to tagline, middle content, and footer
-	// shortcuts (header bar stays edge-to-edge). Top and bottom pad the whole
-	// card, outside the title and shortcut rows.
+	// Padding: horizontal inset applies to the gradient divider, tagline, middle
+	// content, and footer shortcuts. Title and status rows stay edge-to-edge. Top
+	// and bottom pad the whole card, outside the title and shortcut rows.
 	Padding        Spacing        `json:"padding"`
 	Header         Header         `json:"header"`
 	Description    StyledText     `json:"description"`

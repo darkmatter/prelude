@@ -35,5 +35,21 @@ in {
       default = defaults.menu.maxWidth;
       description = "Maximum menu width.";
     };
+
+    just = {
+      enable = lib.mkEnableOption "importing public Justfile recipes into the command menu";
+
+      justfile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Optional Justfile path; null uses just's normal Justfile discovery at runtime.";
+      };
+
+      group = lib.mkOption {
+        type = lib.types.str;
+        default = "just";
+        description = "Menu group for imported ungrouped Justfile recipes.";
+      };
+    };
   };
 }

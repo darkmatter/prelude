@@ -102,9 +102,10 @@
       )
       schemeTokens) (builtins.readFile ./shell/scheme.bash)
   );
-  # Same palette, rendered into a vim-airline theme. Installed as
-  # `airline/prelude.bash` beside contrib/ so `bleopt vim_airline_theme=prelude`
-  # resolves it through the runtime already on ble.sh's import_path.
+  # Same palette, rendered into a vim-airline theme. Installed under
+  # `contrib/airline/` so `bleopt vim_airline_theme=prelude` resolves
+  # `airline/prelude` through the runtime's contrib entry on ble.sh's
+  # import_path.
   airlineTheme = writeText "prelude-airline.bash" (
     lib.replaceStrings (map (token: "%prelude_${token}") schemeTokens) (map (
         token: schemePalette.${token}
@@ -113,14 +114,14 @@
   );
 
   runtime = runCommand "prelude-shell-runtime" {} ''
-    install -d "$out" "$out/contrib/scheme" "$out/airline"
+    install -d "$out" "$out/contrib/scheme" "$out/contrib/airline"
     install -m 0444 ${./shell/init.bash} "$out/init.bash"
     install -m 0444 ${./shell/bash-init.bash} "$out/bash-init.bash"
     install -m 0444 ${./shell/status.bash} "$out/status.bash"
     install -m 0444 ${./shell/status-cap.bash} "$out/status-cap.bash"
     install -m 0444 ${./shell/completion.bash} "$out/completion.bash"
     install -m 0444 ${scheme} "$out/contrib/scheme/prelude.bash"
-    install -m 0444 ${airlineTheme} "$out/airline/prelude.bash"
+    install -m 0444 ${airlineTheme} "$out/contrib/airline/prelude.bash"
     install -m 0444 ${catalogue} "$out/catalogue.bash"
   '';
 

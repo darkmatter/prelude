@@ -10,6 +10,16 @@ fi
 # Delayed attach ensures Starship and status widgets exist before the first
 # prompt is painted.
 if [ -z "${BLE_VERSION-}" ]; then
+  # ble.sh sources ~/.blerc during this load, before any bleopt call below can
+  # run. Seed import_path as a plain variable — ble.sh keeps a pre-set value —
+  # so the rcfile already resolves Prelude's contrib runtime (its color
+  # scheme and vim-airline theme import through it). ble.sh's own default
+  # local entry is preserved when nothing is set yet.
+  if [ -z "${bleopt_import_path-}" ]; then
+    bleopt_import_path="${XDG_DATA_HOME:-$HOME/.local/share}/blesh/local"
+  fi
+  bleopt_import_path="$_PRELUDE_SHELL_RUNTIME/contrib:$bleopt_import_path"
+
   # shellcheck source=/dev/null
   source "$_PRELUDE_BLESH" --attach=none
 fi
@@ -21,9 +31,13 @@ if [ -n "${_PRELUDE_DARWIN-}" ]; then
 fi
 
 
-# Prelude is a regular ble.sh contrib color scheme. Prepending the generated
-# runtime keeps the user's existing import path available for other contribs.
-bleopt import_path="$_PRELUDE_SHELL_RUNTIME/contrib${bleopt_import_path:+:$bleopt_import_path}"
+# Prelude is a regular ble.sh contrib color scheme. The runtime's contrib
+# directory is seeded above before ble.sh loads; re-prepend it only if the
+# rcfile replaced import_path wholesale, so the scheme and airline theme keep
+# resolving while the user's own entries stay available.
+if [[ ":${bleopt_import_path-}:" != *":$_PRELUDE_SHELL_RUNTIME/contrib:"* ]]; then
+  bleopt import_path="$_PRELUDE_SHELL_RUNTIME/contrib${bleopt_import_path:+:$bleopt_import_path}"
+fi
 bleopt color_scheme=prelude
 
 # Cursor: blinking vertical bar (DECSCUSR 5) in the emacs keymap, and the same
@@ -58,7 +72,10 @@ else
   bleopt prompt_ps1_final='$(starship module character)'
 fi
 
-if [ "$_prelude_status_enabled" = 1 ]; then
+# lib/vim-airline owns the status row once loaded (e.g. imported from
+# ~/.blerc); keep Prelude's Starship status line otherwise.
+if [ "$_prelude_status_enabled" = 1 ] &&
+  ! ble/is-function ble/prompt/backslash:lib/vim-airline; then
   # Blesh's status panel is one row. A blank sibling panel sits immediately
   # above it so the gap is docked to status, not glued under ╰─ (cursor stays
   # on the framed input row). configFile keeps statusEnabled=0 and skips this.

@@ -33,6 +33,7 @@ in {
     #   # add_newline =  true;
     # };
     menu.enable = true;
+    menu.just.enable = true;
 
     # --------------------------------------------------------
     # commands
@@ -131,6 +132,7 @@ in {
 
     motd = {
       enable = true;
+      border = false;
       # Layout (maxWidth, transparent chrome, margin/padding, statusHint) comes
       # from shared defaults; only project identity and probes stay here.
       title = {

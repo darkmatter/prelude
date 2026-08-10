@@ -37,6 +37,9 @@ func TestMOTDBorderToggle(t *testing.T) {
 	if !strings.Contains(withBorder, "╭") || !strings.Contains(withBorder, "╰") {
 		t.Fatalf("border=true did not render a frame:\n%s", withBorder)
 	}
+	if !strings.Contains(withBorder, "\x1b[38;2;85;85;85m╭") {
+		t.Fatalf("border glyph did not use palette border color:\n%q", withBorder)
+	}
 	for index, line := range strings.Split(withBorder, "\n") {
 		if got := lipgloss.Width(line); got > 20 {
 			t.Fatalf("bordered row %d width = %d, want <= 20: %q", index, got, line)

@@ -60,10 +60,10 @@ The tool that owns a workflow also owns its underlying invocation:
 
 | Catalogue key | Canonical invocation |
 | ------------- | -------------------- |
-| `test` | `bun run test` |
-| `check` | `just check` |
-| `deploy` | `nix run .#deploy` |
-| `go:test` | `go test ./...` |
+| `test`        | `bun run test`       |
+| `check`       | `just check`         |
+| `deploy`      | `nix run .#deploy`   |
+| `go:test`     | `go test ./...`      |
 
 `x` dispatches to these commands; it does not translate every workflow into
 `nix run`. The Nix devshell provides dependencies and environment. Once inside
@@ -92,6 +92,26 @@ it. Its first colon also naturally organizes the menu under `test`.
 
 Do not write generated entries back to source files, and do not copy imported
 commands into `prelude.commands`. Imports are one-way.
+
+### Justfile import
+
+Set `prelude.menu.just.enable = true` to import public recipes at menu runtime.
+Prelude runs:
+
+```sh
+just --dump --dump-format json
+```
+
+and merges the parsed recipes with the Nix catalogue. A configured
+`prelude.commands.<name>` entry wins a recipe with the same name. The imported
+recipe keeps `just <recipe>` as its canonical invocation, while module-qualified
+recipes such as `database::migrate` remain callable through `x database::migrate`.
+
+By default, `just` discovers the Justfile from the current working directory.
+Set `prelude.menu.just.justfile` to pin a specific Justfile path. Recipes marked
+private (including `_`-prefixed recipes) are omitted. If `just` is unavailable,
+the Justfile is missing, or parsing fails, the menu falls back to the static Nix
+catalogue.
 
 ## Ownership boundaries
 

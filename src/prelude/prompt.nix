@@ -57,12 +57,8 @@ config: let
     "[ π ](bold bg:accent fg:bg)"
     "[](fg:accent bg:bg)"
     "( $directory)"
-    "[](fg:bg bg:fg)"
-    "$git_branch"
-    "[](fg:fg bg:surface)"
-    "$git_status"
-    "$git_metrics"
-    "[$fill](fg:surface)[${if isFinal then keymap else "⏱︎ $cmd_duration"}](fg:muted)[─╮](fg:surface)"
+    "${if isFinal then "[](fg:bg bg:fg)$git_branch[](fg:fg bg:surface)$git_status$git_metrics" else ""}"
+    "[$fill](fg:surface)[${if isFinal then keymap else "$cmd_duration"}](fg:muted)[─╮](fg:surface)"
   ];
 
   defaultSettings = {
@@ -154,7 +150,7 @@ config: let
     // {
       format = "[${mkLeftSegments false}\n[│](fg:accent)\n[╰─](fg:accent) ]()";
       # Historical lines should not insert an extra blank above the muted chrome.
-      add_newline = false;
+      # add_newline = true;
       # Right chrome is live-only (status / rps1); leave rewrite is left PS1.
       right_format = "";
       palette = "prelude";

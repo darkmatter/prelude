@@ -210,6 +210,12 @@ func TestWizardWalksEveryStepAndCollectsSelections(t *testing.T) {
 	}
 }
 
+func TestWizardEnvrcIncludesMotdInvocation(t *testing.T) {
+	if !strings.Contains(wizardEnvrcContents, "\nif has motd; then\n  motd >&2\nfi\n") {
+		t.Fatalf("generated .envrc must render the MOTD after use flake: %q", wizardEnvrcContents)
+	}
+}
+
 func TestWizardEnvrcToggleDefaultsOnAndCanBeDisabled(t *testing.T) {
 	m := testWizard()
 	m.step = stepComponents

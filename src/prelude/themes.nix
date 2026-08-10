@@ -51,15 +51,12 @@
     bg = "#0c0c13";
     surface = "#161623";
     secondary = "#24243f";
-    fg = "#b1b1bf";
+    fg = "#9facb5";
     muted = "#6a6c85";
     dim = "#4a5585";
     border = "#1d1d2f";
     accentBorder = "#3e4441";
     accent = "#f2cdcd";
-    # accent = "#e979fa";
-    # accent = "#b7ce99";
-    # accent2 = "#e979fa";
     accent2 = "#CC99FF";
     success = "#b7ce99";
     warning = "#f2c17d";

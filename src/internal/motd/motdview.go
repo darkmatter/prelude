@@ -64,6 +64,7 @@ func (v MOTDView) renderBorderedBody() string {
 	body := inner.renderBody()
 	frame := v.r.blockUI.Border().
 		Border(lipgloss.RoundedBorder()).
+		BorderForeground(v.r.blockUI.Color(v.r.model.Config.Palette.Border)).
 		Width(v.r.cardWidth)
 	if !v.r.st.blockTransparent {
 		frame = frame.Background(v.r.st.blockBg)
@@ -152,9 +153,9 @@ func (v MOTDView) renderHeaderSection() string {
 	}
 
 	// Newline after the tagline/subtitle when a generated title is active.
-	if v.r.model.Config.Title != "" && (h.Tagline != "" || h.Subtitle != "") {
-		parts = append(parts, card.Blank())
-	}
+	// if v.r.model.Config.Title != "" && (h.Tagline != "" || h.Subtitle != "") {
+	// 	parts = append(parts, card.Blank())
+	// }
 
 	return joinNonEmpty(parts)
 }

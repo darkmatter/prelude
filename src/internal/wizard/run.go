@@ -143,7 +143,11 @@ const defaultWizardConfigPath = "prelude.nix"
 
 const (
 	wizardEnvrcPath     = ".envrc"
-	wizardEnvrcContents = "use flake\n"
+	wizardEnvrcContents = `use flake
+if has motd; then
+  motd >&2
+fi
+`
 )
 
 // runWizard drives the setup-wizard iteration of the chooser. The TUI renders

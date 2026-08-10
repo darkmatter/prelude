@@ -51,8 +51,9 @@ nix run .#setup
 That writes a **sidecar** `prelude.nix` and `title.txt` in the current
 directory — never `flake.nix` (refused if you pass `-o flake.nix`). The
 `.envrc` setup toggle is on by default and writes `use flake` to `.envrc` in
-the directory where setup runs. Turn it off to skip that file; an existing
-`.envrc` is kept unchanged.
+the directory where setup runs. The generated entrypoint renders the MOTD after
+the flake environment loads, including when direnv enters the project after a
+`cd`. Turn it off to skip that file; an existing `.envrc` is kept unchanged.
 
 Point `-o` at another config path to relocate the config and wordmark — the
 wordmark is always `title.txt` beside the config (e.g. `-o nix/prelude.nix` →

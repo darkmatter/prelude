@@ -153,14 +153,15 @@ func (x HeaderView) renderInlineHeader() []string {
 func (x HeaderView) inlineTitleRule(title string) string {
 	label := " " + title + " "
 	labelWidth := lipgloss.Width(label)
-	start := max((x.r.cardWidth-labelWidth)/2, 0)
+	left, ruleWidth := x.gradientRuleGeometry()
+	start := max((ruleWidth-labelWidth)/2, 0)
 	peak := x.r.st.headerUnderlinePk
 	base := x.r.st.blockBg
-	grad := lipgloss.Blend2D(x.r.cardWidth, 1, 0, base, peak, base)
+	grad := lipgloss.Blend2D(ruleWidth, 1, 0, base, peak, base)
 
 	var b strings.Builder
 	labelRunes := []rune(label)
-	for col := range x.r.cardWidth {
+	for col := range ruleWidth {
 		if col >= start && col < start+labelWidth {
 			ch := string(labelRunes[col-start])
 			if ch == " " {
@@ -172,18 +173,35 @@ func (x HeaderView) inlineTitleRule(title string) string {
 		}
 		b.WriteString(x.r.st.onBlock(grad[col]).Inline(true).Render("━"))
 	}
-	return b.String()
+	return x.padGradientRule(b.String(), left)
 }
 
 // headerUnderline is the accent glow rule under the wordmark. Peak is a
 // slightly darkened accent so the center reads softer than pure accent.
 func (x HeaderView) headerUnderline() string {
-	grad := lipgloss.Blend2D(x.r.cardWidth, 1, 0, x.r.st.blockBg, x.r.st.headerUnderlinePk, x.r.st.blockBg)
+	left, ruleWidth := x.gradientRuleGeometry()
+	grad := lipgloss.Blend2D(ruleWidth, 1, 0, x.r.st.blockBg, x.r.st.headerUnderlinePk, x.r.st.blockBg)
 	var b strings.Builder
-	for col := range x.r.cardWidth {
+	for col := range ruleWidth {
 		b.WriteString(x.r.st.onBlock(grad[col]).Render("━"))
 	}
-	return b.String()
+	return x.padGradientRule(b.String(), left)
+}
+
+func (x HeaderView) gradientRuleGeometry() (left, width int) {
+	cardWidth := max(x.r.cardWidth, 0)
+	left = min(max(x.r.model.Padding.Left, 0), cardWidth)
+	right := min(max(x.r.model.Padding.Right, 0), cardWidth-left)
+	return left, cardWidth - left - right
+}
+
+func (x HeaderView) padGradientRule(rule string, left int) string {
+	return lipgloss.PlaceHorizontal(
+		x.r.cardWidth,
+		lipgloss.Left,
+		strings.Repeat(" ", left)+rule,
+		lipgloss.WithWhitespaceStyle(x.r.st.blockFill),
+	)
 }
 
 func (x HeaderView) BlankLine() string {

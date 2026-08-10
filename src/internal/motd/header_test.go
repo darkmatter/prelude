@@ -57,6 +57,52 @@ func TestGeneratedTitleAlignsWholeFIGletBlock(t *testing.T) {
 	}
 }
 
+func TestHeaderGradientRuleUsesHorizontalPadding(t *testing.T) {
+	model := Resolve(Config{
+		Title:   "title",
+		Width:   20,
+		Padding: Spacing{Left: 3, Right: 4},
+		Palette: shared.Palette{
+			Fg:      "#ffffff",
+			Accent:  "#00aaff",
+			Bg:      "#112233",
+			Surface: "#223344",
+		},
+	}, Cache{}, 20, 24, time.Now())
+
+	rule := HeaderView{r: newRenderer(model)}.Divider()
+	plain := ansiCSI.ReplaceAllString(rule, "")
+	want := strings.Repeat(" ", 3) + strings.Repeat("━", 13) + strings.Repeat(" ", 4)
+	if plain != want {
+		t.Fatalf("gradient rule = %q, want %q", plain, want)
+	}
+}
+
+func TestInlineTitleGradientRuleUsesHorizontalPadding(t *testing.T) {
+	model := Resolve(Config{
+		Project: "go",
+		Header:  Header{TitleStyle: titleStyleInline},
+		Width:   20,
+		Padding: Spacing{Left: 3, Right: 4},
+		Palette: shared.Palette{
+			Fg:      "#ffffff",
+			Accent:  "#00aaff",
+			Bg:      "#112233",
+			Surface: "#223344",
+		},
+	}, Cache{}, 20, 24, time.Now())
+
+	plain := ansiCSI.ReplaceAllString(HeaderView{r: newRenderer(model)}.Divider(), "")
+	label := " go "
+	ruleWidth := 20 - 3 - 4
+	start := (ruleWidth - len(label)) / 2
+	want := strings.Repeat(" ", 3) + strings.Repeat("━", start) + label +
+		strings.Repeat("━", ruleWidth-start-len(label)) + strings.Repeat(" ", 4)
+	if plain != want {
+		t.Fatalf("inline gradient rule = %q, want %q", plain, want)
+	}
+}
+
 func leadingSpaces(value string) int {
 	return len(value) - len(strings.TrimLeft(value, " "))
 }
