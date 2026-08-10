@@ -52,7 +52,7 @@ The generated Starship configuration has this visual order:
 <muted ~/<configured project>> <bold accent2 ❯> <editable input>
 
 <full-width `▄` cap: top half context background, bottom half status surface>
-<fixed bottom ble.sh status row>                         [? motd] [m menu] [d docs]
+<fixed bottom ble.sh status row>                         [? motd] [x menu] [d docs]
 ```
 
 1. Preserve exactly the existing two blank breathing rows.
@@ -67,7 +67,7 @@ The generated Starship configuration has this visual order:
    row. Its top half blends with the terminal background and its bottom half
    blends with the status surface, matching the menu footer treatment.
 1. The fixed bottom ble.sh status row retains the exact navigation chips
-   `? motd`, `m menu`, and `d docs`. Contextual discovery and local-server health
+   `? motd`, `x menu`, and `d docs`. Contextual discovery and local-server health
    occupy the status row's owned dynamic area without changing those chips.
 1. Bash receives the ble.sh status behavior. Zsh retains native Starship and
    does not receive the fixed ble.sh status row.
@@ -86,13 +86,13 @@ The status projection classifies input conservatively. Classification is metadat
 lookup and safe tokenization only; it never invokes a shell parser by evaluating the
 buffer and never executes the buffer.
 
-| Input state | Discovery content |
-| --- | --- |
-| Empty/default input | Welcome the configured project. Teach bare `x` for the interactive picker, `x --list` for a noninteractive listing, and Tab for inline completion. |
-| `x` or `x ` | Teach selecting a command key and show that the inline chooser/completion is available. |
-| Known `x <key>` | Show the catalogue description and canonical invocation. Direct users to bare `x` then Tab for expanded usage, details, and examples. |
+| Input state                          | Discovery content                                                                                                                                    |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Empty/default input                  | Welcome the configured project. Teach bare `x` for the interactive picker, `x --list` for a noninteractive listing, and Tab for inline completion.   |
+| `x` or `x `                          | Teach selecting a command key and show that the inline chooser/completion is available.                                                              |
+| Known `x <key>`                      | Show the catalogue description and canonical invocation. Direct users to bare `x` then Tab for expanded usage, details, and examples.                |
 | Current argument for a known command | Show the current argument token, whether it is required or optional, its description, and bounded candidate values when the catalogue supplies them. |
-| Unknown, quoted, or incomplete input | Show safe generic discovery hints only. Never evaluate, execute, or partially interpret it as a command. |
+| Unknown, quoted, or incomplete input | Show safe generic discovery hints only. Never evaluate, execute, or partially interpret it as a command.                                             |
 
 The generated command catalogue is the only metadata source. The implementation must
 not invent a second registry, infer command-specific documentation from display
@@ -194,7 +194,7 @@ missing or unreadable.
    Powerline row above the input, muted `~/<configured project>`, bold accent2
    `❯`, no Starship `right_format`, and no input placeholder. Bash retains the
    fixed status row and a full-width cap immediately above it with exact `? motd`,
-   `m menu`, and `d docs` chips; zsh has no generated status row.
+   `x menu`, and `d docs` chips; zsh has no generated status row.
 1. **Custom configuration ownership:** a user-owned `configFile` is rendered
    without generated Powerline/discovery/health/status behavior, while normal
    generated configuration receives the redesign.
