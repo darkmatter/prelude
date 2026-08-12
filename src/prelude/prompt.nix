@@ -141,7 +141,7 @@ config: let
   # Remap accent → surface so the submitted frame uses the quieter surface tone
   # instead of the live accent hue (after the same mute treatment).
   muteColor = color:
-    plib.mixColor (plib.desaturateColor color 0.72) pal.bg 0.06;
+    plib.mixColor (plib.desaturateColor color 0.2) pal.bg 0.06;
   mutedSurface = muteColor pal.surface;
   mutedPalette =
     lib.mapAttrs (
@@ -150,12 +150,14 @@ config: let
         then value
         else if name == "accent"
         then mutedSurface
+        else if name == "fg"
+        then pal.muted
         else muteColor value
     )
     pal;
 
   finalSettings =
-    settings
+    (stripBold settings)
     // {
       format = "[${mkLeftSegments false}\n[│](fg:accent)\n[╰─](fg:accent) ]()";
       # Historical lines should not insert an extra blank above the muted chrome.
