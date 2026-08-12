@@ -506,16 +506,37 @@ theme, so `settings` overrides can use the same names (e.g.
 
 See the [options reference](docs/reference/options.md) for the complete list of `prelude.prompt.*` fields, types, and defaults.
 
-Add the canonical aggregate package and point Starship at the generated config:
+Add the canonical aggregate package to your devshell:
 
 ```nix
 devShells.default = pkgs.mkShell {
   packages = [ config.packages.prelude ];
-  shellHook = ''
-    export STARSHIP_CONFIG=${config.packages.prompt}
-  '';
 };
 ```
+
+`packages.prelude`'s setup-hook exports `STARSHIP_CONFIG` to the generated
+`starship.toml` path. Because the export lives in the setup-hook (not
+`shellHook`), it is picked up by **direnv `use flake`** — direnv re-emits
+setup-hook exports on every reload and unloads them on exit, so the prompt
+re-themes on entry and reverts on leave. `shellHook` only fires under
+`nix develop`, so putting the export there alone would lose the prompt under
+direnv.
+
+The setup-hook also defines an idempotent `prelude-init` shell function that
+wires Starship (`starship init`), ble.sh, completion, the status row, and the
+MOTD into the current shell. It guards on interactivity, so it is inert during
+non-interactive direnv evaluation — call it from your shell's interactive rc
+(or `nix develop`, which runs `shellHook` and sources it automatically):
+
+```bash
+# ~/.bashrc or ~/.zshrc — inside a Prelude-enabled project
+if has prelude-init 2>/dev/null; then prelude-init; fi
+```
+
+Users who already run Starship globally need nothing else: `starship init` in
+their existing shell re-resolves `$STARSHIP_CONFIG` on every prompt render, so
+the export alone re-themes their prompt. The `prelude-init` call is only needed
+to install Starship/ble.sh/completion into a shell that doesn't already have them.
 
 `packages.prelude` contains every enabled Prelude component. When the prompt is
 enabled it also contains Starship, ble.sh, and bash-completion, so consumers do
@@ -552,8 +573,8 @@ user-owned; Prelude does not move its right prompt into the Bash status line.
 Starship re-resolves `$STARSHIP_CONFIG` on every prompt render, and direnv
 propagates env vars (only `PS1` itself is stripped). Entering the project
 therefore re-themes the prompt and leaving it reverts to the user's own config.
-The init remains inert during non-interactive direnv evaluation, where the
-user's existing login-shell prompt remains in control.
+`prelude-init` is inert during non-interactive direnv evaluation (it guards on
+`$-` containing `i`); it activates only when sourced from an interactive shell.
 
 ## Without flake-parts
 

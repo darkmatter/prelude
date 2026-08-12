@@ -155,7 +155,7 @@ config: let
     pal;
 
   finalSettings =
-    (stripBold settings)
+    settings
     // {
       format = "[${mkLeftSegments false}\n[│](fg:accent)\n[╰─](fg:accent) ]()";
       # Historical lines should not insert an extra blank above the muted chrome.

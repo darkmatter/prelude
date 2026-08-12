@@ -159,6 +159,9 @@ in {
               test -f ${config.packages.prelude}/nix-support/setup-hook
               grep -Fq 'prelude-init()' ${config.packages.prelude}/nix-support/setup-hook
               grep -Fq '. ${config.packages.prelude.shellInit}' ${config.packages.prelude}/nix-support/setup-hook
+              # STARSHIP_CONFIG must be exported from the setup-hook (not
+              # shellHook) so direnv `use flake` re-themes the prompt.
+              grep -Fq 'export STARSHIP_CONFIG=' ${config.packages.prelude}/nix-support/setup-hook
               grep -Fq '_PRELUDE_BLESH=${pkgs.blesh}/share/blesh/ble.sh' ${config.packages.prelude}/share/prelude/init.bash
               grep -Fq '_PRELUDE_STARSHIP=${lib.getExe pkgs.starship}' ${config.packages.prelude}/share/prelude/init.bash
               grep -Fq '_PRELUDE_STARSHIP_STATUS_ENABLED=1' ${config.packages.prelude}/share/prelude/init.bash
