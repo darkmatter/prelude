@@ -554,13 +554,13 @@ in {
           # catalogue and palette for tools that need the JSON boundary.
           export PRELUDE_MENU_CONFIG=${menuBin.configFile}
           ${lib.optionalString cfg.prompt.enable ''
-          # Export the generated starship config path from the setup-hook (not
-          # shellHook) so direnv `use flake` picks it up — direnv re-emits
-          # setup-hook exports on every reload and unloads them on exit, which
-          # gives the auto-revert behavior the prompt promises. shellHook only
-          # fires under `nix develop`, so a consumer who relied on it alone
-          # would lose the themed prompt under direnv.
-          export STARSHIP_CONFIG=${promptPkg}
+            # Export the generated starship config path from the setup-hook (not
+            # shellHook) so direnv `use flake` picks it up — direnv re-emits
+            # setup-hook exports on every reload and unloads them on exit, which
+            # gives the auto-revert behavior the prompt promises. shellHook only
+            # fires under `nix develop`, so a consumer who relied on it alone
+            # would lose the themed prompt under direnv.
+            export STARSHIP_CONFIG=${promptPkg}
           ''}
 
           # `prelude-init` mutates this shell, so it is a shell function rather
@@ -596,11 +596,10 @@ in {
           // lib.optionalAttrs cfg.prompt.enable {
             prompt = promptPkg;
           };
-        meta =
-          {
-            description = "Prelude devshell UI, command dispatcher, and enabled runtime dependencies";
-            mainProgram = "prelude";
-          };
+        meta = {
+          description = "Prelude devshell UI, command dispatcher, and enabled runtime dependencies";
+          mainProgram = "prelude";
+        };
       };
 
       mkApp = pkg: {

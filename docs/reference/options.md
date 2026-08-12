@@ -747,7 +747,7 @@ positive integer, meaning >0
 *Default:*
 
 ```nix
-20
+16
 ```
 
 
@@ -2195,7 +2195,7 @@ null or (unsigned integer, meaning >=0)
 
 
 
-Inner padding between content and the block edge\. The header and shortcuts stay edge-to-edge; only middle sections are inset\. Sides supersede the x/y axes\.
+Inner padding between content and the block edge\. The gradient divider, tagline, middle sections, and shortcuts are inset; title and status rows stay edge-to-edge\. Sides supersede the x/y axes\.
 
 
 
@@ -2336,7 +2336,7 @@ unsigned integer, meaning >=0
 *Default:*
 
 ```nix
-4
+6
 ```
 
 
@@ -2357,7 +2357,7 @@ unsigned integer, meaning >=0
 *Default:*
 
 ```nix
-2
+4
 ```
 
 

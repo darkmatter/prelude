@@ -201,7 +201,7 @@ in {
       # The first colon derives menu group/label while the complete key stays
       # public (`x go:test`). fromPkg derives the canonical `go test …`
       # invocation and carries Go onto PATH; no extra executable is generated.
-      "test" = self.lib.fromPkg pkgs.go {
+      "go:test" = self.lib.fromPkg pkgs.go {
         arguments = [
           "test"
           "-C"
@@ -209,6 +209,15 @@ in {
           "./..."
         ];
         description = "run the Go unit tests";
+      };
+      "go:vet" = self.lib.fromPkg pkgs.go {
+        arguments = [
+          "vet"
+          "-C"
+          "src"
+          "./..."
+        ];
+        description = "run Go static analysis";
       };
       check = self.lib.mkCommand {
         command = "nix flake check";

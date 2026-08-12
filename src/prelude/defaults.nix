@@ -292,7 +292,7 @@
     placeholder = "type to filter commands…";
 
     # Filter list height (rows).
-    height = 20;
+    height = 16;
 
     # Execute the selected command (exec bash -c). When false, print it instead.
     execute = true;

@@ -51,7 +51,7 @@
     bg = "#0c0c13";
     surface = "#161623";
     secondary = "#24243f";
-    fg = "#9f9cb5";
+    fg = "#979db5";
     muted = "#6a6c85";
     dim = "#4a5585";
     border = "#1d1d2f";

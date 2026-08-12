@@ -3,7 +3,6 @@
   pkgs,
   lib,
   currentMotdConfig,
-  titlePkg,
 }: let
   ex = import ../src/prelude/examples.nix;
   plib = import ../src/prelude/lib.nix {inherit lib;};
@@ -30,24 +29,10 @@
       )
   );
 
-  # FIGlet wordmark the wizard would write next to prelude.nix.
-  wizardTitle =
-    pkgs.runCommand "wizard-preset-title.txt"
-    {
-      nativeBuildInputs = [
-        titlePkg
-        pkgs.figlet
-      ];
-    }
-    ''
-      cat > recipe.nix <<EOF
-      {
-        text = ${builtins.toJSON presets.project};
-        font = ${builtins.toJSON presets.font};
-      }
-      EOF
-      prelude-title --generate --recipe ./recipe.nix -o "$out"
-    '';
+  # Checked-in output of the stock wizard title preset. Keeping title.text a
+  # source path avoids forcing a generated derivation through builtins.readFile
+  # during evaluation (IFD), which otherwise leaves stale eval-cache .drv paths.
+  wizardTitle = ./internal/wizard-preset-title.txt;
 
   # Active fields only — same surface the wizard sets. Everything else falls
   # through to defaults.nix (as if left commented in the generated module).

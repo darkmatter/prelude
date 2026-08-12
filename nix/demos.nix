@@ -9,7 +9,6 @@
   motdDemos = import ./motd-demo-builder.nix {
     inherit pkgs lib;
     currentMotdConfig = config.packages.motd.motdRenderConfig;
-    titlePkg = config.packages.title;
   };
   menuDemo = import ./menu-demo-builder.nix {inherit pkgs lib;};
   ex = import ../src/prelude/examples.nix;

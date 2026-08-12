@@ -18,14 +18,14 @@ FIGlet previews, and press Enter to select one.
 
 Pager keys:
 
-| Key                                | Action                     |
+| Key | Action |
 | ---------------------------------- | -------------------------- |
-| `←`, `↑`, `h`, `k`, `Shift-Tab`    | Previous style             |
-| `→`, `↓`, `j`, `l`, `Tab`, `Space` | Next style                 |
-| `Home` / `End`                     | First / last style         |
-| `Enter`                            | Confirm the selected style |
-| `Esc` / `Backspace`                | Return to the title field  |
-| `q` / `Ctrl-C`                     | Cancel                     |
+| `←`, `↑`, `h`, `k`, `Shift-Tab` | Previous style |
+| `→`, `↓`, `j`, `l`, `Tab`, `Space` | Next style |
+| `Home` / `End` | First / last style |
+| `Enter` | Confirm the selected style |
+| `Esc` / `Backspace` | Return to the title field |
+| `q` / `Ctrl-C` | Cancel |
 
 ## Setup
 
