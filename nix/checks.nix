@@ -141,9 +141,15 @@ in {
       ];
     }
     ''
+              command -v prelude >/dev/null
+              command -v prelude-setup >/dev/null
               command -v motd >/dev/null
               command -v menu >/dev/null
               command -v docs >/dev/null
+              test ! -e ${config.packages.prelude}/bin/setup
+              prelude --help | grep -Fq 'usage: prelude <command> [args...]'
+              prelude --help | grep -Fq 'setup          generate a Prelude project configuration'
+              prelude setup --help | grep -Fq 'usage: prelude setup [--recipe path] [-o path]'
               command -v starship >/dev/null
               command -v blesh-share >/dev/null
               test -f ${config.packages.prelude}/share/blesh/ble.sh

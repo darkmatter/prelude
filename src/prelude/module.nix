@@ -171,12 +171,15 @@ in {
       titlePkg = mkTitle deps;
       titlePreviewsPkg = mkTitlePreviews deps;
       setupPkg = pkgs.writeShellApplication {
-        name = "setup";
+        # Keep the flake output as `.#setup`, but avoid installing a generic
+        # `setup` executable into consumers' shells. The stable installed name
+        # is `prelude-setup`; the canonical user interface is `prelude setup`.
+        name = "prelude-setup";
         runtimeInputs = [titlePkg];
         text = ''
           if [ "''${1:-}" = "--help" ] || [ "''${1:-}" = "-h" ]; then
             cat <<'EOF'
-          usage: setup [--recipe path] [-o path]
+          usage: prelude setup [--recipe path] [-o path]
 
           Interactively generate a ready-to-use Prelude configuration.
           The UI renders on stderr. Writes the Nix config to -o and a sibling
@@ -420,8 +423,67 @@ in {
       promptPkg = promptArtifacts.live;
       promptFinalPkg = promptArtifacts.final;
 
-      # Starship owns prompt/status content while ble.sh owns Bash rendering,
-      # lifecycle, and native completion menus.
+      # `prelude` is the stable, namespaced CLI surface. Individual binaries
+      # remain available for scripts, while the dispatcher prevents generic
+      # names such as `setup` from entering consumers' PATH.
+      preludeCli = pkgs.writeShellApplication {
+        name = "prelude";
+        text = ''
+          command="''${1:-help}"
+          if [ "$#" -gt 0 ]; then
+            shift
+          fi
+
+          case "$command" in
+            help|-h|--help)
+              cat <<'EOF'
+          usage: prelude <command> [args...]
+
+          Commands:
+            setup          generate a Prelude project configuration
+            title          choose and render a MOTD title
+            title-previews render every bundled title font
+          ${lib.optionalString cfg.motd.enable "  motd           render the welcome banner"}
+          ${lib.optionalString cfg.menu.enable "  menu           open the command menu\n  x              dispatch a project command"}
+          ${lib.optionalString docsEnabled "  docs            browse project documentation"}
+          EOF
+              ;;
+            setup)
+              exec ${lib.getExe setupPkg} "$@"
+              ;;
+            title)
+              exec ${lib.getExe titlePkg} "$@"
+              ;;
+            title-previews)
+              exec ${lib.getExe titlePreviewsPkg} "$@"
+              ;;
+          ${lib.optionalString cfg.motd.enable ''
+            motd)
+              exec ${lib.getExe motdPkg} "$@"
+              ;;
+          ''}
+          ${lib.optionalString cfg.menu.enable ''
+            menu)
+              exec ${lib.getExe menuPkg} "$@"
+              ;;
+            x)
+              exec ${lib.getExe' menuPkg "x"} "$@"
+              ;;
+          ''}
+          ${lib.optionalString docsEnabled ''
+            docs)
+              exec ${lib.getExe docsPkg} "$@"
+              ;;
+          ''}
+            *)
+              echo "prelude: unknown command '$command'" >&2
+              echo "hint: run 'prelude --help'" >&2
+              exit 2
+              ;;
+          esac
+        '';
+        meta.description = "Prelude command-line interface";
+      };
 
       # The current shell is the product boundary. Checked-in shell modules
       # own behavior; Nix injects paths and serializes the same normalized
@@ -479,7 +541,7 @@ in {
       promptStatusPackages = lib.optional (promptStatusPkg != null) promptStatusPkg;
       preludePkg = pkgs.symlinkJoin {
         name = "prelude";
-        paths = preludeComponentPaths ++ promptRuntimePackages ++ promptStatusPackages;
+        paths = [preludeCli] ++ preludeComponentPaths ++ promptRuntimePackages ++ promptStatusPackages;
         postBuild = lib.optionalString cfg.prompt.enable ''
           mkdir -p "$out/nix-support" "$out/share/prelude/shell"
           cp -f ${shellInit} "$out/share/prelude/init.bash"
@@ -536,10 +598,8 @@ in {
           };
         meta =
           {
-            description = "Prelude devshell UI and its enabled runtime dependencies";
-          }
-          // lib.optionalAttrs cfg.motd.enable {
-            mainProgram = "motd";
+            description = "Prelude devshell UI, command dispatcher, and enabled runtime dependencies";
+            mainProgram = "prelude";
           };
       };
 
@@ -551,8 +611,9 @@ in {
       lib.mkMerge [
         {
           # Add this single package to a devshell to receive every enabled
-          # Prelude component and its runtime dependencies.
+          # Prelude component, the namespaced CLI, and its runtime dependencies.
           packages.prelude = preludePkg;
+          apps.prelude = mkApp preludePkg;
         }
         (lib.mkIf cfg.motd.enable {
           packages.motd = motdPkg;
