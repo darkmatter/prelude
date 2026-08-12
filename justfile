@@ -12,19 +12,19 @@ nixsh:
 
 # Launches the devshell
 shell:
-  nix develop
+  @exec nix develop
 
 # Launches a setup wizard to generate a new prelude config in your project
 wizard: nixsh
-  x wizard
+  @exec x wizard
 
 # Demo the different views
 demos: nixsh
-  x demos
+  @exec x demos
 
 # Preview all the themes
 themes: nixsh
-  x themes
+  @exec x themes
 
 
 [group('development')]
