@@ -18,19 +18,21 @@ FIGlet previews, and press Enter to select one.
 
 Pager keys:
 
-| Key | Action |
+| Key                                | Action                     |
 | ---------------------------------- | -------------------------- |
-| `←`, `↑`, `h`, `k`, `Shift-Tab` | Previous style |
-| `→`, `↓`, `j`, `l`, `Tab`, `Space` | Next style |
-| `Home` / `End` | First / last style |
-| `Enter` | Confirm the selected style |
-| `Esc` / `Backspace` | Return to the title field |
-| `q` / `Ctrl-C` | Cancel |
+| `←`, `↑`, `h`, `k`, `Shift-Tab`    | Previous style             |
+| `→`, `↓`, `j`, `l`, `Tab`, `Space` | Next style                 |
+| `Home` / `End`                     | First / last style         |
+| `Enter`                            | Confirm the selected style |
+| `Esc` / `Backspace`                | Return to the title field  |
+| `q` / `Ctrl-C`                     | Cancel                     |
 
 ## Setup
 
-`setup` opens the project setup flow. After the title and style pages it
-collects the project name, theme (with live palette preview), color depth, and
+`prelude setup` opens the project setup flow once Prelude is on `PATH`. The
+bootstrap form remains `nix run .#setup`; Prelude does not install a generic
+`setup` executable. After the title and style pages the wizard collects the
+project name, theme (with live palette preview), color depth, and
 initial project commands (name, exec, description) before component toggles.
 That ordering lets the first three commands appear in every component and MOTD
 preview. When MOTD is enabled, setup then asks for a one-line project tagline
@@ -44,8 +46,9 @@ width, backgrounds, an optional border, and clear-screen behavior. Setup writes
 a ready-to-use config next to a sibling title file:
 
 ```sh
-nix run .#setup
-# equivalent: nix run .#setup -- -o prelude.nix
+prelude setup
+# bootstrap equivalent: nix run .#setup
+# explicit output: prelude setup -o prelude.nix
 ```
 
 That writes a **sidecar** `prelude.nix` and `title.txt` in the current
@@ -97,7 +100,7 @@ Redirecting stdout disables terminal detection, so use `-o` when you want to
 make an interactive selection and save it atomically:
 
 ```sh
-nix run .#title -- -o title.txt
+prelude title -o title.txt
 ```
 
 `--output` is the long form of `-o`. With either output option, stdout stays
@@ -119,8 +122,8 @@ A recipe is an explicit input preset for title text and font:
 Pass it deliberately:
 
 ```sh
-nix run .#title -- --recipe config/title.nix
-nix run .#title -- --generate --recipe config/title.nix -o title.txt
+prelude title --recipe config/title.nix
+prelude title --generate --recipe config/title.nix -o title.txt
 ```
 
 `--generate` skips the chooser. Without `--recipe`, it renders the current

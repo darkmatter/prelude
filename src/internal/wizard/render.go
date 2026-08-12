@@ -9,7 +9,7 @@ import (
 type renderFunc func(Font, string) (string, error)
 
 func renderFIGlet(font Font, text string) (string, error) {
-	cmd := exec.Command("figlet", "-f", font.Path, "--", text)
+	cmd := exec.Command("figlet", "-k", "-f", font.Path, "--", text)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("render %s: %s", font.Name, strings.TrimSpace(string(output)))
