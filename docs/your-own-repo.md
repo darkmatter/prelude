@@ -63,4 +63,16 @@ interactive Bash `nix develop` shell. Package-backed commands —
 `prelude.lib.fromPkg pkgs.foo { … }` — carry their runtime closure with them,
 so they work without adding the tool to the shell.
 
+`shellHook = "motd"` covers `nix develop`. It does **not** cover every loader:
+lorri applies environment variables and never runs `shellHook`, so the MOTD
+never appears there. For a path that works the same under `nix develop`, direnv,
+and lorri, have each developer install the hook once:
+
+```sh
+eval "$(prelude hook zsh)"   # or: prelude hook bash — defaults to $SHELL
+```
+
+See the prompt section of `README.md` for details, including why a devshell must
+never `export -f`.
+
 Details: `README.md` (Usage, Command schema) and the Configuration page here.

@@ -117,6 +117,10 @@
     install -d "$out" "$out/contrib/scheme" "$out/contrib/airline"
     install -m 0444 ${./shell/init.bash} "$out/init.bash"
     install -m 0444 ${./shell/bash-init.bash} "$out/bash-init.bash"
+    # Emitted verbatim by `prelude hook`. These are the only files meant to be
+    # copied into a user's rc file, so they stay free of build-time paths.
+    install -m 0444 ${./shell/hook.bash} "$out/hook.bash"
+    install -m 0444 ${./shell/hook.zsh} "$out/hook.zsh"
     install -m 0444 ${./shell/status.bash} "$out/status.bash"
     install -m 0444 ${./shell/status-cap.bash} "$out/status-cap.bash"
     install -m 0444 ${./shell/completion.bash} "$out/completion.bash"

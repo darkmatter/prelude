@@ -168,6 +168,39 @@ in {
               # STARSHIP_CONFIG must be exported from the setup-hook (not
               # shellHook) so direnv `use flake` re-themes the prompt.
               grep -Fq 'export STARSHIP_CONFIG=' ${config.packages.prelude}/nix-support/setup-hook
+              # Activation must reach the shell as an exported *variable*.
+              # `prelude-init` is a function, and lorri only applies environment
+              # variables — it never runs shellHook — so a function alone leaves
+              # lorri users with no MOTD at all.
+              grep -Fq 'export PRELUDE_INIT=' ${config.packages.prelude}/nix-support/setup-hook
+              test -f ${config.packages.prelude}/share/prelude/shell/hook.bash
+              test -f ${config.packages.prelude}/share/prelude/shell/hook.zsh
+              prelude --help | grep -Fq 'hook           print the shell hook'
+              # The hook is pasted into a user's rc file, so it must never carry
+              # a Bash-only payload into another shell.
+              # NOTE: a pipeline prefixed with `!` is exempt from `set -e`, so
+              # `! cmd | grep -q ...` never fails a build. Negative assertions
+              # have to be written as an explicit test that exits.
+              for dialect in bash zsh; do
+                prelude hook "$dialect" | grep -Fq _prelude_hook
+                prelude hook "$dialect" | grep -Fq 'PRELUDE_INIT'
+                if prelude hook "$dialect" | grep -Fq 'export -f'; then
+                  echo "prelude hook $dialect emits 'export -f'" >&2
+                  exit 1
+                fi
+                if prelude hook "$dialect" | grep -Fq 'BASH_FUNC'; then
+                  echo "prelude hook $dialect emits a Bash function payload" >&2
+                  exit 1
+                fi
+              done
+              # With no argument the dialect comes from $SHELL, the only place
+              # the user's real shell is knowable (a builder is always Bash).
+              SHELL=/bin/zsh prelude hook | grep -Fq precmd_functions
+              SHELL=/bin/bash prelude hook | grep -Fq PROMPT_COMMAND
+              if prelude hook fish >/dev/null 2>&1; then
+                echo "prelude hook accepted an unsupported shell" >&2
+                exit 1
+              fi
               grep -Fq '_PRELUDE_BLESH=${pkgs.blesh}/share/blesh/ble.sh' ${config.packages.prelude}/share/prelude/init.bash
               grep -Fq '_PRELUDE_STARSHIP=${lib.getExe pkgs.starship}' ${config.packages.prelude}/share/prelude/init.bash
               grep -Fq '_PRELUDE_STARSHIP_STATUS_ENABLED=1' ${config.packages.prelude}/share/prelude/init.bash
@@ -468,6 +501,9 @@ in {
               ${pkgs.bash}/bin/bash -n ${config.packages.prelude}/share/prelude/shell/contrib/airline/prelude.bash
               shellcheck -x ${config.packages.prelude}/share/prelude/init.bash
               shellcheck -x ${config.packages.prelude}/share/prelude/shell/init.bash
+              # PROMPT_COMMAND is legitimately a string or an array depending on
+              # the Bash version, and the hook handles both shapes explicitly.
+              shellcheck -x -e SC2178,SC2128 ${config.packages.prelude}/share/prelude/shell/hook.bash
               shellcheck -x -e SC1091,SC2154 ${config.packages.prelude}/share/prelude/shell/bash-init.bash
               shellcheck -x -e SC2016,SC2154 ${config.packages.prelude}/share/prelude/shell/status.bash
               shellcheck -x -e SC2154 ${config.packages.prelude}/share/prelude/shell/completion.bash
@@ -475,6 +511,26 @@ in {
               shellcheck -e SC2154 ${config.packages.prelude}/share/prelude/shell/contrib/airline/prelude.bash
               touch "$out"
     '';
+
+  # A devshell must never `export -f`. Bash stores an exported function as the
+  # environment variable `BASH_FUNC_<name>%%`, and a `BASH_VERSION` guard cannot
+  # prevent that — the guard runs inside the Nix builder, which is always Bash,
+  # never the user's shell. Loaders that capture the environment (lorri, direnv)
+  # replay that name into whatever shell the user actually runs, and zsh rejects
+  # `%` in a variable name on every prompt. Shell-specific setup belongs in
+  # `prelude hook`, where $SHELL is meaningful.
+  #
+  # Written as an explicit test rather than `! grep …`: a pipeline prefixed with
+  # `!` is exempt from `set -e`, so a negated grep can never fail a build.
+  # Comment lines are skipped so the rationale can stay next to the code.
+  devshell-exports-no-functions = pkgs.runCommand "devshell-exports-no-functions" {} ''
+    if grep -En '^[^#]*export -f' ${../nix/shell.nix}; then
+      echo "nix/shell.nix uses 'export -f'; exported functions become" >&2
+      echo "BASH_FUNC_* variables that break non-Bash shells on every prompt" >&2
+      exit 1
+    fi
+    touch "$out"
+  '';
 
   title-previews = pkgs.runCommand "title-previews" {} ''
     ${lib.getExe config.packages.title-previews} "choose me" > "$out"

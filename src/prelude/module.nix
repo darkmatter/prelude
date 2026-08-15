@@ -428,6 +428,7 @@ in {
       # names such as `setup` from entering consumers' PATH.
       preludeCli = pkgs.writeShellApplication {
         name = "prelude";
+        runtimeInputs = [pkgs.coreutils];
         text = ''
           command="''${1:-help}"
           if [ "$#" -gt 0 ]; then
@@ -440,6 +441,7 @@ in {
           usage: prelude <command> [args...]
 
           Commands:
+            hook           print the shell hook to add to your shell rc file
             setup          generate a Prelude project configuration
             title          choose and render a MOTD title
             title-previews render every bundled title font
@@ -447,6 +449,27 @@ in {
           ${lib.optionalString cfg.menu.enable "  menu           open the command menu\n  x              dispatch a project command"}
           ${lib.optionalString docsEnabled "  docs            browse project documentation"}
           EOF
+              ;;
+            hook)
+              # Resolve the dialect here, in the user's shell, rather than at
+              # build time: a Nix builder is always Bash, so a build-time guess
+              # would hand Bash syntax to every consumer regardless of what they
+              # actually run. $SHELL is the user's real shell and survives
+              # environment capture untouched.
+              shell="''${1:-}"
+              if [ -z "$shell" ]; then
+                shell="''${SHELL:-}"
+                shell="''${shell##*/}"
+              fi
+              case "$shell" in
+                bash) exec cat ${shellRuntime}/hook.bash ;;
+                zsh) exec cat ${shellRuntime}/hook.zsh ;;
+                *)
+                  echo "prelude: hook: unsupported shell '$shell'" >&2
+                  echo "hint: prelude hook [bash|zsh]" >&2
+                  exit 2
+                  ;;
+              esac
               ;;
             setup)
               exec ${lib.getExe setupPkg} "$@"
@@ -553,6 +576,15 @@ in {
           # This generated config remains the canonical serialized menu
           # catalogue and palette for tools that need the JSON boundary.
           export PRELUDE_MENU_CONFIG=${menuBin.configFile}
+
+          # Exported as a plain variable, unlike the `prelude-init` function
+          # below, because a variable is all an environment loader is
+          # guaranteed to carry. lorri applies environment variables and never
+          # runs shellHook (nix-community/lorri#159), so a shell function does
+          # not survive into the user's shell at all. `prelude hook` sources
+          # this path from the prompt, which is what makes activation work
+          # identically under lorri, direnv, and `nix develop`.
+          export PRELUDE_INIT=${shellInit}
           ${lib.optionalString cfg.prompt.enable ''
             # Export the generated starship config path from the setup-hook (not
             # shellHook) so direnv `use flake` picks it up — direnv re-emits

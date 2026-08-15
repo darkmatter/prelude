@@ -11,17 +11,16 @@
   ...
 }:
 pkgs.mkShell {
-  packages =
-    [
-      config.packages.prelude
-      docsAutomation.record
-      docsAutomation.sync
-      previews
-    ]
-    ++ (with pkgs; [
-      shellcheck
-      nixfmt
-    ]);
+  packages = [
+    config.packages.prelude
+    docsAutomation.record
+    docsAutomation.sync
+    previews
+  ]
+  ++ (with pkgs; [
+    shellcheck
+    nixfmt
+  ]);
   DIRENV_LOG_FORMAT = "";
   shellHook = ''
     r() { exec nix develop "$@"; }
@@ -31,8 +30,14 @@ pkgs.mkShell {
     # `config.packages.prelude` appends its idempotent, current-shell init after
     # this hook. It composes MOTD, ble.sh, completion, Starship, and the native
     # status line without starting another shell.
-    if [ -n "''${BASH_VERSION-}" ]; then
-      export -f r 2>/dev/null || true
-    fi
+    #
+    # `r` is deliberately a plain function and never `export -f`ed. Exporting a
+    # function stores it as the environment variable `BASH_FUNC_r%%`, and a
+    # `BASH_VERSION` guard cannot prevent that: the guard runs inside the Nix
+    # builder, which is always Bash, never the user's shell. Loaders that
+    # capture the environment (lorri, direnv) then replay that name into
+    # whatever shell the user runs, and zsh rejects `%` in a variable name.
+    # Shell-specific setup belongs in `prelude hook`, which runs where $SHELL
+    # is actually meaningful.
   '';
 }

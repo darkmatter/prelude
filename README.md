@@ -535,16 +535,42 @@ re-themes on entry and reverts on leave. `shellHook` only fires under
 `nix develop`, so putting the export there alone would lose the prompt under
 direnv.
 
-The setup-hook also defines an idempotent `prelude-init` shell function that
-wires Starship (`starship init`), ble.sh, completion, the status row, and the
-MOTD into the current shell. It guards on interactivity, so it is inert during
-non-interactive direnv evaluation — call it from your shell's interactive rc
-(or `nix develop`, which runs `shellHook` and sources it automatically):
+The setup-hook also exports `PRELUDE_INIT`: the path to an idempotent init file
+that wires Starship (`starship init`), ble.sh, completion, the status row, and
+the MOTD into the current shell. It guards on interactivity, so it stays inert
+during non-interactive evaluation.
+
+Install the shell hook once per user to activate that file automatically:
 
 ```bash
-# ~/.bashrc or ~/.zshrc — inside a Prelude-enabled project
-if has prelude-init 2>/dev/null; then prelude-init; fi
+# ~/.bashrc
+eval "$(prelude hook bash)"
+
+# ~/.zshrc
+eval "$(prelude hook zsh)"
 ```
+
+With no argument, `prelude hook` selects the dialect from `$SHELL`. The emitted
+snippet is static and project-independent, so it can also be pasted directly
+(`prelude hook zsh >> ~/.zshrc`) — all behavior lives in the file `PRELUDE_INIT`
+points at, which each project builds for itself.
+
+`nix develop` does not need the hook: it runs `shellHook`, which sources the
+same file. The hook exists for loaders that do not. **lorri applies environment
+variables and never runs `shellHook`**
+([lorri#159](https://github.com/nix-community/lorri/issues/159)), so without the
+hook a lorri user gets the packages on `PATH` but no MOTD. `PRELUDE_INIT` is an
+ordinary exported variable precisely so it survives that capture — a shell
+function like `prelude-init` does not. `prelude-init` remains available inside
+`nix develop` for manual re-runs.
+
+> **Never `export -f` in a devshell `shellHook`.** Bash stores an exported
+> function as the environment variable `BASH_FUNC_<name>%%`. Loaders that
+> capture the environment replay that name into whatever shell the user runs,
+> and zsh rejects `%` in a variable name, erroring on every prompt. Guarding on
+> `BASH_VERSION` does not help: that guard is evaluated inside the Nix builder,
+> which is always Bash. Put shell-specific setup in `prelude hook`, which runs
+> where `$SHELL` is meaningful.
 
 Users who already run Starship globally need nothing else: `starship init` in
 their existing shell re-resolves `$STARSHIP_CONFIG` on every prompt render, so
