@@ -1,5 +1,5 @@
 # Dogfood configuration — the same flake-parts shape a consumer gets from
-# `nix run github:darkmatter/prelude` / setup. Imported next to the module:
+# `nix run github:darkmatter/prelude -- wizard`. Imported next to the module:
 #
 #   imports = [ prelude.flakeModules.default ./prelude.nix ];
 #
@@ -57,31 +57,33 @@ in {
     # --------------------------------------------------------
 
     # If exec is omitted, it is inferred from the parsed command name. The
-    # ungrouped `motd` and `previews` commands already exist in the shell.
+    # ungrouped `motd` command already exists in the shell. Repository tools
+    # use grouped catalogue keys so their prefixed executables stay private.
     commands.motd = {
       description = "reprint the welcome banner";
     };
-    commands.previews = {
+    commands."prelude:previews" = {
       description = "build the render checks and show their output";
+      exec = "prelude-previews";
     };
-    commands.wizard = {
+    commands."prelude:wizard" = {
       description = "run the interactive setup wizard";
-      exec = "nix run .#setup";
+      exec = "nix run . -- wizard";
       motd = 0;
     };
     commands.build = {
       description = "build a flake output";
       exec = "nix build";
 
-      usage = "x build .#motd";
+      usage = "x build .#prelude-motd";
       args = [
         {
           token = "<target>";
           description = "flake output to build";
           options = [
-            ".#motd"
-            ".#menu"
-            ".#docs"
+            ".#prelude-motd"
+            ".#prelude-menu"
+            ".#prelude-docs"
             ".#example-themes"
             ".#example-default"
           ];
@@ -196,7 +198,7 @@ in {
       #   title = "set up prelude in your own repo";
       #   steps = [
       #     {comment = "generate config with the setup wizard";}
-      #     {command = "nix run github:darkmatter/prelude";}
+      #     {command = "nix run github:darkmatter/prelude -- wizard";}
       #     {comment = "full walkthrough: docs, page \"Your own repo\"";}
       #   ];
       # };

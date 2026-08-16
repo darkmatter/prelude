@@ -1,11 +1,12 @@
 # shellcheck shell=bash
 # Prompt trampoline for Bash, emitted by `prelude hook bash`.
 #
-# Loaders disagree about what they will execute. `nix develop` runs shellHook,
-# direnv re-emits setup-hook exports, and lorri applies environment variables
-# only — it never runs shellHook (nix-community/lorri#159). PRELUDE_INIT is an
+# Loaders disagree about *where* they run things. `nix develop` runs shellHook
+# in your shell; direnv re-emits setup-hook exports; lorri runs shellHook inside
+# the Nix builder — non-interactive, in the build directory — and replays only
+# the variables it exported (nix-community/lorri#159). PRELUDE_INIT is an
 # ordinary exported variable, so every loader carries it, which makes this the
-# one activation path that works the same under all three.
+# one activation path that behaves the same under all three.
 #
 # Deliberately tiny and version-independent: all behavior lives in the file
 # PRELUDE_INIT points at, which each project builds for itself. That keeps this

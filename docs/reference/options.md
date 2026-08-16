@@ -3028,7 +3028,7 @@ string
 
 
 
-Whether to enable themed starship prompt config (` packages.prompt ` = starship\.toml)\.
+Whether to enable themed starship prompt config (` packages.prelude-prompt ` = starship\.toml)\.
 
 
 

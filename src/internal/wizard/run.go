@@ -142,10 +142,14 @@ func fail(err error) int {
 const defaultWizardConfigPath = "prelude.nix"
 
 const (
-	wizardEnvrcPath     = ".envrc"
+	wizardEnvrcPath = ".envrc"
+	// prelude-preflight prints the activation code. direnv's .envrc is
+	// non-interactive, so the printed code asks the init to render the MOTD here
+	// rather than sourcing the interactive-only path. `has` keeps a devshell that
+	// predates the command (or has Prelude disabled) from failing the whole load.
 	wizardEnvrcContents = `use flake
-if has motd; then
-  motd >&2
+if has prelude-preflight; then
+  eval "$(prelude-preflight)"
 fi
 `
 )
@@ -251,7 +255,7 @@ func finishWizard(cfg Config, render renderFunc, result wizardResult, configPath
 		return fail(fmt.Errorf("write %s: %w", configPath, err))
 	}
 	fmt.Fprintf(stderr, "wrote %s\n", configPath)
-	printWizardNextSteps(stderr, configPath, result.Motd)
+	printWizardNextSteps(stderr, configPath, result.Motd, result.Envrc)
 	return 0
 }
 
@@ -280,10 +284,11 @@ func isFlakeNixPath(path string) bool {
 }
 
 // printWizardNextSteps reminds the user how to attach the sidecar module to
-// an existing flake without replacing flake.nix. When the MOTD is enabled it
+// an existing flake without replacing flake.nix. When an .envrc was written it
+// points at that file as the activation path, and when the MOTD is enabled it
 // also prints the direnv log-silencing snippet (direnv noise prints between
 // the MOTD and the prompt).
-func printWizardNextSteps(stderr io.Writer, configPath string, motdEnabled bool) {
+func printWizardNextSteps(stderr io.Writer, configPath string, motdEnabled, envrcEnabled bool) {
 	importPath := configPath
 	if !strings.HasPrefix(importPath, "./") && !strings.HasPrefix(importPath, "/") {
 		importPath = "./" + importPath
@@ -296,18 +301,33 @@ func printWizardNextSteps(stderr io.Writer, configPath string, motdEnabled bool)
 	fmt.Fprintf(stderr, "    %s\n", importPath)
 	fmt.Fprintf(stderr, "  ];\n")
 	fmt.Fprintln(stderr)
-	fmt.Fprintln(stderr, "Add the prelude input if needed, put config.packages.prelude on your")
-	fmt.Fprintln(stderr, "devShell, and shellHook = \"motd\"; — see docs/your-own-repo.md.")
+	fmt.Fprintln(stderr, "Add config.packages.prelude-shell plus each enabled prelude-* component package")
+	fmt.Fprintln(stderr, "to your devShell, then use shellHook = ''eval \"$(prelude-preflight)\"'';")
+	fmt.Fprintln(stderr, "— see docs/your-own-repo.md.")
+	if envrcEnabled {
+		fmt.Fprintln(stderr)
+		fmt.Fprintln(stderr, "The generated .envrc renders the MOTD on entry, so onboarding a")
+		fmt.Fprintln(stderr, "developer never means editing their shell rc. Using lorri? It runs")
+		fmt.Fprintln(stderr, "shellHook only inside the Nix builder, so route it through the same")
+		fmt.Fprintln(stderr, "file — replace `use flake` with:")
+		fmt.Fprintln(stderr)
+		fmt.Fprintln(stderr, "  eval \"$(lorri export direnv-adapter)\"")
+	}
 	if motdEnabled {
 		fmt.Fprintln(stderr)
-		fmt.Fprintln(stderr, "Tip: direnv log lines can print between the MOTD and your prompt.")
-		fmt.Fprintln(stderr, "Silence them once per user account:")
+		fmt.Fprintln(stderr, "Tip: direnv log lines print around the MOTD, and a slow Nix")
+		fmt.Fprintln(stderr, "evaluation adds a \"taking a while\" warning. Add this to")
+		fmt.Fprintln(stderr, "~/.config/direnv/direnv.toml to silence all of it:")
 		fmt.Fprintln(stderr)
-		fmt.Fprintln(stderr, "  mkdir -p ~/.config/direnv && touch ~/.config/direnv/direnv.toml")
-		fmt.Fprintln(stderr, "  grep -q 'log_format = \"-\"' ~/.config/direnv/direnv.toml \\")
-		fmt.Fprintf(stderr, "    || printf '%%s\\n' '[global]' 'log_format = \"-\"' 'log_filter = \"^$\"' \\\n")
-		fmt.Fprintln(stderr, "    >> ~/.config/direnv/direnv.toml")
+		fmt.Fprintln(stderr, "  [global]")
+		fmt.Fprintln(stderr, "  log_format = \"-\"        # direnv: loading ...")
+		fmt.Fprintln(stderr, "  log_filter = \"^$\"       # output from your direnv script")
+		fmt.Fprintln(stderr, "  hide_env_diff = true    # direnv: export +FOO +BAR ...")
+		fmt.Fprintln(stderr, "  warn_timeout = \"1h\"     # ... is taking a while to execute")
 		fmt.Fprintln(stderr)
+		fmt.Fprintln(stderr, "It must be the user's own direnv config: `direnv export` picks its")
+		fmt.Fprintln(stderr, "logging before it runs the project's direnv script, so neither that")
+		fmt.Fprintln(stderr, "script nor a devshell can set it.")
 		fmt.Fprintln(stderr, "Pass this along to your users — direnv logging is per-user config.")
 	}
 }

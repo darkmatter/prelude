@@ -4,7 +4,7 @@
   <br />
 </div>
 
-Prelude is a DX-focused utility that provides a consistent, beautiful interface for your devshell. It's built on the idea that programs should be self-documenting, and that the information about _how_ to use a program (docs) should be available close to _where_ you run that program. Flakes help make this true for dependencies as well - use `docs` to learn about the current project, or `nix run github:org/repo#docs` to learn about any prelude-enabled dependency.
+Prelude is a DX-focused utility that provides a consistent, beautiful interface for your devshell. It's built on the idea that programs should be self-documenting, and that the information about _how_ to use a program (docs) should be available close to _where_ you run that program. Flakes help make this true for dependencies as well - use `docs` to learn about the current project, or `nix run github:org/repo#prelude -- docs` to learn about any prelude-enabled dependency.
 
 With prelude, the only command anyone would need to remember is `nix develop`. At shell entry, they are greeted with a nice MOTD:
 
@@ -18,35 +18,19 @@ With prelude, the only command anyone would need to remember is `nix develop`. A
 
 Prelude ships with a setup wizard that generates a basic configuration for you. It
 creates `prelude.nix`, a `title.txt` containing your FIGlet title, and—by default—a
-project-root `.envrc` containing `use flake` and a MOTD invocation:
+project-root `.envrc` containing `use flake` and the preflight line:
 
 ```bash
-$ nix run github:darkmatter/prelude#setup
+$ nix run github:darkmatter/prelude -- wizard
 wrote title.txt
 wrote .envrc
 wrote prelude.nix
 
 # or specify a path:
-$ nix run github:darkmatter/prelude#setup -- -o nix/prelude.nix
+$ nix run github:darkmatter/prelude -- wizard -o nix/prelude.nix
 ```
-
-Once `packages.prelude` is on `PATH`, use the namespaced CLI:
-
-```bash
-prelude setup
-prelude title -o title.txt
-prelude menu
-prelude docs
-```
-
-Prelude deliberately does not install a generic `setup` executable. The
-standalone compatibility command is `prelude-setup`, while the `.#setup` flake
-app remains available for bootstrapping before Prelude is installed.
 
 ![demo](docs/recording.gif)
-
-The `.envrc` setup toggle starts on. Turn it off to skip the file; if `.envrc`
-already exists, setup keeps it unchanged.
 
 If you want to customize things further, all other options are also included but
 commented out in the generated config, along with documentation and the default value.
@@ -150,8 +134,13 @@ Docs are incredibly simple to use, since they just parse markdown in your repo:
           };
 
           devShells.default = pkgs.mkShell {
-            packages = [ config.packages.prelude ];
-            shellHook = "motd";
+            packages = [
+              config.packages.prelude-shell
+              config.packages.prelude-motd
+              config.packages.prelude-menu
+              config.packages.prelude-docs
+            ];
+            shellHook = ''eval "$(prelude-preflight)"'';
           };
         };
     };
@@ -313,7 +302,7 @@ prelude.sort.groups = [
 
 `meta.mainProgram` selects the binary; use `program = "name"` for another
 binary. `arguments` are shell-escaped and appended. The package is bundled into
-`packages.menu` automatically. `fromPkg` derives a clean canonical invocation
+`packages.prelude-menu` automatically. `fromPkg` derives a clean canonical invocation
 from the executable basename plus arguments (`go test …`, never a Nix store
 path). Grouped entries do not receive wrappers. `prelude.lib.mkCommand` remains
 the lower-level constructor for callers that need to choose between `package`,
@@ -329,7 +318,7 @@ through its complete, globally unique key (`x test`, `x go:test`,
 [command conventions](docs/guides/command-conventions.md).
 
 Evaluated packages expose this result for downstream composition and checks:
-`config.packages.menu.commandNames` lists menu selectors,
+`config.packages.prelude-menu.commandNames` lists menu selectors,
 `commandInvocations` lists canonical shell forms, `commandWrapperNames` lists
 only deliberate ungrouped aliases, and `commandWrappers` contains the wrapper
 derivations actually built.
@@ -359,11 +348,11 @@ entrypoint — while grouped keys (`go:test`) keep the `x <key>` dispatch form
 because only `x` can call them. A dim note under the list points at `x` as the
 fallback when another command shadows a bare name
 (`prelude.motd.gettingStarted.commandNote`; empty string hides it). When the
-menu is enabled, `packages.motd` carries the menu, runtime packages, and
+menu is enabled, `packages.prelude-motd` carries the menu, runtime packages, and
 deliberate ungrouped wrappers; grouped commands remain available through their
 canonical executable.
 
-`config.packages.motd.commandNames` exposes selected command names,
+`config.packages.prelude-motd.commandNames` exposes selected command names,
 `commandInvocations` exposes the canonical strings rendered by the MOTD, and
 `commandWrappers` exposes only the deliberate ungrouped aliases bundled through
 the menu. Direct `mkMotd` consumers and configurations without the menu start
@@ -396,10 +385,10 @@ into steps at the Nix boundary.
 
 See the [title rendering guide](docs/guides/title-rendering.md) for the complete
 interactive, stdout, recipe, and MOTD integration workflow. For a complete new
-project configuration, run the setup flow:
+project configuration, run the wizard:
 
 ```console
-nix run .#setup
+nix run github:darkmatter/prelude -- wizard
 ```
 
 That writes `prelude.nix` and a sibling `title.txt` (override the config path
@@ -415,7 +404,7 @@ Prelude ships 23 selectable fonts: `3d-ascii`, `ansi-shadow`, `calvin-s`,
 `univers`. Open the interactive title chooser:
 
 ```console
-nix run .#title
+nix run .#prelude -- title
 ```
 
 The first screen is prefilled with the current directory name. Continue to a
@@ -424,7 +413,7 @@ bundled FIGlet fonts, and press enter to choose. The selected title is rendered
 to stdout; pass `-o` to write it directly:
 
 ```console
-nix run .#title -- -o title.txt
+nix run .#prelude -- title -o title.txt
 ```
 
 An explicit recipe can prefill both text and font, but is never discovered or
@@ -439,8 +428,8 @@ rewritten implicitly:
 ```
 
 ```console
-nix run .#title -- --recipe title.nix
-nix run .#title -- --generate --recipe title.nix -o title.txt
+nix run .#prelude -- title --recipe title.nix
+nix run .#prelude -- title --generate --recipe title.nix -o title.txt
 ```
 
 Without `--recipe`, non-interactive `--generate` renders the current directory
@@ -450,7 +439,7 @@ The original all-font stream remains available when a printable overview is
 more useful than the chooser:
 
 ```console
-nix run .#title-previews -- "acme-web"
+nix run .#prelude -- title-previews "acme-web"
 ```
 
 Redirect stdout or check in an explicitly written file, then point the MOTD at it:
@@ -494,7 +483,7 @@ Group order is configured with `prelude.sort.groups` (default:
 ## prompt options (`prelude.prompt.*`)
 
 A [starship](https://starship.rs/) config themed from the active palette.
-`packages.prompt` is the generated `starship.toml`. The default layout starts
+`packages.prelude-prompt` is the generated `starship.toml`. The default layout starts
 with two blank lines for breathing room and a marker prompt. The existing
 Powerline is the generated Starship `right_format`; in Bash, Starship's native
 ble.sh integration renders it and Prelude moves that rendered value into
@@ -519,15 +508,20 @@ theme, so `settings` overrides can use the same names (e.g.
 
 See the [options reference](docs/reference/options.md) for the complete list of `prelude.prompt.*` fields, types, and defaults.
 
-Add the canonical aggregate package to your devshell:
+Add the shell core and each enabled component package to your devshell:
 
 ```nix
 devShells.default = pkgs.mkShell {
-  packages = [ config.packages.prelude ];
+  packages = [
+    config.packages.prelude-shell
+    config.packages.prelude-motd
+    config.packages.prelude-menu
+    config.packages.prelude-docs
+  ];
 };
 ```
 
-`packages.prelude`'s setup-hook exports `STARSHIP_CONFIG` to the generated
+`packages.prelude-shell`'s setup-hook exports `STARSHIP_CONFIG` to the generated
 `starship.toml` path. Because the export lives in the setup-hook (not
 `shellHook`), it is picked up by **direnv `use flake`** — direnv re-emits
 setup-hook exports on every reload and unloads them on exit, so the prompt
@@ -536,33 +530,122 @@ re-themes on entry and reverts on leave. `shellHook` only fires under
 direnv.
 
 The setup-hook also exports `PRELUDE_INIT`: the path to an idempotent init file
-that wires Starship (`starship init`), ble.sh, completion, the status row, and
-the MOTD into the current shell. It guards on interactivity, so it stays inert
-during non-interactive evaluation.
+that renders the MOTD and — when the prompt is enabled — wires Starship
+(`starship init`), ble.sh, completion, and the status row into the current
+shell. It guards on interactivity, so it stays inert during non-interactive
+evaluation. Every project exports it, including `prelude.prompt.enable = false`
+ones: a MOTD-only build names no Starship or ble.sh paths, so those consumers
+carry none of that closure.
 
-Install the shell hook once per user to activate that file automatically:
+### Activation
+
+Activation comes from files in the repository, so onboarding a developer never
+requires touching their shell rc. One command covers every loader:
+`prelude-preflight` prints shell code, and the consumer evals it.
 
 ```bash
-# ~/.bashrc
-eval "$(prelude hook bash)"
-
-# ~/.zshrc
-eval "$(prelude hook zsh)"
+eval "$(prelude-preflight)"
 ```
 
-With no argument, `prelude hook` selects the dialect from `$SHELL`. The emitted
-snippet is static and project-independent, so it can also be pasted directly
-(`prelude hook zsh >> ~/.zshrc`) — all behavior lives in the file `PRELUDE_INIT`
-points at, which each project builds for itself.
+The printed code branches on the shell it is evaluated in, not on the loader that
+produced it, and it names no store paths — the MOTD binary and its
+once-per-environment key belong to `$PRELUDE_INIT` alone, so the banner has
+exactly one owner and cannot render twice.
 
-`nix develop` does not need the hook: it runs `shellHook`, which sources the
-same file. The hook exists for loaders that do not. **lorri applies environment
-variables and never runs `shellHook`**
-([lorri#159](https://github.com/nix-community/lorri/issues/159)), so without the
-hook a lorri user gets the packages on `PATH` but no MOTD. `PRELUDE_INIT` is an
-ordinary exported variable precisely so it survives that capture — a shell
-function like `prelude-init` does not. `prelude-init` remains available inside
-`nix develop` for manual re-runs.
+| shell it lands in | what the snippet does |
+|---|---|
+| interactive | sources `$PRELUDE_INIT` (prompt, ble.sh, completion, MOTD) |
+| non-interactive, `DIRENV_IN_ENVRC` set | asks the init to render the MOTD and export its once-marker |
+| non-interactive, otherwise | nothing |
+
+That third row is deliberate. `DIRENV_IN_ENVRC` is set only while direnv
+evaluates `.envrc` — the one non-interactive context whose exports are replayed
+into a terminal-attached shell. lorri's `shellHook` is also non-interactive, but
+it runs inside the Nix builder: a banner there goes to a build log nobody reads,
+and an exported marker would silence the banner in the shell that *is* attached
+to a terminal.
+
+**`nix develop`** runs `shellHook`, so put the line there:
+
+```nix
+shellHook = ''eval "$(prelude-preflight)"'';
+```
+
+With the prompt enabled Prelude also appends the init to `shellHook` itself, and
+the init is idempotent, so the two paths cannot double up.
+
+**direnv** runs `.envrc`. `prelude wizard` writes exactly this:
+
+```bash
+use flake
+if has prelude-preflight; then
+  eval "$(prelude-preflight)"
+fi
+```
+
+**lorri** *does* run `shellHook` — but inside the Nix builder: non-interactively,
+with `$PWD` set to the build directory and output going to the build log
+([lorri#159](https://github.com/nix-community/lorri/issues/159)). Variables it
+exports are captured and replayed into your shell; anything needing a terminal,
+such as the MOTD, is not. So the banner has to come from a context lorri does not
+own — the same `.envrc`, via the direnv adapter:
+
+```bash
+eval "$(lorri export direnv-adapter)"
+if has prelude-preflight; then
+  eval "$(prelude-preflight)"
+fi
+```
+
+Running lorri without direnv leaves `shellHook` as the only activation path, and
+that path cannot show a banner from the builder; use `prelude hook` in your rc
+file for that setup.
+
+Prelude's setup-hook exports — `PRELUDE_MENU_CONFIG`, `PRELUDE_INIT`, and
+`STARSHIP_CONFIG` — survive lorri's environment capture because they are
+variables. A shell *function* such as `prelude-init` does not; it remains
+available inside `nix develop` for manual re-runs.
+
+#### `shellHook` is itself an exported variable
+
+`shellHook` is captured the same way, by both direnv and lorri, and
+`nix print-dev-env --json` exposes it at `variables.shellHook.value`. A shell
+that has the environment applied can therefore run the project's hook directly,
+without anything from Prelude:
+
+```bash
+eval "$shellHook"
+```
+
+Under lorri that renders the MOTD, defines the devshell's functions, and applies
+the prompt. For a shell with no loader at all, `. <(nix print-dev-env)` does the
+whole job — the script it emits ends with `eval "${shellHook:-}"`, so it runs
+the hook itself.
+
+Prefer this when you control the devshell's `shellHook`. Prefer `$PRELUDE_INIT`
+when you do not: `eval "$shellHook"` re-runs the project's *entire* hook on every
+invocation, which is only safe if that hook is idempotent — the reason lorri
+confines its own run to the builder instead of replaying it in your shell
+([lorri#159](https://github.com/nix-community/lorri/issues/159)). Prelude's own
+init is idempotent by construction; an arbitrary consumer's hook may not be.
+
+#### Optional: `prelude hook`
+
+If you already run lorri's native prompt hook (`eval "$(lorri hook zsh)"` in
+your rc file), `prelude hook` is the matching line that renders the MOTD on
+directory entry without `.envrc`. Append it from inside a project — do not
+`eval` it, because `prelude` is a project package and is not on `PATH` when your
+rc file runs:
+
+```bash
+prelude hook zsh >> ~/.zshrc     # or: prelude hook bash >> ~/.bashrc
+```
+
+The snippet is static and project-independent — it reads only `$PRELUDE_INIT` —
+so one line covers every Prelude project. With no argument the dialect comes
+from `$SHELL`. It coexists with `eval "$(prelude-preflight)"`: under direnv the
+init exports its own once-marker from `.envrc`, so whichever fires first renders
+the banner and the other stays quiet.
 
 > **Never `export -f` in a devshell `shellHook`.** Bash stores an exported
 > function as the environment variable `BASH_FUNC_<name>%%`. Loaders that
@@ -577,14 +660,21 @@ their existing shell re-resolves `$STARSHIP_CONFIG` on every prompt render, so
 the export alone re-themes their prompt. The `prelude-init` call is only needed
 to install Starship/ble.sh/completion into a shell that doesn't already have them.
 
-`packages.prelude` contains every enabled Prelude component. When the prompt is
-enabled it also contains Starship, ble.sh, and bash-completion, so consumers do
-not need to add those dependencies separately. Its setup hook sources a small,
-idempotent `prelude-init` entrypoint in the current interactive shell. That
-entrypoint composes checked-in lifecycle, completion, and status modules with a
-Nix-generated command catalogue. Starship's documented ble.sh PRECMD hook
-captures command state and renders `right_format`; Prelude's following hook
-moves that already-rendered value into the status line. There is no extra
+`packages.prelude-shell` contains the PATH-resolving namespaced CLI, activation
+files, and — when enabled — Starship, ble.sh, and bash-completion. MOTD, menu,
+and docs remain separate packages, so consumers add exactly the enabled
+components without installing the self-contained app, wizard, title
+generators, repository examples, or preview utilities. `packages.prelude`
+backs `apps.prelude` and the upstream default package; do not add it to a
+consumer devshell. Its setup hook sources a small, idempotent `prelude-init`
+entrypoint in the current interactive shell.
+The component packages do not retain one another. Built-in shortcut wrappers
+(`?`, `x`, and `d`) resolve cross-component targets through `PATH`, so add every
+enabled target component rather than relying on one package to pull in another.
+That entrypoint composes checked-in lifecycle, completion, and status modules
+with a Nix-generated command catalogue. Starship's documented ble.sh PRECMD
+hook captures command state and renders `right_format`; Prelude's following
+hook moves that already-rendered value into the status line. There is no extra
 Starship process per keystroke, nested shell, or reconstructed rcfile.
 
 The resolved Prelude palette is also compiled into a native ble.sh
@@ -644,16 +734,17 @@ pre-applied.
 This flake dogfoods like a consumer: it imports [`prelude.nix`](prelude.nix)
 next to `flakeModules.default`, with docs pages under [`docs/`](docs/).
 `nix develop` greets you with Prelude's own MOTD, and `x` drives the project
-from inside the shell. `.#motd` and `.#menu` are this repo's real UI;
-`.#example-motd` / `.#example-menu` carry the separate acme-web showcase configs.
+from inside the shell. The module has one app, `prelude`; this repository also
+keeps `examples` and `previews` as development-only apps. Neither is contributed
+by the module or installed into consumer devshells.
 
 ```sh
 nix develop                   # our own motd + x, built by our own module
-nix run .#motd                # this repo's welcome banner
-nix run .#menu                # this repo's command catalogue package
+nix run . -- motd             # this repo's welcome banner
+nix run . -- menu             # this repo's command catalogue
 nix run .#previews            # build the render checks and show their output
 nix run .#previews -- motd-renders   # …or just specific checks
-nix run .#example-default     # MOTD from stock setup wizard presets
+nix run .#example-default     # MOTD from stock wizard presets
 # nix run .#example-default -- --config   # print the generated prelude.nix
 nix run .#example-motd        # acme-web welcome banner demo
 nix run .#example-menu        # acme-web command menu demo (arg entry)
@@ -684,7 +775,7 @@ auto-commits changes under `docs/` when regeneration is needed.
 
 ```
 flake.nix              # canonical outputs + flakeModules.default + templates.default
-nix/internal/prelude.nix # dogfood config (same shape as setup output)
+nix/internal/prelude.nix # dogfood config (same shape as wizard output)
 nix/*.nix              # per-system composition, demos, checks, apps, overlay, lib
 nix/docs-automation.nix # VHS tapes, fingerprints, docs apps + freshness checks
 nix/*-demo-builder.nix  # final demo packages shared by apps and recordings
@@ -694,7 +785,7 @@ templates/default/     # `nix flake init -t github:darkmatter/prelude#default` s
 docs/                  # docs-viewer pages, guides, generated references, media
 src/cmd/               # Go entrypoints (motd, menu, docs, title)
 src/internal/          # Go renderers: motd (Lip Gloss), menu (Bubble Tea),
-                       #   docs, wizard (setup + title chooser)
+                       #   docs, wizard (config wizard + title chooser)
 src/pkg/               # shared Go packages (manual, shared, ui)
 src/prelude/
   themes.nix           # palettes (oklch → hex, CSS gamut-mapped)

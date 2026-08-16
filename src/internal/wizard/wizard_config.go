@@ -305,7 +305,7 @@ const starterDocsPath = "docs/getting-started.md"
 
 const starterDocsPage = `# Getting started
 
-This page was created by ` + "`prelude setup`" + `.
+This page was created by ` + "`prelude wizard`" + `.
 
 Every Markdown file listed under ` + "`prelude.docs.pages`" + ` becomes one page in
 the ` + "`docs`" + ` viewer; the first heading is the sidebar label. Replace this

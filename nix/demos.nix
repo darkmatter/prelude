@@ -8,7 +8,7 @@
 }: let
   motdDemos = import ./motd-demo-builder.nix {
     inherit pkgs lib;
-    currentMotdConfig = config.packages.motd.motdRenderConfig;
+    currentMotdConfig = config.packages.prelude-motd.motdRenderConfig;
   };
   menuDemo = import ./menu-demo-builder.nix {inherit pkgs lib;};
   ex = import ../src/prelude/examples.nix;

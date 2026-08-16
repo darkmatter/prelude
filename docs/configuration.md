@@ -24,7 +24,7 @@ Everything is a `prelude.*` option, validated at build time.
 - **`prelude.docs.nixosOptions`** — full `pkgs.nixosOptionsDoc` argument set
   (`{ options = …; … }`, including any of `transformOptions`, `documentType`,
   `warningsAreErrors`, `revision`, …) used when a generate node is present.
-- **`prelude.prompt.enable`** — themed Starship config at `packages.prompt`.
+- **`prelude.prompt.enable`** — themed Starship config at `packages.prelude-prompt`.
 
 The full option reference is also generated to `docs/reference/options.md`
 (refresh with `docs-sync`) and appears in the docs TUI under **Options**.

@@ -1,7 +1,7 @@
 # Docs Print Mode
 
 **Date:** 2026-08-15\
-**Status:** Draft design
+**Status:** Approved design
 
 ## Goal
 
@@ -10,12 +10,12 @@ Give `docs` a non-alt-screen print surface so a page window can sit above the li
 ## Decisions
 
 1. **Same binary, args select the surface.** Bare `docs` stays the Bubble Tea alt-screen viewer. Any positional argument takes the print path and never constructs a `tea.Program`.
-2. **Page is a 1-based leaf index.** Leaves are walked depth-first. Groups are not pages. `next` and `prev` are reserved tokens, not titles.
-3. **Offset is a wrapped-line index.** Default `0`. It indexes the already-wrapped render, not raw Markdown.
-4. **Book-style page crossing.** `next` past a leaf’s last window opens the next leaf at offset 0. `prev` before 0 opens the previous leaf’s last window. First/last leaf clamp.
-5. **Missing state starts at page 1, offset 0.** Both `docs next` and `docs prev` with no usable state print that first window.
-6. **State records the printed range, not a cursor plus height.** Persist `{page, start, end, width, config}` so `next` starts at the exclusive `end` and a resize can rebase line indices.
-7. **No chrome.** Print emits content lines only. No sidebar, status bar, or pager trailer.
+1. **Page is a 1-based leaf index.** Leaves are walked depth-first. Groups are not pages. `next` and `prev` are reserved tokens, not titles.
+1. **Offset is a wrapped-line index.** Default `0`. It indexes the already-wrapped render, not raw Markdown.
+1. **Book-style page crossing.** `next` past a leaf’s last window opens the next leaf at offset 0. `prev` before 0 opens the previous leaf’s last window. First/last leaf clamp.
+1. **Missing state starts at page 1, offset 0.** Both `docs next` and `docs prev` with no usable state print that first window.
+1. **State records the printed range, not a cursor plus height.** Persist `{page, start, end, width, config}` so `next` starts at the exclusive `end` and a resize can rebase line indices.
+1. **No chrome.** Print emits content lines only. No sidebar, status bar, or pager trailer.
 
 ## CLI
 
@@ -93,28 +93,28 @@ Let `H = windowHeight` at the current terminal. Let `lines` be the current leaf 
 ### `docs <page> [offset]`
 
 1. Resolve the leaf. Out of range is an error (no clamp, no wrap).
-2. `start = min(offset, lastWindowStart)` where `lastWindowStart = max(0, len(lines)-H)`.
-3. Print `[start, start+H)`.
-4. Write state.
+1. `start = min(offset, lastWindowStart)` where `lastWindowStart = max(0, len(lines)-H)`.
+1. Print `[start, start+H)`.
+1. Write state.
 
 ### `docs next`
 
 1. Load state. Missing / unreadable / config-path mismatch → virtual state `{page:1, start:0, end:0, width: current}`.
-2. Rebase `end` to the current width (see below). That value is the candidate `start`.
-3. If `start >= len(lines)`:
+1. Rebase `end` to the current width (see below). That value is the candidate `start`.
+1. If `start >= len(lines)`:
    - next leaf exists → `page++`, `start = 0`
    - else → `start = lastWindowStart` (clamp)
-4. Print and write state.
+1. Print and write state.
 
 ### `docs prev`
 
 1. Same empty-state rule as `next` (print page 1, offset 0).
-2. Rebase stored `start` to the current width. That value is the exclusive end of the window just shown.
-3. If that cursor is `<= 0`:
+1. Rebase stored `start` to the current width. That value is the exclusive end of the window just shown.
+1. If that cursor is `<= 0`:
    - previous leaf exists → `page--`, `start = lastWindowStart` of the new leaf
    - else → `start = 0`
-4. Else `start = max(0, cursor-H)`.
-5. Print and write state.
+1. Else `start = max(0, cursor-H)`.
+1. Print and write state.
 
 `next` then `prev` on an unchanged terminal returns the previous window. Crossing a page boundary is the one exception: `next` onto leaf N+1 at 0, then `prev`, returns leaf N’s last window, not the exact pre-crossing window, if that last window is shorter than `H`.
 
@@ -163,9 +163,9 @@ When the current `wrapWidth` equals the stored `width`, use stored `start`/`end`
 When it differs:
 
 1. Render the stored page at the stored width → `oldN` lines.
-2. Render it at the current width → `newN` lines.
-3. Map an old index `i` with `floor(i * newN / oldN)`, or `0` when `oldN == 0`.
-4. Clamp to `[0, newN]`.
+1. Render it at the current width → `newN` lines.
+1. Map an old index `i` with `floor(i * newN / oldN)`, or `0` when `oldN == 0`.
+1. Clamp to `[0, newN]`.
 
 `docs next` rebases `end`. `docs prev` rebases `start`. Explicit `docs <page> [offset]` ignores stored indices and renders at the current width.
 
@@ -199,13 +199,13 @@ Nix (`src/prelude/docs.nix`, command catalogue) does not change. `x docs next` a
 Interface-driven tests in `src/internal/docs`. Inject writers, size, and state path. Use `ansi.Strip` when asserting content. Do not start Bubble Tea.
 
 1. **Arg parse.** `[]`, `["2"]`, `["2","20"]`, `["next"]`, `["prev"]`, `["foo"]`, `["2","x"]`, `["1","0","junk"]`, `["0"]`, `["-1"]`.
-2. **Leaf index.** Nested groups: page 1 is the first depth-first leaf; groups are skipped.
-3. **Window slice.** Given known wrapped lines, `offset=20` and `rows=24` prints 22 lines starting at 20. Width wrap is visible (a long line becomes multiple lines; offset steps those).
-4. **Clamp.** Offset past end on an explicit page prints the last window and does not change page.
-5. **Empty state.** No file / bad JSON / other `config` → `next` and `prev` both print page 1, offset 0.
-6. **Next/prev.** Mid-page step by `H`. End of leaf N → leaf N+1 at 0. Start of leaf 1 → stay at 0. Start of leaf N>1 → leaf N-1 last window. Last leaf `next` clamps.
-7. **Resize.** State `{start:20,end:42,width:80}` then `cols=40`: `next` rebases 42, does not print `20+newH`. Width-stable height change uses stored `end` unchanged.
-8. **TUI untouched.** Zero positionals still reach `tea.NewProgram` (assert by keeping that branch free of print types; no need to run the program).
+1. **Leaf index.** Nested groups: page 1 is the first depth-first leaf; groups are skipped.
+1. **Window slice.** Given known wrapped lines, `offset=20` and `rows=24` prints 22 lines starting at 20. Width wrap is visible (a long line becomes multiple lines; offset steps those).
+1. **Clamp.** Offset past end on an explicit page prints the last window and does not change page.
+1. **Empty state.** No file / bad JSON / other `config` → `next` and `prev` both print page 1, offset 0.
+1. **Next/prev.** Mid-page step by `H`. End of leaf N → leaf N+1 at 0. Start of leaf 1 → stay at 0. Start of leaf N>1 → leaf N-1 last window. Last leaf `next` clamps.
+1. **Resize.** State `{start:20,end:42,width:80}` then `cols=40`: `next` rebases 42, does not print `20+newH`. Width-stable height change uses stored `end` unchanged.
+1. **TUI untouched.** Zero positionals still reach `tea.NewProgram` (assert by keeping that branch free of print types; no need to run the program).
 
 `pkg/manual` tests for `RenderLeafLines`: wrapped content matches the TUI body for a fixture leaf after dropping the seed blank and without body-fill pad, including a root-README fixture.
 

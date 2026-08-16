@@ -4,17 +4,17 @@
 # $STARSHIP_CONFIG on every prompt render, and direnv propagates plain env
 # vars (only PS1 itself is stripped) — so a devshell that exports
 #
-#   export STARSHIP_CONFIG=${config.packages.prompt}
+#   export STARSHIP_CONFIG=${config.packages.prelude-prompt}
 #
 # re-themes the user's existing starship prompt while inside the project and
-# reverts automatically when direnv unloads. `packages.prelude` sources one
+# reverts automatically when direnv unloads. `packages.prelude-shell` sources one
 # canonical, idempotent `prelude-init` file in the interactive shell that
 # `nix develop` already started; it does not launch or reconstruct another
 # shell. Non-interactive direnv evaluation stays inert so the user's existing
 # login-shell prompt remains in control.
 #
 # Returns `{ live, final }`:
-#   live  — active editable prompt (packages.prompt)
+#   live  — active editable prompt (packages.prelude-prompt)
 #   final — muted copy used by bleopt prompt_ps1_final after submit (null when
 #           configFile is user-owned)
 {

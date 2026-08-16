@@ -17,7 +17,7 @@
     ++ lib.optional (checks ? examples-render) "examples-render";
 in
   pkgs.writeShellApplication {
-    name = "previews";
+    name = "prelude-previews";
     text = ''
       # Check names may be passed as args; defaults to every render check.
       checks=(${lib.concatMapStringsSep " " lib.escapeShellArg previewCheckNames})

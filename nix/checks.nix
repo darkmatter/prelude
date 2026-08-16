@@ -8,24 +8,60 @@
   docsAutomation,
   previews,
   flakePartsLib,
+  inputs,
+  localFlake,
   ...
 }: let
   preludeLib = import ./lib.nix {inherit lib;};
   internalLib = import ../src/prelude/lib.nix {inherit lib;};
+  # Evaluate the actual starter and reference flakes with this checkout as
+  # their Prelude input. This catches lexical-scope mistakes in consumer
+  # snippets that evaluating the root module cannot see.
+  evalConsumerShell = flakeFile: let
+    consumerSource = builtins.path {
+      path = builtins.dirOf flakeFile;
+      name = "prelude-consumer-${builtins.baseNameOf (builtins.dirOf flakeFile)}";
+    };
+    consumerFlake = import (consumerSource + "/flake.nix");
+    consumerInputs =
+      inputs
+      // {
+        prelude = localFlake;
+        self = consumerOutputs;
+      };
+    consumerOutputs =
+      consumerFlake.outputs consumerInputs
+      // {inputs = consumerInputs;};
+  in
+    consumerOutputs.devShells.${pkgs.stdenv.hostPlatform.system}.default;
 
   # The command-providing packages of the dogfood devshell (shell.nix).
-  devshellCommandPackages =
-    [
-      config.packages.prelude
-      config.packages.prelude-portal
-      pkgs.nix
-      docsAutomation.sync
-      docsAutomation.record
-      previews
-    ]
-    # Consume the wrappers exposed by the evaluated Prelude package, just as a
-    # downstream module can, instead of rebuilding knowledge from source config.
-    ++ config.packages.menu.commandWrappers;
+  devshellCommandPackages = [
+    config.packages.prelude-shell
+    config.packages.prelude-motd
+    config.packages.prelude-title-previews
+    config.packages.prelude-menu
+    config.packages.prelude-docs
+    pkgs.nix
+    docsAutomation.sync
+    docsAutomation.record
+    previews
+  ];
+
+  preludeShellClosure = pkgs.closureInfo {
+    rootPaths = [config.packages.prelude-shell];
+  };
+  componentClosures = {
+    motd = pkgs.closureInfo {
+      rootPaths = [config.packages.prelude-motd];
+    };
+    menu = pkgs.closureInfo {
+      rootPaths = [config.packages.prelude-menu];
+    };
+    docs = pkgs.closureInfo {
+      rootPaths = [config.packages.prelude-docs];
+    };
+  };
 
   # Assert that every advertised canonical invocation starts with an executable
   # provided by the devshell. Group selectors (`go:test`) are menu identity and
@@ -45,11 +81,78 @@
       touch "$out"
     '';
 in {
+  output-surface = assert lib.assertMsg
+  (builtins.attrNames config.apps
+    == [
+      "examples"
+      "prelude"
+      "previews"
+    ])
+  "Prelude's root app surface must contain only prelude plus the repository-only examples and previews apps";
+  assert lib.assertMsg
+  (lib.getExe config.packages.default == lib.getExe config.packages.prelude)
+  "packages.default must run Prelude so `nix run <flake> -- <command>` needs no app alias";
+    pkgs.runCommand "output-surface" {} ''
+      touch "$out"
+    '';
+  component-closures = let
+    commonForbidden = [
+      config.packages.prelude
+      config.packages.prelude-shell
+      config.packages.prelude-title
+      config.packages.prelude-title-previews
+      config.packages.prelude-wizard
+      demos.examplesRunner
+      previews
+    ];
+    assertAbsent = closure: forbidden:
+      lib.concatMapStringsSep "\n" (
+        package: ''
+          if grep -Fxq ${lib.escapeShellArg (toString package)} ${closure}/store-paths; then
+            echo "${package} leaked into a component closure" >&2
+            exit 1
+          fi
+        ''
+      )
+      forbidden;
+  in
+    pkgs.runCommand "component-closures" {} ''
+      ${assertAbsent componentClosures.motd (
+        commonForbidden
+        ++ [
+          config.packages.prelude-menu
+          config.packages.prelude-menu.componentRoot
+          config.packages.prelude-docs
+          config.packages.prelude-docs.componentRoot
+        ]
+      )}
+      ${assertAbsent componentClosures.menu (
+        commonForbidden
+        ++ [
+          config.packages.prelude-motd
+          config.packages.prelude-motd.componentRoot
+          config.packages.prelude-docs
+          config.packages.prelude-docs.componentRoot
+        ]
+      )}
+      ${assertAbsent componentClosures.docs (
+        commonForbidden
+        ++ [
+          config.packages.prelude-motd
+          config.packages.prelude-motd.componentRoot
+          config.packages.prelude-menu
+          config.packages.prelude-menu.componentRoot
+        ]
+      )}
+      touch "$out"
+    '';
+  consumer-template = evalConsumerShell ../templates/default/flake.nix;
+  consumer-reference = evalConsumerShell ../examples/reference/flake.nix;
   # Building the module-produced packages runs shellcheck / go vet on the
   # generated artifacts.
-  motd-default = config.packages.motd;
-  title-default = config.packages.title;
-  menu-default = config.packages.menu;
+  motd-default = config.packages.prelude-motd;
+  title-default = config.packages.prelude-title;
+  menu-default = config.packages.prelude-menu;
   menu-just-config = let
     justfile = pkgs.writeText "menu-justfile" "build:\n  echo build\n";
     menu =
@@ -71,11 +174,11 @@ in {
       touch "$out"
     '';
   status-gradient-width = pkgs.runCommand "status-gradient-width" {} ''
-    gradient_line=$(grep '^_PRELUDE_PROMPT_STATUS_GRADIENT=' ${config.packages.prelude.shellInit})
+    gradient_line=$(grep '^_PRELUDE_PROMPT_STATUS_GRADIENT=' ${config.packages.prelude-shell.shellInit})
     test "$(printf '%s' "$gradient_line" | tr -cd '#' | wc -c)" -eq 64
-    grep -Fq '_PRELUDE_PROMPT_STATUS_GRADIENT_FG=' ${config.packages.prelude.shellInit}
-    grep -Fq '_PRELUDE_PROMPT_STATUS_HINT_BOLD_START=' ${config.packages.prelude.shellInit}
-    grep -Fq '_PRELUDE_PROMPT_STATUS_HINT_BOLD_WIDTH=' ${config.packages.prelude.shellInit}
+    grep -Fq '_PRELUDE_PROMPT_STATUS_GRADIENT_FG=' ${config.packages.prelude-shell.shellInit}
+    grep -Fq '_PRELUDE_PROMPT_STATUS_HINT_BOLD_START=' ${config.packages.prelude-shell.shellInit}
+    grep -Fq '_PRELUDE_PROMPT_STATUS_HINT_BOLD_WIDTH=' ${config.packages.prelude-shell.shellInit}
 
     ${lib.getExe pkgs.bash} <<'EOF'
     set -euo pipefail
@@ -133,49 +236,164 @@ in {
     touch "$out"
   '';
 
-  prelude-default =
-    pkgs.runCommand "prelude-default"
+  prelude-shell-default = assert lib.all (
+    invocation: lib.elem invocation config.packages.prelude-menu.xInvocations
+  ) [
+    "x prelude:previews"
+    "x prelude:wizard"
+  ];
+    pkgs.runCommand "prelude-shell-default"
     {
       nativeBuildInputs = [
-        config.packages.prelude
+        config.packages.prelude-shell
+        config.packages.prelude-motd
+        config.packages.prelude-menu
+        config.packages.prelude-docs
         pkgs.shellcheck
       ];
     }
     ''
               command -v prelude >/dev/null
-              command -v prelude-setup >/dev/null
+              command -v prelude-preflight >/dev/null
               command -v motd >/dev/null
               command -v menu >/dev/null
               command -v docs >/dev/null
-              test ! -e ${config.packages.prelude}/bin/setup
+              # The shell core and each component are independent devshell
+              # packages. Repository-only generators/previews must not leak
+              # onto a consumer's PATH through one of those packages.
+              test ! -e ${config.packages.prelude-shell}/bin/motd
+              test ! -e ${config.packages.prelude-shell}/bin/menu
+              test ! -e ${config.packages.prelude-shell}/bin/docs
+              test ! -e ${config.packages.prelude-shell}/bin/prelude-wizard
+              test ! -e ${config.packages.prelude-shell}/bin/prelude-title-previews
+              test ! -e ${config.packages.prelude-motd}/bin/menu
+              test ! -e ${config.packages.prelude-motd}/bin/docs
+              test ! -e ${config.packages.prelude-motd}/bin/prelude-wizard
+              test ! -e ${config.packages.prelude-motd}/bin/prelude-title-previews
+              test ! -e ${config.packages.prelude-menu}/bin/docs
+              for package in \
+                ${config.packages.prelude-shell} \
+                ${config.packages.prelude-motd} \
+                ${config.packages.prelude-menu} \
+                ${config.packages.prelude-docs}; do
+                test ! -e "$package/bin/examples"
+                test ! -e "$package/bin/previews"
+              done
+              command -v prelude-wizard >/dev/null 2>&1 && {
+                echo 'prelude-wizard leaked onto the consumer devshell PATH' >&2
+                exit 1
+              }
+              # Assert closure membership, not only visible bin links: the shell
+              # core must not install the full app, components, or repository
+              # generators transitively.
+              for forbidden in \
+                ${config.packages.prelude} \
+                ${config.packages.prelude-motd} \
+                ${config.packages.prelude-motd.componentRoot} \
+                ${config.packages.prelude-menu} \
+                ${config.packages.prelude-menu.componentRoot} \
+                ${config.packages.prelude-docs} \
+                ${config.packages.prelude-docs.componentRoot} \
+                ${config.packages.prelude-title} \
+                ${config.packages.prelude-title-previews} \
+                ${config.packages.prelude-wizard} \
+                ${demos.examplesRunner} \
+                ${previews}; do
+                if grep -Fxq "$forbidden" ${preludeShellClosure}/store-paths; then
+                  echo "$forbidden leaked into the prelude-shell closure" >&2
+                  exit 1
+                fi
+              done
+              # Prelude's own tools never claim generic executable names.
+              test ! -e ${config.packages.prelude-shell}/bin/setup
+              test ! -e ${config.packages.prelude-shell}/bin/preflight
+              test ! -e ${config.packages.prelude-shell}/bin/wizard
+              if command -v wizard >/dev/null 2>&1; then
+                echo 'a bare wizard executable leaked onto the consumer devshell PATH' >&2
+                exit 1
+              fi
               prelude --help | grep -Fq 'usage: prelude <command> [args...]'
-              prelude --help | grep -Fq 'setup          generate a Prelude project configuration'
-              prelude setup --help | grep -Fq 'usage: prelude setup [--recipe path] [-o path]'
+              prelude --help | grep -Fq 'wizard         generate a Prelude project configuration'
+              prelude --help | grep -Fq 'preflight      print the shell code to eval'
+              if prelude wizard --help >/dev/null 2>&1; then
+                echo 'the devshell dispatcher found prelude-wizard without its package being added' >&2
+                exit 1
+              fi
+              if prelude setup --help >/dev/null 2>&1; then
+                echo 'prelude still answers the removed `setup` command' >&2
+                exit 1
+              fi
+              # preflight is a printer: identical bytes from both entrypoints.
+              prelude preflight > cli-preflight
+              prelude-preflight > bin-preflight
+              cmp -s cli-preflight bin-preflight
+              cmp -s bin-preflight ${config.packages.prelude-shell}/share/prelude/shell/preflight.bash
+              grep -Fq '. "$PRELUDE_INIT"' bin-preflight
+              grep -Fq 'case "$-" in' bin-preflight
+              # The snippet must name no build-time path: the MOTD binary and its
+              # once-per-environment key belong to the init alone, so the two
+              # cannot drift into rendering the banner twice.
+              if grep -Fq '/nix/store/' bin-preflight; then
+                echo 'prelude-preflight bakes a store path into its snippet' >&2
+                exit 1
+              fi
+              ${pkgs.bash}/bin/bash -n bin-preflight
+              # Without a loaded environment it must say so and change nothing.
+              ( unset PRELUDE_INIT; eval "$(prelude-preflight)" 2>preflight-warning )
+              grep -Fq 'PRELUDE_INIT is unset' preflight-warning
+              if prelude-preflight --unexpected >/dev/null 2>&1; then
+                echo 'prelude-preflight accepted an unexpected argument' >&2
+                exit 1
+              fi
+              # This builder is non-interactive with no DIRENV_IN_ENVRC — the
+              # lorri shellHook case (nix-community/lorri#159). Rendering here
+              # would go to a build log nobody reads, and exporting the marker
+              # would silence the real shell's banner, so both must stay absent.
+              (
+                export PRELUDE_INIT=${config.packages.prelude-shell.shellInit}
+                eval "$(prelude-preflight)" 2>preflight-builder
+                test ! -s preflight-builder
+                test -z "''${_PRELUDE_MOTD_SHOWN-}"
+              )
+              # direnv's .envrc: non-interactive, but its exports reach a real
+              # shell. Render once, export the marker, stay quiet on re-eval.
+              (
+                export PRELUDE_INIT=${config.packages.prelude-shell.shellInit}
+                export DIRENV_IN_ENVRC=1
+                eval "$(prelude-preflight)" 2>preflight-direnv
+                test -s preflight-direnv
+                test -n "''${_PRELUDE_MOTD_SHOWN-}"
+                # An unexported render flag cannot leak into the environment
+                # direnv captures from .envrc.
+                test -z "''${_PRELUDE_PREFLIGHT_RENDER-}"
+                eval "$(prelude-preflight)" 2>preflight-direnv-again
+                test ! -s preflight-direnv-again
+              )
               command -v starship >/dev/null
               command -v blesh-share >/dev/null
-              test -f ${config.packages.prelude}/share/blesh/ble.sh
-              test -f ${config.packages.prelude}/share/prelude/init.bash
-              test -f ${config.packages.prelude}/share/prelude/shell/init.bash
-              test -f ${config.packages.prelude}/share/prelude/shell/bash-init.bash
-              test -f ${config.packages.prelude}/share/prelude/shell/status.bash
-              test -f ${config.packages.prelude}/share/prelude/shell/completion.bash
-              test -f ${config.packages.prelude}/share/prelude/shell/status-cap.bash
-              test -f ${config.packages.prelude}/share/prelude/shell/catalogue.bash
-              test -f ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
-              test -f ${config.packages.prelude}/share/prelude/shell/contrib/airline/prelude.bash
-              test -f ${config.packages.prelude}/nix-support/setup-hook
-              grep -Fq 'prelude-init()' ${config.packages.prelude}/nix-support/setup-hook
-              grep -Fq '. ${config.packages.prelude.shellInit}' ${config.packages.prelude}/nix-support/setup-hook
+              test -f ${config.packages.prelude-shell}/share/blesh/ble.sh
+              test -f ${config.packages.prelude-shell}/share/prelude/init.bash
+              test -f ${config.packages.prelude-shell}/share/prelude/shell/init.bash
+              test -f ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
+              test -f ${config.packages.prelude-shell}/share/prelude/shell/status.bash
+              test -f ${config.packages.prelude-shell}/share/prelude/shell/completion.bash
+              test -f ${config.packages.prelude-shell}/share/prelude/shell/status-cap.bash
+              test -f ${config.packages.prelude-shell}/share/prelude/shell/catalogue.bash
+              test -f ${config.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
+              test -f ${config.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
+              test -f ${config.packages.prelude-shell}/nix-support/setup-hook
+              grep -Fq 'prelude-init()' ${config.packages.prelude-shell}/nix-support/setup-hook
+              grep -Fq '. ${config.packages.prelude-shell.shellInit}' ${config.packages.prelude-shell}/nix-support/setup-hook
               # STARSHIP_CONFIG must be exported from the setup-hook (not
               # shellHook) so direnv `use flake` re-themes the prompt.
-              grep -Fq 'export STARSHIP_CONFIG=' ${config.packages.prelude}/nix-support/setup-hook
+              grep -Fq 'export STARSHIP_CONFIG=' ${config.packages.prelude-shell}/nix-support/setup-hook
               # Activation must reach the shell as an exported *variable*.
-              # `prelude-init` is a function, and lorri only applies environment
-              # variables — it never runs shellHook — so a function alone leaves
-              # lorri users with no MOTD at all.
-              grep -Fq 'export PRELUDE_INIT=' ${config.packages.prelude}/nix-support/setup-hook
-              test -f ${config.packages.prelude}/share/prelude/shell/hook.bash
-              test -f ${config.packages.prelude}/share/prelude/shell/hook.zsh
+              # lorri runs shellHook inside the builder and replays only the
+              # variables it exported, so `prelude-init` — a function — never
+              # arrives. Without this path lorri users get no MOTD.
+              grep -Fq 'export PRELUDE_INIT=' ${config.packages.prelude-shell}/nix-support/setup-hook
+              test -f ${config.packages.prelude-shell}/share/prelude/shell/hook.bash
+              test -f ${config.packages.prelude-shell}/share/prelude/shell/hook.zsh
               prelude --help | grep -Fq 'hook           print the shell hook'
               # The hook is pasted into a user's rc file, so it must never carry
               # a Bash-only payload into another shell.
@@ -202,44 +420,44 @@ in {
                 echo "prelude hook accepted an unsupported shell" >&2
                 exit 1
               fi
-              grep -Fq '_PRELUDE_BLESH=${pkgs.blesh}/share/blesh/ble.sh' ${config.packages.prelude}/share/prelude/init.bash
-              grep -Fq '_PRELUDE_STARSHIP=${lib.getExe pkgs.starship}' ${config.packages.prelude}/share/prelude/init.bash
-              grep -Fq '_PRELUDE_STARSHIP_STATUS_ENABLED=1' ${config.packages.prelude}/share/prelude/init.bash
-              grep -Fq 'bleopt color_scheme=prelude' ${config.packages.prelude}/share/prelude/shell/bash-init.bash
-              grep -Fq 'bleopt_import_path=' ${config.packages.prelude}/share/prelude/shell/bash-init.bash
-              grep -Fq 'ble/prompt/backslash:lib/vim-airline' ${config.packages.prelude}/share/prelude/shell/bash-init.bash
+              grep -Fq '_PRELUDE_BLESH=${pkgs.blesh}/share/blesh/ble.sh' ${config.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq '_PRELUDE_STARSHIP=${lib.getExe pkgs.starship}' ${config.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq '_PRELUDE_STARSHIP_STATUS_ENABLED=1' ${config.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq 'bleopt color_scheme=prelude' ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
+              grep -Fq 'bleopt_import_path=' ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
+              grep -Fq 'ble/prompt/backslash:lib/vim-airline' ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
               # ble.sh sources ~/.blerc during load, so the runtime must be on
               # import_path before that source line runs.
-              seed_line=$(grep -n 'bleopt_import_path=' ${config.packages.prelude}/share/prelude/shell/bash-init.bash | head -1 | cut -d: -f1)
-              blesh_line=$(grep -nF 'source "''$_PRELUDE_BLESH" --attach=none' ${config.packages.prelude}/share/prelude/shell/bash-init.bash | head -1 | cut -d: -f1)
+              seed_line=$(grep -n 'bleopt_import_path=' ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash | head -1 | cut -d: -f1)
+              blesh_line=$(grep -nF 'source "''$_PRELUDE_BLESH" --attach=none' ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash | head -1 | cut -d: -f1)
               test "$seed_line" -lt "$blesh_line"
-              grep -Fq 'function ble/contrib/scheme:prelude/initialize' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
-              grep -Fq "ble-face -d prelude_status_cap" ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
-              test "$(grep -c '^  ble-face -[sd] ' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash)" -eq 75
-              ! grep -Fq '%prelude_' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
-              ! grep -Eq '#[[:xdigit:]]{6}[[:alnum:]_]' ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
-              grep -Fq 'function ble/lib/vim-airline/theme:prelude/initialize' ${config.packages.prelude}/share/prelude/shell/contrib/airline/prelude.bash
-              grep -Fq 'ble-face -r vim_airline_@' ${config.packages.prelude}/share/prelude/shell/contrib/airline/prelude.bash
-              test "$(grep -c '^  ble-face -s ' ${config.packages.prelude}/share/prelude/shell/contrib/airline/prelude.bash)" -eq 17
-              ! grep -Fq '%prelude_' ${config.packages.prelude}/share/prelude/shell/contrib/airline/prelude.bash
-              ! grep -Eq '#[[:xdigit:]]{6}[[:alnum:]_]' ${config.packages.prelude}/share/prelude/shell/contrib/airline/prelude.bash
-              grep -Fq 'right_format' ${config.packages.prompt}
-              grep -Fq '╰─' ${config.packages.prompt}
-              ! grep -Fq ']()$character' ${config.packages.prompt}
-              ! grep -Fq 'Type a command' ${config.packages.prompt}
-              grep -Fq '_PRELUDE_PROMPT_PROJECT=' ${config.packages.prelude}/share/prelude/init.bash
-              grep -Fq '_PRELUDE_PROMPT_NAVIGATION=' ${config.packages.prelude}/share/prelude/init.bash
-              grep -Fq '_PRELUDE_PROMPT_NAVIGATION_RENDERED=' ${config.packages.prelude}/share/prelude/init.bash
-              grep -Fq '_PRELUDE_PROMPT_STATUS_HINT=' ${config.packages.prelude}/share/prelude/init.bash
-              grep -Fq '_PRELUDE_PROMPT_STATUS_HINT_RENDERED=' ${config.packages.prelude}/share/prelude/init.bash
-              grep -Fq '_PRELUDE_PROMPT_STATUS_GRADIENT=' ${config.packages.prelude}/share/prelude/init.bash
-              grep -Fq '_PRELUDE_PROMPT_STATUS_GRADIENT_FG=' ${config.packages.prelude}/share/prelude/init.bash
-              grep -Fq "bleopt prompt_status_line='\\q{prelude/status}'" ${config.packages.prelude}/share/prelude/shell/bash-init.bash
-              grep -Fq "blehook PRECMD!='prelude/status/update'" ${config.packages.prelude}/share/prelude/shell/bash-init.bash
-              grep -Fq 'prelude/status/cap/install' ${config.packages.prelude}/share/prelude/shell/bash-init.bash
-              grep -Fq '_PRELUDE_STARSHIP_FINAL_CONFIG=' ${config.packages.prelude}/share/prelude/init.bash
-              grep -Fq 'STARSHIP_CONFIG=' ${config.packages.prelude}/share/prelude/shell/bash-init.bash
-              grep -Fq 'starship prompt --terminal-width=' ${config.packages.prelude}/share/prelude/shell/bash-init.bash
+              grep -Fq 'function ble/contrib/scheme:prelude/initialize' ${config.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
+              grep -Fq "ble-face -d prelude_status_cap" ${config.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
+              test "$(grep -c '^  ble-face -[sd] ' ${config.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash)" -eq 75
+              ! grep -Fq '%prelude_' ${config.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
+              ! grep -Eq '#[[:xdigit:]]{6}[[:alnum:]_]' ${config.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
+              grep -Fq 'function ble/lib/vim-airline/theme:prelude/initialize' ${config.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
+              grep -Fq 'ble-face -r vim_airline_@' ${config.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
+              test "$(grep -c '^  ble-face -s ' ${config.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash)" -eq 17
+              ! grep -Fq '%prelude_' ${config.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
+              ! grep -Eq '#[[:xdigit:]]{6}[[:alnum:]_]' ${config.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
+              grep -Fq 'right_format' ${config.packages.prelude-prompt}
+              grep -Fq '╰─' ${config.packages.prelude-prompt}
+              ! grep -Fq ']()$character' ${config.packages.prelude-prompt}
+              ! grep -Fq 'Type a command' ${config.packages.prelude-prompt}
+              grep -Fq '_PRELUDE_PROMPT_PROJECT=' ${config.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq '_PRELUDE_PROMPT_NAVIGATION=' ${config.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq '_PRELUDE_PROMPT_NAVIGATION_RENDERED=' ${config.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq '_PRELUDE_PROMPT_STATUS_HINT=' ${config.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq '_PRELUDE_PROMPT_STATUS_HINT_RENDERED=' ${config.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq '_PRELUDE_PROMPT_STATUS_GRADIENT=' ${config.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq '_PRELUDE_PROMPT_STATUS_GRADIENT_FG=' ${config.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq "bleopt prompt_status_line='\\q{prelude/status}'" ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
+              grep -Fq "blehook PRECMD!='prelude/status/update'" ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
+              grep -Fq 'prelude/status/cap/install' ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
+              grep -Fq '_PRELUDE_STARSHIP_FINAL_CONFIG=' ${config.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq 'STARSHIP_CONFIG=' ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
+              grep -Fq 'starship prompt --terminal-width=' ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
               (
                 COLUMNS=200
                 _PRELUDE_STARSHIP_STATUS_ENABLED=1
@@ -281,8 +499,8 @@ in {
                     *) cs=''${text:index:1}; w=1; extend=0 ;;
                   esac
                 }
-                source ${config.packages.prelude}/share/prelude/shell/catalogue.bash
-                source ${config.packages.prelude}/share/prelude/shell/status.bash
+                source ${config.packages.prelude-shell}/share/prelude/shell/catalogue.bash
+                source ${config.packages.prelude-shell}/share/prelude/shell/status.bash
                 _prelude_status_revision=42
                 prelude/status/update
                 ble/prompt/backslash:prelude/status
@@ -328,14 +546,14 @@ in {
                 ble/prompt/backslash:prelude/status
                 printf '%s' "$_prelude_fake_line" | grep -F 'argument <empty>'
                 printf '%s' "$_prelude_fake_line" | grep -F 'optional'
-                printf '%s' "$_prelude_fake_line" | grep -F 'candidates: .#motd'
+                printf '%s' "$_prelude_fake_line" | grep -F 'candidates: .#prelude-motd'
 
-                _ble_edit_str='x build .#m'
+                _ble_edit_str='x build .#p'
                 ble/prompt/backslash:prelude/status
-                printf '%s' "$_prelude_fake_line" | grep -F 'argument .#m'
+                printf '%s' "$_prelude_fake_line" | grep -F 'argument .#p'
                 printf '%s' "$_prelude_fake_line" | grep -F 'optional'
                 printf '%s' "$_prelude_fake_line" | grep -F 'flake output to build'
-                printf '%s' "$_prelude_fake_line" | grep -F 'candidates: .#motd'
+                printf '%s' "$_prelude_fake_line" | grep -F 'candidates: .#prelude-motd'
 
                 _ble_edit_str="x '"
                 ble/prompt/backslash:prelude/status
@@ -455,7 +673,7 @@ in {
                   _ble_canvas_panel_height[5]=1
                 }
                 ble/edit/is-command-layout() { return 1; }
-                source ${config.packages.prelude}/share/prelude/shell/status-cap.bash
+                source ${config.packages.prelude-shell}/share/prelude/shell/status-cap.bash
                 prelude/status/cap/install
                 test "''${_ble_canvas_panel_class[4]}" = prelude/status/cap
                 test "''${_ble_canvas_panel_class[5]}" = ble/prompt/status
@@ -487,30 +705,134 @@ in {
                 _ble_canvas_panel_class=(ble/textarea ble/textarea ble/edit/info ble/edit/visible-bell unexpected)
                 _ble_canvas_panel_height=(1 0 0 0 0)
                 _ble_canvas_panel_vfill=4
-                source ${config.packages.prelude}/share/prelude/shell/status-cap.bash
+                source ${config.packages.prelude-shell}/share/prelude/shell/status-cap.bash
                 ! prelude/status/cap/install >/dev/null 2>&1
                 test "''${#_ble_canvas_panel_class[@]}" -eq 5
                 test "''${_ble_canvas_panel_class[4]}" = unexpected
                 test "$_ble_prompt_status_panel" -eq 4
                 test "$_ble_canvas_panel_vfill" -eq 4
               )
-              ${pkgs.bash}/bin/bash -n ${config.packages.prelude}/share/prelude/init.bash
-              for source in ${config.packages.prelude}/share/prelude/shell/*.bash; do
+              ${pkgs.bash}/bin/bash -n ${config.packages.prelude-shell}/share/prelude/init.bash
+              for source in ${config.packages.prelude-shell}/share/prelude/shell/*.bash; do
                 ${pkgs.bash}/bin/bash -n "$source"
               done
-              ${pkgs.bash}/bin/bash -n ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
-              ${pkgs.bash}/bin/bash -n ${config.packages.prelude}/share/prelude/shell/contrib/airline/prelude.bash
-              shellcheck -x ${config.packages.prelude}/share/prelude/init.bash
-              shellcheck -x ${config.packages.prelude}/share/prelude/shell/init.bash
+              ${pkgs.bash}/bin/bash -n ${config.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
+              ${pkgs.bash}/bin/bash -n ${config.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
+              shellcheck -x ${config.packages.prelude-shell}/share/prelude/init.bash
+              shellcheck -x ${config.packages.prelude-shell}/share/prelude/shell/init.bash
               # PROMPT_COMMAND is legitimately a string or an array depending on
               # the Bash version, and the hook handles both shapes explicitly.
-              shellcheck -x -e SC2178,SC2128 ${config.packages.prelude}/share/prelude/shell/hook.bash
-              shellcheck -x -e SC1091,SC2154 ${config.packages.prelude}/share/prelude/shell/bash-init.bash
-              shellcheck -x -e SC2016,SC2154 ${config.packages.prelude}/share/prelude/shell/status.bash
-              shellcheck -x -e SC2154 ${config.packages.prelude}/share/prelude/shell/completion.bash
-              shellcheck -e SC2154 ${config.packages.prelude}/share/prelude/shell/contrib/scheme/prelude.bash
-              shellcheck -e SC2154 ${config.packages.prelude}/share/prelude/shell/contrib/airline/prelude.bash
+              shellcheck -x -e SC2178,SC2128 ${config.packages.prelude-shell}/share/prelude/shell/hook.bash
+              shellcheck -x ${config.packages.prelude-shell}/share/prelude/shell/preflight.bash
+              shellcheck -x -e SC1091,SC2154 ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
+              shellcheck -x -e SC2016,SC2154 ${config.packages.prelude-shell}/share/prelude/shell/status.bash
+              shellcheck -x -e SC2154 ${config.packages.prelude-shell}/share/prelude/shell/completion.bash
+              shellcheck -e SC2154 ${config.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
+              shellcheck -e SC2154 ${config.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
               touch "$out"
+    '';
+
+  prelude-default =
+    pkgs.runCommand "prelude-default"
+    {nativeBuildInputs = [config.packages.prelude];}
+    ''
+      command -v prelude >/dev/null
+      test -x ${config.packages.prelude-preflight}/bin/prelude-preflight
+      test -x ${config.packages.prelude-wizard}/bin/prelude-wizard
+      test -x ${config.packages.prelude-title}/bin/prelude-title
+      test -x ${config.packages.prelude-title-previews}/bin/prelude-title-previews
+      test -x ${previews}/bin/prelude-previews
+      test ! -e ${config.packages.prelude}/bin/wizard
+      test ! -e ${config.packages.prelude-preflight}/bin/preflight
+      test ! -e ${config.packages.prelude-wizard}/bin/wizard
+      test ! -e ${config.packages.prelude-title}/bin/title
+      test ! -e ${config.packages.prelude-title-previews}/bin/previews
+      test ! -e ${previews}/bin/previews
+      test ! -e ${config.packages.prelude-menu}/bin/wizard
+      prelude --help | grep -Fq 'usage: prelude <command> [args...]'
+      prelude --help | grep -Fq 'wizard         generate a Prelude project configuration'
+      prelude wizard --help | grep -Fq 'usage: prelude wizard [--recipe path] [-o path]'
+      if prelude setup --help >/dev/null 2>&1; then
+        echo 'prelude still answers the removed `setup` command' >&2
+        exit 1
+      fi
+      touch "$out"
+    '';
+
+  # With `prelude.prompt.enable = false` the generated init must not name
+  # Starship, ble.sh, or bash-completion anywhere. Nix derives a derivation's
+  # runtime references by scanning its output text for store hashes, so a single
+  # mention would drag all three into a MOTD-only consumer's closure. Textual
+  # absence is therefore exactly the closure guarantee, not a proxy for it.
+  shell-init-motd-only = let
+    backdrop = internalLib.resolveBackdropPalette "prelude" {};
+    light =
+      (import ../src/prelude/shell-init.nix {
+        inherit (pkgs) lib writeText runCommand starship blesh bash-completion stdenv;
+      }) {
+        inherit (backdrop) shadow;
+        inherit (backdrop) palette;
+        projectName = "motd-only";
+        motdCommand = "/prelude-test/bin/motd";
+        promptEnabled = false;
+      };
+  in
+    pkgs.runCommand "shell-init-motd-only" {} ''
+      for forbidden in \
+        ${lib.getExe pkgs.starship} \
+        ${pkgs.blesh} \
+        ${pkgs.bash-completion}; do
+        if grep -Fq "$forbidden" ${light.init}; then
+          echo "MOTD-only init references $forbidden" >&2
+          echo "that would pull the prompt runtime into every consumer's closure" >&2
+          exit 1
+        fi
+      done
+      # It must still be a working activation entrypoint.
+      grep -Fq '_PRELUDE_PROMPT_ENABLED=0' ${light.init}
+      grep -Fq '_PRELUDE_MOTD=' ${light.init}
+      ${pkgs.bash}/bin/bash -n ${light.init}
+      touch "$out"
+    '';
+
+  # The banner has two possible renderers for one environment: preflight (from
+  # direnv's non-interactive .envrc) and `prelude hook` (from the interactive
+  # prompt). Exactly one may fire. That only holds while both derive the same
+  # once-per-environment key from the same MOTD identity, which is why preflight
+  # asks the init to render instead of naming a MOTD binary itself. A sentinel
+  # MOTD with the prompt disabled keeps this about the handoff rather than
+  # ble.sh, Starship, or this repo's own banner text.
+  preflight-hook-handoff = let
+    backdrop = internalLib.resolveBackdropPalette "prelude" {};
+    sentinel = pkgs.writeShellApplication {
+      name = "motd";
+      text = "printf '%s\\n' PRELUDE-MOTD-SENTINEL";
+    };
+    shellPkg =
+      (import ../src/prelude/shell-init.nix {
+        inherit (pkgs) lib writeText runCommand starship blesh bash-completion stdenv;
+      }) {
+        inherit (backdrop) shadow palette;
+        projectName = "preflight-handoff";
+        motdCommand = lib.getExe sentinel;
+        promptEnabled = false;
+      };
+    ptyPython = pkgs.python3.withPackages (pythonPackages: [pythonPackages.pyte]);
+    ptyCommandPath = lib.makeBinPath [
+      pkgs.bashInteractive
+      pkgs.coreutils
+      sentinel
+    ];
+  in
+    pkgs.runCommand "preflight-hook-handoff" {} ''
+      ${lib.getExe ptyPython} ${./preflight-hook-pty-test.py} \
+        ${lib.getExe pkgs.bashInteractive} \
+        ${shellPkg.init} \
+        ${shellPkg.runtime}/preflight.bash \
+        ${shellPkg.runtime}/hook.bash \
+        ${lib.escapeShellArg ptyCommandPath} \
+        PRELUDE-MOTD-SENTINEL
+      touch "$out"
     '';
 
   # A devshell must never `export -f`. Bash stores an exported function as the
@@ -534,7 +856,7 @@ in {
   '';
 
   title-previews = pkgs.runCommand "title-previews" {} ''
-    ${lib.getExe config.packages.title-previews} "choose me" > "$out"
+    ${lib.getExe config.packages.prelude-title-previews} "choose me" > "$out"
     test "$(grep -c '^===== .* =====$' "$out")" -eq 25
     grep -q '^===== 3d-ascii =====$' "$out"
     grep -q '^===== calvin-s =====$' "$out"
@@ -550,7 +872,7 @@ in {
     recipe = pkgs.writeText "title.json" ''{"text":"prelude","font":"calvin-s"}'';
   in
     pkgs.runCommand "title-generates" {} ''
-      ${lib.getExe config.packages.title} --recipe ${recipe} --output "$out"
+      ${lib.getExe config.packages.prelude-title} --recipe ${recipe} --output "$out"
       grep -q '┌─┐' "$out"
     '';
 
@@ -574,16 +896,21 @@ in {
   # (bare); docs stays picker-only. Project Getting Started rows remain
   # focused on explicitly selected lifecycle commands. Bare `menu` remains a
   # compatibility PATH wrapper outside the catalogue.
-  prelude-command-defaults = assert lib.all (name: lib.elem name config.packages.menu.commandNames) [
+  prelude-command-defaults = assert lib.all (name: lib.elem name config.packages.prelude-menu.commandNames) [
     "x"
     "docs"
   ];
-  assert lib.elem "x" config.packages.motd.commandNames;
-  assert lib.elem "x" config.packages.motd.commandInvocations;
-  assert !lib.elem "menu" config.packages.motd.commandNames;
-  assert !lib.elem "menu" config.packages.motd.commandInvocations;
-  assert !lib.elem "docs" config.packages.motd.commandNames;
-    pkgs.runCommand "prelude-command-defaults" {nativeBuildInputs = [config.packages.menu];} ''
+  assert lib.elem "x" config.packages.prelude-motd.commandNames;
+  assert lib.elem "x" config.packages.prelude-motd.commandInvocations;
+  assert !lib.elem "menu" config.packages.prelude-motd.commandNames;
+  assert !lib.elem "menu" config.packages.prelude-motd.commandInvocations;
+  assert !lib.elem "docs" config.packages.prelude-motd.commandNames;
+    pkgs.runCommand "prelude-command-defaults" {
+      nativeBuildInputs = [
+        config.packages.prelude-menu
+        config.packages.prelude-docs
+      ];
+    } ''
       command -v x >/dev/null
       command -v menu >/dev/null
       command -v docs >/dev/null
@@ -1017,7 +1344,7 @@ in {
     export HOME="$TMPDIR/home"
     export XDG_CACHE_HOME="$TMPDIR/cache"
     mkdir -p "$HOME" "$XDG_CACHE_HOME"
-    export STARSHIP_CONFIG=${config.packages.prompt}
+    export STARSHIP_CONFIG=${config.packages.prelude-prompt}
     export STARSHIP_SHELL=bash
     ${lib.getExe pkgs.starship} prompt --terminal-width 79 --status 0 > "$TMPDIR/normal"
     ${lib.getExe pkgs.starship} prompt --right --terminal-width 79 --status 0 > "$TMPDIR/status"
@@ -1217,8 +1544,8 @@ in {
         };
       };
     in
-      builtins.deepSeq evaluated.config.allSystems.${fixtureSystem}.packages.prelude.promptStatusPkg
-      evaluated.config.allSystems.${fixtureSystem}.packages.prelude.promptStatusPkg;
+      builtins.deepSeq evaluated.config.allSystems.${fixtureSystem}.packages.prelude-shell.promptStatusPkg
+      evaluated.config.allSystems.${fixtureSystem}.packages.prelude-shell.promptStatusPkg;
     valid = evalPrompt validLocalServer null;
     invalidTtl = evalPrompt (validLocalServer // {ttl = "0m";}) null;
     invalidOverflowTtl = evalPrompt (validLocalServer // {ttl = "9223372036854775807h";}) null;
@@ -1250,25 +1577,25 @@ in {
   # diagnostics.
   motd-commands-runnable =
     mkRunnableCheck "motd-commands-runnable" "motd"
-    config.packages.motd.commandInvocations;
+    config.packages.prelude-motd.commandInvocations;
 
   menu-commands-runnable =
     mkRunnableCheck "menu-commands-runnable" "menu"
-    config.packages.menu.commandInvocations;
+    config.packages.prelude-menu.commandInvocations;
 
   # Built-in navigation aliases must resolve on the same PATH as their labels.
-  motd-shortcuts-runnable = assert config.packages.motd.shortcutAliases
+  motd-shortcuts-runnable = assert config.packages.prelude-motd.shortcutAliases
   == [
     "?"
     "x"
     "d"
   ];
-    mkRunnableCheck "motd-shortcuts-runnable" "built-in shortcuts" config.packages.motd.shortcutAliases;
+    mkRunnableCheck "motd-shortcuts-runnable" "built-in shortcuts" config.packages.prelude-motd.shortcutAliases;
 
   titles-command-renders =
     pkgs.runCommand "titles-command-renders"
     {
-      nativeBuildInputs = [config.packages.motd];
+      nativeBuildInputs = [config.packages.prelude-title-previews];
     }
     ''
       prelude-title-previews prelude > "$out"
@@ -1279,10 +1606,10 @@ in {
     '';
 
   # Package-backed ungrouped aliases carry their runtime package and wrapper.
-  package-command-bundled = assert lib.elem pkgs.nixfmt config.packages.menu.commandRuntimePackages;
+  package-command-bundled = assert lib.elem pkgs.nixfmt config.packages.prelude-menu.commandRuntimePackages;
     pkgs.runCommand "package-command-bundled"
     {
-      nativeBuildInputs = [config.packages.menu];
+      nativeBuildInputs = [config.packages.prelude-menu];
     }
     ''
       command -v nixfmt >/dev/null
@@ -1321,13 +1648,13 @@ in {
 
   # Group prefixes are parsed into menu metadata and never become PATH names.
   # Canonical package invocations remain the native CLI syntax.
-  grouped-commands-use-canonical-invocations = assert lib.elem "go:vet" config.packages.menu.commandNames;
-  assert lib.elem "go vet -C src ./..." config.packages.menu.commandInvocations;
-  assert lib.elem "x go:vet" config.packages.menu.xInvocations;
-  assert !lib.elem "go:vet" config.packages.menu.commandWrapperNames;
-  assert !lib.elem "go-vet" config.packages.menu.commandWrapperNames;
+  grouped-commands-use-canonical-invocations = assert lib.elem "go:vet" config.packages.prelude-menu.commandNames;
+  assert lib.elem "go vet -C src ./..." config.packages.prelude-menu.commandInvocations;
+  assert lib.elem "x go:vet" config.packages.prelude-menu.xInvocations;
+  assert !lib.elem "go:vet" config.packages.prelude-menu.commandWrapperNames;
+  assert !lib.elem "go-vet" config.packages.prelude-menu.commandWrapperNames;
     pkgs.runCommand "grouped-commands-use-canonical-invocations"
-    {nativeBuildInputs = [config.packages.menu];}
+    {nativeBuildInputs = [config.packages.prelude-menu];}
     ''
       command -v go >/dev/null
       ! command -v go:vet >/dev/null
@@ -1717,7 +2044,7 @@ in {
 
   # Our own `x --list` renders the grouped command table.
   menu-list-renders = pkgs.runCommand "menu-list-renders" {} ''
-    ${lib.getExe' config.packages.menu "x"} --list > "$out"
+    ${lib.getExe' config.packages.prelude-menu "x"} --list > "$out"
     test -s "$out"
     grep -q '^DEMOS$' "$out"
     grep -q "tour every feature demo" "$out"
@@ -1726,7 +2053,7 @@ in {
   # Public contract: bare `menu` opens the picker only. Task/list args must
   # fail before any command executes.
   menu-rejects-execution = pkgs.runCommand "menu-rejects-execution" {} ''
-    menu=${lib.getExe config.packages.menu}
+    menu=${lib.getExe config.packages.prelude-menu}
     if "$menu" list >"$out" 2>"$out.err"; then
       echo "menu list unexpectedly succeeded" >&2
       cat "$out.err" >&2
@@ -1740,15 +2067,16 @@ in {
     fi
     grep -q 'opens the interactive picker only' "$out.err"
     # Positive control: x still dispatches.
-    ${lib.getExe' config.packages.menu "x"} --list > "$out"
+    ${lib.getExe' config.packages.prelude-menu "x"} --list > "$out"
     test -s "$out"
   '';
 
   # The standalone agent surface must be usable without a source checkout:
   # Markdown is part of the package closure, not a path relative to the caller.
-  skill-app = pkgs.runCommand "skill-app" {nativeBuildInputs = [config.packages.skill];} ''
+  # `nix run .#skill` uses the package's main program; it is deliberately not a
+  # fourth root app.
+  skill-package = pkgs.runCommand "skill-package" {nativeBuildInputs = [config.packages.skill];} ''
     skill=${lib.getExe config.packages.skill}
-    test "${config.apps.skill.program}" = "$skill"
 
     work=$(mktemp -d)
     cd "$work"
@@ -1827,10 +2155,10 @@ in {
     ];
   in
     pkgs.runCommand "motd-bg-emulator" {
-      nativeBuildInputs = [config.packages.motd ptyPython];
+      nativeBuildInputs = [config.packages.prelude-motd ptyPython];
     } ''
       ${lib.getExe ptyPython} ${./motd-bg-pty-test.py} \
-        ${lib.getExe config.packages.motd} \
+        ${lib.getExe config.packages.prelude-motd} \
         ${lib.escapeShellArg ptyCommandPath}
       touch "$out"
     '';

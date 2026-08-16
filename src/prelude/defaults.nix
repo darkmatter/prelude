@@ -308,7 +308,7 @@
   };
 
   # --- prompt ------------------------------------------------------------------
-  # Themed Starship config (packages.prompt = starship.toml). The character is
+  # Themed Starship config (packages.prelude-prompt = starship.toml). The character is
   # the normal prompt; the Powerline is right_format, which Prelude transfers
   # into ble.sh's Bash status line. `settings` merges over the themed defaults;
   # `configFile` replaces the generated config and disables that transfer.

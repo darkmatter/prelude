@@ -111,10 +111,17 @@
         };
 
         devShells.default = pkgs.mkShell {
-          packages = [config.packages.prelude];
+          packages = [
+            config.packages.prelude-shell
+            config.packages.prelude-motd
+            config.packages.prelude-menu
+            config.packages.prelude-docs
+          ];
+          # One line for every loader: prelude-preflight prints shell code that
+          # sources the generated init in an interactive shell, and asks it to
+          # render the MOTD when direnv is evaluating .envrc.
           shellHook = ''
-            export STARSHIP_CONFIG=${config.packages.prompt}
-            motd >&2
+            eval "$(prelude-preflight)"
           '';
         };
       };

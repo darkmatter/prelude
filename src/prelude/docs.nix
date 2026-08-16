@@ -248,6 +248,22 @@ config: let
   # before collect renames sources to pages/NNN.md). No basename guessing.
   leafIsRootReadme = path: rootReadmePath != null && path != null && (toString path) == (toString rootReadmePath);
 
+  # Source files from a flake already live below its source store path, but a
+  # nested file path may carry no string context. Interpolating that raw path
+  # into a derivation yields an undeclared store reference (and can break after
+  # GC). Copy only context-free source files to their own store object; generated
+  # option pages already carry derivation context and must remain untouched.
+  materializeSource = path: let
+    rendered = toString path;
+  in
+    if builtins.getContext rendered == {}
+    then
+      builtins.path {
+        inherit path;
+        name = "prelude-docs-page-${builtins.baseNameOf rendered}";
+      }
+    else path;
+
   expandNode = node:
     assert lib.assertMsg (nodeShapeOK node) ''
       docs: each pages node must be exactly one of
@@ -338,7 +354,7 @@ config: let
           ++ [
             {
               inherit id fileName header;
-              path = node.markdownPath;
+              path = materializeSource node.markdownPath;
             }
           ];
         nodes =

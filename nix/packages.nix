@@ -1,6 +1,6 @@
-# Per-system packages. motd/menu come from the prelude module
-# (config.packages.*); this adds the default alias, the previews utility,
-# and the standalone agent skill.
+# Per-system packages. Component and CLI packages come from the Prelude module;
+# this adds repository-only generators, demos, and the default package used by
+# fragmentless `nix run <flake> -- <command>`.
 {
   config,
   demos,
@@ -10,7 +10,7 @@
   ...
 }:
 {
-  default = config.packages.setup;
+  default = config.packages.prelude;
   inherit previews skill;
   docs-record = docsAutomation.record;
   docs-sync = docsAutomation.sync;

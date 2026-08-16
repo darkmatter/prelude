@@ -1,26 +1,17 @@
-# Per-system apps. motd/menu apps come from the prelude module
-# (including the standalone agent skill), the demo runner, previews, and one
-# app per feature demo.
+# Root-only apps layered on top of the module's single public `prelude` app.
+# `examples` and `previews` are repository development surfaces; importing the
+# Prelude module does not add either one to a consumer's outputs or devshell.
 {
   lib,
-  config,
   demos,
-  docsAutomation,
   previews,
-  skill,
   ...
 }: let
   mkApp = pkg: {
     type = "app";
     program = lib.getExe pkg;
   };
-in
-  {
-    default = config.apps.menu;
-    examples = mkApp demos.examplesRunner;
-    previews = mkApp previews;
-    docs-record = mkApp docsAutomation.record;
-    docs-sync = mkApp docsAutomation.sync;
-    skill = mkApp skill;
-  }
-  // lib.mapAttrs (_name: mkApp) demos.examplePackages
+in {
+  examples = mkApp demos.examplesRunner;
+  previews = mkApp previews;
+}

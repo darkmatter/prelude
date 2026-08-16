@@ -8,7 +8,7 @@ flake.
 Start a project with:
 
 ```sh
-nix run github:darkmatter/prelude#setup
+nix run github:darkmatter/prelude -- wizard
 ```
 
 Read a topic with:
@@ -19,9 +19,9 @@ nix run github:darkmatter/prelude#skill -- <topic>
 
 Use `nix run github:darkmatter/prelude#skill -- list` before guessing. Topics:
 
-- `install` — setup output, flake-parts wiring, and reference consumer.
+- `install` — wizard output, flake-parts wiring, and reference consumer.
 - `options` — complete generated `prelude.*` reference.
 - `commands` — `x`, `motd`, and `docs` command contracts.
 - `configuration` — common option groups and docs configuration.
 - `guide command-conventions` — catalogue ownership and dispatch rules.
-- `guide title-rendering` — FIGlet title and setup details.
+- `guide title-rendering` — FIGlet title and wizard details.

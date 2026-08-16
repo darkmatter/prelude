@@ -27,6 +27,21 @@ func Run(defaultConfigPath string) {
 		os.Exit(1)
 	}
 
+	if args := flag.Args(); len(args) > 0 {
+		env := printEnv{
+			statePath:  defaultPagerStatePath(),
+			configPath: *configPath,
+			stdout:     os.Stdout,
+			stderr:     os.Stderr,
+			environ:    os.Environ(),
+		}
+		if err := runPrint(cfg, args, env); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	viewer := manual.New(manualDocument(cfg), cfg.Palette)
 
 	options := []tea.ProgramOption{}

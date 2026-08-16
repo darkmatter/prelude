@@ -3,7 +3,7 @@
 #   prelude.motd    — devshell welcome banner
 #   prelude.menu    — interactive command menu
 #   prelude.docs    — Markdown project docs viewer
-#   prelude.prompt  — themed starship config (packages.prompt = starship.toml)
+#   prelude.prompt  — themed starship config (packages.prelude-prompt = starship.toml)
 #
 # Shared config covers theme/palette, project identity, and a flat command
 # catalogue. MOTD guidance and docs content are authored independently.
@@ -36,13 +36,23 @@
 #
 #       perSystem = { pkgs, config, ... }: {
 #         devShells.default = pkgs.mkShell {
-#           packages = [ config.packages.prelude ];
+#           packages = [
+#             config.packages.prelude-shell
+#             config.packages.prelude-motd
+#             config.packages.prelude-menu
+#             config.packages.prelude-docs
+#           ];
 #           shellHook = ''
-#             motd
+#             eval "$(prelude-preflight)"
 #           '';
 #         };
 #       };
 #     };
+#
+# The module exports one self-contained app, `apps.prelude`, plus a
+# closure-minimal `packages.prelude-shell` and `prelude-`-prefixed component
+# packages. Add the shell package and each enabled component package to the
+# consumer devshell.
 #
 # The outer function receives static args via flake-parts' `importApply`
 # (see flake.nix); consumers should import the applied module from
@@ -77,6 +87,7 @@
   mkDocs = import ./docs.nix;
   mkPrompt = import ./prompt.nix;
   mkPromptStatus = import ./prompt-status.nix;
+  mkPreflight = import ./preflight.nix;
   mkShellInit = import ./shell-init.nix;
   plib = import ./lib.nix {inherit lib;};
   optionTypes = import ./option-types.nix {inherit lib;};
@@ -181,16 +192,16 @@ in {
       motdBin = mkMotd deps motdRenderConfig;
       titlePkg = mkTitle deps;
       titlePreviewsPkg = mkTitlePreviews deps;
-      setupPkg = pkgs.writeShellApplication {
-        # Keep the flake output as `.#setup`, but avoid installing a generic
-        # `setup` executable into consumers' shells. The stable installed name
-        # is `prelude-setup`; the canonical user interface is `prelude setup`.
-        name = "prelude-setup";
+      wizardPkg = pkgs.writeShellApplication {
+        # A generic `wizard` executable must never enter consumers' shells.
+        # The stable installed name is `prelude-wizard`; the public bootstrap
+        # interface is `nix run github:darkmatter/prelude -- wizard`.
+        name = "prelude-wizard";
         runtimeInputs = [titlePkg];
         text = ''
           if [ "''${1:-}" = "--help" ] || [ "''${1:-}" = "-h" ]; then
             cat <<'EOF'
-          usage: prelude setup [--recipe path] [-o path]
+          usage: prelude wizard [--recipe path] [-o path]
 
           Interactively generate a ready-to-use Prelude configuration.
           The UI renders on stderr. Writes the Nix config to -o and a sibling
@@ -206,22 +217,22 @@ in {
         meta.description = "Interactively generate a Prelude project configuration";
       };
 
+      # Path-free by construction: the snippet delegates the MOTD (and its
+      # once-per-environment key) to `shellInit`, so the two can never disagree.
+      preflightPkg = mkPreflight {inherit (pkgs) writeShellApplication;} {
+        inherit shellRuntime;
+      };
+
       motdPkg = pkgs.symlinkJoin {
         name = "motd";
-        # Command-backed MOTD rows remain runnable when packages.motd is used
-        # directly by carrying the menu and its generated wrappers. Built-in
-        # navigation aliases ride along with the menu when enabled; otherwise
-        # the MOTD package carries them.
+        # A component output exposes that component only. Consumers compose the
+        # enabled MOTD, menu, and docs packages explicitly in their devshell;
+        # the wizard and preview generators remain opt-in package outputs.
         paths =
-          [
-            motdBin
-            titlePkg
-            titlePreviewsPkg
-            setupPkg
-          ]
-          ++ lib.optional cfg.menu.enable menuPkg
+          [motdBin]
           ++ lib.optionals (!cfg.menu.enable) shortcutWrappers;
         passthru = {
+          componentRoot = motdBin;
           inherit motdRenderConfig;
           commandNames = map (command: command.name) selectedMotdCommands;
           commandInvocations = map (command: command.command) selectedMotdCommands;
@@ -315,8 +326,9 @@ in {
           wrapped;
 
       # Built-in navigation aliases are PATH wrappers so every rendered chip
-      # is runnable. Resolve targets to absolute store paths so shell builtins
-      # cannot shadow Prelude commands.
+      # is runnable. Targets owned by the same package use absolute paths;
+      # cross-component targets stay on PATH so one component does not retain
+      # another component's closure.
       shortcutEntries = internalShortcuts;
       shortcutAliases = map (s: s.alias) shortcutEntries;
       entriesByName = lib.listToAttrs (map (entry: lib.nameValuePair entry.name entry) commandEntries);
@@ -333,16 +345,16 @@ in {
           else if entry.builtinSurface == "x" && cfg.menu.enable
           then lib.getExe' menuBin "x"
           else if entry.builtinSurface == "docs" && docsEnabled
-          then lib.getExe docsBin
+          then lib.escapeShellArg "docs"
           else if entry.builtinSurface == "motd" && cfg.motd.enable
-          then lib.getExe motdBin
+          then lib.escapeShellArg "motd"
           else lib.escapeShellArg head
         else if command == "menu" && cfg.menu.enable
         then lib.getExe' menuBin "x"
         else if command == "docs" && docsEnabled
-        then lib.getExe docsBin
+        then lib.escapeShellArg "docs"
         else if command == "motd" && cfg.motd.enable
-        then lib.getExe motdBin
+        then lib.escapeShellArg "motd"
         else lib.escapeShellArg command;
       shortcutWrappers =
         map (
@@ -370,9 +382,9 @@ in {
           ++ commandWrappers
           ++ shortcutWrappers
           ++ commandRuntimePackages
-          ++ lib.optional cfg.menu.just.enable pkgs.just
-          ++ lib.optional docsEnabled docsPkg;
+          ++ lib.optional cfg.menu.just.enable pkgs.just;
         passthru = {
+          componentRoot = menuBin;
           inherit
             commandNames
             commandWrappers
@@ -392,7 +404,7 @@ in {
       };
 
       docsBin = mkDocs deps (generatorConfig cfg.docs);
-      docsPkg =
+      docsBasePkg =
         if cfg.motd.enable || cfg.menu.enable
         then docsBin
         else
@@ -405,6 +417,9 @@ in {
               mainProgram = "docs";
             };
           };
+      docsPkg =
+        docsBasePkg
+        // {componentRoot = docsBin;};
       # Keep invalid local-server keys fail-closed even when a custom prompt
       # suppresses Prelude's generated status package.
       promptStatusPkg = assert builtins.deepSeq promptLocalServer true;
@@ -436,99 +451,113 @@ in {
       promptPkg = promptArtifacts.live;
       promptFinalPkg = promptArtifacts.final;
 
-      # `prelude` is the stable, namespaced CLI surface. Individual binaries
-      # remain available for scripts, while the dispatcher prevents generic
-      # names such as `setup` from entering consumers' PATH.
-      preludeCli = pkgs.writeShellApplication {
-        name = "prelude";
-        runtimeInputs = [pkgs.coreutils];
-        text = ''
-          command="''${1:-help}"
-          if [ "$#" -gt 0 ]; then
-            shift
-          fi
+      # Both surfaces share one dispatcher contract. The app embeds every
+      # subcommand so `nix run <prelude-flake> -- ...` is self-contained; the
+      # devshell dispatcher resolves component executables from PATH so adding
+      # the shell core does not pull generators or disabled components into the
+      # environment closure.
+      mkPreludeCli = embedDependencies: let
+        target = package: executable:
+          if embedDependencies
+          then lib.getExe' package executable
+          else executable;
+      in
+        pkgs.writeShellApplication {
+          name = "prelude";
+          runtimeInputs = [pkgs.coreutils];
+          text = ''
+            command="''${1:-help}"
+            if [ "$#" -gt 0 ]; then
+              shift
+            fi
 
-          case "$command" in
-            help|-h|--help)
-              cat <<'EOF'
-          usage: prelude <command> [args...]
+            case "$command" in
+              help|-h|--help)
+                cat <<'EOF'
+            usage: prelude <command> [args...]
 
-          Commands:
-            hook           print the shell hook to add to your shell rc file
-            setup          generate a Prelude project configuration
-            title          choose and render a MOTD title
-            title-previews render every bundled title font
-          ${lib.optionalString cfg.motd.enable "  motd           render the welcome banner"}
-          ${lib.optionalString cfg.menu.enable "  menu           open the command menu\n  x              dispatch a project command"}
-          ${lib.optionalString docsEnabled "  docs            browse project documentation"}
-          ${lib.optionalString cfg.portal.enable "  portal         launch an app, with live health lights\n  portal-web     the same launcher as a local web page"}
-          EOF
-              ;;
-            hook)
-              # Resolve the dialect here, in the user's shell, rather than at
-              # build time: a Nix builder is always Bash, so a build-time guess
-              # would hand Bash syntax to every consumer regardless of what they
-              # actually run. $SHELL is the user's real shell and survives
-              # environment capture untouched.
-              shell="''${1:-}"
-              if [ -z "$shell" ]; then
-                shell="''${SHELL:-}"
-                shell="''${shell##*/}"
-              fi
-              case "$shell" in
-                bash) exec cat ${shellRuntime}/hook.bash ;;
-                zsh) exec cat ${shellRuntime}/hook.zsh ;;
-                *)
-                  echo "prelude: hook: unsupported shell '$shell'" >&2
-                  echo "hint: prelude hook [bash|zsh]" >&2
-                  exit 2
-                  ;;
-              esac
-              ;;
-            setup)
-              exec ${lib.getExe setupPkg} "$@"
-              ;;
-            title)
-              exec ${lib.getExe titlePkg} "$@"
-              ;;
-            title-previews)
-              exec ${lib.getExe titlePreviewsPkg} "$@"
-              ;;
-          ${lib.optionalString cfg.motd.enable ''
-            motd)
-              exec ${lib.getExe motdPkg} "$@"
-              ;;
-          ''}
-          ${lib.optionalString cfg.menu.enable ''
-            menu)
-              exec ${lib.getExe menuPkg} "$@"
-              ;;
-            x)
-              exec ${lib.getExe' menuPkg "x"} "$@"
-              ;;
-          ''}
-          ${lib.optionalString docsEnabled ''
-            docs)
-              exec ${lib.getExe docsPkg} "$@"
-              ;;
-          ''}
-          ${lib.optionalString cfg.portal.enable ''
-            portal)
-              exec ${lib.getExe' portalPkg "portal"} "$@"
-              ;;
-            portal-web)
-              exec ${lib.getExe' portalPkg "portal-web"} "$@"
-              ;;
-          ''}
-            *)
-              echo "prelude: unknown command '$command'" >&2
-              echo "hint: run 'prelude --help'" >&2
-              exit 2
-              ;;
-          esac
-        '';
-        meta.description = "Prelude command-line interface";
-      };
+            Commands:
+              hook           print the shell hook to add to your shell rc file
+              preflight      print the shell code to eval from .envrc or shellHook
+              wizard         generate a Prelude project configuration
+              title          choose and render a MOTD title
+              title-previews render every bundled title font
+            ${lib.optionalString cfg.motd.enable "  motd           render the welcome banner"}
+            ${lib.optionalString cfg.menu.enable "  menu           open the command menu\n  x              dispatch a project command"}
+            ${lib.optionalString docsEnabled "  docs            browse project documentation"}
+            ${lib.optionalString cfg.portal.enable "  portal         launch an app, with live health lights\n  portal-web     the same launcher as a local web page"}
+            EOF
+                ;;
+              hook)
+                # Resolve the dialect here, in the user's shell, rather than at
+                # build time: a Nix builder is always Bash, so a build-time guess
+                # would hand Bash syntax to every consumer regardless of what they
+                # actually run. $SHELL is the user's real shell and survives
+                # environment capture untouched.
+                shell="''${1:-}"
+                if [ -z "$shell" ]; then
+                  shell="''${SHELL:-}"
+                  shell="''${shell##*/}"
+                fi
+                case "$shell" in
+                  bash) exec cat ${shellRuntime}/hook.bash ;;
+                  zsh) exec cat ${shellRuntime}/hook.zsh ;;
+                  *)
+                    echo "prelude: hook: unsupported shell '$shell'" >&2
+                    echo "hint: prelude hook [bash|zsh]" >&2
+                    exit 2
+                    ;;
+                esac
+                ;;
+              preflight)
+                exec ${lib.getExe preflightPkg} "$@"
+                ;;
+              wizard)
+                exec ${target wizardPkg "prelude-wizard"} "$@"
+                ;;
+              title)
+                exec ${target titlePkg "prelude-title"} "$@"
+                ;;
+              title-previews)
+                exec ${target titlePreviewsPkg "prelude-title-previews"} "$@"
+                ;;
+            ${lib.optionalString cfg.motd.enable ''
+              motd)
+                exec ${target motdPkg "motd"} "$@"
+                ;;
+            ''}
+            ${lib.optionalString cfg.menu.enable ''
+              menu)
+                exec ${target menuPkg "menu"} "$@"
+                ;;
+              x)
+                exec ${target menuPkg "x"} "$@"
+                ;;
+            ''}
+            ${lib.optionalString docsEnabled ''
+              docs)
+                exec ${target docsPkg "docs"} "$@"
+                ;;
+            ''}
+            ${lib.optionalString cfg.portal.enable ''
+              portal)
+                exec ${target portalPkg "portal"} "$@"
+                ;;
+              portal-web)
+                exec ${target portalPkg "portal-web"} "$@"
+                ;;
+            ''}
+              *)
+                echo "prelude: unknown command '$command'" >&2
+                echo "hint: run 'prelude --help'" >&2
+                exit 2
+                ;;
+            esac
+          '';
+          meta.description = "Prelude command-line interface";
+        };
+      preludeShellCli = mkPreludeCli false;
+      preludeAppPkg = mkPreludeCli true;
 
       # The current shell is the product boundary. Checked-in shell modules
       # own behavior; Nix injects paths and serializes the same normalized
@@ -555,7 +584,16 @@ in {
           commandEntries = commandEntries;
           motdCommand =
             if cfg.motd.enable
-            then lib.getExe motdPkg
+            then "motd"
+            else null;
+          # Keep the once-marker sensitive to MOTD rebuilds without retaining
+          # the binary's store context in the shell-core derivation.
+          motdIdentity =
+            if cfg.motd.enable
+            then
+              builtins.hashString "sha256" (
+                builtins.unsafeDiscardStringContext (toString motdBin)
+              )
             else null;
           statusEnabled = cfg.prompt.configFile == null;
           promptFinalConfig = promptFinalPkg;
@@ -567,32 +605,39 @@ in {
             if promptStatusPkg == null
             then null
             else promptStatusPkg.configFile;
+          promptEnabled = cfg.prompt.enable;
         };
       shellInit = shell.init;
       shellRuntime = shell.runtime;
 
-      # Canonical devshell package. Component packages already compose their
-      # enabled descendants (motd -> menu -> docs), so select only the
-      # outermost enabled component and add prompt runtimes when requested.
-      preludeComponentPaths =
-        lib.optional cfg.motd.enable motdPkg
-        ++ lib.optional (!cfg.motd.enable && cfg.menu.enable) menuPkg
-        ++ lib.optional (!cfg.motd.enable && !cfg.menu.enable && docsEnabled) docsPkg;
+      # Canonical shell-core package. Its dispatcher resolves components from
+      # PATH, and the generated init invokes `motd` from PATH, so this closure
+      # contains activation and prompt runtime only. Consumers add exactly the
+      # enabled MOTD, menu, and docs packages beside it.
       promptRuntimePackages = lib.optionals cfg.prompt.enable [
         pkgs.starship
         pkgs.blesh
         pkgs.bash-completion
       ];
       promptStatusPackages = lib.optional (promptStatusPkg != null) promptStatusPkg;
-      preludePkg = pkgs.symlinkJoin {
-        name = "prelude";
-        paths = [preludeCli] ++ preludeComponentPaths ++ promptRuntimePackages ++ promptStatusPackages;
-        postBuild = lib.optionalString cfg.prompt.enable ''
+      preludeShellPkg = pkgs.symlinkJoin {
+        name = "prelude-shell";
+        # preflight is unconditional: it is the line consumers put in .envrc or a
+        # shellHook, so it must resolve regardless of which components are on.
+        paths =
+          [preludeShellCli preflightPkg]
+          ++ promptRuntimePackages
+          ++ promptStatusPackages;
+        # Always emitted. The MOTD is the module's core promise, and reaching it
+        # from lorri requires PRELUDE_INIT to exist as an exported variable even
+        # when the prompt component is off. With prompt disabled, `shellInit`
+        # names no Starship/ble.sh/completion paths, so this costs those
+        # consumers nothing in closure size.
+        postBuild = ''
           mkdir -p "$out/nix-support" "$out/share/prelude/shell"
           cp -f ${shellInit} "$out/share/prelude/init.bash"
           cp -R ${shellRuntime}/. "$out/share/prelude/shell/"
-          # symlinkJoin may inherit a component hook as a read-only store
-          # symlink. Replace it with Prelude's aggregate hook below.
+          # The shell core owns exactly one setup hook.
           rm -f "$out/nix-support/setup-hook"
           cat > "$out/nix-support/setup-hook" <<'EOF'
           # This generated config remains the canonical serialized menu
@@ -601,11 +646,12 @@ in {
 
           # Exported as a plain variable, unlike the `prelude-init` function
           # below, because a variable is all an environment loader is
-          # guaranteed to carry. lorri applies environment variables and never
-          # runs shellHook (nix-community/lorri#159), so a shell function does
-          # not survive into the user's shell at all. `prelude hook` sources
-          # this path from the prompt, which is what makes activation work
-          # identically under lorri, direnv, and `nix develop`.
+          # guaranteed to carry. lorri does run shellHook, but inside the Nix
+          # builder — non-interactive, in the build directory
+          # (nix-community/lorri#159) — so only the variables it exported reach
+          # the user's shell; functions and terminal output do not. Sourcing
+          # this path from an interactive shell is what actually renders the
+          # MOTD under lorri, direnv, and `nix develop` alike.
           export PRELUDE_INIT=${shellInit}
           ${lib.optionalString cfg.prompt.enable ''
             # Export the generated starship config path from the setup-hook (not
@@ -624,21 +670,27 @@ in {
             . ${shellInit}
           }
 
-          # setup-hooks run while Nix constructs the environment; the final
-          # shellHook is what runs in the real interactive shell. Source the
-          # init after the consumer hook so STARSHIP_CONFIG is already set.
-          if [ -z "''${_prelude_init_registered:-}" ]; then
-            _prelude_init_registered=1
-            shellHook="''${shellHook-}
-          . ${shellInit}"
-          fi
+          ${lib.optionalString cfg.prompt.enable ''
+              # setup-hooks run while Nix constructs the environment; the final
+              # shellHook is what runs in the real interactive shell. Source the
+              # init after the consumer hook so STARSHIP_CONFIG is already set.
+              #
+              # Only appended when the prompt is enabled. MOTD-only projects are
+              # documented to write `shellHook = "motd"` themselves, and appending
+              # here as well would render the banner twice under `nix develop`.
+              # Those projects reach the same init through `prelude hook` instead.
+              if [ -z "''${_prelude_init_registered:-}" ]; then
+                _prelude_init_registered=1
+                shellHook="''${shellHook-}
+            . ${shellInit}"
+              fi
+          ''}
           EOF
           chmod +x "$out/nix-support/setup-hook"
         '';
         passthru =
           {
             inherit
-              preludeComponentPaths
               promptRuntimePackages
               promptStatusPkg
               promptStatusPackages
@@ -651,47 +703,43 @@ in {
             prompt = promptPkg;
           };
         meta = {
-          description = "Prelude devshell UI, command dispatcher, and enabled runtime dependencies";
+          description = "Prelude shell runtime, PATH dispatcher, and activation";
           mainProgram = "prelude";
         };
-      };
-
-      mkApp = pkg: {
-        type = "app";
-        program = pkgs.lib.getExe pkg;
       };
     in
       lib.mkMerge [
         {
-          # Add this single package to a devshell to receive every enabled
-          # Prelude component, the namespaced CLI, and its runtime dependencies.
-          packages.prelude = preludePkg;
-          apps.prelude = mkApp preludePkg;
+          # The module contributes one self-contained app. It intentionally uses
+          # the embedded dispatcher rather than the PATH-resolving shell core.
+          apps.prelude = {
+            type = "app";
+            program = lib.getExe preludeAppPkg;
+          };
+
+          # `packages.prelude` backs the app/default-package surface.
+          # `packages.prelude-shell` is the closure-minimal devshell package.
+          packages.prelude = preludeAppPkg;
+          packages.prelude-shell = preludeShellPkg;
+          packages.prelude-preflight = preflightPkg;
         }
         (lib.mkIf cfg.motd.enable {
-          packages.motd = motdPkg;
-          packages.title = titlePkg;
-          packages.title-previews = titlePreviewsPkg;
-          packages.setup = setupPkg;
-          apps.motd = mkApp motdPkg;
-          apps.title = mkApp titlePkg;
-          apps.title-previews = mkApp titlePreviewsPkg;
-          apps.setup = mkApp setupPkg;
+          packages.prelude-motd = motdPkg;
+          packages.prelude-title = titlePkg;
+          packages.prelude-title-previews = titlePreviewsPkg;
+          packages.prelude-wizard = wizardPkg;
         })
         (lib.mkIf cfg.menu.enable {
-          packages.menu = menuPkg;
-          apps.menu = mkApp menuPkg;
+          packages.prelude-menu = menuPkg;
         })
         (lib.mkIf cfg.portal.enable {
           packages.prelude-portal = portalPkg;
         })
         (lib.mkIf docsEnabled {
-          packages.docs = docsPkg;
-          apps.docs = mkApp docsPkg;
+          packages.prelude-docs = docsPkg;
         })
-        # A config file, not a program — no app entry.
         (lib.mkIf cfg.prompt.enable {
-          packages.prompt = promptPkg;
+          packages.prelude-prompt = promptPkg;
         })
       ];
   };

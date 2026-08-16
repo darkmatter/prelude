@@ -9,7 +9,7 @@ then renders the selected result to stdout or an explicit file.
 Start the chooser from the project whose title you want to render:
 
 ```sh
-nix run .#title
+nix run .#prelude -- title
 ```
 
 The first screen is a prefilled text field. Without an explicit recipe, Prelude
@@ -27,40 +27,41 @@ Pager keys:
 | `Esc` / `Backspace` | Return to the title field |
 | `q` / `Ctrl-C` | Cancel |
 
-## Setup
+## Wizard
 
-`prelude setup` opens the project setup flow once Prelude is on `PATH`. The
-bootstrap form remains `nix run .#setup`; Prelude does not install a generic
-`setup` executable. After the title and style pages the wizard collects the
+`prelude wizard` opens the project setup flow once Prelude is on `PATH`. The
+bootstrap form is `nix run github:darkmatter/prelude -- wizard`; Prelude does
+not install a generic `wizard` executable. After the title and style pages, the
+wizard collects the
 project name, theme (with live palette preview), color depth, and
 initial project commands (name, exec, description) before component toggles.
 That ordering lets the first three commands appear in every component and MOTD
-preview. When MOTD is enabled, setup then asks for a one-line project tagline
+preview. When MOTD is enabled, the wizard then asks for a one-line project tagline
 and a multiline welcome message before the status page. The asynchronous
 `nix flake check` item is enabled by default. A separate dev-server toggle asks
 only for its health URL, prefilled as
-`${APP_HOST:-http://127.0.0.1:3000}/health`; setup builds the `curl -fsS` check
-for the user. The layout, spacing, and surface pages then cover
+`${APP_HOST:-http://127.0.0.1:3000}/health`; the wizard builds the `curl -fsS`
+check for the user. The layout, spacing, and surface pages then cover
 horizontal and vertical placement, title alignment, margin and padding presets,
-width, backgrounds, an optional border, and clear-screen behavior. Setup writes
+width, backgrounds, an optional border, and clear-screen behavior. The wizard writes
 a ready-to-use config next to a sibling title file:
 
 ```sh
-prelude setup
-# bootstrap equivalent: nix run .#setup
-# explicit output: prelude setup -o prelude.nix
+prelude wizard
+# bootstrap equivalent: nix run github:darkmatter/prelude -- wizard
+# explicit output: prelude wizard -o prelude.nix
 ```
 
 That writes a **sidecar** `prelude.nix` and `title.txt` in the current
 directory — never `flake.nix` (refused if you pass `-o flake.nix`). The
-`.envrc` setup toggle is on by default and writes `use flake` to `.envrc` in
-the directory where setup runs. The generated entrypoint renders the MOTD after
-the flake environment loads, including when direnv enters the project after a
-`cd`. Turn it off to skip that file; an existing `.envrc` is kept unchanged.
+`.envrc` toggle is on by default and writes `use flake` plus
+`eval "$(prelude-preflight)"` to `.envrc` in the directory where the wizard runs.
+The generated entrypoint renders the MOTD after the flake environment loads,
+including when direnv enters the project after a `cd`. Turn it off to skip that file; an existing `.envrc` is kept unchanged.
 
 Point `-o` at another config path to relocate the config and wordmark — the
 wordmark is always `title.txt` beside the config (e.g. `-o nix/prelude.nix` →
-`nix/prelude.nix` and `nix/title.txt`). `.envrc` remains in the setup working
+`nix/prelude.nix` and `nix/title.txt`). `.envrc` remains in the wizard's working
 directory. An existing config or wordmark at either output path is replaced.
 
 The generated file is an options template as well as a working module: every
@@ -78,11 +79,9 @@ imports = [
 ];
 ```
 
-The setup UI renders on stderr; status lines (`wrote …` or `kept existing …`)
-and a short import hint go there too. The previous
-`nix run .#title -- --wizard` invocation remains available for compatibility.
-Enabling the docs viewer also writes a starter `docs/getting-started.md`, but
-an existing page is kept untouched.
+The wizard UI renders on stderr; status lines (`wrote …` or `kept existing …`)
+and a short import hint go there too. Enabling the docs viewer also writes a
+starter `docs/getting-started.md`, but an existing page is kept untouched.
 
 Commented defaults in the generated file mirror `src/prelude/defaults.nix` so
 the config doubles as the option surface.
@@ -93,7 +92,7 @@ The rendered title is stdout by default. In non-interactive generation this
 makes the command composable:
 
 ```sh
-nix run .#title -- --generate --recipe config/title.nix > title.txt
+nix run .#prelude -- title --generate --recipe config/title.nix > title.txt
 ```
 
 Redirecting stdout disables terminal detection, so use `-o` when you want to

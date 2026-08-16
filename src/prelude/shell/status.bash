@@ -314,8 +314,6 @@ _prelude_status_build_gradient() {
 _prelude_status_render() {
   local input=${1-} width left padding
   local hint plain_hint hint_width available left_width ellipsis_width
-  local indent=3 indent_pad
-  printf -v indent_pad '%*s' "$indent" ''
   case ${COLUMNS-} in
     ''|*[!0-9]*|0*|????????*) width=80 ;;
     *) width=$((10#$COLUMNS)) ;;
@@ -330,12 +328,12 @@ _prelude_status_render() {
   hint=
   plain_hint=
   hint_width=0
-  if [ -n "$_prelude_status_hint" ] &&
+  if [ -z "$left" ] && [ -n "$_prelude_status_hint" ] &&
     ((available > 2)) &&
     _prelude_status_fit "$_prelude_status_hint" "$((available - 2))"; then
-    hint="$indent_pad$_prelude_status_hint_rendered"
-    plain_hint="$indent_pad$_prelude_status_hint"
-    hint_width=$((_prelude_status_fit_width + indent))
+    hint=$_prelude_status_hint_rendered
+    plain_hint=$_prelude_status_hint
+    hint_width=$_prelude_status_fit_width
     available=$((available - hint_width))
   fi
   if _prelude_status_fit "$left" "$available"; then
@@ -357,7 +355,7 @@ _prelude_status_render() {
   printf -v _prelude_status_literal '%s%*s' "$left" "$padding" ''
   _prelude_status_hint_line=$hint
   if ((${#_prelude_status_gradient_colors[@]} > 1)); then
-    _prelude_status_build_gradient "$plain_hint$_prelude_status_literal" "$width" "$hint_width" "$indent" || {
+    _prelude_status_build_gradient "$plain_hint$_prelude_status_literal" "$width" "$hint_width" 0 || {
       _prelude_status_gradient_styles=()
       _prelude_status_gradient_chunks=()
     }

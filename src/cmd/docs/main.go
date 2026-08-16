@@ -1,6 +1,8 @@
 // prelude-docs: Markdown project docs with a CONTENTS sidebar.
 //
 //	docs --config cfg.json
+//	docs 2 20
+//	docs next
 //
 // Content comes from Markdown files declared in prelude.docs.pages; this binary
 // renders and navigates them. Digits 1–9 jump to pages; j/k scroll; q quits.

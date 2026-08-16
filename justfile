@@ -16,7 +16,7 @@ shell:
 
 # Launches a setup wizard to generate a new prelude config in your project
 wizard: nixsh
-  @exec x wizard
+  @exec x prelude:wizard
 
 # Demo the different views
 demos: nixsh

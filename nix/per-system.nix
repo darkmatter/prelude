@@ -1,18 +1,22 @@
-# Per-system outputs composition root. motd/menu (packages + apps) come
-# from the prelude module itself; everything else layers on top:
+# Per-system output composition root. The Prelude module contributes its CLI
+# app and component packages; repository-only packages/apps layer on top:
 #
 #   demos.nix     shared feature-demo builders (evaluated once)
 #     └ checks.nix     build + render smoke tests
 #         └ previews.nix   utility that builds render checks and shows them
 #             └ packages.nix / apps.nix / shell.nix
-{flake-parts-lib}: {
+{
+  flake-parts-lib,
+  inputs,
+  localFlake,
+}: {
   pkgs,
   lib,
   config,
   ...
 }: let
   args = {
-    inherit pkgs lib config;
+    inherit pkgs lib config inputs localFlake;
     flakePartsLib = flake-parts-lib;
   };
   demos = import ./demos.nix args;

@@ -15,7 +15,7 @@ Project commands declared in `nix/internal/prelude.nix`:
 - **`x check`** — `nix flake check`: builds every package and render check.
 - **`x fmt`** — `nixfmt` over the repository.
 - **`x build <target>`** — `nix build` with flake-output suggestions.
-- **`x previews`** — build the render checks and display their output.
+- **`x prelude:previews`** — build the render checks and display their output.
 - **`x sync-docs`** / **`x record-docs`** — documentation workflows.
 - **`x demos:all`** and the other `demos:*` keys dispatch to the canonical
   `nix run .#example-*` commands.

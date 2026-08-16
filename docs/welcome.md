@@ -14,16 +14,31 @@ Viewer keys: digits jump between pages, `Tab`/`Shift-Tab` step through them,
 
 ## Silencing direnv noise under the MOTD
 
-If you use [direnv](https://direnv.net/) alongside Prelude, its per-shell
-log lines can print between the MOTD and your prompt. To suppress that noise,
-run once per user account:
+If you use [direnv](https://direnv.net/) alongside Prelude, its log lines print
+around the MOTD, and a project with a slow Nix evaluation adds a "taking a
+while to execute" warning on top. Four settings cover every message direnv
+emits — each one suppresses a different line:
 
 ```sh
-mkdir -p ~/.config/direnv && touch ~/.config/direnv/direnv.toml
-grep -q 'log_format = "-"' ~/.config/direnv/direnv.toml \
-  || printf '%s\n' '[global]' 'log_format = "-"' 'log_filter = "^$"' \
-  >> ~/.config/direnv/direnv.toml
+mkdir -p ~/.config/direnv
+grep -q hide_env_diff ~/.config/direnv/direnv.toml 2>/dev/null \
+  || printf '%s\n' \
+    '[global]' \
+    'log_format = "-"' \
+    'log_filter = "^$"' \
+    'hide_env_diff = true' \
+    'warn_timeout = "1h"' \
+    >> ~/.config/direnv/direnv.toml
 ```
 
-If you ship the MOTD to other users, point them at this snippet too — direnv
-logging is a per-user config, so it must be applied on each account.
+- `log_format` — `direnv: loading …`
+- `log_filter` — output your `.envrc` itself writes
+- `hide_env_diff` — `direnv: export +FOO +BAR …`
+- `warn_timeout` — `… is taking a while to execute`
+
+This has to live in the user's own direnv config. `direnv export` reads its
+logging settings at startup, *before* it runs `.envrc`, so exporting
+`DIRENV_LOG_FORMAT` from a devshell or from `.envrc` cannot silence the load
+that is already underway — the variable only lands in the environment being
+produced. Prelude therefore cannot apply this for you. If you ship the MOTD to
+a team, pass the snippet along; it applies per user account.

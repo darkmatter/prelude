@@ -30,7 +30,8 @@
 # Entry points:
 #
 #   nix develop .        # devshell greeted by our own motd; `x` inside
-#   nix run .#motd / .#menu / .#skill / .#previews / .#examples / .#example-*
+#   nix run . -- wizard  # fragmentless, single Prelude app dispatcher
+#   nix run .#previews / .#examples   # repository-only development apps
 #   nix flake check      # build + render smoke tests
 #
 # Layout: flake outputs are one file per output under nix/; root `prelude.nix`
@@ -93,7 +94,10 @@
           };
         };
 
-        perSystem = import ./nix/per-system.nix {inherit flake-parts-lib;};
+        perSystem = import ./nix/per-system.nix {
+          inherit flake-parts-lib inputs;
+          localFlake = self;
+        };
       }
     );
 }

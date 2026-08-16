@@ -66,7 +66,7 @@ Set FontSize 32
 Set Width 1200
 Set Height 600
 
-Type "nix run github:darkmatter/prelude" Sleep 500ms  Enter
+Type "nix run github:darkmatter/prelude -- wizard" Sleep 500ms  Enter
 
 Sleep 2s
 
