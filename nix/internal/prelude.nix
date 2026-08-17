@@ -33,6 +33,23 @@ in {
     #   # add_newline =  true;
     # };
     menu.enable = true;
+
+    # Dogfood the launcher. prelude itself ships no servers, so the catalogue
+    # points at its own docs site plus a local example, which is enough to
+    # exercise up / down / gated rendering in both front ends.
+    portal = {
+      enable = true;
+      apps = {
+        docs = {
+          description = "prelude documentation";
+          order = 10;
+          environments = {
+            local.url = "http://127.0.0.1:8000";
+            public.url = "https://darkmatter.github.io/prelude";
+          };
+        };
+      };
+    };
     menu.just.enable = true;
 
     # --------------------------------------------------------

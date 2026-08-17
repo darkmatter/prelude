@@ -13,7 +13,7 @@
 #     # …
 #     perSystem = { config, ... }: {
 #       devShells.default = pkgs.mkShell {
-#         packages = [ config.packages.prelude ];
+#         packages = [ config.packages.prelude config.packages.prelude-portal ];
 #         shellHook = "motd";
 #       };
 #     };
