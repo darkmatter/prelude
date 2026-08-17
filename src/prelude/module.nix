@@ -73,6 +73,7 @@
   mkTitle = import ./title-generator.nix;
   mkTitlePreviews = import ./title-previews.nix;
   mkMenu = import ./menu.nix;
+  mkPortal = import ./portal.nix;
   mkDocs = import ./docs.nix;
   mkPrompt = import ./prompt.nix;
   mkPromptStatus = import ./prompt-status.nix;
@@ -100,6 +101,7 @@ in {
     ./options/shared.nix
     ./options/motd.nix
     ./options/menu.nix
+    ./options/portal.nix
     ./options/docs.nix
     ./options/prompt.nix
   ];
@@ -131,6 +133,15 @@ in {
           description = lib.mkDefault "browse project documentation";
           exec = lib.mkDefault "docs";
           key = lib.mkDefault "d";
+        };
+      })
+      (lib.mkIf cfg.portal.enable {
+        portal = {
+          description = lib.mkDefault "launch an app, with live health lights";
+          exec = lib.mkDefault "portal";
+          # `p` rather than a mnemonic for "web": the terminal front end is the
+          # default, and `m`/`d` are already taken by the menu and docs.
+          key = lib.mkDefault "p";
         };
       })
     ];
@@ -237,6 +248,8 @@ in {
           groupOrder = sortCfg.groups;
         }
       );
+
+      portalPkg = mkPortal deps (generatorConfig cfg.portal);
 
       commandEntries = plib.normalizeCommandEntries commands;
       # Resolve only after root and per-system command entries have merged.
@@ -448,6 +461,7 @@ in {
           ${lib.optionalString cfg.motd.enable "  motd           render the welcome banner"}
           ${lib.optionalString cfg.menu.enable "  menu           open the command menu\n  x              dispatch a project command"}
           ${lib.optionalString docsEnabled "  docs            browse project documentation"}
+          ${lib.optionalString cfg.portal.enable "  portal         launch an app, with live health lights\n  portal-web     the same launcher as a local web page"}
           EOF
               ;;
             hook)
@@ -496,6 +510,14 @@ in {
           ${lib.optionalString docsEnabled ''
             docs)
               exec ${lib.getExe docsPkg} "$@"
+              ;;
+          ''}
+          ${lib.optionalString cfg.portal.enable ''
+            portal)
+              exec ${lib.getExe' portalPkg "portal"} "$@"
+              ;;
+            portal-web)
+              exec ${lib.getExe' portalPkg "portal-web"} "$@"
               ;;
           ''}
             *)
@@ -659,6 +681,9 @@ in {
         (lib.mkIf cfg.menu.enable {
           packages.menu = menuPkg;
           apps.menu = mkApp menuPkg;
+        })
+        (lib.mkIf cfg.portal.enable {
+          packages.prelude-portal = portalPkg;
         })
         (lib.mkIf docsEnabled {
           packages.docs = docsPkg;

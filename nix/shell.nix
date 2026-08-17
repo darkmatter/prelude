@@ -11,16 +11,18 @@
   ...
 }:
 pkgs.mkShell {
-  packages = [
-    config.packages.prelude
-    docsAutomation.record
-    docsAutomation.sync
-    previews
-  ]
-  ++ (with pkgs; [
-    shellcheck
-    nixfmt
-  ]);
+  packages =
+    [
+      config.packages.prelude
+      config.packages.prelude-portal
+      docsAutomation.record
+      docsAutomation.sync
+      previews
+    ]
+    ++ (with pkgs; [
+      shellcheck
+      nixfmt
+    ]);
   DIRENV_LOG_FORMAT = "";
   shellHook = ''
     r() { exec nix develop "$@"; }

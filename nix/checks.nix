@@ -17,6 +17,7 @@
   devshellCommandPackages =
     [
       config.packages.prelude
+      config.packages.prelude-portal
       pkgs.nix
       docsAutomation.sync
       docsAutomation.record
