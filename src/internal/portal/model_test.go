@@ -185,3 +185,59 @@ func TestProbeKeepsNotFoundDown(t *testing.T) {
 		t.Fatalf("got state %q, want %q", status.State, StateDown)
 	}
 }
+
+// The token goes only to environments declared gated. Localhost and public
+// hosts in the same catalogue must not receive a credential.
+func TestProbeSendsAccessHeadersOnlyWhenGated(t *testing.T) {
+	for _, testCase := range []struct {
+		name  string
+		gated bool
+		want  string
+	}{
+		{name: "gated", gated: true, want: "id-123"},
+		{name: "ungated", gated: false, want: ""},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			var seen string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				seen = r.Header.Get("CF-Access-Client-Id")
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+
+			prober := NewProber(2 * time.Second)
+			prober.Access = map[string]string{"CF-Access-Client-Id": "id-123"}
+			prober.Probe(context.Background(), Environment{URL: server.URL, Gated: testCase.gated})
+
+			if seen != testCase.want {
+				t.Errorf("header sent = %q, want %q", seen, testCase.want)
+			}
+		})
+	}
+}
+
+// With a valid token the gate answers 200, so a gated environment reads up
+// rather than gated — the whole point of giving the portal a token.
+func TestProbeReportsUpWhenTheTokenIsAccepted(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("CF-Access-Client-Id") == "" {
+			w.Header().Set("location", "https://example.cloudflareaccess.com/cdn-cgi/access/login/x")
+			w.WriteHeader(http.StatusFound)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	prober := NewProber(2 * time.Second)
+	prober.Access = map[string]string{"CF-Access-Client-Id": "id-123"}
+
+	gated := prober.Probe(context.Background(), Environment{URL: server.URL, Gated: false})
+	if gated.State != StateGated {
+		t.Fatalf("without the token: got %q, want %q", gated.State, StateGated)
+	}
+	up := prober.Probe(context.Background(), Environment{URL: server.URL, Gated: true})
+	if up.State != StateUp {
+		t.Fatalf("with the token: got %q, want %q", up.State, StateUp)
+	}
+}

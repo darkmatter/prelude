@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -51,6 +52,36 @@ func (s Status) Light() string {
 type Prober struct {
 	Client  *http.Client
 	Timeout time.Duration
+	// Access carries Cloudflare Access service-token headers when the
+	// environment supplies them. Empty means anonymous probing, which is the
+	// safe default: a portal that silently authenticated would report an app
+	// healthy that a human still cannot open.
+	Access map[string]string
+}
+
+// accessHeaders reads a Cloudflare Access service token from the environment.
+//
+// Read from the environment rather than the catalogue on purpose — the
+// catalogue is a Nix file in a git repo, and a service token is a credential.
+// Run the portal under whatever injects yours, e.g.
+//
+//	himitsu exec cloudflare-access-client-id cloudflare-access-client-secret -- portal
+//
+// Both spellings are accepted because both conventions are in the wild: the
+// CF_ prefix matches Cloudflare's own docs, the CLOUDFLARE_ prefix matches the
+// provider env used by their SDKs.
+func accessHeaders() map[string]string {
+	for _, prefix := range []string{"CF_ACCESS", "CLOUDFLARE_ACCESS"} {
+		id := os.Getenv(prefix + "_CLIENT_ID")
+		secret := os.Getenv(prefix + "_CLIENT_SECRET")
+		if id != "" && secret != "" {
+			return map[string]string{
+				"CF-Access-Client-Id":     id,
+				"CF-Access-Client-Secret": secret,
+			}
+		}
+	}
+	return nil
 }
 
 // NewProber builds a prober that does not follow redirects.
@@ -61,6 +92,7 @@ type Prober struct {
 func NewProber(timeout time.Duration) *Prober {
 	return &Prober{
 		Timeout: timeout,
+		Access:  accessHeaders(),
 		Client: &http.Client{
 			Timeout: timeout,
 			CheckRedirect: func(*http.Request, []*http.Request) error {
@@ -86,6 +118,15 @@ func (p *Prober) Probe(ctx context.Context, env Environment) Status {
 		return Status{State: StateDown, Detail: "bad url"}
 	}
 	request.Header.Set("accept", "*/*")
+	// Only sent to environments declared `gated`. A service token is a
+	// credential; broadcasting it at every host in the catalogue, including
+	// localhost and anything a teammate adds later, is not worth the
+	// convenience.
+	if env.Gated {
+		for name, value := range p.Access {
+			request.Header.Set(name, value)
+		}
+	}
 
 	response, err := p.Client.Do(request)
 	elapsed := time.Since(started)
