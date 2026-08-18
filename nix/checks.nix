@@ -42,6 +42,7 @@
     config.packages.prelude-title-previews
     config.packages.prelude-menu
     config.packages.prelude-docs
+    config.packages.prelude-portal
     pkgs.nix
     docsAutomation.sync
     docsAutomation.record
