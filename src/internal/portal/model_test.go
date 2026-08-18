@@ -185,3 +185,61 @@ func TestProbeKeepsNotFoundDown(t *testing.T) {
 		t.Fatalf("got state %q, want %q", status.State, StateDown)
 	}
 }
+
+// Declared headers reach the probe, and env-sourced ones are read by the name
+// the catalogue asked for — the portal never goes looking on its own.
+func TestProbeSendsDeclaredHeaders(t *testing.T) {
+	t.Setenv("PORTAL_TEST_TOKEN", "secret-value")
+
+	var seen http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	NewProber(2*time.Second).Probe(context.Background(), Environment{
+		URL:     server.URL,
+		Headers: map[string]string{"X-Api-Version": "2026-01-01"},
+		HeadersFromEnv: map[string]string{
+			"X-Token":   "PORTAL_TEST_TOKEN",
+			"X-Missing": "PORTAL_TEST_UNSET",
+		},
+	})
+
+	if got := seen.Get("X-Api-Version"); got != "2026-01-01" {
+		t.Errorf("literal header = %q, want %q", got, "2026-01-01")
+	}
+	if got := seen.Get("X-Token"); got != "secret-value" {
+		t.Errorf("env header = %q, want %q", got, "secret-value")
+	}
+	// An unset variable must not become an empty header: an empty credential
+	// reads as a malformed request rather than an anonymous one.
+	if _, present := seen["X-Missing"]; present {
+		t.Error("unset variable produced a header; want it skipped")
+	}
+}
+
+// Headers belong to the environment that declared them. A catalogue with a
+// token on prod must not leak it to the localhost entry beside it.
+func TestProbeDoesNotShareHeadersBetweenEnvironments(t *testing.T) {
+	t.Setenv("PORTAL_TEST_TOKEN", "secret-value")
+
+	var seen http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	prober := NewProber(2 * time.Second)
+	prober.Probe(context.Background(), Environment{
+		URL:            server.URL,
+		HeadersFromEnv: map[string]string{"X-Token": "PORTAL_TEST_TOKEN"},
+	})
+	prober.Probe(context.Background(), Environment{URL: server.URL})
+
+	if got := seen.Get("X-Token"); got != "" {
+		t.Errorf("second environment received %q; headers must not carry over", got)
+	}
+}
