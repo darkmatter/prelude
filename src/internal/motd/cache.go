@@ -213,12 +213,8 @@ func NewCacheStore(configPath, project string) (CacheStore, error) {
 	return newCacheStore(configPath, project)
 }
 
-func (s cacheStore) Load() (Cache, error)           { return s.load() }
 func (s cacheStore) LoadOrEmpty() Cache             { return s.loadOrEmpty() }
 func (s cacheStore) Write(cache Cache) error        { return s.write(cache) }
-func (s cacheStore) Now() time.Time                 { return s.now() }
 func (c Cache) Entry(key string) (CacheEntry, bool) { return c.entry(key) }
 func (c *Cache) Set(key string, entry CacheEntry)   { c.set(key, entry) }
 func (e CacheEntry) Fresh(now time.Time) bool       { return e.fresh(now) }
-func StatusKey(check string) string                 { return statusKey(check) }
-func NaturalAge(age time.Duration) string           { return naturalAge(age) }

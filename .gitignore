@@ -10,6 +10,7 @@ docs/.record-bin/
 /src/cmd/prompt-status/prompt-status
 /src/cmd/title/title
 /src/cmd/prelude-shell-vt-host/prelude-shell-vt-host
+/src/motd
 
 # direnv
 .direnv/

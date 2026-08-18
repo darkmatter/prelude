@@ -53,7 +53,7 @@
     secondary = "#24243f";
     fg = "#979db5";
     muted = "#6a6c85";
-    dim = "#4a5585";
+    dim = "#4a5085";
     border = "#1d1d2f";
     accentBorder = "#3e4441";
     accent = "#f2cdcd";

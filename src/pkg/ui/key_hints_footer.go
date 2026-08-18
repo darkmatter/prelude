@@ -55,7 +55,7 @@ func (f KeyHintsFooter) status() lipgloss.Style {
 	if f.Status != nil {
 		return *f.Status
 	}
-	return f.Context.Accent().Bold(true)
+	return f.Context.Dim().Bold(true)
 }
 
 // Render returns the footer for hints and status.

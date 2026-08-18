@@ -35,7 +35,6 @@ func (x ShortcutList) aliasStyle() lipgloss.Style {
 
 func (x ShortcutList) keycap(alias string) string {
 	bracket := x.Context.Dim()
-	// return bracket.Render("[") + x.aliasStyle().Render(alias) + bracket.Render("]")
 	return bracket.Render("[") + x.aliasStyle().Render(alias) + bracket.Render("]")
 }
 

@@ -23,14 +23,13 @@ const (
 	stepTitle wizardStep = iota
 	stepFont
 	stepProject
-	stepTheme
-	stepProfile
 	stepCommands
 	stepComponents
 	stepMotdContent
-	stepMotdLayout
-	stepMotdSpacing
 	stepMotdSurface
+	stepMotdSpacing
+	stepMotdLayout
+	stepTheme
 	stepConfirm
 )
 
@@ -53,10 +52,6 @@ type wizardCommand struct {
 	Exec        string
 	Description string
 }
-
-// colorProfiles mirrors the prelude.colorProfile enum declared in
-// options/shared.nix; the order puts the default first.
-var colorProfiles = []string{"auto", "truecolor", "ansi256"}
 
 const (
 	componentMotd = iota
@@ -96,12 +91,11 @@ type wizardModel struct {
 
 	themeIndex       int
 	themeBackgrounds bool
-	profileIndex     int
 
 	componentIndex int
-	// components holds the enable toggles in componentNames order. Docs starts
-	// off because enabling it requires authoring Markdown pages; all other
-	// setup choices, including .envrc installation, start on.
+	// components holds the enable toggles in componentNames order. All
+	// setup choices, including the docs viewer and .envrc installation,
+	// start on.
 	components [componentCount]bool
 
 	motdLayoutCursor       int
@@ -137,7 +131,6 @@ type wizardResult struct {
 	Recipe         Recipe
 	Project        string
 	Theme          string
-	ColorProfile   string
 	Motd           bool
 	Menu           bool
 	Prompt         bool
@@ -184,6 +177,12 @@ func newWizard(cfg Config, recipe Recipe, render renderFunc) wizardModel {
 	motdDescriptionIn.MaxHeight = 5
 	motdDescriptionIn.MaxContentHeight = 40
 	motdDescriptionIn.SetVirtualCursor(true)
+	// Remove the cursor-line background so the welcome message text stays
+	// transparent against the panel instead of painting a highlight strip.
+	descriptionStyles := motdDescriptionIn.Styles()
+	descriptionStyles.Focused.CursorLine = lipgloss.NewStyle()
+	descriptionStyles.Blurred.CursorLine = lipgloss.NewStyle()
+	motdDescriptionIn.SetStyles(descriptionStyles)
 
 	fontIndex := cfg.fontIndex(recipe.Font)
 	if fontIndex < 0 {
@@ -211,7 +210,7 @@ func newWizard(cfg Config, recipe Recipe, render renderFunc) wizardModel {
 		fontIndex:              fontIndex,
 		themeIndex:             themeIndex,
 		themeBackgrounds:       true,
-		components:             [componentCount]bool{true, true, true, false, true},
+		components:             [componentCount]bool{true, true, true, true, true},
 		motdAlignIndex:         1,     // defaults.motd.align = "center"
 		motdVerticalAlignIndex: 2,     // defaults.motd.verticalAlign = "bottom"
 		motdTitleAlignIndex:    1,     // defaults.motd.title.align = "center"
@@ -249,8 +248,6 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateProject(msg)
 		case stepTheme:
 			return m.updateTheme(msg)
-		case stepProfile:
-			return m.updateProfile(msg)
 		case stepComponents:
 			return m.updateComponents(msg)
 		case stepCommands:
@@ -363,7 +360,8 @@ func (m wizardModel) updateProject(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		m.motdDefaultProject = project
 		m.projectInput.Blur()
-		m.step = stepTheme
+		m.step = stepCommands
+		m.commandPhase = commandList
 		return m, nil
 	case "esc":
 		m.projectInput.Blur()
@@ -395,29 +393,13 @@ func (m wizardModel) updateTheme(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "end":
 		m.themeIndex = len(m.cfg.Themes) - 1
 	case "enter":
-		m.step = stepProfile
+		m.step = stepConfirm
 	case "esc", "backspace":
-		m.step = stepProject
-		m.projectInput.Focus()
-		m.projectInput.CursorEnd()
-	case "q":
-		m.canceled = true
-		return m, tea.Quit
-	}
-	return m, nil
-}
-
-func (m wizardModel) updateProfile(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "up", "k", "shift+tab":
-		m.profileIndex = wrap(m.profileIndex-1, len(colorProfiles))
-	case "down", "j", "tab":
-		m.profileIndex = wrap(m.profileIndex+1, len(colorProfiles))
-	case "enter":
-		m.step = stepCommands
-		m.commandPhase = commandList
-	case "esc", "backspace":
-		m.step = stepTheme
+		if m.components[componentMotd] {
+			m.step = stepMotdLayout
+		} else {
+			m.step = stepComponents
+		}
 	case "q":
 		m.canceled = true
 		return m, tea.Quit
@@ -454,11 +436,7 @@ func (m wizardModel) updateConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.done = true
 		return m, tea.Quit
 	case "esc", "backspace":
-		if m.components[componentMotd] {
-			m.step = stepMotdSurface
-		} else {
-			m.step = stepComponents
-		}
+		m.step = stepTheme
 	case "q":
 		m.canceled = true
 		return m, tea.Quit
@@ -494,7 +472,9 @@ func (m wizardModel) updateCommands(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case "enter":
 			m.step = stepComponents
 		case "esc", "backspace":
-			m.step = stepProfile
+			m.step = stepProject
+			m.projectInput.Focus()
+			m.projectInput.CursorEnd()
 		case "q":
 			m.canceled = true
 			return m, tea.Quit
@@ -516,7 +496,7 @@ func (m wizardModel) updateCommands(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.startCommandField("dev or db:migrate", m.pendingCommand.Name)
 		case commandDescription:
 			m.commandPhase = commandExec
-			m.startCommandField("defaults to the command name", m.pendingCommand.Exec)
+			m.startCommandField("bun run dev", m.pendingCommand.Exec)
 		}
 		m.err = ""
 		return m, nil
@@ -562,7 +542,7 @@ func (m wizardModel) commitCommandField() (tea.Model, tea.Cmd) {
 		}
 		m.pendingCommand.Name = value
 		m.commandPhase = commandExec
-		m.startCommandField("defaults to the command name", m.pendingCommand.Exec)
+		m.startCommandField("bun run dev", m.pendingCommand.Exec)
 	case commandExec:
 		m.pendingCommand.Exec = value
 		m.commandPhase = commandDescription
@@ -637,7 +617,6 @@ func (m wizardModel) result() wizardResult {
 		},
 		Project:        strings.TrimSpace(m.projectInput.Value()),
 		Theme:          m.cfg.Themes[m.themeIndex].Name,
-		ColorProfile:   colorProfiles[m.profileIndex],
 		Motd:           m.components[componentMotd],
 		Menu:           m.components[componentMenu],
 		Prompt:         m.components[componentPrompt],
@@ -696,27 +675,14 @@ func (m wizardModel) View() tea.View {
 			"One palette drives every component.  ·  "+step,
 			append(m.themeRows(), "", m.themePreview()),
 			m.err,
-			"j/k move  ·  space toggle backgrounds  ·  enter choose  ·  esc back  ·  q cancel",
-		)
-	case stepProfile:
-		rows := make([]string, len(colorProfiles))
-		hints := [3]string{"detect from the terminal", "force 24-bit color", "force the 256-color palette"}
-		for i, profile := range colorProfiles {
-			rows[i] = listRow(s, i == m.profileIndex, fmt.Sprintf("%-11s", profile)+s.muted.Render(hints[i]))
-		}
-		body = s.listBody(
-			"Choose the color depth",
-			"auto is right unless detection guesses wrong.  ·  "+step,
-			rows,
-			m.err,
-			"j/k move  ·  enter choose  ·  esc back  ·  q cancel",
+			"j/k move  ·  space toggle backgrounds  ·  enter review  ·  esc back  ·  q cancel",
 		)
 	case stepComponents:
 		hints := [componentCount]string{
 			"welcome banner on shell entry",
 			"interactive command picker",
 			"themed starship prompt",
-			"Markdown docs viewer (needs pages)",
+			"Markdown docs viewer (README first page)",
 			"use flake with automatic direnv loading",
 		}
 		rows := make([]string, len(componentNames))
@@ -739,11 +705,11 @@ func (m wizardModel) View() tea.View {
 		body = m.commandsBody(s, step)
 	case stepMotdContent:
 		body = m.motdContentBody(s, step)
-	case stepMotdLayout:
+	case stepMotdSurface:
 		body = s.listBody(
-			"Shape the MOTD",
-			"Place the banner and its title, then watch the live preview.  ·  "+step,
-			m.motdLayoutRows(s),
+			"Set the MOTD surface",
+			"Choose card/window fills, border framing, and clear-screen behavior.  ·  "+step,
+			m.motdSurfaceRows(s),
 			m.err,
 			"j/k field  ·  h/l change  ·  enter continue  ·  esc back",
 		)
@@ -755,13 +721,13 @@ func (m wizardModel) View() tea.View {
 			m.err,
 			"j/k field  ·  h/l change  ·  enter continue  ·  esc back",
 		)
-	case stepMotdSurface:
+	case stepMotdLayout:
 		body = s.listBody(
-			"Set the MOTD surface",
-			"Choose card/window fills, border framing, and clear-screen behavior.  ·  "+step,
-			m.motdSurfaceRows(s),
+			"Align the MOTD",
+			"Place the banner and its title, then watch the live preview.  ·  "+step,
+			m.motdLayoutRows(s),
 			m.err,
-			"j/k field  ·  h/l change  ·  esc back  ·  enter review",
+			"j/k field  ·  h/l change  ·  enter continue  ·  esc back",
 		)
 	case stepConfirm:
 		body = s.listBody(
@@ -934,14 +900,14 @@ func (m wizardModel) componentPreview() string {
 	case "docs":
 		return strings.Join([]string{
 			ts.line("surface",
-				ts.seg("surface", "accent", " 1 Welcome", true),
+				ts.seg("surface", "accent", " 1 README", true),
 				ts.seg("surface", "muted", "   2 Commands", false),
 			),
 			ts.line("surface",
 				ts.seg("surface", "accent2", " # Getting started", true),
 			),
 			ts.line("surface",
-				ts.seg("surface", "fg", " Each Markdown file is one page.", false),
+				ts.seg("surface", "fg", " Your README is the first docs page.", false),
 			),
 		}, "\n")
 	case ".envrc":
@@ -1014,15 +980,13 @@ func (m wizardModel) stepProgress() (int, int) {
 		stepTitle,
 		stepFont,
 		stepProject,
-		stepTheme,
-		stepProfile,
 		stepCommands,
 		stepComponents,
 	}
 	if m.components[componentMotd] {
-		steps = append(steps, stepMotdContent, stepMotdLayout, stepMotdSpacing, stepMotdSurface)
+		steps = append(steps, stepMotdContent, stepMotdSurface, stepMotdSpacing, stepMotdLayout)
 	}
-	steps = append(steps, stepConfirm)
+	steps = append(steps, stepTheme, stepConfirm)
 	for index, step := range steps {
 		if step == m.step {
 			return index + 1, len(steps)
@@ -1065,7 +1029,6 @@ func (m wizardModel) summaryRows(s formStyles) []string {
 		line("title", result.Recipe.Text+"  ("+result.Recipe.Font+")"),
 		line("project", result.Project),
 		line("theme", result.Theme),
-		line("colors", result.ColorProfile),
 		line("commands", commands),
 		line("motd", onOff(result.Motd)),
 		line("tagline", result.MotdContent.Tagline),

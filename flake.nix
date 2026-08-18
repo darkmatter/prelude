@@ -81,9 +81,7 @@
         ];
 
         flake = {
-          # Canonical flake-parts module output plus the previous compatibility name.
           flakeModules.default = preludeModule;
-          flakeModules.prelude = preludeModule;
 
           overlays.default = import ./nix/overlay.nix;
           lib = preludeLib;

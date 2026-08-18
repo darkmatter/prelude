@@ -177,7 +177,7 @@ func newConfigData(r wizardResult, titlePath string) configData {
 	}
 	return configData{
 		Theme:        r.Theme,
-		ColorProfile: r.ColorProfile,
+		ColorProfile: "auto",
 		Project:      r.Project,
 		TitlePath:    nixPath(titlePath),
 		Motd:         r.Motd,
@@ -302,6 +302,15 @@ var nixPathLiteralPattern = regexp.MustCompile(`^[A-Za-z0-9._+/-]+$`)
 // starterDocsPath is both written by setup and referenced by the emitted
 // config, so the generated module builds without manual steps.
 const starterDocsPath = "docs/getting-started.md"
+
+// starterReadmePath is the first docs page when the docs viewer is enabled.
+const starterReadmePath = "README.md"
+
+const starterReadmePage = `# Your project
+
+Replace this README with real project documentation. It is the first page in
+the prelude docs viewer when the docs component is enabled.
+`
 
 const starterDocsPage = `# Getting started
 

@@ -24,7 +24,7 @@ demos: nixsh
 
 # Preview all the themes
 themes: nixsh
-  @exec x themes
+  @exec x demos:themes
 
 
 [group('development')]

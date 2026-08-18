@@ -17,7 +17,6 @@ in {
   prelude = {
     fromPkg = import ../src/prelude/from-pkg.nix {inherit (final) lib;};
     mkCommand = import ../src/prelude/task.nix {inherit (final) lib;};
-    mkTask = import ../src/prelude/task.nix {inherit (final) lib;};
     mkMotd = import ../src/prelude/motd.nix deps;
     mkMenu = import ../src/prelude/menu.nix deps;
     mkPortal = import ../src/prelude/portal.nix deps;

@@ -112,8 +112,12 @@
     # CONTENTS sidebar entry; digits 1–9 jump between pages. The first
     # level-one heading labels the entry.
 {{- if .Docs }}
-    # Starter page written by setup; add more entries as docs grow.
-    docs.pages = [ { text = ./docs/getting-started.md; } ];
+    # README is the first docs page (styled as the project landing); the
+    # starter page written by setup is a second entry. Add more as docs grow.
+    docs.pages = [
+      { text = ./README.md; }
+      { text = ./docs/getting-started.md; }
+    ];
 {{- else }}
     # docs.pages = [
     #   { text = ./docs/getting-started.md; }

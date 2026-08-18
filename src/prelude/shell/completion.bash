@@ -28,7 +28,7 @@ _prelude_complete_x() {
   local _prelude_complete_prefix=${COMP_WORDS[COMP_CWORD]-}
   local _prelude_complete_used_ble task_index=-1 i
   COMPREPLY=()
-  if ((COMP_CWORD <= 1)); then
+  if ((COMP_CWORD == 1)); then
     for ((i = 0; i < ${#_prelude_catalogue_names[@]}; i++)); do
       _prelude_complete_yield \
         "${_prelude_catalogue_names[i]}" \
@@ -46,6 +46,26 @@ _prelude_complete_x() {
   fi
   [ -z "$_prelude_complete_used_ble" ] || bleopt complete_menu_style=desc
   compopt -o nosort 2>/dev/null || true
+}
+
+# Initial-word completion (`complete -I`): when the cursor is still on the `x`
+# command word with no trailing space, show the catalogue as `x <key>` candidates
+# so a single Tab reveals the chooser instead of falling through to PATH
+# command-name completion. `noquote` keeps the intentional space literal so a
+# selected entry inserts as `x <key>` (two words), not a single quoted token.
+# Any other command word is left untouched by returning an empty list, which
+# lets bash/ble.sh fall back to default command completion.
+_prelude_complete_initial() {
+  COMPREPLY=()
+  [ "${COMP_WORDS[0]-}" = "x" ] || return 0
+  local i candidate
+  for ((i = 0; i < ${#_prelude_catalogue_names[@]}; i++)); do
+    candidate="x ${_prelude_catalogue_names[i]}"
+    [[ "$candidate" == "${COMP_WORDS[0]}"* ]] || continue
+    COMPREPLY+=("$candidate")
+  done
+  compopt -o nosort 2>/dev/null || true
+  compopt -o noquote 2>/dev/null || true
 }
 
 _prelude_complete_direct() {

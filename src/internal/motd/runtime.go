@@ -46,13 +46,6 @@ func lookShell() (string, error) {
 	return shell, nil
 }
 
-// CheckCommand exposes the same shell execution boundary used by MOTD
-// preflight to the dedicated prompt-status runtime. Prompt callbacks never
-// call this function; only due refresh mode does.
-func CheckCommand(command string) (bool, string) {
-	return (systemRuntime{}).Check(command)
-}
-
 // CheckCommandWithTimeout applies a bounded execution window to a configured
 // check. It is for detached prompt refreshes, which must not accumulate hung
 // child processes across shell prompts.

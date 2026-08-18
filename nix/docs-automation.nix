@@ -292,6 +292,7 @@
     ../src/prelude/options/shared.nix
     ../src/prelude/options/motd.nix
     ../src/prelude/options/menu.nix
+    ../src/prelude/options/portal.nix
     ../src/prelude/options/docs.nix
     ../src/prelude/options/prompt.nix
   ];

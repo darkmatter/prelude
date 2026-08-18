@@ -17,6 +17,7 @@
       (self + /src/prelude/options/shared.nix)
       (self + /src/prelude/options/motd.nix)
       (self + /src/prelude/options/menu.nix)
+      (self + /src/prelude/options/portal.nix)
       (self + /src/prelude/options/docs.nix)
       (self + /src/prelude/options/prompt.nix)
     ];
@@ -215,7 +216,11 @@ in {
   };
 
   # Package-backed commands derive both their executable and runtime closure.
-  perSystem = {pkgs, ...}: {
+  perSystem = {
+    pkgs,
+    config,
+    ...
+  }: {
     prelude.commands = {
       # The first colon derives menu group/label while the complete key stays
       # public (`x go:test`). fromPkg derives the canonical `go test …`
@@ -242,7 +247,7 @@ in {
         command = "nix flake check";
         description = "build + render smoke tests";
       };
-      fmt = self.lib.fromPkg pkgs.nixfmt {
+      fmt = self.lib.fromPkg config.treefmt.build.wrapper {
         arguments = ["."];
         description = "format nix sources";
       };

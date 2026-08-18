@@ -152,11 +152,6 @@ func (v MOTDView) renderHeaderSection() string {
 		parts = append(parts, strings.Join(sec.activation(h.Tagline, h.Subtitle, shortcuts), "\n"))
 	}
 
-	// Newline after the tagline/subtitle when a generated title is active.
-	// if v.r.model.Config.Title != "" && (h.Tagline != "" || h.Subtitle != "") {
-	// 	parts = append(parts, card.Blank())
-	// }
-
 	return joinNonEmpty(parts)
 }
 

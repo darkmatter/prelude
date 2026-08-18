@@ -31,7 +31,6 @@ in {
   packages = import ./packages.nix (args // {inherit demos docsAutomation previews skill;});
   apps = import ./apps.nix (args // {inherit demos docsAutomation previews skill;});
   devShells.default = import ./shell.nix (args // {inherit docsAutomation previews;});
-  # formatter = pkgs.nixfmt;
   inherit checks;
   treefmt = {
     programs.alejandra.enable = true;

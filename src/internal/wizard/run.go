@@ -227,8 +227,17 @@ func finishWizard(cfg Config, render renderFunc, result wizardResult, configPath
 	fmt.Fprintf(stderr, "wrote %s\n", titlePath)
 
 	if result.Docs {
-		// The emitted config references this page, so create it — but never
-		// clobber docs a project already has.
+		// The emitted config references README.md as the first docs page, so
+		// ensure one exists — but never clobber a README the project already has.
+		if _, err := os.Lstat(starterReadmePath); err == nil {
+			fmt.Fprintf(stderr, "kept existing %s\n", starterReadmePath)
+		} else if errors.Is(err, os.ErrNotExist) {
+			if err := writeAtomic(starterReadmePath, []byte(starterReadmePage)); err != nil {
+				return fail(fmt.Errorf("write %s: %w", starterReadmePath, err))
+			}
+			fmt.Fprintf(stderr, "wrote %s\n", starterReadmePath)
+		}
+		// The starter getting-started page is the second docs entry.
 		if _, err := os.Stat(starterDocsPath); errors.Is(err, os.ErrNotExist) {
 			if err := writeAtomic(starterDocsPath, []byte(starterDocsPage)); err != nil {
 				return fail(fmt.Errorf("write %s: %w", starterDocsPath, err))

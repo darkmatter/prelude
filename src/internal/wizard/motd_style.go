@@ -2,7 +2,7 @@ package wizard
 
 import (
 	"fmt"
-	"image/color"
+	"prelude/internal/motd"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -13,7 +13,7 @@ import (
 // sizing values are already formatted as Nix expressions so both generated
 // config templates can share the same data.
 const (
-	motdPreviewCanvasWidth = 80
+	motdPreviewCanvasWidth = 80 // reference width for helper tests
 	motdPreviewSampleText  = "acme"
 	// Keep the MOTD style preview independent from the selected title font. The
 	// bundled mini font has a compact, stable geometry that fits the static
@@ -49,9 +49,11 @@ type motdSpacingPreset struct {
 type motdWidthPreset struct {
 	Name         string
 	Hint         string
-	WidthExpr    string
-	MaxWidthExpr string
-	PreviewWidth int
+	WidthExpr    string // Nix expression for the template
+	MaxWidthExpr string // Nix expression for the template
+	PreviewWidth int    // legacy static-canvas width (used by helper tests)
+	WidthInt     int    // motd.Config Width: 0 = full terminal
+	MaxWidthInt  int    // motd.Config MaxWidth: 0 = unbounded
 }
 
 type motdBackgroundOption struct {
@@ -78,9 +80,9 @@ var motdPaddingPresets = []motdSpacingPreset{
 }
 
 var motdWidthPresets = []motdWidthPreset{
-	{Name: "compact", Hint: "fixed 80-column card", WidthExpr: "80", MaxWidthExpr: "80", PreviewWidth: 48},
-	{Name: "wide", Hint: "full terminal, capped at 100", WidthExpr: `"full"`, MaxWidthExpr: "100", PreviewWidth: 64},
-	{Name: "full", Hint: "full terminal, no cap", WidthExpr: `"full"`, MaxWidthExpr: "null", PreviewWidth: 72},
+	{Name: "compact", Hint: "fixed 80-column card", WidthExpr: "80", MaxWidthExpr: "80", PreviewWidth: 48, WidthInt: 80, MaxWidthInt: 80},
+	{Name: "wide", Hint: "full terminal, capped at 100", WidthExpr: `"full"`, MaxWidthExpr: "100", PreviewWidth: 64, WidthInt: 0, MaxWidthInt: 100},
+	{Name: "full", Hint: "full terminal, no cap", WidthExpr: `"full"`, MaxWidthExpr: "null", PreviewWidth: 72, WidthInt: 0, MaxWidthInt: 0},
 }
 
 var motdBackgroundOptions = []motdBackgroundOption{
@@ -175,15 +177,6 @@ func (m wizardModel) motdBackgroundNix(index int) string {
 	}
 }
 
-func (m wizardModel) motdBackgroundColor(index int) (color.Color, bool) {
-	option := motdBackgroundOptions[boundedIndex(index, len(motdBackgroundOptions))]
-	if option.Token == "" {
-		return nil, false
-	}
-	color, ok := (themeSample{theme: m.selectedTheme()}).color(option.Token)
-	return color, ok
-}
-
 func (m wizardModel) motdBackgroundLabel(index int) string {
 	option := motdBackgroundOptions[boundedIndex(index, len(motdBackgroundOptions))]
 	if option.Token == "" {
@@ -219,19 +212,19 @@ func (m wizardModel) firstStepAfterComponents() wizardStep {
 	if m.components[componentMotd] {
 		return stepMotdContent
 	}
-	return stepConfirm
+	return stepTheme
 }
 
-func (m wizardModel) updateMotdLayout(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (m wizardModel) updateMotdSurface(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up", "k", "shift+tab":
-		m.motdLayoutCursor = cycleIndex(m.motdLayoutCursor, -1, 3)
+		m.motdSurfaceCursor = cycleIndex(m.motdSurfaceCursor, -1, 3)
 	case "down", "j", "tab":
-		m.motdLayoutCursor = cycleIndex(m.motdLayoutCursor, 1, 3)
+		m.motdSurfaceCursor = cycleIndex(m.motdSurfaceCursor, 1, 3)
 	case "left", "h":
-		m.cycleMotdLayoutValue(-1)
+		m.cycleMotdSurfaceValue(-1)
 	case "right", "l", "space":
-		m.cycleMotdLayoutValue(1)
+		m.cycleMotdSurfaceValue(1)
 	case "enter":
 		m.step = stepMotdSpacing
 	case "esc", "backspace":
@@ -266,9 +259,9 @@ func (m wizardModel) updateMotdSpacing(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 	case "right", "l", "space":
 		m.cycleMotdSpacingValue(1)
 	case "enter":
-		m.step = stepMotdSurface
-	case "esc", "backspace":
 		m.step = stepMotdLayout
+	case "esc", "backspace":
+		m.step = stepMotdSurface
 	case "q":
 		m.canceled = true
 		return m, tea.Quit
@@ -287,18 +280,18 @@ func (m *wizardModel) cycleMotdSpacingValue(delta int) {
 	}
 }
 
-func (m wizardModel) updateMotdSurface(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (m wizardModel) updateMotdLayout(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up", "k", "shift+tab":
-		m.motdSurfaceCursor = cycleIndex(m.motdSurfaceCursor, -1, 3)
+		m.motdLayoutCursor = cycleIndex(m.motdLayoutCursor, -1, 3)
 	case "down", "j", "tab":
-		m.motdSurfaceCursor = cycleIndex(m.motdSurfaceCursor, 1, 3)
+		m.motdLayoutCursor = cycleIndex(m.motdLayoutCursor, 1, 3)
 	case "left", "h":
-		m.cycleMotdSurfaceValue(-1)
+		m.cycleMotdLayoutValue(-1)
 	case "right", "l", "space":
-		m.cycleMotdSurfaceValue(1)
+		m.cycleMotdLayoutValue(1)
 	case "enter":
-		m.step = stepConfirm
+		m.step = stepTheme
 	case "esc", "backspace":
 		m.step = stepMotdSpacing
 	case "q":
@@ -368,83 +361,40 @@ func (m wizardModel) motdPreview() string {
 		return newFormStyles().dim.Render("MOTD preview unavailable until a theme is loaded")
 	}
 
-	ts := themeSample{theme: m.selectedTheme()}
-	previewWidth := motdPreviewCanvasWidth
 	margin := motdMarginPresets[boundedIndex(m.motdMarginIndex, len(motdMarginPresets))]
 	padding := motdPaddingPresets[boundedIndex(m.motdPaddingIndex, len(motdPaddingPresets))]
-	width := motdWidthPresets[boundedIndex(m.motdWidthIndex, len(motdWidthPresets))]
-	cardBackground, cardIsOpaque := m.motdBackgroundColor(m.motdBackgroundIndex)
-	cardWidth, innerWidth, paddingX := previewCardDimensions(previewWidth, width.PreviewWidth, margin.X, padding.X, m.motdBorder)
 
-	title := strings.TrimSpace(m.motdWordmark)
-	if title == "" {
-		title = "◆ " + motdPreviewSampleText
-	}
-	title = fitPreview(title, innerWidth, 3)
-	content := alignPreviewTitleBlock(title, innerWidth, motdTitleAlignments[m.motdTitleAlignIndex])
-	cardLines := []string{
-		content,
-		lipgloss.NewStyle().Foreground(colorOr(ts, "accent")).Render(strings.Repeat("─", innerWidth)),
-	}
-	for _, status := range m.motdPreviewStatuses() {
-		cardLines = append(cardLines, lipgloss.NewStyle().
-			Foreground(colorOr(ts, "info")).
-			Width(innerWidth).
-			Align(lipgloss.Right).
-			Render(fitPreview(status, innerWidth, 1)))
-	}
-	if tagline := strings.TrimSpace(m.motdContent.Tagline); tagline != "" {
-		cardLines = append(cardLines, lipgloss.NewStyle().
-			Foreground(colorOr(ts, "accent2")).
-			Bold(true).
-			Render(fitPreview(tagline, innerWidth, 1)))
-	}
-	if description := strings.TrimSpace(m.motdContent.Description); description != "" {
-		cardLines = append(cardLines, lipgloss.NewStyle().
-			Foreground(colorOr(ts, "fg")).
-			Render(fitPreview(description, innerWidth, 2)))
-	}
-	cardLines = append(cardLines, lipgloss.NewStyle().
-		Foreground(colorOr(ts, "muted")).
-		Render(fitPreview(m.motdPreviewCommands(), innerWidth, 1)))
+	// Size the preview to the terminal, deducting the panel chrome: padding
+	// (2 rows, 4 cols), heading + subtitle + blank + blank + footer (5 rows),
+	// and the 3 setting rows + separating blank (4 rows) that sit above the
+	// preview in every motd style step.
+	previewWidth := max(m.width-4, 40)
+	previewHeight := max(m.height-11, 8)
 
-	cardStyle := lipgloss.NewStyle().
-		Foreground(colorOr(ts, "fg")).
-		Width(cardWidth).
-		Padding(padding.Y, paddingX)
-	if m.motdBorder {
-		cardStyle = cardStyle.
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(colorOr(ts, "accent"))
-	}
-	if cardIsOpaque {
-		cardStyle = cardStyle.Background(cardBackground)
-	}
-	card := cardStyle.Render(strings.Join(cardLines, "\n"))
-
-	viewportHeight := max(lipgloss.Height(card)+2, 13) + margin.Y
-	viewport := lipgloss.Place(
-		previewWidth,
-		viewportHeight,
-		horizontalPosition(motdAlignments[m.motdAlignIndex]),
-		verticalPosition(motdVerticalAlignments[m.motdVerticalAlignIndex]),
-		card,
-	)
+	// Render through the real MOTDView so the preview matches shell-entry output.
+	cfg := m.motdPreviewConfig()
+	rendered := motd.Render(motd.RenderInput{
+		Config:         cfg,
+		Cache:          motd.Cache{}, // cold cache: statuses show "pending"
+		TerminalWidth:  previewWidth,
+		TerminalHeight: previewHeight,
+	})
+	rendered = fitPreview(rendered, previewWidth, previewHeight)
 
 	s := newFormStyles()
 	meta := fmt.Sprintf(
 		"%s block · %s vertical · border %s · %s margin · %s padding · %s card · clear %s",
-		motdAlignments[m.motdAlignIndex],
-		motdVerticalAlignments[m.motdVerticalAlignIndex],
+		motdAlignments[boundedIndex(m.motdAlignIndex, len(motdAlignments))],
+		motdVerticalAlignments[boundedIndex(m.motdVerticalAlignIndex, len(motdVerticalAlignments))],
 		onOff(m.motdBorder),
 		margin.Name,
 		padding.Name,
-		motdBackgroundOptions[m.motdBackgroundIndex].Label,
+		motdBackgroundOptions[boundedIndex(m.motdBackgroundIndex, len(motdBackgroundOptions))].Label,
 		onOff(m.motdClearScreen),
 	)
 	meta = fitPreview(meta, previewWidth, 1)
 	header := fitPreview("live MOTD preview", previewWidth, 1)
-	return strings.Join([]string{s.muted.Render(header), viewport, s.dim.Render(meta)}, "\n")
+	return strings.Join([]string{s.muted.Render(header), rendered, s.dim.Render(meta)}, "\n")
 }
 
 func alignPreviewTitleBlock(title string, width int, align string) string {
@@ -487,33 +437,4 @@ func previewCardDimensions(previewWidth, desiredWidth, margin, padding int, bord
 	}
 	contentWidth = max(cardWidth-paddingX*2-borderWidth, 1)
 	return cardWidth, contentWidth, paddingX
-}
-
-func colorOr(ts themeSample, token string) color.Color {
-	if value, ok := ts.theme.Palette[token]; ok && value != "" {
-		return lipgloss.Color(value)
-	}
-	return lipgloss.Color("#d6d2df")
-}
-
-func horizontalPosition(value string) lipgloss.Position {
-	switch value {
-	case "right":
-		return lipgloss.Right
-	case "center":
-		return lipgloss.Center
-	default:
-		return lipgloss.Left
-	}
-}
-
-func verticalPosition(value string) lipgloss.Position {
-	switch value {
-	case "bottom":
-		return lipgloss.Bottom
-	case "center":
-		return lipgloss.Center
-	default:
-		return lipgloss.Top
-	}
 }

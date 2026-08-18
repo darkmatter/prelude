@@ -53,6 +53,9 @@ bleopt term_cursor_external=5
 . "$_PRELUDE_SHELL_RUNTIME/status-cap.bash"
 
 complete -F _prelude_complete_x x
+# Initial-word completion so `x<Tab>` (no trailing space) shows the catalogue
+# instead of PATH command-name matches. bash >= 4.0 supports `-I`.
+complete -I -F _prelude_complete_initial 2>/dev/null || true
 if ((${#_prelude_catalogue_direct_names[@]})); then
   complete -F _prelude_complete_direct "${_prelude_catalogue_direct_names[@]}"
 fi

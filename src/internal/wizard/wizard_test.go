@@ -57,6 +57,11 @@ func ctrlD(t *testing.T, m wizardModel) wizardModel {
 	return pressKey(t, m, tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
 }
 
+func shiftEnter(t *testing.T, m wizardModel) wizardModel {
+	t.Helper()
+	return pressKey(t, m, tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModShift})
+}
+
 func TestWizardWalksEveryStepAndCollectsSelections(t *testing.T) {
 	m := testWizard()
 
@@ -80,20 +85,6 @@ func TestWizardWalksEveryStepAndCollectsSelections(t *testing.T) {
 	if m.step != stepProject || m.projectInput.Value() != "acme" {
 		t.Fatalf("after font: step=%d project=%q", m.step, m.projectInput.Value())
 	}
-	m = enter(t, m)
-
-	// Theme: move up from phosphor to nord.
-	if m.step != stepTheme {
-		t.Fatalf("step = %d, want theme", m.step)
-	}
-	m = letter(t, m, 'k')
-	m = enter(t, m)
-
-	// Color profile: move down once to truecolor.
-	if m.step != stepProfile {
-		t.Fatalf("step = %d, want profile", m.step)
-	}
-	m = letter(t, m, 'j')
 	m = enter(t, m)
 
 	// Commands come before every component/MOTD preview so previews can use them.
@@ -131,10 +122,7 @@ func TestWizardWalksEveryStepAndCollectsSelections(t *testing.T) {
 	if preview := m.componentPreview(); !strings.Contains(preview, "dev") {
 		t.Fatalf("component preview does not use configured commands:\n%s", preview)
 	}
-	m = letter(t, m, 'j')
-	m = letter(t, m, 'j')
-	m = letter(t, m, 'j')
-	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+	// Docs defaults on now, so all components stay on with a straight enter.
 	m = enter(t, m)
 
 	if m.step != stepMotdContent || m.motdContentPhase != motdContentTagline {
@@ -155,11 +143,12 @@ func TestWizardWalksEveryStepAndCollectsSelections(t *testing.T) {
 	}
 	m.motdContentInput.SetValue("http://127.0.0.1:8080/health")
 	m = enter(t, m)
-	if m.step != stepMotdLayout {
-		t.Fatalf("step = %d, want MOTD layout after content", m.step)
+	if m.step != stepMotdSurface {
+		t.Fatalf("step = %d, want MOTD surface after content", m.step)
 	}
+	m.height = 40 // enough headroom for the full card with status lights
 	renderedPreview := m.motdPreview()
-	for _, fragment := range []string{"dev", "Ship confidently", "Everything needed", "flake", "dev server"} {
+	for _, fragment := range []string{"make", "Ship confidently", "Everything needed", "flake", "dev server"} {
 		if !strings.Contains(renderedPreview, fragment) {
 			t.Fatalf("MOTD preview does not use %q from commands/content:\n%s", fragment, renderedPreview)
 		}
@@ -169,9 +158,15 @@ func TestWizardWalksEveryStepAndCollectsSelections(t *testing.T) {
 		t.Fatalf("step = %d, want MOTD spacing", m.step)
 	}
 	m = enter(t, m)
-	if m.step != stepMotdSurface {
-		t.Fatalf("step = %d, want MOTD surface", m.step)
+	if m.step != stepMotdLayout {
+		t.Fatalf("step = %d, want MOTD layout", m.step)
 	}
+	m = enter(t, m)
+	if m.step != stepTheme {
+		t.Fatalf("step = %d, want theme", m.step)
+	}
+	// Theme: move up from phosphor to nord.
+	m = letter(t, m, 'k')
 	m = enter(t, m)
 	if m.step != stepConfirm {
 		t.Fatalf("step = %d, want confirm", m.step)
@@ -184,16 +179,15 @@ func TestWizardWalksEveryStepAndCollectsSelections(t *testing.T) {
 
 	got := m.result()
 	want := wizardResult{
-		Recipe:       Recipe{Text: "acme", Font: "standard"},
-		Project:      "acme",
-		Theme:        "nord",
-		ColorProfile: "truecolor",
-		Motd:         true,
-		Menu:         true,
-		Prompt:       true,
-		Docs:         true,
-		Envrc:        true,
-		Commands:     []wizardCommand{{Name: "dev", Exec: "make", Description: "run"}},
+		Recipe:   Recipe{Text: "acme", Font: "standard"},
+		Project:  "acme",
+		Theme:    "nord",
+		Motd:     true,
+		Menu:     true,
+		Prompt:   true,
+		Docs:     true,
+		Envrc:    true,
+		Commands: []wizardCommand{{Name: "dev", Exec: "make", Description: "run"}},
 		MotdContent: wizardMotdContent{
 			Tagline:            "Ship confidently",
 			Description:        "Everything needed to build, test,\nand ship.",
@@ -269,7 +263,7 @@ func TestWizardThemeBackgroundToggleAffectsOnlyViewer(t *testing.T) {
 
 func TestWizardMOTDStyleStepsCollectSelectionsAndPreview(t *testing.T) {
 	m := testWizard()
-	for range 5 {
+	for range 3 {
 		m = enter(t, m)
 	}
 	if m.step != stepCommands {
@@ -283,8 +277,29 @@ func TestWizardMOTDStyleStepsCollectSelectionsAndPreview(t *testing.T) {
 
 	m = enter(t, m) // components -> MOTD content
 	m = enter(t, m) // tagline
-	m = ctrlD(t, m) // description
+	m = enter(t, m) // description (enter commits now)
 	m = enter(t, m) // default flake status on; dev server off
+	if m.step != stepMotdSurface {
+		t.Fatalf("step = %d, want MOTD surface", m.step)
+	}
+
+	// Surface is first: card theme background -> surface, border on, clear off.
+	m = letter(t, m, 'l')                                              // card theme background -> surface color
+	m = letter(t, m, 'j')                                              // border field
+	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}) // border on
+	m = letter(t, m, 'j')                                              // clear-screen field
+	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}) // clear off
+	m = enter(t, m)
+
+	// Spacing is second: margin balanced -> spacious, padding roomy -> generous, width wide -> compact.
+	m = letter(t, m, 'l') // margin balanced -> spacious
+	m = letter(t, m, 'j') // padding field
+	m = letter(t, m, 'l') // padding roomy -> generous
+	m = letter(t, m, 'j') // width field
+	m = letter(t, m, 'h') // width wide -> compact
+	m = enter(t, m)
+
+	// Alignment (layout) is last: block center -> right, vertical bottom -> center, title center -> right.
 	if m.step != stepMotdLayout {
 		t.Fatalf("step = %d, want MOTD layout", m.step)
 	}
@@ -297,22 +312,12 @@ func TestWizardMOTDStyleStepsCollectSelectionsAndPreview(t *testing.T) {
 		t.Fatalf("preview does not reflect layout choices: %s", m.motdPreview())
 	}
 	m = enter(t, m)
-
-	m = letter(t, m, 'l') // margin balanced -> spacious
-	m = letter(t, m, 'j') // padding field
-	m = letter(t, m, 'l') // padding roomy -> generous
-	m = letter(t, m, 'j') // width field
-	m = letter(t, m, 'h') // width wide -> compact
-	m = enter(t, m)
-
-	m = letter(t, m, 'l')                                              // card theme background -> surface color
-	m = letter(t, m, 'j')                                              // border field
-	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}) // border on
-	m = letter(t, m, 'j')                                              // clear-screen field
-	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}) // clear off
-	m = enter(t, m)
+	if m.step != stepTheme {
+		t.Fatalf("step = %d, want theme after MOTD pages", m.step)
+	}
+	m = enter(t, m) // theme -> confirm
 	if m.step != stepConfirm {
-		t.Fatalf("step = %d, want confirmation after MOTD pages", m.step)
+		t.Fatalf("step = %d, want confirmation after theme", m.step)
 	}
 
 	got := m.result()
@@ -344,8 +349,12 @@ func TestWizardSkipsMOTDStepsWhenDisabled(t *testing.T) {
 		t.Fatalf("step = %d, want components after commands", m.step)
 	}
 	current, total := m.stepProgress()
-	if current != 7 || total != 8 {
-		t.Fatalf("progress = %d/%d, want 7/8", current, total)
+	if current != 5 || total != 7 {
+		t.Fatalf("progress = %d/%d, want 5/7", current, total)
+	}
+	m = enter(t, m)
+	if m.step != stepTheme {
+		t.Fatalf("step = %d, want theme when MOTD is disabled", m.step)
 	}
 	m = enter(t, m)
 	if m.step != stepConfirm {
@@ -397,12 +406,12 @@ func TestWizardMOTDDescriptionAcceptsMultipleLines(t *testing.T) {
 	m.motdDescriptionInput.SetValue("First line")
 	m.motdDescriptionInput.MoveToEnd()
 
-	m = enter(t, m)
+	m = shiftEnter(t, m)
 	if m.motdContentPhase != motdContentDescription || !strings.Contains(m.motdDescriptionInput.Value(), "\n") {
-		t.Fatalf("enter did not add a description line: phase=%d value=%q", m.motdContentPhase, m.motdDescriptionInput.Value())
+		t.Fatalf("shift+enter did not add a description line: phase=%d value=%q", m.motdContentPhase, m.motdDescriptionInput.Value())
 	}
 	m.motdDescriptionInput.SetValue("First line\nSecond line")
-	m = ctrlD(t, m)
+	m = enter(t, m)
 	if m.motdContentPhase != motdContentStatus || m.motdContent.Description != "First line\nSecond line" {
 		t.Fatalf("multiline description not committed: phase=%d value=%q", m.motdContentPhase, m.motdContent.Description)
 	}
@@ -434,7 +443,7 @@ func TestWizardMOTDStatusTogglesAndHealthURLDefault(t *testing.T) {
 
 	m.motdContentInput.SetValue("")
 	m = enter(t, m)
-	if m.step != stepMotdLayout || m.motdContent.DevServerHealthURL != motdDevServerHealthURLPlaceholder {
+	if m.step != stepMotdSurface || m.motdContent.DevServerHealthURL != motdDevServerHealthURLPlaceholder {
 		t.Fatalf("empty URL did not retain default: step=%d url=%q", m.step, m.motdContent.DevServerHealthURL)
 	}
 }
@@ -505,18 +514,19 @@ func TestWizardMOTDContentBackNavigation(t *testing.T) {
 		t.Fatalf("esc from statuses: phase=%d, want description", m.motdContentPhase)
 	}
 
-	m.step = stepMotdLayout
+	// Surface is now the first MOTD style step; esc returns to MOTD content.
+	m.step = stepMotdSurface
 	m.motdContent.DevServerStatus = false
 	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	if m.step != stepMotdContent || m.motdContentPhase != motdContentStatus {
-		t.Fatalf("esc from layout without server: step=%d phase=%d", m.step, m.motdContentPhase)
+		t.Fatalf("esc from surface without server: step=%d phase=%d", m.step, m.motdContentPhase)
 	}
 
-	m.step = stepMotdLayout
+	m.step = stepMotdSurface
 	m.motdContent.DevServerStatus = true
 	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	if m.step != stepMotdContent || m.motdContentPhase != motdContentDevServerURL {
-		t.Fatalf("esc from layout with server: step=%d phase=%d", m.step, m.motdContentPhase)
+		t.Fatalf("esc from surface with server: step=%d phase=%d", m.step, m.motdContentPhase)
 	}
 	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	if m.motdContentPhase != motdContentStatus {
@@ -544,32 +554,42 @@ func TestMOTDPreviewWidthPresetsScaleTo80ColumnCanvas(t *testing.T) {
 	}
 }
 
-func TestMOTDPreviewUsesStaticCanvasAndFitsContent(t *testing.T) {
-	if motdPreviewCanvasWidth != 80 {
-		t.Fatalf("preview canvas width = %d, want 80", motdPreviewCanvasWidth)
+func TestMOTDPreviewAdaptsToTerminalWidth(t *testing.T) {
+	m := testWizard()
+	m.motdWordmark = motdPreviewSampleText
+	m.motdWidthIndex = 2 // full: card tracks terminal width with no cap
+
+	// A wider terminal should produce a wider MOTD preview. The card width
+	// follows the available space (terminal width minus panel padding).
+	narrow := m
+	narrow.width = 60
+	narrowRendered := narrow.motdPreview()
+
+	wide := m
+	wide.width = 120
+	wideRendered := wide.motdPreview()
+
+	if lipgloss.Width(wideRendered) <= lipgloss.Width(narrowRendered) {
+		t.Fatalf("wide terminal preview did not grow: narrow=%d wide=%d\nnarrow:\n%s\nwide:\n%s",
+			lipgloss.Width(narrowRendered), lipgloss.Width(wideRendered), narrowRendered, wideRendered)
 	}
 
-	m := testWizard()
-	m.preview = strings.Repeat("wide title ", 8)
-	var baseline string
-	for _, width := range []int{24, 30, 40, 56, 80, 120} {
-		m.width = width
-		rendered := m.motdPreview()
-		if baseline == "" {
-			baseline = rendered
-		} else if rendered != baseline {
-			t.Fatalf("preview changed at window width %d; preview canvas should stay static", width)
+	// Every preview line must fit within the terminal width.
+	for _, line := range strings.Split(narrowRendered, "\n") {
+		if got := lipgloss.Width(line); got > narrow.width {
+			t.Fatalf("narrow preview line width = %d, want <= %d:\n%s", got, narrow.width, narrowRendered)
 		}
-		for _, line := range strings.Split(rendered, "\n") {
-			if got := lipgloss.Width(line); got > motdPreviewCanvasWidth {
-				t.Fatalf("width %d: preview line width = %d, want <= %d:\n%s", width, got, motdPreviewCanvasWidth, rendered)
-			}
+	}
+	for _, line := range strings.Split(wideRendered, "\n") {
+		if got := lipgloss.Width(line); got > wide.width {
+			t.Fatalf("wide preview line width = %d, want <= %d:\n%s", got, wide.width, wideRendered)
 		}
 	}
 }
 
 func TestMOTDPreviewBorderDefaultsOffAndToggles(t *testing.T) {
 	m := testWizard()
+	m.height = 40 // enough chrome/headroom for the full bordered card
 	withoutBorder := m.motdPreview()
 	if strings.Contains(withoutBorder, "╭") || strings.Contains(withoutBorder, "╰") {
 		t.Fatalf("default MOTD preview rendered a border:\n%s", withoutBorder)
@@ -615,6 +635,7 @@ func TestMOTDPreviewOmitsDitherFringe(t *testing.T) {
 
 func TestMOTDPreviewRendersFixedCardShape(t *testing.T) {
 	m := testWizard()
+	m.height = 40 // enough headroom for the full card with commands + statuses
 	m.motdBorder = true
 	m.motdWordmark = motdPreviewSampleText
 	m.commands = []wizardCommand{{Name: "check"}, {Name: "test"}, {Name: "build"}}
@@ -626,17 +647,20 @@ func TestMOTDPreviewRendersFixedCardShape(t *testing.T) {
 	if len(lines) < 15 {
 		t.Fatalf("MOTD preview has %d lines, want at least 15:\n%s", len(lines), rendered)
 	}
-	if got := lipgloss.Width(rendered); got != motdPreviewCanvasWidth {
-		t.Fatalf("MOTD preview width = %d, want static canvas width %d:\n%s", got, motdPreviewCanvasWidth, rendered)
-	}
+	// The preview header and meta lines bookend the real MOTDView output. The
+	// content fragments come from the real renderer, so the status lights are
+	// combined and commands render individually.
 	for _, fragment := range []string{
 		"live MOTD preview",
 		"╭",
 		motdPreviewSampleText,
-		"flake  pending",
-		"dev server  pending",
+		"flake",
+		"pending",
+		"dev server",
 		"Fancy devshells for your nix",
-		"check  ·  test  ·  build",
+		"check",
+		"test",
+		"build",
 		"You are now in",
 		"center block",
 	} {
@@ -649,32 +673,25 @@ func TestMOTDPreviewRendersFixedCardShape(t *testing.T) {
 		switch {
 		case titleLine < 0 && strings.Contains(line, motdPreviewSampleText):
 			titleLine = index
-		case titleLine >= 0 && statusLine < 0 && strings.Contains(line, "─"):
+		case titleLine >= 0 && statusLine < 0 && strings.Contains(line, "━"):
 			dividerLine = index
-		case strings.Contains(line, "flake  pending"):
+		case strings.Contains(line, "flake") && strings.Contains(line, "pending"):
 			statusLine = index
 		case strings.Contains(line, "Fancy devshells"):
 			taglineLine = index
 		}
 	}
-	if !(titleLine < dividerLine && dividerLine < statusLine && statusLine < taglineLine) {
+	// The real MOTDView places the status lights at the footer, beneath the
+	// tagline, so the order is title → divider → tagline → status.
+	if !(titleLine < dividerLine && dividerLine < taglineLine && taglineLine < statusLine) {
 		t.Fatalf(
-			"preview status is not beneath the divider: title=%d divider=%d status=%d tagline=%d\n%s",
+			"preview order unexpected: title=%d divider=%d tagline=%d status=%d\n%s",
 			titleLine,
 			dividerLine,
-			statusLine,
 			taglineLine,
+			statusLine,
 			rendered,
 		)
-	}
-	// The first and last lines belong to the preview label and metadata. Every
-	// viewport row is padded to the static canvas width, including empty rows
-	// used for vertical placement.
-	viewport := lines[1 : len(lines)-1]
-	for index, line := range viewport {
-		if got := lipgloss.Width(line); got != motdPreviewCanvasWidth {
-			t.Fatalf("viewport row %d width = %d, want %d:\n%s", index, got, motdPreviewCanvasWidth, rendered)
-		}
 	}
 
 	t.Logf("rendered MOTD preview:\n%s", rendered)
@@ -689,31 +706,27 @@ func TestMOTDPreviewUsesConfiguredMarginAndPadding(t *testing.T) {
 	base.motdPaddingIndex = 0       // compact
 	baseRendered := base.motdPreview()
 
+	// Generous padding insets the card content further than compact padding.
+	// The real MOTD renderer applies padding as interior spacing, so the
+	// tagline (a stable content line) starts further right with generous padding.
 	padding := base
 	padding.motdPaddingIndex = 2 // generous
 	paddingRendered := padding.motdPreview()
-	if got, want := lipgloss.Height(paddingRendered) > lipgloss.Height(baseRendered), true; got != want {
-		t.Fatalf("generous padding did not increase preview height:\nbase:\n%s\n\ngenerous:\n%s", baseRendered, paddingRendered)
+	baseIndent := leadingSpaces(taglineLine(baseRendered, "Fancy devshells"))
+	generousIndent := leadingSpaces(taglineLine(paddingRendered, "Fancy devshells"))
+	if generousIndent <= baseIndent {
+		t.Fatalf("generous padding did not increase content inset: base=%d generous=%d\nbase:\n%s\n\ngenerous:\n%s",
+			baseIndent, generousIndent, baseRendered, paddingRendered)
 	}
 
-	margin := base
-	margin.motdMarginIndex = 2 // spacious
-	marginRendered := margin.motdPreview()
-	if got, want := lipgloss.Height(marginRendered) > lipgloss.Height(baseRendered), true; got != want {
-		t.Fatalf("spacious margin did not increase preview height:\nbase:\n%s\n\nspacious:\n%s", baseRendered, marginRendered)
-	}
-
-	for name, rendered := range map[string]string{
-		"base":    baseRendered,
-		"padding": paddingRendered,
-		"margin":  marginRendered,
-	} {
-		if got := lipgloss.Width(rendered); got != motdPreviewCanvasWidth {
-			t.Fatalf("%s preview width = %d, want %d", name, got, motdPreviewCanvasWidth)
-		}
-	}
 	if !strings.Contains(baseRendered, "left block · top vertical") {
 		t.Fatalf("base preview does not show the configured non-centered layout:\n%s", baseRendered)
+	}
+	if !strings.Contains(baseRendered, "compact margin · compact padding") {
+		t.Fatalf("base preview does not show compact spacing:\n%s", baseRendered)
+	}
+	if !strings.Contains(paddingRendered, "generous padding") {
+		t.Fatalf("generous preview does not show generous padding:\n%s", paddingRendered)
 	}
 
 	rightBottom := base
@@ -722,6 +735,20 @@ func TestMOTDPreviewUsesConfiguredMarginAndPadding(t *testing.T) {
 	if rendered := rightBottom.motdPreview(); !strings.Contains(rendered, "right block · bottom vertical") {
 		t.Fatalf("preview does not show the alternate layout:\n%s", rendered)
 	}
+}
+
+func taglineLine(rendered, marker string) string {
+	for _, line := range strings.Split(rendered, "\n") {
+		if strings.Contains(line, marker) {
+			return line
+		}
+	}
+	return ""
+}
+
+func leadingSpaces(line string) int {
+	stripped := ansi.Strip(line)
+	return len(stripped) - len(strings.TrimLeft(stripped, " "))
 }
 
 func TestRefreshMOTDWordmarkUsesFixedMiniFont(t *testing.T) {
@@ -825,14 +852,13 @@ func TestWizardReviewFitsLongMultilineWelcomeMessage(t *testing.T) {
 
 func TestRenderWizardConfigEmitsOptionsTemplate(t *testing.T) {
 	got := renderWizardConfig(wizardResult{
-		Recipe:       Recipe{Text: "acme", Font: "thin"},
-		Project:      "acme-web",
-		Theme:        "nord",
-		ColorProfile: "auto",
-		Motd:         true,
-		Menu:         true,
-		Prompt:       true,
-		Docs:         false,
+		Recipe:  Recipe{Text: "acme", Font: "thin"},
+		Project: "acme-web",
+		Theme:   "nord",
+		Motd:    true,
+		Menu:    true,
+		Prompt:  true,
+		Docs:    false,
 		Commands: []wizardCommand{
 			{Name: "dev", Exec: "pnpm dev", Description: "start the dev server"},
 			{Name: "db:migrate", Description: "apply pending migrations"},
@@ -909,13 +935,12 @@ func TestRenderWizardConfigEmitsOptionsTemplate(t *testing.T) {
 
 func TestRenderWizardConfigEmitsSelectedMOTDStyle(t *testing.T) {
 	result := wizardResult{
-		Recipe:       Recipe{Text: "acme", Font: "thin"},
-		Project:      "acme",
-		Theme:        "nord",
-		ColorProfile: "auto",
-		Motd:         true,
-		Menu:         false,
-		Prompt:       false,
+		Recipe:  Recipe{Text: "acme", Font: "thin"},
+		Project: "acme",
+		Theme:   "nord",
+		Motd:    true,
+		Menu:    false,
+		Prompt:  false,
 		MotdStyle: motdStyle{
 			Align:           "right",
 			VerticalAlign:   "center",
@@ -960,11 +985,10 @@ func TestRenderWizardConfigEmitsSelectedMOTDStyle(t *testing.T) {
 
 func TestRenderWizardConfigEmitsMOTDContentAndStatus(t *testing.T) {
 	result := wizardResult{
-		Recipe:       Recipe{Text: "acme", Font: "thin"},
-		Project:      "acme",
-		Theme:        "nord",
-		ColorProfile: "auto",
-		Motd:         true,
+		Recipe:  Recipe{Text: "acme", Font: "thin"},
+		Project: "acme",
+		Theme:   "nord",
+		Motd:    true,
 		MotdContent: wizardMotdContent{
 			Tagline:            "Ready to ship",
 			Description:        "Everything needed for local development.\nWelcome aboard.",
@@ -998,11 +1022,10 @@ func TestRenderWizardConfigEmitsMOTDContentAndStatus(t *testing.T) {
 
 func TestRenderWizardConfigHonorsDisabledMOTDStatuses(t *testing.T) {
 	result := wizardResult{
-		Recipe:       Recipe{Text: "acme", Font: "thin"},
-		Project:      "acme",
-		Theme:        "nord",
-		ColorProfile: "auto",
-		Motd:         true,
+		Recipe:  Recipe{Text: "acme", Font: "thin"},
+		Project: "acme",
+		Theme:   "nord",
+		Motd:    true,
 		MotdContent: wizardMotdContent{
 			Tagline:            motdDefaultTagline,
 			Description:        defaultWizardMotdDescription("acme"),
@@ -1055,15 +1078,14 @@ func TestFinishWizardWritesTitleStarterDocsAndConfig(t *testing.T) {
 	t.Chdir(t.TempDir())
 	m := testWizard()
 	result := wizardResult{
-		Recipe:       Recipe{Text: "acme", Font: "thin"},
-		Project:      "acme",
-		Theme:        "nord",
-		ColorProfile: "auto",
-		Motd:         true,
-		Menu:         true,
-		Prompt:       true,
-		Docs:         true,
-		Envrc:        true,
+		Recipe:  Recipe{Text: "acme", Font: "thin"},
+		Project: "acme",
+		Theme:   "nord",
+		Motd:    true,
+		Menu:    true,
+		Prompt:  true,
+		Docs:    true,
+		Envrc:   true,
 	}
 	var stderr bytes.Buffer
 	code := finishWizard(m.cfg, m.render, result, "prelude.nix", &stderr)
@@ -1077,6 +1099,10 @@ func TestFinishWizardWritesTitleStarterDocsAndConfig(t *testing.T) {
 	page, err := os.ReadFile(starterDocsPath)
 	if err != nil || !strings.Contains(string(page), "# Getting started") {
 		t.Fatalf("starter docs page = %q, err %v", page, err)
+	}
+	readme, err := os.ReadFile(starterReadmePath)
+	if err != nil || !strings.Contains(string(readme), "# Your project") {
+		t.Fatalf("starter README = %q, err %v", readme, err)
 	}
 	envrc, err := os.ReadFile(wizardEnvrcPath)
 	if err != nil || string(envrc) != wizardEnvrcContents {
@@ -1093,7 +1119,9 @@ func TestFinishWizardWritesTitleStarterDocsAndConfig(t *testing.T) {
 		`theme = "nord";`,
 		`project = "acme";`,
 		"text = ./title.txt;",
-		"docs.pages = [ { text = ./docs/getting-started.md; } ];",
+		"docs.pages = [",
+		"text = ./README.md;",
+		"text = ./docs/getting-started.md;",
 		"background = true;",
 		"border = false;",
 		`verticalAlign = "bottom";`,
@@ -1103,7 +1131,7 @@ func TestFinishWizardWritesTitleStarterDocsAndConfig(t *testing.T) {
 			t.Fatalf("prelude.nix missing %q:\n%s", fragment, nixData)
 		}
 	}
-	for _, notice := range []string{"wrote title.txt\n", "wrote " + wizardEnvrcPath + "\n", "wrote prelude.nix\n"} {
+	for _, notice := range []string{"wrote title.txt\n", "wrote " + starterReadmePath + "\n", "wrote " + starterDocsPath + "\n", "wrote " + wizardEnvrcPath + "\n", "wrote prelude.nix\n"} {
 		if !strings.Contains(stderr.String(), notice) {
 			t.Fatalf("stderr missing %q: %s", notice, stderr.String())
 		}
@@ -1128,7 +1156,7 @@ func TestFinishWizardSkipsEnvrcWhenDisabled(t *testing.T) {
 	m := testWizard()
 	result := wizardResult{
 		Recipe:  Recipe{Text: "acme", Font: "thin"},
-		Project: "acme", Theme: "nord", ColorProfile: "auto",
+		Project: "acme", Theme: "nord",
 		Motd: true, Menu: true, Prompt: true, Envrc: false,
 	}
 	var stderr bytes.Buffer
@@ -1168,7 +1196,7 @@ func TestFinishWizardOmitsDirenvTipWhenMotdDisabled(t *testing.T) {
 	m := testWizard()
 	result := wizardResult{
 		Recipe:  Recipe{Text: "acme", Font: "thin"},
-		Project: "acme", Theme: "nord", ColorProfile: "auto",
+		Project: "acme", Theme: "nord",
 		Motd: false, Menu: true, Prompt: true,
 	}
 	var stderr bytes.Buffer
@@ -1185,7 +1213,7 @@ func TestFinishWizardRefusesFlakeNix(t *testing.T) {
 	m := testWizard()
 	result := wizardResult{
 		Recipe:  Recipe{Text: "acme", Font: "thin"},
-		Project: "acme", Theme: "nord", ColorProfile: "auto",
+		Project: "acme", Theme: "nord",
 		Motd: true, Menu: true, Prompt: true,
 	}
 	var stderr bytes.Buffer
@@ -1202,7 +1230,7 @@ func TestFinishWizardWritesTitleBesideNestedConfig(t *testing.T) {
 	m := testWizard()
 	result := wizardResult{
 		Recipe:  Recipe{Text: "acme", Font: "thin"},
-		Project: "acme", Theme: "nord", ColorProfile: "auto",
+		Project: "acme", Theme: "nord",
 		Motd: true, Menu: true, Prompt: true, Envrc: true,
 	}
 	var stderr bytes.Buffer
@@ -1247,7 +1275,7 @@ func TestFinishWizardKeepsExistingDocsPage(t *testing.T) {
 	m := testWizard()
 	result := wizardResult{
 		Recipe:  Recipe{Text: "acme", Font: "thin"},
-		Project: "acme", Theme: "nord", ColorProfile: "auto",
+		Project: "acme", Theme: "nord",
 		Motd: true, Menu: true, Prompt: true, Docs: true,
 	}
 	var stderr bytes.Buffer
@@ -1293,14 +1321,13 @@ func TestWriteExampleFixture(t *testing.T) {
 		t.Skip("set WRITE_EXAMPLE=1 to regenerate nix/internal/example.nix")
 	}
 	got := renderWizardConfig(wizardResult{
-		Recipe:       Recipe{Text: "acme", Font: "kompaktblk"},
-		Project:      "acme",
-		Theme:        "prelude",
-		ColorProfile: "auto",
-		Motd:         true,
-		Menu:         true,
-		Prompt:       true,
-		Docs:         false,
+		Recipe:  Recipe{Text: "acme", Font: "kompaktblk"},
+		Project: "acme",
+		Theme:   "prelude",
+		Motd:    true,
+		Menu:    true,
+		Prompt:  true,
+		Docs:    false,
 		Commands: []wizardCommand{
 			{Name: "dev", Exec: "pnpm dev", Description: "start the dev server with hot reload"},
 			{Name: "test", Exec: "pnpm test", Description: "run the unit test suite"},

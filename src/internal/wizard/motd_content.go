@@ -126,7 +126,21 @@ func (m wizardModel) updateMotdContent(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 
 func (m wizardModel) updateMotdDescription(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "ctrl+d", "ctrl+enter":
+	case "enter":
+		return m.commitMotdContentField()
+	case "shift+enter":
+		// Insert a newline: forward a plain enter to the textarea so its cursor
+		// management stays consistent, without committing the field.
+		newline := msg
+		newline.Mod = 0
+		before := m.motdDescriptionInput.Value()
+		var cmd tea.Cmd
+		m.motdDescriptionInput, cmd = m.motdDescriptionInput.Update(newline)
+		if m.motdDescriptionInput.Value() != before {
+			m.err = ""
+		}
+		return m, cmd
+	case "ctrl+d":
 		return m.commitMotdContentField()
 	case "esc":
 		m.focusMotdContentField(motdContentTagline)
@@ -154,7 +168,7 @@ func (m wizardModel) updateMotdStatus(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) 
 		if m.motdContent.DevServerStatus {
 			m.focusMotdContentField(motdContentDevServerURL)
 		} else {
-			m.step = stepMotdLayout
+			m.step = stepMotdSurface
 		}
 	case "esc", "backspace":
 		m.focusMotdContentField(motdContentDescription)
@@ -196,7 +210,7 @@ func (m wizardModel) commitMotdContentField() (tea.Model, tea.Cmd) {
 		}
 		m.motdContent.DevServerHealthURL = value
 		m.motdContentInput.Blur()
-		m.step = stepMotdLayout
+		m.step = stepMotdSurface
 	}
 	return m, nil
 }
@@ -217,13 +231,13 @@ func (m wizardModel) motdContentBody(s formStyles, step string) string {
 			"WELCOME MESSAGE",
 			m.motdDescriptionInput,
 			m.err,
-			"enter newline  ·  ctrl+d next field  ·  esc back",
+			"shift+enter newline  ·  enter next field  ·  esc back",
 		)
 	case motdContentStatus:
 		return s.listBody(
 			"Choose live status items",
 			"Checks refresh asynchronously without slowing shell startup.  ·  "+step,
-			m.motdStatusRows(s),
+			append(m.motdStatusRows(s), "", m.statusLightsPreview(s)),
 			m.err,
 			"j/k move  ·  space toggle  ·  enter continue  ·  esc back",
 		)
@@ -284,15 +298,22 @@ func (m wizardModel) motdPreviewCommands() string {
 	return strings.Join(names, "  ·  ")
 }
 
-func (m wizardModel) motdPreviewStatuses() []string {
-	var statuses []string
+// statusLightsPreview renders the isolated header status lights the user is
+// toggling, using the selected theme so the dots and labels match what the
+// MOTD will actually paint. Pending checks show the info-colored dot.
+func (m wizardModel) statusLightsPreview(s formStyles) string {
+	ts := themeSample{theme: m.selectedTheme()}
+	var lights []string
 	if m.motdContent.NixFlakeCheck {
-		statuses = append(statuses, "● flake  pending")
+		lights = append(lights, ts.seg("bg", "info", "● ", false)+ts.seg("bg", "muted", "flake  pending", false))
 	}
 	if m.motdContent.DevServerStatus {
-		statuses = append(statuses, "● dev server  pending")
+		lights = append(lights, ts.seg("bg", "info", "● ", false)+ts.seg("bg", "muted", "dev server  pending", false))
 	}
-	return statuses
+	if len(lights) == 0 {
+		return s.dim.Render("  (no status lights enabled)")
+	}
+	return s.dim.Render("  preview  ") + strings.Join(lights, s.dim.Render("  /  "))
 }
 
 func validateMotdDevServerHealthURL(value string) error {

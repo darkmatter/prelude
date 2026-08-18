@@ -7,15 +7,16 @@ Prelude supplies these whenever the components are enabled:
   `x --list` prints the table non-interactively.
 - **`motd`** (`?`) — reprints the welcome banner.
 - **`docs`** (`d`) — this viewer (`x docs`).
+- **`portal`** (`p`) — app launcher with live health lights.
 
 Project commands declared in `nix/internal/prelude.nix`:
 
 - **`x go:test`**, **`x go:vet`** — public catalogue commands grouped under
   `go`; they dispatch to canonical `go test -C src ./...` / `go vet -C src ./...` without generating duplicate executables.
 - **`x check`** — `nix flake check`: builds every package and render check.
-- **`x fmt`** — `nixfmt` over the repository.
+- **`x fmt`** — `treefmt` (alejandra for Nix, gofmt/goimports for Go) over the repository.
 - **`x build <target>`** — `nix build` with flake-output suggestions.
 - **`x prelude:previews`** — build the render checks and display their output.
 - **`x sync-docs`** / **`x record-docs`** — documentation workflows.
-- **`x demos:all`** and the other `demos:*` keys dispatch to the canonical
-  `nix run .#example-*` commands.
+- **`x demos`** and the other `demos:*` keys (`demos:themes`, `demos:titles`,
+  `demos:defaults`) dispatch to the canonical `nix run .#example-*` commands.

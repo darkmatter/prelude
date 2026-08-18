@@ -1633,13 +1633,13 @@ in {
     '';
 
   # Package-backed ungrouped aliases carry their runtime package and wrapper.
-  package-command-bundled = assert lib.elem pkgs.nixfmt config.packages.prelude-menu.commandRuntimePackages;
+  package-command-bundled = assert lib.elem config.treefmt.build.wrapper config.packages.prelude-menu.commandRuntimePackages;
     pkgs.runCommand "package-command-bundled"
     {
       nativeBuildInputs = [config.packages.prelude-menu];
     }
     ''
-      command -v nixfmt >/dev/null
+      command -v treefmt >/dev/null
       command -v fmt >/dev/null
       touch "$out"
     '';
@@ -1819,6 +1819,7 @@ in {
         ../src/prelude/options/shared.nix
         ../src/prelude/options/motd.nix
         ../src/prelude/options/menu.nix
+        ../src/prelude/options/portal.nix
         ../src/prelude/options/docs.nix
         ../src/prelude/options/prompt.nix
       ];

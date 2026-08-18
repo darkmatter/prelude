@@ -28,4 +28,4 @@ Everything is a `prelude.*` option, validated at build time.
 - **`prelude.prompt.enable`** — themed Starship config at `packages.prelude-prompt`.
 
 The full option reference is also generated to `docs/reference/options.md`
-(refresh with `docs-sync`) and appears in the docs TUI under **Options**.
+(refresh with `x sync-docs`) and appears in the docs TUI under **Options**.
