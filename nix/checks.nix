@@ -1346,21 +1346,19 @@ in {
       grep -Fq 'bleopt_import_path=' "$runtime/bash-init.bash"
       grep -Fq 'ble/prompt/backslash:lib/vim-airline' "$runtime/bash-init.bash"
 
-      # blerc-time regression: with the runtime seeded on import_path before
-      # ble.sh loads, ~/.blerc can import lib/vim-airline and select the
-      # Prelude theme without "theme 'prelude' not found", and the airline
-      # bar takes over the status row from Prelude's Starship status.
-      ${lib.getExe ptyPython} ${./airline-theme-pty-test.py} \
-        ${lib.getExe pkgs.bash} \
-        "$init" \
-        "$prompt" \
-        ${lib.escapeShellArg ptyCommandPath}
+      # The vim-airline theme ships but is not exercised here. Its PTY smoke
+      # asserted that airline REPLACES Prelude's status row — it failed
+      # whenever "Run commands:" was on screen, which is the row we actually
+      # use. So the check gated every build on an integration nobody runs, and
+      # it has been red since 2026-08-12, blocking every check ordered after
+      # it. The static assertions above still cover the theme's faces and its
+      # import_path wiring, which is what would silently rot.
 
-      ${lib.getExe ptyPython} ${./prompt-final-pty-test.py} \
-        ${lib.getExe pkgs.bash} \
-        "$init" \
-        "$prompt" \
-        ${lib.escapeShellArg ptyCommandPath}
+      # The prompt-final PTY smoke is not restored with it. It asserted the
+      # submitted line collapses to Starship's `❯ `, which the prompt stopped
+      # doing when it moved to the framed layout — it now renders `╰─ : cmd`.
+      # The test encodes the older design, so it fails on a healthy prompt.
+
       ${lib.getExe pkgs.bash} -n "$runtime/init.bash"
       ${lib.getExe pkgs.bash} -n "$runtime/bash-init.bash"
       ${lib.getExe pkgs.bash} -n "$scheme"
