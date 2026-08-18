@@ -340,6 +340,31 @@ null
 
 
 
+## prelude\.commands\.\<name>\.group
+
+
+
+Menu group override\. When null, the group is inferred from the first
+colon segment of the command key (` go:test ` → group ` go `); ungrouped
+keys land in ` develop `\. Set this to place a command under a different
+group without colon-prefixing the key — useful for Justfile recipes
+and other imports where the key name should stay flat\.
+
+
+
+*Type:*
+null or string
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+
+
 ## prelude\.commands\.\<name>\.invocation
 
 
@@ -2364,8 +2389,6 @@ unsigned integer, meaning >=0
 
 ## prelude\.motd\.recipes
 
-
-
 Optional project workflows keyed by name for setup, build, test, deploy, and similar work\. Prefer ` steps ` ({ command } | { comment }); legacy ` lines ` are normalized into steps\.
 
 
@@ -2410,6 +2433,8 @@ attribute set of (submodule)
 
 
 ## prelude\.motd\.recipes\.\<name>\.lines
+
+
 
 Legacy display lines (\# comments / commands)\. Prefer steps\.
 
