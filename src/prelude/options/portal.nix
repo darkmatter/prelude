@@ -20,6 +20,39 @@
         example = "http://127.0.0.1:1338/health";
       };
 
+      headers = lib.mkOption {
+        type = lib.types.attrsOf lib.types.str;
+        default = {};
+        description = ''
+          Extra headers sent with the probe. For non-secret values only — an
+          API version, a tenant id, a header a staging proxy expects. This
+          catalogue is generated into the store and lives in a git repo, so a
+          credential here is a credential in the repo; use `headersFromEnv`.
+        '';
+        example = lib.literalExpression ''
+          { "X-Api-Version" = "2026-01-01"; }
+        '';
+      };
+
+      headersFromEnv = lib.mkOption {
+        type = lib.types.attrsOf lib.types.str;
+        default = {};
+        description = ''
+          Headers whose values are read from the environment at probe time,
+          mapping header name to variable name. Lets a gated environment be
+          probed for real health rather than reported as `gated`, without the
+          portal knowing anything about your auth provider or going looking for
+          credentials on its own. A variable that is unset is skipped, so an
+          unconfigured shell simply probes anonymously.
+        '';
+        example = lib.literalExpression ''
+          {
+            "CF-Access-Client-Id" = "CLOUDFLARE_ACCESS_CLIENT_ID";
+            "CF-Access-Client-Secret" = "CLOUDFLARE_ACCESS_CLIENT_SECRET";
+          }
+        '';
+      };
+
       gated = lib.mkOption {
         type = lib.types.bool;
         default = false;

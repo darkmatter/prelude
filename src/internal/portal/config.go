@@ -43,6 +43,15 @@ type App struct {
 // Environment is one deployment of an app.
 type Environment struct {
 	Name string `json:"name"`
+	// Headers are sent with the probe verbatim. For non-secret things: an API
+	// version, a tenant id, a bypass header a staging proxy expects.
+	Headers map[string]string `json:"headers"`
+	// HeadersFromEnv maps a header name to the environment variable holding its
+	// value. Anything secret belongs here rather than in Headers: the catalogue
+	// is generated from a Nix file in a git repo, and a credential in it is a
+	// credential in the repo. Missing variables are skipped, so an unconfigured
+	// shell probes anonymously instead of sending an empty header.
+	HeadersFromEnv map[string]string `json:"headersFromEnv"`
 	// URL is what gets opened and, unless Health is set, what gets probed.
 	URL string `json:"url"`
 	// Health overrides the probe target. A UI route often answers 200 for an

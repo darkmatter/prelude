@@ -49,6 +49,8 @@ config: let
       url = entry.value.url;
       health = entry.value.health;
       gated = entry.value.gated;
+      headers = entry.value.headers;
+      headersFromEnv = entry.value.headersFromEnv;
     }) (lib.attrsToList app.environments);
 
   configFile = writeText "prelude-portal.json" (

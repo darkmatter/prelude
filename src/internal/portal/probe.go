@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -86,6 +87,17 @@ func (p *Prober) Probe(ctx context.Context, env Environment) Status {
 		return Status{State: StateDown, Detail: "bad url"}
 	}
 	request.Header.Set("accept", "*/*")
+	for name, value := range env.Headers {
+		request.Header.Set(name, value)
+	}
+	// Read at probe time, by the name the catalogue asked for. The portal never
+	// goes looking for credentials on its own — it forwards exactly what the
+	// project declared, and only to the environment that declared it.
+	for name, variable := range env.HeadersFromEnv {
+		if value := os.Getenv(variable); value != "" {
+			request.Header.Set(name, value)
+		}
+	}
 
 	response, err := p.Client.Do(request)
 	elapsed := time.Since(started)
