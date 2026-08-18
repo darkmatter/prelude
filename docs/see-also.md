@@ -1,6 +1,6 @@
 # See also
 
-- `README.md` — module usage, themes, command schema, repository layout.
+- `README.md` — wizard, flake import, and `x` usage.
 - Docs TUI **Options** page — live `nixosOptionsDoc` catalogue (also checked in as `docs/reference/options.md`).
 - `docs/guides/title-rendering.md` — the FIGlet title workflow.
 - `docs/guides/command-conventions.md` — command ownership, imports, collision handling, and the `x` dispatcher.

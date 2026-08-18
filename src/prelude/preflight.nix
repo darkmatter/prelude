@@ -6,9 +6,8 @@
 # The snippet itself is checked in at ./shell/preflight.bash and carries no
 # build-time paths, exactly like `prelude hook`. It decides what to do from the
 # shell it is evaluated in and delegates every project-specific fact — the MOTD
-# binary, the once-per-environment key, the PRELUDE_INIT_QUIET opt-out — to the
-# init file `$PRELUDE_INIT` names. Keeping one owner for the banner is what
-# prevents `.envrc` and `prelude hook` from rendering it twice.
+# binary and PRELUDE_INIT_QUIET opt-out — to the init file `$PRELUDE_INIT`
+# names. Render requests do not exchange state between loaders.
 {writeShellApplication}: {
   # Prelude's generated shell runtime directory (shell-init.nix `runtime`),
   # which carries preflight.bash next to the hook snippets.

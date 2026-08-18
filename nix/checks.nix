@@ -330,9 +330,8 @@ in {
               cmp -s bin-preflight ${config.packages.prelude-shell}/share/prelude/shell/preflight.bash
               grep -Fq '. "$PRELUDE_INIT"' bin-preflight
               grep -Fq 'case "$-" in' bin-preflight
-              # The snippet must name no build-time path: the MOTD binary and its
-              # once-per-environment key belong to the init alone, so the two
-              # cannot drift into rendering the banner twice.
+              # The snippet must name no build-time path: the MOTD binary
+              # belongs to the init alone.
               if grep -Fq '/nix/store/' bin-preflight; then
                 echo 'prelude-preflight bakes a store path into its snippet' >&2
                 exit 1
@@ -347,27 +346,24 @@ in {
               fi
               # This builder is non-interactive with no DIRENV_IN_ENVRC — the
               # lorri shellHook case (nix-community/lorri#159). Rendering here
-              # would go to a build log nobody reads, and exporting the marker
-              # would silence the real shell's banner, so both must stay absent.
+              # would go to a build log nobody reads, so it must stay absent.
               (
                 export PRELUDE_INIT=${config.packages.prelude-shell.shellInit}
                 eval "$(prelude-preflight)" 2>preflight-builder
                 test ! -s preflight-builder
-                test -z "''${_PRELUDE_MOTD_SHOWN-}"
               )
-              # direnv's .envrc: non-interactive, but its exports reach a real
-              # shell. Render once, export the marker, stay quiet on re-eval.
+              # direnv's .envrc has terminal-visible stderr. Every explicit
+              # preflight evaluation renders independently.
               (
                 export PRELUDE_INIT=${config.packages.prelude-shell.shellInit}
                 export DIRENV_IN_ENVRC=1
                 eval "$(prelude-preflight)" 2>preflight-direnv
                 test -s preflight-direnv
-                test -n "''${_PRELUDE_MOTD_SHOWN-}"
                 # An unexported render flag cannot leak into the environment
                 # direnv captures from .envrc.
                 test -z "''${_PRELUDE_PREFLIGHT_RENDER-}"
                 eval "$(prelude-preflight)" 2>preflight-direnv-again
-                test ! -s preflight-direnv-again
+                test -s preflight-direnv-again
               )
               command -v starship >/dev/null
               command -v blesh-share >/dev/null
@@ -384,6 +380,8 @@ in {
               test -f ${config.packages.prelude-shell}/nix-support/setup-hook
               grep -Fq 'prelude-init()' ${config.packages.prelude-shell}/nix-support/setup-hook
               grep -Fq '. ${config.packages.prelude-shell.shellInit}' ${config.packages.prelude-shell}/nix-support/setup-hook
+              grep -Fq '_PRELUDE_INIT_LOADED-' ${config.packages.prelude-shell}/nix-support/setup-hook
+              grep -Fq '_PRELUDE_INIT_LOADED=$PRELUDE_INIT' ${config.packages.prelude-shell}/share/prelude/shell/init.bash
               # STARSHIP_CONFIG must be exported from the setup-hook (not
               # shellHook) so direnv `use flake` re-themes the prompt.
               grep -Fq 'export STARSHIP_CONFIG=' ${config.packages.prelude-shell}/nix-support/setup-hook
@@ -507,7 +505,7 @@ in {
                 printf '%s' "$_prelude_fake_line" | grep -F "$_PRELUDE_PROMPT_STATUS_HINT_RENDERED"
                 ! printf '%s' "$_prelude_fake_line" | grep -F '\g{none}'
                 test "$_prelude_fake_process_count" -eq 1
-                test "$_prelude_fake_processed" = "   $_PRELUDE_PROMPT_STATUS_HINT_RENDERED"
+                test "$_prelude_fake_processed" = "$_PRELUDE_PROMPT_STATUS_HINT_RENDERED"
                 test "$_prelude_fake_hash_count" -eq 4
                 printf '%s' "$_prelude_fake_hashes" | grep -F '<$_ble_edit_str>'
                 printf '%s' "$_prelude_fake_hashes" | grep -F '<$_prelude_status_revision>'
@@ -522,7 +520,7 @@ in {
                 _prelude_fake_process_count=0
                 ble/prompt/backslash:prelude/status
                 test "$_prelude_fake_process_count" -eq 1
-                test "$_prelude_fake_processed" = "   $_PRELUDE_PROMPT_STATUS_HINT_RENDERED"
+                test "$_prelude_fake_processed" = "$_PRELUDE_PROMPT_STATUS_HINT_RENDERED"
                 ! printf '%s' "$_prelude_fake_line" | grep -F 'motd'
                 COLUMNS=200
 
@@ -530,11 +528,13 @@ in {
                 ble/prompt/backslash:prelude/status
                 printf '%s' "$_prelude_fake_line" | grep -F 'cycle'
                 printf '%s' "$_prelude_fake_line" | grep -F 'navigate'
+                ! printf '%s' "$_prelude_fake_line" | grep -F "$_PRELUDE_PROMPT_STATUS_HINT"
 
                 _ble_edit_str='x '
                 ble/prompt/backslash:prelude/status
                 printf '%s' "$_prelude_fake_line" | grep -F 'cycle'
                 printf '%s' "$_prelude_fake_line" | grep -F 'navigate'
+                ! printf '%s' "$_prelude_fake_line" | grep -F "$_PRELUDE_PROMPT_STATUS_HINT"
 
                 _ble_edit_str='x build'
                 ble/prompt/backslash:prelude/status
@@ -596,11 +596,11 @@ in {
                 _prelude_status_hint_rendered='\g{bold,fg=#101010,bg=#00ff00} hint \g{fg=#00ff00,bg=#101010}\g{fg=#555555,bg=#101010} | \g{fg=#777777,bg=#101010}'
                 _prelude_status_health_record=$'stopped\tstopped\t1m ago\t\\g{fg=#ff0000}unsafe\tx dev\tr2'
                 _prelude_fake_process_count=0
+                _prelude_fake_processed=
                 ble/prompt/backslash:prelude/status
                 printf '%s' "$_prelude_fake_literal" | grep -F '\g{fg=#ff0000}unsafe'
-                test "$_prelude_fake_process_count" -eq 1
-                test "$_prelude_fake_processed" = "   $_PRELUDE_PROMPT_STATUS_HINT_RENDERED"
-                ! printf '%s' "$_prelude_fake_processed" | grep -F 'unsafe'
+                test "$_prelude_fake_process_count" -eq 0
+                test -z "$_prelude_fake_processed"
                 refresh_tmp=$(mktemp -d)
                 export PRELUDE_FAKE_REFRESH_COUNT="$refresh_tmp/count"
                 export PRELUDE_FAKE_HELPER_CALLS="$refresh_tmp/calls"
@@ -633,7 +633,7 @@ in {
                 _prelude_fake_process_count=0
                 ble/prompt/backslash:prelude/status
                 test "$(wc -l < "$PRELUDE_FAKE_HELPER_CALLS")" -eq 0
-                test "$_prelude_fake_process_count" -eq 1
+                test "$_prelude_fake_process_count" -eq 0
               )
               (
                 COLUMNS=4
@@ -766,16 +766,18 @@ in {
   # absence is therefore exactly the closure guarantee, not a proxy for it.
   shell-init-motd-only = let
     backdrop = internalLib.resolveBackdropPalette "prelude" {};
-    light =
+    mkLight = motdRevision:
       (import ../src/prelude/shell-init.nix {
         inherit (pkgs) lib writeText runCommand starship blesh bash-completion stdenv;
       }) {
-        inherit (backdrop) shadow;
-        inherit (backdrop) palette;
+        inherit (backdrop) shadow palette;
+        inherit motdRevision;
         projectName = "motd-only";
         motdCommand = "/prelude-test/bin/motd";
         promptEnabled = false;
       };
+    light = mkLight "revision-a";
+    changed = mkLight "revision-b";
   in
     pkgs.runCommand "shell-init-motd-only" {} ''
       for forbidden in \
@@ -792,16 +794,20 @@ in {
       grep -Fq '_PRELUDE_PROMPT_ENABLED=0' ${light.init}
       grep -Fq '_PRELUDE_MOTD=' ${light.init}
       ${pkgs.bash}/bin/bash -n ${light.init}
+      # The prompt hook reloads only when PRELUDE_INIT changes, so a MOTD-only
+      # rebuild must perturb the generated init path without adding runtime state.
+      test ${light.init} != ${changed.init}
+      grep -Fq '# MOTD revision: revision-a' ${light.init}
       touch "$out"
     '';
 
   # The banner has two possible renderers for one environment: preflight (from
   # direnv's non-interactive .envrc) and `prelude hook` (from the interactive
-  # prompt). Exactly one may fire. That only holds while both derive the same
-  # once-per-environment key from the same MOTD identity, which is why preflight
-  # asks the init to render instead of naming a MOTD binary itself. A sentinel
-  # MOTD with the prompt disabled keeps this about the handoff rather than
-  # ble.sh, Starship, or this repo's own banner text.
+  # prompt). State-free activation lets each loader render independently; the
+  # hook's existing PRELUDE_INIT-path guard still prevents ordinary prompts from
+  # repeatedly sourcing the same init. A sentinel MOTD with the prompt disabled
+  # keeps this about loader behavior rather than ble.sh, Starship, or this repo's
+  # own banner text.
   preflight-hook-handoff = let
     backdrop = internalLib.resolveBackdropPalette "prelude" {};
     sentinel = pkgs.writeShellApplication {
@@ -1246,6 +1252,28 @@ in {
         motdCommand = pkgs.writeShellScript "prelude-pty-motd" "exit 0";
         statusEnabled = true;
         promptFinalConfig = (mkPromptArtifacts {theme = "apathy";}).final;
+        commandEntries = [
+          {
+            name = "build";
+            label = "build";
+            group = "development";
+            grouped = true;
+            invocation = "nix build";
+            xInvocation = "x build";
+            description = "build fixture";
+            args = [];
+          }
+          {
+            name = "check";
+            label = "check";
+            group = "development";
+            grouped = true;
+            invocation = "nix flake check";
+            xInvocation = "x check";
+            description = "check fixture";
+            args = [];
+          }
+        ];
         navigation = [
           {
             alias = "?";

@@ -181,19 +181,18 @@ func (a *ArgsView) Submit(promptValue string) (string, error) {
 }
 
 // View renders the complete argument-entry panel body: the framed arg list
-// (rounded top cap, per-arg rows with option chips, rounded bottom cap), the
-// live invocation preview, and the optional error line. It is pure — no state
-// is mutated. promptValue is the current arg input string (owned by Prompt);
-// frame is the panel border decorator (owned by the root); bodyHeight is the
-// available row count for the framed interior (the root computes
-// listHeight()-3).
+// (rounded top cap, per-arg rows with option chips, rounded bottom cap) and
+// the optional error line. It is pure — no state is mutated. frame is the
+// panel border decorator (owned by the root); bodyHeight is the available row
+// count for the framed interior (the root computes listHeight()-2).
 //
-// The chrome layers (title bar, prompt row, status footer) are assembled by
-// viewArgs in view_args.go; this method owns the frame-and-below region so the
-// framed body, preview, and error line stay a single self-contained unit.
-func (a *ArgsView) View(promptValue string, frame Frame, bodyHeight int) string {
+// The live invocation preview is no longer rendered in-panel; the root's
+// last-row overlay (renderScriptPreviewRow in view.go) is the single source
+// of truth for the assembled command, so this method owns only the frame and
+// the error line. The chrome layers (title bar, prompt row, status footer)
+// are assembled by viewArgs in view_args.go.
+func (a *ArgsView) View(frame Frame, bodyHeight int) string {
 	st := a.st
-	inner := a.inner
 	t := a.argTask
 
 	var body []string
@@ -249,7 +248,7 @@ func (a *ArgsView) View(promptValue string, frame Frame, bodyHeight int) string 
 		body = append(body, frame.Blank())
 	}
 
-	// Pad the body to a stable height before the open preview.
+	// Pad the framed body to a stable height.
 	h := bodyHeight
 	for len(body) < h {
 		body = append(body, frame.Blank())
@@ -258,30 +257,19 @@ func (a *ArgsView) View(promptValue string, frame Frame, bodyHeight int) string 
 		body = body[:h]
 	}
 
-	// Live preview uses the same assembly path as final submission; open
-	// full-width region under the frame (no side rails).
-	argumentLine := strings.TrimSpace(promptValue)
-	preview := st.openSp.PaddingLeft(padX).Render("") +
-		st.openAccent.Render("$ ") +
-		st.openFg.Render(assembleInvocation(*t, argumentLine))
-	if argumentLine == "" {
-		preview += st.openDim.Render(" …")
-	}
-	openPreview := st.openSp.Width(inner + 2).MaxWidth(inner + 2).Render(preview)
-
 	var errLine string
 	if a.argErr != "" {
 		errStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color(string(st.pal.Error))).
 			Background(st.openColor)
-		errLine = st.openSp.Width(inner + 2).MaxWidth(inner + 2).Render(
+		errLine = st.openSp.Width(a.inner + 2).MaxWidth(a.inner + 2).Render(
 			st.openSp.PaddingLeft(padX).Render("") + errStyle.Render(a.argErr),
 		)
 	}
 
 	parts := []string{frame.Top()}
 	parts = append(parts, body...)
-	parts = append(parts, frame.Bottom(), openPreview)
+	parts = append(parts, frame.Bottom())
 	if errLine != "" {
 		parts = append(parts, errLine)
 	}

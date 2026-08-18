@@ -13,11 +13,6 @@ const (
 	modeArgs
 )
 
-// execFinishedMsg is delivered after a command run via tea.ExecProcess
-// completes. err is non-nil only if the child shell failed to start or
-// exited non-zero. The menu resumes in its prior list/selection state.
-type execFinishedMsg struct{ err error }
-
 // chip is one selectable suggested value in argument-entry mode.
 type chip struct {
 	arg   Arg
@@ -81,21 +76,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.applyLayout(msg.Width, msg.Height)
-		m.syncList()
-		return m, nil
-
-	case execFinishedMsg:
-		// Command finished in the child shell; menu resumed by ExecProcess.
-		// Clear any transient exec/arg state and keep the current list,
-		// filter, and selection so the user lands back in the same menu.
-		if msg.err != nil && debugLog {
-			log.Printf("exec finished with error: %v", msg.err)
-		}
-		m.execCmd = ""
-		m.hasExecCmd = false
-		if m.mode == modeArgs {
-			m.exitArgMode()
-		}
 		m.syncList()
 		return m, nil
 

@@ -217,8 +217,8 @@ in {
         meta.description = "Interactively generate a Prelude project configuration";
       };
 
-      # Path-free by construction: the snippet delegates the MOTD (and its
-      # once-per-environment key) to `shellInit`, so the two can never disagree.
+      # Path-free by construction: the snippet delegates project-specific MOTD
+      # behavior to `shellInit`.
       preflightPkg = mkPreflight {inherit (pkgs) writeShellApplication;} {
         inherit shellRuntime;
       };
@@ -586,9 +586,10 @@ in {
             if cfg.motd.enable
             then "motd"
             else null;
-          # Keep the once-marker sensitive to MOTD rebuilds without retaining
-          # the binary's store context in the shell-core derivation.
-          motdIdentity =
+          # Build-time only: perturb PRELUDE_INIT when the MOTD rebuilds so the
+          # prompt hook reloads it, without retaining the MOTD package or
+          # exporting render state.
+          motdRevision =
             if cfg.motd.enable
             then
               builtins.hashString "sha256" (
@@ -679,10 +680,16 @@ in {
               # documented to write `shellHook = "motd"` themselves, and appending
               # here as well would render the banner twice under `nix develop`.
               # Those projects reach the same init through `prelude hook` instead.
+              # A consumer shellHook may already have evaluated preflight. The
+              # init records that same-shell load without exporting it, so skip
+              # only this automatic source; explicit `prelude-init` or preflight
+              # calls remain deliberate MOTD reprints.
               if [ -z "''${_prelude_init_registered:-}" ]; then
                 _prelude_init_registered=1
                 shellHook="''${shellHook-}
-            . ${shellInit}"
+            if [ \"\''${_PRELUDE_INIT_LOADED-}\" != ${lib.escapeShellArg (toString shellInit)} ]; then
+              . ${shellInit}
+            fi"
               fi
           ''}
           EOF

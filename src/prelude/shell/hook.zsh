@@ -13,11 +13,9 @@
 
 _prelude_hook() {
   if [ -z "${PRELUDE_INIT-}" ]; then
-    # Left the project. Forget both markers so returning re-renders the MOTD:
-    # _PRELUDE_INIT_LOADED gates re-sourcing, and _PRELUDE_MOTD_SHOWN gates the
-    # MOTD itself for loaders that have no hook. Leaving the latter set would
-    # make re-entry silent, since the environment identity is unchanged.
-    unset _PRELUDE_INIT_LOADED _PRELUDE_MOTD_SHOWN
+    # Left the project. Forget the loaded init path so returning activates the
+    # environment again.
+    unset _PRELUDE_INIT_LOADED
     return 0
   fi
 
@@ -27,8 +25,9 @@ _prelude_hook() {
   if [ "$PRELUDE_INIT" = "${_PRELUDE_INIT_LOADED-}" ]; then
     return 0
   fi
-  _PRELUDE_INIT_LOADED=$PRELUDE_INIT
 
+  # The init records its path only after it has run, so a source failure is
+  # retried on the next prompt.
   . "$PRELUDE_INIT"
 }
 
