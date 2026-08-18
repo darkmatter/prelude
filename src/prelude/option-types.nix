@@ -269,6 +269,17 @@
 
   commandType = lib.types.submodule {
     options = {
+      group = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = ''
+          Menu group override. When null, the group is inferred from the first
+          colon segment of the command key (`go:test` → group `go`); ungrouped
+          keys land in `develop`. Set this to place a command under a different
+          group without colon-prefixing the key — useful for Justfile recipes
+          and other imports where the key name should stay flat.
+        '';
+      };
       exec = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;

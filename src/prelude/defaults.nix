@@ -26,12 +26,13 @@
   project = "acme";
 
   # Example catalogue for ACME. The first colon infers the menu group; the
-  # complete key stays callable through `x`. Commands with `motd = N` appear
-  # on the Getting Started list (ascending order). `x` is always listed
-  # when the menu component is enabled.
+  # complete key stays callable through `x`. Set `group` on a command to
+  # override the inferred group without colon-prefixing the key. Commands
+  # with `motd = N` appear on the Getting Started list (ascending order).
+  # `x` is always listed when the menu component is enabled.
   #
-  # Shape: { exec ? key, description ? "", key ? null, usage ? null,
-  #          details ? null, examples ? [ ], motd ? null,
+  # Shape: { exec ? key, description ? "", group ? null, key ? null,
+  #          usage ? null, details ? null, examples ? [ ], motd ? null,
   #          args ? [ { token, description ? "", required ? false,
   #          boolean ? false, options ? [ ] } ] }
   commands = {

@@ -8,6 +8,10 @@
 #   { name, group, label, grouped, run, invocation, xInvocation,
 #     description, key, usage, details, examples, args, raw }
 #
+# `group` is either the explicit override from `command.group` or the
+# colon-inferred default; `grouped` tracks whether the key has a colon
+# (PATH-wrapper vs x-only dispatch) and is independent of `group`.
+#
 # Projections:
 #   projectMenuGroups  → menu TUI JSON groups/tasks
 #   projectMotdRows    → MOTD Getting Started { command, description }
@@ -23,20 +27,26 @@
 
   # Stable identity derived from the public command key. The first colon is
   # presentation-only (menu group + label); the complete key remains the
-  # callable `x` name.
-  commandIdentity = sourceName: let
+  # callable `x` name. When `explicitGroup` is non-null it overrides the
+  # colon-inferred group, letting callers place a flat key under a named group
+  # without colon-prefixing it.
+  commandIdentity = sourceName: explicitGroup: let
     parts = lib.splitString ":" sourceName;
     grouped = builtins.length parts > 1;
     builtin = lib.elem sourceName [
       "x"
       "docs"
     ];
-    group =
+    inferredGroup =
       if builtin
       then "prelude"
       else if grouped
       then builtins.head parts
       else "develop";
+    group =
+      if explicitGroup != null
+      then explicitGroup
+      else inferredGroup;
     label =
       if grouped
       then lib.concatStringsSep ":" (lib.tail parts)
@@ -70,7 +80,7 @@
     else null;
 
   normalizeCommand = sourceName: command: let
-    identity = commandIdentity sourceName;
+    identity = commandIdentity sourceName (command.group or null);
     exec = command.exec or null;
   in
     identity

@@ -51,6 +51,25 @@ public invocation: x test:unit:watch
 An ungrouped key such as `build` appears in the default `develop` group.
 Prelude-owned navigation commands appear in `prelude`.
 
+### Explicit group override
+
+When the key name should stay flat but the command belongs under a named
+menu group, set `group` on the command:
+
+```nix
+prelude.commands.lint = {
+  group = "quality";
+  exec = "eslint .";
+  description = "lint the project";
+};
+```
+
+`lint` stays on PATH (no colon → `grouped` is false) and is callable as
+`x lint`, but the menu places it under `quality` instead of the default
+`develop` group. The override also applies to colon-keyed commands —
+setting `group = "ci"` on `go:test` moves it to `ci` while keeping the
+`x go:test` dispatch form.
+
 Because keys are globally unique, command resolution is exact and deterministic:
 there is no collision priority or discriminator syntax.
 

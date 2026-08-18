@@ -58,13 +58,15 @@
 
     # Project commands keyed by public `x` name. The first colon infers the
     # menu group; the complete key stays callable (e.g. `x db:migrate`).
+    # Set `group = "…"` on a command to override the inferred group without
+    # colon-prefixing the key.
     # Defaults ship an ACME example catalogue (dev/test/build + database/ops);
     # defining any commands.* replaces that catalogue entirely.
     commands = {
       dev = {
         exec = "pnpm dev"; # defaults to the key suffix after the first colon
         description = "start the dev server with hot reload";
-        # group inferred from key: develop  # first colon segment; builtins land in "prelude"
+        # group = null;  # explicit menu group; null infers from first colon segment
         # key = null;  # single-key accelerator (`x <key>`)
         # usage = "pnpm dev";  # usage form shown in menu details
         # details = null;  # extended description before arg entry
@@ -77,7 +79,7 @@
       test = {
         exec = "pnpm test"; # defaults to the key suffix after the first colon
         description = "run the unit test suite";
-        # group inferred from key: develop  # first colon segment; builtins land in "prelude"
+        # group = null;  # explicit menu group; null infers from first colon segment
         # key = null;  # single-key accelerator (`x <key>`)
         # usage = "pnpm test";  # usage form shown in menu details
         # details = null;  # extended description before arg entry
@@ -90,7 +92,7 @@
       build = {
         exec = "pnpm build"; # defaults to the key suffix after the first colon
         description = "compile an optimized production bundle";
-        # group inferred from key: develop  # first colon segment; builtins land in "prelude"
+        # group = null;  # explicit menu group; null infers from first colon segment
         # key = null;  # single-key accelerator (`x <key>`)
         # usage = "pnpm build";  # usage form shown in menu details
         # details = null;  # extended description before arg entry

@@ -1657,6 +1657,29 @@ in {
     assert imported.label == "unit";
       pkgs.runCommand "colon-command-names-preserved" {} "touch $out";
 
+  # Explicit `group` overrides the colon-inferred default without changing the
+  # key identity, label, or `grouped` (PATH-wrapper) behavior.
+  explicit-group-override = let
+    internalPreludeLib = import ../src/prelude/lib.nix {inherit lib;};
+    flat = internalPreludeLib.normalizeCommand "lint" {
+      group = "quality";
+      exec = "eslint .";
+    };
+    colonKey = internalPreludeLib.normalizeCommand "go:test" {
+      group = "ci";
+      exec = "go test ./...";
+    };
+  in
+    assert flat.name == "lint";
+    assert flat.group == "quality";
+    assert flat.label == "lint";
+    assert flat.grouped == false;
+    assert colonKey.name == "go:test";
+    assert colonKey.group == "ci";
+    assert colonKey.label == "test";
+    assert colonKey.grouped == true;
+      pkgs.runCommand "explicit-group-override" {} "touch $out";
+
   duplicate-canonical-invocations-rejected = let
     internalPreludeLib = import ../src/prelude/lib.nix {inherit lib;};
     attempted = builtins.tryEval (
