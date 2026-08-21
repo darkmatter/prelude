@@ -86,20 +86,14 @@ Each Markdown file is one page. Digits jump, `Tab` steps, `j`/`k` scroll, `q` qu
 
       perSystem = { pkgs, config, ... }: {
         devShells.default = pkgs.mkShell {
-          packages = [
-            config.packages.prelude-shell
-            config.packages.prelude-motd
-            config.packages.prelude-menu
-            config.packages.prelude-docs
-          ];
-          shellHook = ''eval "$(prelude-preflight)"'';
+          packages = [ config.packages.prelude-shell ];
         };
       };
     };
 }
 ```
 
-`eval "$(prelude-preflight)"` is the only activation line. It covers `nix develop` and direnv; the wizard writes the matching `.envrc`.
+`packages.prelude-shell` bundles every enabled component and activates via its setup-hook. For direnv, the wizard writes a matching `.envrc`.
 
 Full consumer walkthrough: [Your own repo](docs/your-own-repo.md). Command keys and grouping: [command conventions](docs/guides/command-conventions.md). Options: [reference](docs/reference/options.md).
 

@@ -3028,6 +3028,370 @@ null
 
 
 
+## prelude\.portal\.enable
+
+
+
+Whether to enable the app launcher portal\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+
+
+*Example:*
+
+```nix
+true
+```
+
+
+
+## prelude\.portal\.apps
+
+
+
+Launchable apps, keyed by name\. Each declares one or more
+environments; the portal shows a health traffic light per environment
+and opens the URL on select\.
+
+
+
+*Type:*
+attribute set of (submodule)
+
+
+
+*Default:*
+
+```nix
+{ }
+```
+
+
+
+*Example:*
+
+```nix
+{
+  chat = {
+    description = "Waku chat UI";
+    order = 10;
+    environments = {
+      local.url = "http://127.0.0.1:1339";
+      prod = {
+        url = "https://chat.example.dev";
+        gated = true;
+      };
+    };
+  };
+}
+
+```
+
+
+
+## prelude\.portal\.apps\.\<name>\.description
+
+
+
+One line under the app name\.
+
+
+
+*Type:*
+string
+
+
+
+*Default:*
+
+```nix
+""
+```
+
+
+
+## prelude\.portal\.apps\.\<name>\.environments
+
+
+
+Deployments of this app, keyed by environment name\. Declare the one
+you use most first — the terminal front end selects the first
+environment on open\.
+
+
+
+*Type:*
+attribute set of (submodule)
+
+
+
+*Default:*
+
+```nix
+{ }
+```
+
+
+
+*Example:*
+
+```nix
+{
+  local.url = "http://127.0.0.1:1339";
+  prod = {
+    url = "https://chat.example.dev";
+    gated = true;
+  };
+}
+
+```
+
+
+
+## prelude\.portal\.apps\.\<name>\.environments\.\<name>\.gated
+
+
+
+Marks an environment fronted by SSO\. The probe detects a redirect to
+a known identity provider on its own and reports ` gated ` rather than
+up or down; this flag documents the intent for readers\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+
+
+## prelude\.portal\.apps\.\<name>\.environments\.\<name>\.headers
+
+
+
+Extra headers sent with the probe\. For non-secret values only — an
+API version, a tenant id, a header a staging proxy expects\. This
+catalogue is generated into the store and lives in a git repo, so a
+credential here is a credential in the repo; use ` headersFromEnv `\.
+
+
+
+*Type:*
+attribute set of string
+
+
+
+*Default:*
+
+```nix
+{ }
+```
+
+
+
+*Example:*
+
+```nix
+{ "X-Api-Version" = "2026-01-01"; }
+
+```
+
+
+
+## prelude\.portal\.apps\.\<name>\.environments\.\<name>\.headersFromEnv
+
+
+
+Headers whose values are read from the environment at probe time,
+mapping header name to variable name\. Lets a gated environment be
+probed for real health rather than reported as ` gated `, without the
+portal knowing anything about your auth provider or going looking for
+credentials on its own\. A variable that is unset is skipped, so an
+unconfigured shell simply probes anonymously\.
+
+
+
+*Type:*
+attribute set of string
+
+
+
+*Default:*
+
+```nix
+{ }
+```
+
+
+
+*Example:*
+
+```nix
+{
+  "CF-Access-Client-Id" = "CLOUDFLARE_ACCESS_CLIENT_ID";
+  "CF-Access-Client-Secret" = "CLOUDFLARE_ACCESS_CLIENT_SECRET";
+}
+
+```
+
+
+
+## prelude\.portal\.apps\.\<name>\.environments\.\<name>\.health
+
+
+
+Probe this instead of ` url `\. A UI route often answers 200 to an
+unauthenticated visitor while the thing worth knowing about is a
+health endpoint behind it\.
+
+
+
+*Type:*
+string
+
+
+
+*Default:*
+
+```nix
+""
+```
+
+
+
+*Example:*
+
+```nix
+"http://127.0.0.1:1338/health"
+```
+
+
+
+## prelude\.portal\.apps\.\<name>\.environments\.\<name>\.url
+
+
+
+The URL to open\. Also the probe target unless ` health ` is set\.
+
+
+
+*Type:*
+string
+
+
+
+*Example:*
+
+```nix
+"http://127.0.0.1:1339"
+```
+
+
+
+## prelude\.portal\.apps\.\<name>\.order
+
+
+
+Sort weight; ties fall back to the app name\.
+
+
+
+*Type:*
+signed integer
+
+
+
+*Default:*
+
+```nix
+50
+```
+
+
+
+## prelude\.portal\.listen
+
+
+
+Address for the web front end\. Loopback by default: the portal lists
+internal hostnames and should not be reachable from the network\.
+
+
+
+*Type:*
+string
+
+
+
+*Default:*
+
+```nix
+"127.0.0.1:7777"
+```
+
+
+
+## prelude\.portal\.maxWidth
+
+
+
+Content width cap for the terminal front end\.
+
+
+
+*Type:*
+signed integer
+
+
+
+*Default:*
+
+```nix
+76
+```
+
+
+
+## prelude\.portal\.timeoutMs
+
+
+
+Per-probe budget\. Kept short so the portal stays responsive on a
+laptop that is off the VPN\.
+
+
+
+*Type:*
+signed integer
+
+
+
+*Default:*
+
+```nix
+3000
+```
+
+
+
 ## prelude\.project
 
 

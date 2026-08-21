@@ -494,6 +494,58 @@ func keyPress(key string) tea.KeyPressMsg {
 	return tea.KeyPressMsg{Text: key, Code: []rune(key)[0]}
 }
 
+func TestNavFromGroupChildrenToTopLevelLeaves(t *testing.T) {
+	document := testDoc(
+		NavNode{
+			Title: "README",
+			Children: []NavNode{
+				{Title: "prelude", Markdown: "# prelude\n\nreadme intro", RootReadme: true},
+				{Title: "Quickstart", Markdown: "# Quickstart\n\nquickstart body"},
+				{Title: "Usage", Markdown: "# Usage\n\nusage body"},
+			},
+		},
+		NavNode{Title: "This shell", Markdown: "# This shell\n\nshell body"},
+		NavNode{Title: "Commands", Markdown: "# Commands\n\ncommands body"},
+	)
+	viewer := New(document, testPalette())
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	// Start on first leaf inside README group (preamble).
+	plain := ansi.Strip(viewer.viewport.GetContent())
+	if !strings.Contains(plain, "readme intro") {
+		t.Fatalf("expected readme intro on first page:\n%s", plain)
+	}
+
+	// Navigate down through the README group children to the top-level leaves.
+	// j → Quickstart
+	viewer, _ = viewer.Handle(keyPress("j"))
+	plain = ansi.Strip(viewer.viewport.GetContent())
+	if !strings.Contains(plain, "quickstart body") {
+		t.Fatalf("expected quickstart after first j:\n%s", plain)
+	}
+
+	// j → Usage
+	viewer, _ = viewer.Handle(keyPress("j"))
+	plain = ansi.Strip(viewer.viewport.GetContent())
+	if !strings.Contains(plain, "usage body") {
+		t.Fatalf("expected usage after second j:\n%s", plain)
+	}
+
+	// j → This shell (top-level leaf after the group)
+	viewer, _ = viewer.Handle(keyPress("j"))
+	plain = ansi.Strip(viewer.viewport.GetContent())
+	if !strings.Contains(plain, "shell body") {
+		t.Fatalf("expected shell body after third j:\n%s", plain)
+	}
+
+	// j → Commands
+	viewer, _ = viewer.Handle(keyPress("j"))
+	plain = ansi.Strip(viewer.viewport.GetContent())
+	if !strings.Contains(plain, "commands body") {
+		t.Fatalf("expected commands body after fourth j:\n%s", plain)
+	}
+}
+
 func testPalette() shared.Palette {
 	return shared.Palette{
 		Bg:      "#000000",

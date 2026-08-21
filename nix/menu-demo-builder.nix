@@ -1,9 +1,11 @@
 # Final menu demo package shared by runnable examples and docs captures.
+# Uses the prelude repo's own menu config so demos reflect the real dogfood
+# configuration rather than the acme-web example fixture.
 {
   pkgs,
   lib,
+  currentMenuConfig,
 }: let
-  ex = import ../src/prelude/examples.nix;
   mkMenu = import ../src/prelude/menu.nix {
     inherit lib;
     inherit
@@ -16,5 +18,5 @@
   };
 in {
   inherit mkMenu;
-  package = mkMenu ex.menu;
+  package = mkMenu currentMenuConfig;
 }

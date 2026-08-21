@@ -210,8 +210,15 @@ config: let
       };
 
     roots = lib.attrNames trie;
+    emitted = map (r: emit r trie.${r}) (lib.sort (a: b: a < b) roots);
   in
-    map (r: emit r trie.${r}) (lib.sort (a: b: a < b) roots);
+    # When all options share a single top-level namespace (e.g. everything is
+    # under `prelude.*`), that namespace is a redundant nesting level under the
+    # Options group. Unwrap it so the sidebar shows colourProfile, commands,
+    # motd, … directly instead of a single collapsed `prelude` entry.
+    if builtins.length emitted == 1 && (builtins.head emitted).kind == "group"
+    then (builtins.head emitted).children
+    else emitted;
 
   # Generate expansion (see prelude.docs.pages.*.split).
   # Default allLeaves; shallow = one full nixosOptionsDoc page.

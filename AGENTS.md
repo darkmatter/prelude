@@ -10,18 +10,18 @@ invent synonyms.
 
 ## Layout
 
-| Path                      | Role                                                                      |
+| Path | Role |
 | ------------------------- | ------------------------------------------------------------------------- |
-| `flake.nix`               | Thin public flake: inputs, `flakeModules.default`, overlay, lib, template |
-| `prelude.nix`             | Dogfood sidecar (same shape a consumer gets from the wizard)              |
-| `nix/`                    | Flake output composition, render checks, Python PTY tests                 |
-| `nix/internal/`           | This repo's MOTD/menu/docs identity, imported by `prelude.nix`            |
-| `src/prelude/`            | flake-parts module, options, shell init, fonts                            |
-| `src/cmd/`                | Go mains (`motd`, `menu`, `docs`, `title`, `prompt-status`, VT host)      |
-| `src/internal/`           | Go surface implementations (MOTD, menu, docs, wizard)                     |
-| `src/pkg/`                | Shared Go (palette, manual viewer, UI primitives)                         |
-| `docs/`                   | Viewer pages, guides, generated option/showcase markdown                  |
-| `examples/`, `templates/` | Consumer fixtures; evaluated as checks                                    |
+| `flake.nix` | Thin public flake: inputs, `flakeModules.default`, overlay, lib, template |
+| `prelude.nix` | Dogfood sidecar (same shape a consumer gets from the wizard) |
+| `nix/` | Flake output composition, render checks, Python PTY tests |
+| `nix/internal/` | This repo's MOTD/menu/docs identity, imported by `prelude.nix` |
+| `src/prelude/` | flake-parts module, options, shell init, fonts |
+| `src/cmd/` | Go mains (`motd`, `menu`, `docs`, `title`, `prompt-status`, VT host) |
+| `src/internal/` | Go surface implementations (MOTD, menu, docs, wizard) |
+| `src/pkg/` | Shared Go (palette, manual viewer, UI primitives) |
+| `docs/` | Viewer pages, guides, generated option/showcase markdown |
+| `examples/`, `templates/` | Consumer fixtures; evaluated as checks |
 
 Import `flakeModules.default`, never `src/prelude/module.nix` directly.
 

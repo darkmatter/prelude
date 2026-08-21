@@ -56,3 +56,4 @@ src/.tmp-motd-region-test/
 !.envrc
 .work/
 .ruff_cache/
+prototypes/

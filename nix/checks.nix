@@ -31,7 +31,9 @@
       };
     consumerOutputs =
       consumerFlake.outputs consumerInputs
-      // {inputs = consumerInputs;};
+      // {
+        inputs = consumerInputs;
+      };
   in
     consumerOutputs.devShells.${pkgs.stdenv.hostPlatform.system}.default;
 
@@ -83,16 +85,18 @@
     '';
 in {
   output-surface = assert lib.assertMsg
-  (builtins.attrNames config.apps
+  (
+    builtins.attrNames config.apps
     == [
       "examples"
       "prelude"
       "previews"
-    ])
+    ]
+  )
   "Prelude's root app surface must contain only prelude plus the repository-only examples and previews apps";
-  assert lib.assertMsg
-  (lib.getExe config.packages.default == lib.getExe config.packages.prelude)
-  "packages.default must run Prelude so `nix run <flake> -- <command>` needs no app alias";
+  assert lib.assertMsg (
+    lib.getExe config.packages.default == lib.getExe config.packages.prelude
+  ) "packages.default must run Prelude so `nix run <flake> -- <command>` needs no app alias";
     pkgs.runCommand "output-surface" {} ''
       touch "$out"
     '';
@@ -107,14 +111,12 @@ in {
       previews
     ];
     assertAbsent = closure: forbidden:
-      lib.concatMapStringsSep "\n" (
-        package: ''
-          if grep -Fxq ${lib.escapeShellArg (toString package)} ${closure}/store-paths; then
-            echo "${package} leaked into a component closure" >&2
-            exit 1
-          fi
-        ''
-      )
+      lib.concatMapStringsSep "\n" (package: ''
+        if grep -Fxq ${lib.escapeShellArg (toString package)} ${closure}/store-paths; then
+          echo "${package} leaked into a component closure" >&2
+          exit 1
+        fi
+      '')
       forbidden;
   in
     pkgs.runCommand "component-closures" {} ''
@@ -158,9 +160,16 @@ in {
     justfile = pkgs.writeText "menu-justfile" "build:\n  echo build\n";
     menu =
       (import ../src/prelude/menu.nix {
-        inherit (pkgs) lib writeShellApplication writeText symlinkJoin;
+        inherit
+          (pkgs)
+          lib
+          writeShellApplication
+          writeText
+          symlinkJoin
+          ;
         buildGoModule = args: args;
-      }) {
+      })
+      {
         just = {
           enable = true;
           inherit justfile;
@@ -237,9 +246,7 @@ in {
     touch "$out"
   '';
 
-  prelude-shell-default = assert lib.all (
-    invocation: lib.elem invocation config.packages.prelude-menu.xInvocations
-  ) [
+  prelude-shell-default = assert lib.all (invocation: lib.elem invocation config.packages.prelude-menu.xInvocations) [
     "x prelude:previews"
     "x prelude:wizard"
   ];
@@ -259,12 +266,8 @@ in {
               command -v motd >/dev/null
               command -v menu >/dev/null
               command -v docs >/dev/null
-              # The shell core and each component are independent devshell
-              # packages. Repository-only generators/previews must not leak
-              # onto a consumer's PATH through one of those packages.
-              test ! -e ${config.packages.prelude-shell}/bin/motd
-              test ! -e ${config.packages.prelude-shell}/bin/menu
-              test ! -e ${config.packages.prelude-shell}/bin/docs
+              # The shell core bundles every enabled component. Repository-only
+              # generators/previews must not leak onto a consumer's PATH.
               test ! -e ${config.packages.prelude-shell}/bin/prelude-wizard
               test ! -e ${config.packages.prelude-shell}/bin/prelude-title-previews
               test ! -e ${config.packages.prelude-motd}/bin/menu
@@ -284,17 +287,12 @@ in {
                 echo 'prelude-wizard leaked onto the consumer devshell PATH' >&2
                 exit 1
               }
-              # Assert closure membership, not only visible bin links: the shell
-              # core must not install the full app, components, or repository
-              # generators transitively.
+              # Assert closure membership, not only visible bin links: the
+              # shell core must not install the full app or repository
+              # generators transitively. Enabled component packages are
+              # intentionally bundled, so they are excluded here.
               for forbidden in \
                 ${config.packages.prelude} \
-                ${config.packages.prelude-motd} \
-                ${config.packages.prelude-motd.componentRoot} \
-                ${config.packages.prelude-menu} \
-                ${config.packages.prelude-menu.componentRoot} \
-                ${config.packages.prelude-docs} \
-                ${config.packages.prelude-docs.componentRoot} \
                 ${config.packages.prelude-title} \
                 ${config.packages.prelude-title-previews} \
                 ${config.packages.prelude-wizard} \
@@ -734,8 +732,7 @@ in {
     '';
 
   prelude-default =
-    pkgs.runCommand "prelude-default"
-    {nativeBuildInputs = [config.packages.prelude];}
+    pkgs.runCommand "prelude-default" {nativeBuildInputs = [config.packages.prelude];}
     ''
       command -v prelude >/dev/null
       test -x ${config.packages.prelude-preflight}/bin/prelude-preflight
@@ -769,8 +766,18 @@ in {
     backdrop = internalLib.resolveBackdropPalette "prelude" {};
     mkLight = motdRevision:
       (import ../src/prelude/shell-init.nix {
-        inherit (pkgs) lib writeText runCommand starship blesh bash-completion stdenv;
-      }) {
+        inherit
+          (pkgs)
+          lib
+          writeText
+          runCommand
+          starship
+          blesh
+          bash-completion
+          stdenv
+          ;
+      })
+      {
         inherit (backdrop) shadow palette;
         inherit motdRevision;
         projectName = "motd-only";
@@ -817,8 +824,18 @@ in {
     };
     shellPkg =
       (import ../src/prelude/shell-init.nix {
-        inherit (pkgs) lib writeText runCommand starship blesh bash-completion stdenv;
-      }) {
+        inherit
+          (pkgs)
+          lib
+          writeText
+          runCommand
+          starship
+          blesh
+          bash-completion
+          stdenv
+          ;
+      })
+      {
         inherit (backdrop) shadow palette;
         projectName = "preflight-handoff";
         motdCommand = lib.getExe sentinel;
@@ -912,12 +929,14 @@ in {
   assert !lib.elem "menu" config.packages.prelude-motd.commandNames;
   assert !lib.elem "menu" config.packages.prelude-motd.commandInvocations;
   assert !lib.elem "docs" config.packages.prelude-motd.commandNames;
-    pkgs.runCommand "prelude-command-defaults" {
+    pkgs.runCommand "prelude-command-defaults"
+    {
       nativeBuildInputs = [
         config.packages.prelude-menu
         config.packages.prelude-docs
       ];
-    } ''
+    }
+    ''
       command -v x >/dev/null
       command -v menu >/dev/null
       command -v docs >/dev/null
@@ -953,12 +972,10 @@ in {
     };
     normalized = plib.normalizeCommandGroups evaluated.config.prelude.sort.groups evaluated.config.prelude.commands;
     actual =
-      map
-      (group: {
+      map (group: {
         inherit (group) title;
         commands =
-          map
-          (command: {
+          map (command: {
             inherit
               (command)
               name
@@ -1200,15 +1217,12 @@ in {
     };
     themePrompts = lib.mapAttrs (theme: _: mkPrompt {inherit theme;}) themeCases;
     themeChecks = lib.concatStringsSep "\n" (
-      lib.mapAttrsToList
-      (
-        theme: shadow: ''
-          test '${(internalLib.resolveBackdropPalette theme {}).shadow}' = '${shadow}'
-          ! grep -Eq '^shadow = ' ${themePrompts.${theme}}
-          ! grep -Fq 'bg:window' ${themePrompts.${theme}}
-          ! grep -Eq '^window = ' ${themePrompts.${theme}}
-        ''
-      )
+      lib.mapAttrsToList (theme: shadow: ''
+        test '${(internalLib.resolveBackdropPalette theme {}).shadow}' = '${shadow}'
+        ! grep -Eq '^shadow = ' ${themePrompts.${theme}}
+        ! grep -Fq 'bg:window' ${themePrompts.${theme}}
+        ! grep -Eq '^window = ' ${themePrompts.${theme}}
+      '')
       themeCases
     );
     overrideShadows = {
@@ -1218,15 +1232,31 @@ in {
       indexed = (internalLib.resolveBackdropPalette "apathy" {bg = 212;}).shadow;
       packed = (internalLib.resolveBackdropPalette "apathy" {bg = 660510;}).shadow;
     };
-    menuBoundary = (import ../src/prelude/menu.nix {
-      inherit (pkgs) lib writeShellApplication writeText symlinkJoin;
-      buildGoModule = args: args;
-    }) {theme = "apathy";};
+    menuBoundary =
+      (import ../src/prelude/menu.nix {
+        inherit
+          (pkgs)
+          lib
+          writeShellApplication
+          writeText
+          symlinkJoin
+          ;
+        buildGoModule = args: args;
+      })
+      {theme = "apathy";};
     docsBoundary =
       (import ../src/prelude/docs.nix {
-        inherit (pkgs) lib writeText runCommand nixosOptionsDoc figlet;
+        inherit
+          (pkgs)
+          lib
+          writeText
+          runCommand
+          nixosOptionsDoc
+          figlet
+          ;
         buildGoModule = args: args;
-      }) {
+      })
+      {
         theme = "apathy";
         pages = [{text = pkgs.writeText "prelude-docs-boundary.md" "boundary";}];
       };
@@ -1247,7 +1277,8 @@ in {
           bash-completion
           stdenv
           ;
-      }) {
+      })
+      {
         palette = internalLib.resolvePalette "apathy" {};
         shadow = "#1e1e1e";
         motdCommand = pkgs.writeShellScript "prelude-pty-motd" "exit 0";
@@ -1617,7 +1648,8 @@ in {
     "x"
     "d"
   ];
-    mkRunnableCheck "motd-shortcuts-runnable" "built-in shortcuts" config.packages.prelude-motd.shortcutAliases;
+    mkRunnableCheck "motd-shortcuts-runnable" "built-in shortcuts"
+    config.packages.prelude-motd.shortcutAliases;
 
   titles-command-renders =
     pkgs.runCommand "titles-command-renders"
@@ -1681,8 +1713,7 @@ in {
   duplicate-canonical-invocations-rejected = let
     internalPreludeLib = import ../src/prelude/lib.nix {inherit lib;};
     attempted = builtins.tryEval (
-      builtins.deepSeq
-      (internalPreludeLib.normalizeCommandEntries {
+      builtins.deepSeq (internalPreludeLib.normalizeCommandEntries {
         "go:test" = {
           exec = "go test";
         };
@@ -2126,55 +2157,57 @@ in {
   # Markdown is part of the package closure, not a path relative to the caller.
   # `nix run .#skill` uses the package's main program; it is deliberately not a
   # fourth root app.
-  skill-package = pkgs.runCommand "skill-package" {nativeBuildInputs = [config.packages.skill];} ''
-    skill=${lib.getExe config.packages.skill}
+  skill-package =
+    pkgs.runCommand "skill-package" {nativeBuildInputs = [config.packages.skill];}
+    ''
+      skill=${lib.getExe config.packages.skill}
 
-    work=$(mktemp -d)
-    cd "$work"
+      work=$(mktemp -d)
+      cd "$work"
 
-    "$skill" > intro.md
-    grep -Fq 'nix run github:darkmatter/prelude#skill -- list' intro.md
+      "$skill" > intro.md
+      grep -Fq 'nix run github:darkmatter/prelude#skill -- list' intro.md
 
-    "$skill" list > topics.md
-    grep -Fq 'install' topics.md
-    grep -Fq 'options' topics.md
-    grep -Fq 'commands' topics.md
-    grep -Fq 'configuration' topics.md
-    grep -Fq 'guide command-conventions' topics.md
-    grep -Fq 'guide title-rendering' topics.md
+      "$skill" list > topics.md
+      grep -Fq 'install' topics.md
+      grep -Fq 'options' topics.md
+      grep -Fq 'commands' topics.md
+      grep -Fq 'configuration' topics.md
+      grep -Fq 'guide command-conventions' topics.md
+      grep -Fq 'guide title-rendering' topics.md
 
-    "$skill" install > install.md
-    grep -Fq '# Your own repo' install.md
-    "$skill" options > options.md
-    grep -Fq '# Options reference' options.md
-    "$skill" commands > commands.md
-    grep -Fq '# Commands' commands.md
-    "$skill" configuration > configuration.md
-    grep -Fq '# Configuration' configuration.md
-    "$skill" guide command-conventions > command-conventions.md
-    grep -Fq '# Command conventions' command-conventions.md
-    "$skill" guide title-rendering > title-rendering.md
-    grep -Fq '# Title rendering guide' title-rendering.md
+      "$skill" install > install.md
+      grep -Fq '# Your own repo' install.md
+      "$skill" options > options.md
+      grep -Fq '# Options reference' options.md
+      "$skill" commands > commands.md
+      grep -Fq '# Commands' commands.md
+      "$skill" configuration > configuration.md
+      grep -Fq '# Configuration' configuration.md
+      "$skill" guide command-conventions > command-conventions.md
+      grep -Fq '# Command conventions' command-conventions.md
+      "$skill" guide title-rendering > title-rendering.md
+      grep -Fq '# Title rendering guide' title-rendering.md
 
-    assert_rejected() {
-      name=$1
-      shift
-      if "$skill" "$@" > "$name.out" 2> "$name.err"; then
-        echo "skill $* unexpectedly succeeded" >&2
-        exit 1
-      fi
-      test ! -s "$name.out"
-      grep -Fq 'skill list' "$name.err"
-    }
+      assert_rejected() {
+        name=$1
+        shift
+        if "$skill" "$@" > "$name.out" 2> "$name.err"; then
+          echo "skill $* unexpectedly succeeded" >&2
+          exit 1
+        fi
+        test ! -s "$name.out"
+        grep -Fq 'skill list' "$name.err"
+      }
 
-    assert_rejected unknown unknown
-    assert_rejected install-extra install extra
-    assert_rejected guide-missing guide
-    assert_rejected guide-unknown guide nonexistent
-    assert_rejected guide-extra guide command-conventions extra
+      assert_rejected unknown unknown
+      assert_rejected install-extra install extra
+      assert_rejected guide-missing guide
+      assert_rejected guide-unknown guide nonexistent
+      assert_rejected guide-extra guide command-conventions extra
 
-    touch "$out"
-  '';
+      touch "$out"
+    '';
 
   # Every feature demo (motd variants, themes, acme-web motd + x --list)
   # builds (shellcheck) and renders.
@@ -2205,9 +2238,14 @@ in {
       pkgs.procps
     ];
   in
-    pkgs.runCommand "motd-bg-emulator" {
-      nativeBuildInputs = [config.packages.prelude-motd ptyPython];
-    } ''
+    pkgs.runCommand "motd-bg-emulator"
+    {
+      nativeBuildInputs = [
+        config.packages.prelude-motd
+        ptyPython
+      ];
+    }
+    ''
       ${lib.getExe ptyPython} ${./motd-bg-pty-test.py} \
         ${lib.getExe config.packages.prelude-motd} \
         ${lib.escapeShellArg ptyCommandPath}

@@ -36,23 +36,14 @@
 #
 #       perSystem = { pkgs, config, ... }: {
 #         devShells.default = pkgs.mkShell {
-#           packages = [
-#             config.packages.prelude-shell
-#             config.packages.prelude-motd
-#             config.packages.prelude-menu
-#             config.packages.prelude-docs
-#           ];
-#           shellHook = ''
-#             eval "$(prelude-preflight)"
-#           '';
+#           packages = [ config.packages.prelude-shell ];
 #         };
 #       };
 #     };
 #
 # The module exports one self-contained app, `apps.prelude`, plus a
-# closure-minimal `packages.prelude-shell` and `prelude-`-prefixed component
-# packages. Add the shell package and each enabled component package to the
-# consumer devshell.
+# `packages.prelude-shell` that bundles every enabled component. Add only that
+# one package to the consumer devshell; the setup-hook handles activation.
 #
 # The outer function receives static args via flake-parts' `importApply`
 # (see flake.nix); consumers should import the applied module from
@@ -228,9 +219,7 @@ in {
         # A component output exposes that component only. Consumers compose the
         # enabled MOTD, menu, and docs packages explicitly in their devshell;
         # the wizard and preview generators remain opt-in package outputs.
-        paths =
-          [motdBin]
-          ++ lib.optionals (!cfg.menu.enable) shortcutWrappers;
+        paths = [motdBin] ++ lib.optionals (!cfg.menu.enable) shortcutWrappers;
         passthru = {
           componentRoot = motdBin;
           inherit motdRenderConfig;
@@ -252,13 +241,13 @@ in {
         };
       };
 
-      menuBin = mkMenu deps (
+      menuRenderConfig =
         generatorConfig cfg.menu
         // {
           inherit commands;
           groupOrder = sortCfg.groups;
-        }
-      );
+        };
+      menuBin = mkMenu deps menuRenderConfig;
 
       portalPkg = mkPortal deps (generatorConfig cfg.portal);
 
@@ -391,6 +380,7 @@ in {
             commandRuntimePackages
             shortcutAliases
             shortcutWrappers
+            menuRenderConfig
             ;
           menuConfig = menuBin.configFile;
           commandInvocations = map (entry: entry.invocation) commandEntries;
@@ -419,7 +409,9 @@ in {
           };
       docsPkg =
         docsBasePkg
-        // {componentRoot = docsBin;};
+        // {
+          componentRoot = docsBin;
+        };
       # Keep invalid local-server keys fail-closed even when a custom prompt
       # suppresses Prelude's generated status package.
       promptStatusPkg = assert builtins.deepSeq promptLocalServer true;
@@ -591,10 +583,7 @@ in {
           # exporting render state.
           motdRevision =
             if cfg.motd.enable
-            then
-              builtins.hashString "sha256" (
-                builtins.unsafeDiscardStringContext (toString motdBin)
-              )
+            then builtins.hashString "sha256" (builtins.unsafeDiscardStringContext (toString motdBin))
             else null;
           statusEnabled = cfg.prompt.configFile == null;
           promptFinalConfig = promptFinalPkg;
@@ -612,9 +601,9 @@ in {
       shellRuntime = shell.runtime;
 
       # Canonical shell-core package. Its dispatcher resolves components from
-      # PATH, and the generated init invokes `motd` from PATH, so this closure
-      # contains activation and prompt runtime only. Consumers add exactly the
-      # enabled MOTD, menu, and docs packages beside it.
+      # PATH, and the generated init invokes `motd` from PATH, so enabled
+      # component packages are bundled into this closure. Consumers add only
+      # this one package to their devshell.
       promptRuntimePackages = lib.optionals cfg.prompt.enable [
         pkgs.starship
         pkgs.blesh
@@ -626,9 +615,19 @@ in {
         # preflight is unconditional: it is the line consumers put in .envrc or a
         # shellHook, so it must resolve regardless of which components are on.
         paths =
-          [preludeShellCli preflightPkg]
+          [
+            preludeShellCli
+            preflightPkg
+          ]
           ++ promptRuntimePackages
-          ++ promptStatusPackages;
+          ++ promptStatusPackages
+          # Enabled component packages are bundled so the consumer only adds
+          # `config.packages.prelude-shell` to their devshell. The module's own
+          # mkIf gates ensure only enabled components are included.
+          ++ lib.optional cfg.motd.enable motdPkg
+          ++ lib.optional cfg.menu.enable menuPkg
+          ++ lib.optional docsEnabled docsPkg
+          ++ lib.optional cfg.portal.enable portalPkg;
         # Always emitted. The MOTD is the module's core promise, and reaching it
         # from lorri requires PRELUDE_INIT to exist as an exported variable even
         # when the prompt component is off. With prompt disabled, `shellInit`

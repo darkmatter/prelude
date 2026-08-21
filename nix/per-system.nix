@@ -16,7 +16,13 @@
   ...
 }: let
   args = {
-    inherit pkgs lib config inputs localFlake;
+    inherit
+      pkgs
+      lib
+      config
+      inputs
+      localFlake
+      ;
     flakePartsLib = flake-parts-lib;
   };
   demos = import ./demos.nix args;
@@ -28,8 +34,28 @@
   checks = import ./checks.nix (args // {inherit demos docsAutomation previews;});
   previews = import ./previews.nix (args // {inherit checks;});
 in {
-  packages = import ./packages.nix (args // {inherit demos docsAutomation previews skill;});
-  apps = import ./apps.nix (args // {inherit demos docsAutomation previews skill;});
+  packages = import ./packages.nix (
+    args
+    // {
+      inherit
+        demos
+        docsAutomation
+        previews
+        skill
+        ;
+    }
+  );
+  apps = import ./apps.nix (
+    args
+    // {
+      inherit
+        demos
+        docsAutomation
+        previews
+        skill
+        ;
+    }
+  );
   devShells.default = import ./shell.nix (args // {inherit docsAutomation previews;});
   inherit checks;
   treefmt = {

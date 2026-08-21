@@ -1,4 +1,7 @@
 # Final MOTD demo packages shared by runnable examples and docs captures.
+# `example-motd` renders the prelude repo's own config; `example-themes`
+# pages it through every theme. Feature demos (minimal, surface) come from
+# src/prelude/examples.nix and exercise specific rendering capabilities.
 {
   pkgs,
   lib,
@@ -118,7 +121,14 @@ in {
     lib.mapAttrs' (name: config: lib.nameValuePair "example-${name}" (mkMotd config)) ex.motdDemos
     // {
       inherit example-default;
-      example-motd = mkMotd ex.motd;
+      example-motd = mkMotd (
+        currentMotdConfig
+        // {
+          # Stack-friendly when paged via .#examples.
+          clearScreen = false;
+          margin.top = 0;
+        }
+      );
       example-themes = pkgs.writeShellApplication {
         name = "motd-themes";
         text = ''

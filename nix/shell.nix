@@ -14,10 +14,6 @@ pkgs.mkShell {
   packages =
     [
       config.packages.prelude-shell
-      config.packages.prelude-motd
-      config.packages.prelude-menu
-      config.packages.prelude-docs
-      config.packages.prelude-portal
       # Repository dogfood only; consumer examples intentionally omit it.
       config.packages.prelude-title-previews
       docsAutomation.record
@@ -38,8 +34,9 @@ pkgs.mkShell {
     # Starship re-resolves this path on every prompt render.
     export STARSHIP_CONFIG=${config.packages.prelude-prompt}
     # `config.packages.prelude-shell` appends its idempotent, current-shell init after
-    # this hook. The component packages above put the MOTD, menu, and docs
-    # commands on PATH without pulling repository-only previews or examples in.
+    # this hook. It bundles every enabled component (MOTD, menu, docs, portal),
+    # putting those commands on PATH without pulling repository-only previews or
+    # examples in.
     #
     # `r` is deliberately a plain function and never `export -f`ed. Exporting a
     # function stores it as the environment variable `BASH_FUNC_r%%`, and a

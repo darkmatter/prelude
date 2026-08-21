@@ -917,16 +917,14 @@ func TestRenderWizardConfigEmitsOptionsTemplate(t *testing.T) {
 		"prompt = {",
 		"docs.pages = [ ];",
 		`# sort.groups = [ "develop" "database" "ops" ];`,
-		"packages = [",
-		"#           config.packages.prelude-motd",
-		"#           config.packages.prelude-menu",
+		"packages = [ config.packages.prelude-shell ];",
 	} {
 		if !strings.Contains(got, fragment) {
 			t.Fatalf("options template missing fragment %q:\n%s", fragment, got)
 		}
 	}
-	if strings.Contains(got, "#           config.packages.prelude-docs") {
-		t.Fatalf("disabled docs package leaked into devshell template:\n%s", got)
+	if strings.Contains(got, "config.packages.prelude-motd") {
+		t.Fatalf("stale component package leaked into devshell template:\n%s", got)
 	}
 	if strings.Contains(got, "prelude.json") || strings.Contains(got, "fromJSON") {
 		t.Fatalf("template must not use JSON sidecar:\n%s", got)
@@ -1143,7 +1141,7 @@ func TestFinishWizardWritesTitleStarterDocsAndConfig(t *testing.T) {
 		t.Fatalf("stderr missing import path: %s", stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "config.packages.prelude-shell") ||
-		!strings.Contains(stderr.String(), "each enabled prelude-* component package") {
+		!strings.Contains(stderr.String(), "bundles") {
 		t.Fatalf("stderr missing shell package next steps: %s", stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "direnv log lines") || !strings.Contains(stderr.String(), "log_format = \"-\"") {

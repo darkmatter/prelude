@@ -310,8 +310,8 @@ func printWizardNextSteps(stderr io.Writer, configPath string, motdEnabled, envr
 	fmt.Fprintf(stderr, "    %s\n", importPath)
 	fmt.Fprintf(stderr, "  ];\n")
 	fmt.Fprintln(stderr)
-	fmt.Fprintln(stderr, "Add config.packages.prelude-shell plus each enabled prelude-* component package")
-	fmt.Fprintln(stderr, "to your devShell, then use shellHook = ''eval \"$(prelude-preflight)\"'';")
+	fmt.Fprintln(stderr, "Add config.packages.prelude-shell to your devShell — it bundles")
+	fmt.Fprintln(stderr, "every enabled component and activates via its setup-hook.")
 	fmt.Fprintln(stderr, "— see docs/your-own-repo.md.")
 	if envrcEnabled {
 		fmt.Fprintln(stderr)

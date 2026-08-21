@@ -4,9 +4,8 @@
 
 ## Welcome banner
 
-The MOTD composes project identity, static status, environment versions,
-next-step commands, and recipes. Navigation shortcuts appear automatically
-for enabled Prelude components.
+The MOTD composes project identity, header status, next-step commands,
+and navigation shortcuts — all from the repo's own `prelude.nix`.
 
 ![Prelude MOTD terminal recording](../media/motd.gif)
 
@@ -18,177 +17,134 @@ A still image is available for renderers that do not animate GIFs:
 
 ```nix
 prelude = {
+  colorProfile = "truecolor";
   commands = {
     build = {
-      description = "compile an optimized production bundle";
-      exec = "pnpm build";
-    };
-    "database:migrate" = {
-      description = "apply pending schema migrations";
-      exec = "drizzle-kit migrate";
-    };
-    "database:up" = {
-      description = "start postgres & redis in the background";
-      exec = "docker compose up -d db redis";
-    };
-    dev = {
       args = [
         {
-          description = "Port to bind the dev server";
+          description = "flake output to build";
           options = [
-            "3000"
-            "8080"
+            ".#prelude-motd"
+            ".#prelude-menu"
+            ".#prelude-docs"
+            ".#example-themes"
+            ".#example-default"
           ];
-          token = "--port";
-        }
-        {
-          description = "Interface to expose";
-          options = [
-            "127.0.0.1"
-            "0.0.0.0"
-          ];
-          token = "--host";
+          token = "<target>";
         }
       ];
-      description = "start the dev server with hot reload";
-      details = "Boots a development server that watches the source tree and hot-reloads modules as files change. Binds to 127.0.0.1:3000 by default; override with --port and --host.";
-      examples = [
-        "x dev --port 8080"
-        "x dev --host 0.0.0.0"
-      ];
-      exec = "pnpm dev";
-      motd = 1;
-      usage = "x dev --port 3000";
+      description = "build a flake output";
+      exec = "nix build";
+      usage = "x build .#prelude-motd";
     };
-    "general:clean" = {
-      description = "remove build artifacts & caches";
-      exec = "rm -rf .next .turbo node_modules/.cache";
+    check = {
+      description = "build + render smoke tests";
+      exec = "nix flake check";
     };
-    "ops:deploy" = {
-      args = [
-        {
-          description = "Publish to a named preview URL";
-          options = [
-            "staging"
-            "preview"
-          ];
-          token = "--alias";
-        }
-        {
-          boolean = true;
-          description = "Print the manifest without shipping";
-          token = "--dry-run";
-        }
-      ];
-      description = "ship the current build to production";
-      details = "Uploads the most recent production build and promotes it to the live environment. Deploys are atomic: traffic switches only after the new release passes its health checks.";
-      examples = [
-        "x ops:deploy --dry-run"
-        "x ops:deploy --alias staging"
-      ];
-      exec = "vercel deploy";
-      usage = "x ops:deploy --alias staging";
+    demos = {
+      description = "tour every feature demo";
+      exec = "nix run .#examples";
+      motd = 3;
     };
-    "ops:push" = {
-      args = [
-        {
-          description = "Remote to push to";
-          options = [
-            "origin"
-            "upstream"
-          ];
-          required = true;
-          token = "<remote>";
-        }
-        {
-          description = "Branch to publish";
-          options = [
-            "main"
-            "dev"
-          ];
-          token = "<branch>";
-        }
-      ];
-      description = "publish the current branch to the remote";
-      exec = "git push";
+    "demos:defaults" = {
+      description = "preview MOTD from stock setup wizard presets";
+      exec = "nix run .#example-default";
     };
-    test = {
-      description = "run the unit test suite";
-      exec = "pnpm test";
-      motd = 2;
+    "demos:themes" = {
+      description = "render a mini motd per theme";
+      exec = "nix run .#example-themes";
+    };
+    "demos:titles" = {
+      description = "inspect rendered titles";
+      exec = "prelude-title-previews prelude";
+    };
+    docs = {
+      description = "browse project documentation";
+      exec = "docs";
+      key = "d";
+    };
+    fmt = {
+      description = "format nix sources";
+      exec = "treefmt .";
+    };
+    gen = {
+      description = "run generation tasks";
+      exec = ''
+        sync-docs
+        record-docs
+      '';
+    };
+    "go:test" = {
+      description = "run the Go unit tests";
+      exec = "go test -C src ./...";
+    };
+    "go:vet" = {
+      description = "run Go static analysis";
+      exec = "go vet -C src ./...";
+    };
+    motd = {
+      description = "reprint the welcome banner";
+    };
+    portal = {
+      description = "launch an app, with live health lights";
+      exec = "portal";
+      key = "p";
+    };
+    "prelude:previews" = {
+      description = "build the render checks and show their output";
+      exec = "prelude-previews";
+    };
+    "prelude:wizard" = {
+      description = "run the interactive setup wizard";
+      exec = "nix run . -- wizard";
+      motd = 0;
+    };
+    record-docs = {
+      description = "record stale VHS showcases and sync docs";
+      exec = "docs-record";
+    };
+    sync-docs = {
+      description = "regenerate option and showcase markdown";
+      exec = "docs-sync";
+    };
+    x = {
+      description = "open the interactive command menu";
+      exec = "x";
+      key = "m";
     };
   };
   motd = {
-    clearScreen = false;
     description = {
-      text = "This repo uses nix-based tooling which provides a consistent and reproducible dev environment.";
+      text = ''
+        You are inside Prelude's own devshell — the banner, menu, docs, and prompt around you are built by this repo from `prelude.nix`, the same way a downstream project would. Run `x` to browse every command, or `docs` for the guides — including how to set up Prelude in your own repo.
+      '';
     };
-    env = [
-      {
-        label = "node";
-        value = "22.3.0";
-      }
-      {
-        label = "pnpm";
-        value = "9.4.0";
-      }
-      {
-        label = "postgres";
-        value = "16.3";
-      }
-    ];
     header = {
       status = {
-        ready = {
-          label = "devshell";
-          status = "ready";
+        flake = {
+          check = "nix flake check --no-build >/dev/null 2>&1";
+          label = "flake check";
+          order = 100;
+          output = "light";
         };
       };
+      statusHint = {
+        links = [
+          {
+            label = "github";
+            url = "https://github.com/darkmatter/prelude";
+          }
+        ];
+      };
       tagline = {
-        text = "everything you need to build, test & ship";
+        text = "Devshell UI for Nix flakes";
       };
     };
-    margin = {
-      top = 0;
-    };
-    recipes = {
-      clean-local-stack = {
-        steps = [
-          {
-            comment = "start postgres + redis first";
-          }
-          {
-            command = "just db:up";
-          }
-          {
-            command = "just db:migrate && just db:seed";
-          }
-          {
-            command = "just dev";
-          }
-        ];
-        title = "spin up a clean local stack";
-      };
-      ship-hotfix = {
-        steps = [
-          {
-            command = "git checkout -b fix/login";
-          }
-          {
-            comment = "verify before deploying";
-          }
-          {
-            command = "just test && just build";
-          }
-          {
-            command = "just deploy";
-          }
-        ];
-        title = "ship a hotfix to production";
-      };
+    title = {
+      text = "./nix/internal/title.txt";
     };
   };
-  project = "acme-web";
+  project = "prelude";
 };
 ```
 
@@ -206,7 +162,6 @@ compact banner anchored to the terminal edge.
 prelude = {
   motd = {
     align = "left";
-    clearScreen = false;
     description = {
       foreground = "#8be9fd";
       italic = true;
@@ -238,7 +193,6 @@ statuses appear in the header without running environment probes.
 prelude = {
   motd = {
     background = true;
-    clearScreen = false;
     description = {
       text = "Only the bounded card paints a background; surrounding cells stay terminal-transparent.";
     };
@@ -271,9 +225,8 @@ prelude = {
 ## Interactive command menu
 
 The menu demonstrates live filtering, command details, argument suggestion
-chips, required-value validation, and a command preview. The recording
-selects `dev`, opens its details, accepts the `--port 3000` chip, and types
-`--host 0.0.0.0`.
+chips, and a command preview. The recording selects `build`, opens its
+details, and accepts a target suggestion chip.
 
 ![Prelude interactive menu recording](../media/menu.gif)
 
@@ -287,105 +240,100 @@ A still of the final argument-entry state is available at
 prelude = {
   commands = {
     build = {
-      description = "compile an optimized production bundle";
-      exec = "pnpm build";
-    };
-    "database:migrate" = {
-      description = "apply pending schema migrations";
-      exec = "drizzle-kit migrate";
-    };
-    "database:up" = {
-      description = "start postgres & redis in the background";
-      exec = "docker compose up -d db redis";
-    };
-    dev = {
       args = [
         {
-          description = "Port to bind the dev server";
+          description = "flake output to build";
           options = [
-            "3000"
-            "8080"
+            ".#prelude-motd"
+            ".#prelude-menu"
+            ".#prelude-docs"
+            ".#example-themes"
+            ".#example-default"
           ];
-          token = "--port";
-        }
-        {
-          description = "Interface to expose";
-          options = [
-            "127.0.0.1"
-            "0.0.0.0"
-          ];
-          token = "--host";
+          token = "<target>";
         }
       ];
-      description = "start the dev server with hot reload";
-      details = "Boots a development server that watches the source tree and hot-reloads modules as files change. Binds to 127.0.0.1:3000 by default; override with --port and --host.";
-      examples = [
-        "x dev --port 8080"
-        "x dev --host 0.0.0.0"
-      ];
-      exec = "pnpm dev";
-      motd = 1;
-      usage = "x dev --port 3000";
+      description = "build a flake output";
+      exec = "nix build";
+      usage = "x build .#prelude-motd";
     };
-    "general:clean" = {
-      description = "remove build artifacts & caches";
-      exec = "rm -rf .next .turbo node_modules/.cache";
+    check = {
+      description = "build + render smoke tests";
+      exec = "nix flake check";
     };
-    "ops:deploy" = {
-      args = [
-        {
-          description = "Publish to a named preview URL";
-          options = [
-            "staging"
-            "preview"
-          ];
-          token = "--alias";
-        }
-        {
-          boolean = true;
-          description = "Print the manifest without shipping";
-          token = "--dry-run";
-        }
-      ];
-      description = "ship the current build to production";
-      details = "Uploads the most recent production build and promotes it to the live environment. Deploys are atomic: traffic switches only after the new release passes its health checks.";
-      examples = [
-        "x ops:deploy --dry-run"
-        "x ops:deploy --alias staging"
-      ];
-      exec = "vercel deploy";
-      usage = "x ops:deploy --alias staging";
+    demos = {
+      description = "tour every feature demo";
+      exec = "nix run .#examples";
+      motd = 3;
     };
-    "ops:push" = {
-      args = [
-        {
-          description = "Remote to push to";
-          options = [
-            "origin"
-            "upstream"
-          ];
-          required = true;
-          token = "<remote>";
-        }
-        {
-          description = "Branch to publish";
-          options = [
-            "main"
-            "dev"
-          ];
-          token = "<branch>";
-        }
-      ];
-      description = "publish the current branch to the remote";
-      exec = "git push";
+    "demos:defaults" = {
+      description = "preview MOTD from stock setup wizard presets";
+      exec = "nix run .#example-default";
     };
-    test = {
-      description = "run the unit test suite";
-      exec = "pnpm test";
-      motd = 2;
+    "demos:themes" = {
+      description = "render a mini motd per theme";
+      exec = "nix run .#example-themes";
+    };
+    "demos:titles" = {
+      description = "inspect rendered titles";
+      exec = "prelude-title-previews prelude";
+    };
+    docs = {
+      description = "browse project documentation";
+      exec = "docs";
+      key = "d";
+    };
+    fmt = {
+      description = "format nix sources";
+      exec = "treefmt .";
+    };
+    gen = {
+      description = "run generation tasks";
+      exec = ''
+        sync-docs
+        record-docs
+      '';
+    };
+    "go:test" = {
+      description = "run the Go unit tests";
+      exec = "go test -C src ./...";
+    };
+    "go:vet" = {
+      description = "run Go static analysis";
+      exec = "go vet -C src ./...";
+    };
+    motd = {
+      description = "reprint the welcome banner";
+    };
+    portal = {
+      description = "launch an app, with live health lights";
+      exec = "portal";
+      key = "p";
+    };
+    "prelude:previews" = {
+      description = "build the render checks and show their output";
+      exec = "prelude-previews";
+    };
+    "prelude:wizard" = {
+      description = "run the interactive setup wizard";
+      exec = "nix run . -- wizard";
+      motd = 0;
+    };
+    record-docs = {
+      description = "record stale VHS showcases and sync docs";
+      exec = "docs-record";
+    };
+    sync-docs = {
+      description = "regenerate option and showcase markdown";
+      exec = "docs-sync";
+    };
+    x = {
+      description = "open the interactive command menu";
+      exec = "x";
+      key = "m";
     };
   };
-  project = "acme-web";
+  project = "prelude";
 };
 ```
 

@@ -4,10 +4,12 @@
 #
 #   nix run .#example-minimal
 #
-# Shared defaults (no overrides) are `nix run .#example-default`. The acme-web
-# motd/menu demos back `nix run .#example-motd` and `nix run .#example-menu`;
-# the current module-produced MOTD supplies the separate
-# `nix run .#example-themes` pager. Render everything:
+# `nix run .#example-motd` and `nix run .#example-menu` render the prelude
+# repo's own dogfood config; `nix run .#example-default` previews stock wizard
+# presets; `nix run .#example-themes` pages the current MOTD through every
+# theme. The `minimal` and `surface` demos below exercise specific rendering
+# features (explicit styling, bounded cards) independent of any repo config.
+# Render everything:
 #
 #   nix run .#examples
 #
@@ -122,7 +124,8 @@ let
     };
   };
 
-  # `nix run .#example-motd` — full acme-web welcome banner.
+  # Reference MOTD config (acme-web fixture). No longer wired to
+  # `example-motd` — that demo uses the prelude repo's own config now.
   motd = {
     project = "acme-web";
     commandCatalog = commands;
@@ -172,8 +175,8 @@ let
     };
   };
 
-  # `nix run .#example-menu` — the interactive command menu (`x --list`
-  # for CI).
+  # Reference menu config (acme-web fixture). No longer wired to
+  # `example-menu` — that demo uses the prelude repo's own config now.
   menu = {
     project = "acme-web";
     inherit commands;

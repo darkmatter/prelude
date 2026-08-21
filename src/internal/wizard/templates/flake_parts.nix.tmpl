@@ -13,19 +13,7 @@
 #     # …
 #     perSystem = { config, pkgs, ... }: {
 #       devShells.default = pkgs.mkShell {
-#         packages = [
-#           config.packages.prelude-shell
-{{ if .Motd }}
-#           config.packages.prelude-motd
-{{ end }}
-{{ if .Menu }}
-#           config.packages.prelude-menu
-{{ end }}
-{{ if .Docs }}
-#           config.packages.prelude-docs
-{{ end }}
-#         ];
-#         shellHook = ''eval "$(prelude-preflight)"'';
+#         packages = [ config.packages.prelude-shell ];
 #       };
 #     };
 #   };

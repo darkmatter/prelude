@@ -10,7 +10,10 @@
     inherit pkgs lib;
     currentMotdConfig = config.packages.prelude-motd.motdRenderConfig;
   };
-  menuDemo = import ./menu-demo-builder.nix {inherit pkgs lib;};
+  menuDemo = import ./menu-demo-builder.nix {
+    inherit pkgs lib;
+    currentMenuConfig = config.packages.prelude-menu.menuRenderConfig;
+  };
   ex = import ../src/prelude/examples.nix;
   typescriptPrelude = (import ../examples/typescript/prelude.nix {inherit lib;}).prelude;
   typescriptMenu = menuDemo.mkMenu (

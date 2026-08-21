@@ -30,13 +30,7 @@ Then wire it into your flake-parts flake:
 
       perSystem = { pkgs, config, ... }: {
         devShells.default = pkgs.mkShell {
-          packages = [
-            config.packages.prelude-shell
-            config.packages.prelude-motd
-            config.packages.prelude-menu
-            config.packages.prelude-docs
-          ];
-          shellHook = ''eval "$(prelude-preflight)"'';
+          packages = [ config.packages.prelude-shell ];
         };
       };
     };
@@ -62,24 +56,22 @@ You can still put `prelude = { … };` directly in `flake.nix` instead of import
 a generated file; see `templates/default/flake.nix` for a minimal inline shape.
 
 The module exports one app, `apps.prelude`, a self-contained app package at
-`packages.prelude`, a closure-minimal devshell package at
-`packages.prelude-shell`, and one `prelude-`-prefixed package per component
+`packages.prelude`, and a devshell package at `packages.prelude-shell` that
+bundles every enabled component (MOTD, menu, docs, portal) and activates via
+its setup-hook. Component packages are also available individually
 (`prelude-motd`, `prelude-menu`, `prelude-docs`, `prelude-prompt`,
 `prelude-preflight`, `prelude-wizard`, `prelude-title`,
-`prelude-title-previews`). It never claims a generic attribute name in your
-flake. Interactive surfaces keep `motd`, `menu`, `x`, and `docs`; bootstrap and
-generator tools install only `prelude-*` executables.
+`prelude-title-previews`) but you only need `prelude-shell` in your devshell.
+It never claims a generic attribute name in your flake. Interactive surfaces
+keep `motd`, `menu`, `x`, and `docs`; bootstrap and generator tools install
+only `prelude-*` executables.
 
-`packages.prelude-shell` supplies activation, prompt runtime, and a namespaced
-CLI that resolves explicitly added components from `PATH`. Add it and each
-enabled component package to the devshell, as above. Do not add
-`packages.prelude`: that package embeds every app subcommand for
-`apps.prelude` and the upstream fragmentless bootstrap. Repository-only
-examples and preview utilities remain available from the upstream flake but
-never enter a consumer's module outputs or devshell closure.
-Component packages do not retain one another. Built-in shortcut wrappers
-resolve their target through `PATH`, so every advertised target component must
-be present explicitly.
+`packages.prelude-shell` supplies activation, prompt runtime, and every enabled
+component. Add only it to the devshell. Do not add `packages.prelude`: that
+package embeds every app subcommand for `apps.prelude` and the upstream
+fragmentless bootstrap. Repository-only examples and preview utilities remain
+available from the upstream flake but never enter a consumer's module outputs
+or devshell closure.
 Package-backed commands — `prelude.lib.fromPkg pkgs.foo { … }` — carry their
 runtime closure with them, so they work without adding the tool to the shell.
 

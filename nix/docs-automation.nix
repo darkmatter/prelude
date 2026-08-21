@@ -9,11 +9,15 @@
 }: let
   ex = import ../src/prelude/examples.nix;
 
+  currentMotdConfig = config.packages.prelude-motd.motdRenderConfig;
+  currentMenuConfig = config.packages.prelude-menu.menuRenderConfig;
+
   motdDemos = import ./motd-demo-builder.nix {
-    inherit pkgs lib;
-    currentMotdConfig = config.packages.prelude-motd.motdRenderConfig;
+    inherit pkgs lib currentMotdConfig;
   };
-  menuDemo = import ./menu-demo-builder.nix {inherit pkgs lib;};
+  menuDemo = import ./menu-demo-builder.nix {
+    inherit pkgs lib currentMenuConfig;
+  };
 
   motdProgram = lib.getExe motdDemos.examplePackages.example-motd;
   menuProgram = lib.getExe menuDemo.package;
@@ -68,7 +72,7 @@
     Type "./docs/.record-bin/example-menu"
     Enter
     Sleep 2s
-    Type "dev"
+    Type "build"
     Sleep 1500ms
     Tab
     Sleep 2500ms
@@ -77,9 +81,7 @@
     Tab
     Sleep 1s
     Enter
-    Sleep 1500ms
-    Type " --host 0.0.0.0"
-    Sleep 3s
+    Sleep 2s
   '';
 
   mkStillTapeText = name: width: height: ''
@@ -154,7 +156,7 @@
     (builtins.readFile ../src/prelude/motd.nix)
     (readTree ../src/internal/motd)
   ];
-  motdFingerprint = fingerprint motdComponentInput motdTapeText ex.motd;
+  motdFingerprint = fingerprint motdComponentInput motdTapeText currentMotdConfig;
   minimalFingerprint = fingerprint motdComponentInput minimalTapeText ex.motdDemos.minimal;
   surfaceFingerprint = fingerprint motdComponentInput surfaceTapeText ex.motdDemos.surface;
   menuFingerprint =
@@ -164,7 +166,7 @@
       (readTree ../src/internal/menu)
     ])
     menuTapeText
-    ex.menu;
+    currentMenuConfig;
 
   manifestData = {
     version = 1;
@@ -195,20 +197,163 @@
   };
   manifest = pkgs.writeText "prelude-doc-media-manifest.json" (builtins.toJSON manifestData + "\n");
 
-  motdModuleConfig = config: let
-    sharedNames = [
-      "theme"
-      "palette"
-      "colorProfile"
-      "project"
-    ];
+  # Strip module-synthesized fields and defaults from a command entry so the
+  # displayed config mirrors what a user would author, not the evaluated attrset.
+  cleanCommand = name: cmd: let
+    # Use the canonical invocation (no store paths) when available; fall back
+    # to exec. fromPkg sets invocation to the bare command name + args.
+    displayExec =
+      if cmd ? invocation && cmd.invocation != null && cmd.invocation != ""
+      then cmd.invocation
+      else cmd.exec or null;
+    # User-facing fields that appear in authored config.
+    kept =
+      lib.removeAttrs cmd [
+        "invocation"
+        "runtimePackages"
+      ]
+      // {
+        exec = displayExec;
+      };
+    # Drop fields that are at their default (null / empty) values.
+    dropDefaults = lib.filterAttrs (_n: v: !(v == null || v == "" || (builtins.isList v && v == [])));
+    cleanArgs = map (
+      arg: let
+        base = lib.removeAttrs arg [
+          "boolean"
+          "required"
+        ];
+      in
+        lib.filterAttrs (_n: v: v != null && v != "" && !(builtins.isList v && v == [])) (
+          base
+          // lib.optionalAttrs (arg.boolean or false) {boolean = true;}
+          // lib.optionalAttrs (arg.required or false) {required = true;}
+        )
+    ) (kept.args or []);
+    cleaned = dropDefaults (
+      kept // (lib.optionalAttrs (kept ? args && kept.args != []) {args = cleanArgs;})
+    );
   in
-    (lib.filterAttrs (name: _value: builtins.elem name sharedNames) config)
+    cleaned;
+
+  cleanCommands = commands: lib.mapAttrs cleanCommand commands;
+
+  # Field names shared across all prelude components.
+  sharedNames = [
+    "theme"
+    "palette"
+    "colorProfile"
+    "project"
+  ];
+  # Fields synthesized by the module that are not user-facing options.
+  renderOnlyFields = [
+    "commandCatalog"
+    "commandGroupOrder"
+    "shortcuts"
+  ];
+
+  # Defaults from src/prelude/defaults.nix, used to strip default values.
+  d = import ../src/prelude/defaults.nix;
+  motdDefaults = d.motd;
+
+  # True when a value is "empty" — null, false, empty string, empty list,
+  # or an attrset where every field is isEmpty.
+  isEmpty = value:
+    if value == null
+    then true
+    else if value == false
+    then true
+    else if value == ""
+    then true
+    else if builtins.isList value
+    then value == []
+    else if builtins.isAttrs value
+    then lib.all (n: isEmpty value.${n}) (builtins.attrNames value)
+    else false;
+
+  # Submodule defaults for header status entries (not in defaults.nix —
+  # these come from option-types.nix headerStatusType).
+  statusEntryDefaults = {
+    order = 1000;
+    label = "";
+    status = "";
+    check = "";
+    async = true;
+    ok = "ok";
+    fail = "fail";
+    failLevel = "error";
+    output = "";
+  };
+
+  # Recursively strip fields that equal their defaults or are empty.
+  # For attrsets, recurse so nested defaults are also removed. When a field
+  # has no counterpart in defaults, recurse with {} so empty nested fields
+  # are still stripped. Status entries get statusEntryDefaults.
+  cleanAgainstDefaults = section: defaults:
+    lib.filterAttrs
+    (
+      name: value:
+        name != "enable" && !(isEmpty value) && (!(defaults ? ${name}) || value != defaults.${name})
+    )
+    (
+      lib.mapAttrs (
+        name: value:
+          if builtins.isAttrs value
+          then
+            if name == "status" && defaults ? status
+            then
+              # Status is an attrsOf: each entry should be cleaned against
+              # statusEntryDefaults, not the default's status entries.
+              lib.mapAttrs (
+                _entryName: entry:
+                  if builtins.isAttrs entry
+                  then cleanAgainstDefaults entry statusEntryDefaults
+                  else entry
+              )
+              value
+            else cleanAgainstDefaults value (defaults.${name} or {})
+          else value
+      )
+      section
+    );
+
+  cleanMotd = config: let
+    raw = builtins.removeAttrs config (sharedNames ++ renderOnlyFields);
+    # Replace store paths in title.text with a relative path for display.
+    withCleanTitle =
+      raw
+      // lib.optionalAttrs (raw ? title && raw.title ? text && raw.title.text != null) {
+        title =
+          raw.title
+          // {
+            text = "./nix/internal/title.txt";
+          };
+      };
+  in
+    cleanAgainstDefaults withCleanTitle motdDefaults;
+
+  # Strip the palette when every token is null (the default).
+  cleanPalette = palette:
+    if lib.all (n: palette.${n} == null) (builtins.attrNames palette)
+    then {}
+    else palette;
+
+  motdModuleConfig = config:
+    (lib.optionalAttrs (config ? theme && config.theme != d.theme) {inherit (config) theme;})
+    // (lib.optionalAttrs (config ? palette && !isEmpty (cleanPalette config.palette)) {
+      palette = cleanPalette config.palette;
+    })
+    // (lib.optionalAttrs (config ? colorProfile && config.colorProfile != d.colorProfile) {
+      inherit (config) colorProfile;
+    })
+    // {
+      inherit (config) project;
+    }
     // lib.optionalAttrs ((config.commandCatalog or {}) != {}) {
-      commands = config.commandCatalog;
+      commands = cleanCommands config.commandCatalog;
     }
     // {
-      motd = builtins.removeAttrs config (sharedNames ++ ["commandCatalog"]);
+      motd = cleanMotd config;
     };
 
   gallery = pkgs.writeText "prelude-showcases.md" ''
@@ -218,9 +363,8 @@
 
     ## Welcome banner
 
-    The MOTD composes project identity, static status, environment versions,
-    next-step commands, and recipes. Navigation shortcuts appear automatically
-    for enabled Prelude components.
+    The MOTD composes project identity, header status, next-step commands,
+    and navigation shortcuts — all from the repo's own `prelude.nix`.
 
     ![Prelude MOTD terminal recording](../media/motd.gif)
 
@@ -231,7 +375,7 @@
     <summary>Show the configuration used for this recording</summary>
 
     ```nix
-    prelude = ${lib.generators.toPretty {} (motdModuleConfig ex.motd)};
+    prelude = ${lib.generators.toPretty {} (motdModuleConfig currentMotdConfig)};
     ```
 
     </details>
@@ -264,9 +408,8 @@
     ## Interactive command menu
 
     The menu demonstrates live filtering, command details, argument suggestion
-    chips, required-value validation, and a command preview. The recording
-    selects `dev`, opens its details, accepts the `--port 3000` chip, and types
-    `--host 0.0.0.0`.
+    chips, and a command preview. The recording selects `build`, opens its
+    details, and accepts a target suggestion chip.
 
     ![Prelude interactive menu recording](../media/menu.gif)
 
@@ -279,8 +422,8 @@
     ```nix
     prelude = ${
       lib.generators.toPretty {} {
-        project = ex.menu.project;
-        commands = ex.menu.commands;
+        project = currentMenuConfig.project or "prelude";
+        commands = cleanCommands (currentMenuConfig.commands or {});
       }
     };
     ```
@@ -306,7 +449,6 @@
         }).config.prelude.motd
     )
     [
-      ex.motd
       ex.motdDemos.minimal
       ex.motdDemos.surface
     ];
