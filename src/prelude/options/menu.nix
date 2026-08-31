@@ -36,6 +36,12 @@ in {
       description = "Maximum menu width.";
     };
 
+    builtins = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "List prelude's own navigation commands (x, docs, portal) in the menu catalogue. Set to false when an imported catalogue (e.g. Justfile recipes) should own the menu and the navigation entries read as noise.";
+    };
+
     just = {
       enable = lib.mkEnableOption "importing public Justfile recipes into the command menu";
 

@@ -735,6 +735,27 @@ true
 
 
 
+## prelude\.menu\.builtins
+
+
+
+List prelude’s own navigation commands (x, docs, portal) in the menu catalogue\. Set to false when an imported catalogue (e\.g\. Justfile recipes) should own the menu and the navigation entries read as noise\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+true
+```
+
+
+
 ## prelude\.menu\.execute
 
 
@@ -2368,8 +2389,6 @@ unsigned integer, meaning >=0
 
 ## prelude\.motd\.padding\.y
 
-
-
 Vertical spacing (lines, top and bottom)\.
 
 
@@ -2388,6 +2407,8 @@ unsigned integer, meaning >=0
 
 
 ## prelude\.motd\.recipes
+
+
 
 Optional project workflows keyed by name for setup, build, test, deploy, and similar work\. Prefer ` steps ` ({ command } | { comment }); legacy ` lines ` are normalized into steps\.
 

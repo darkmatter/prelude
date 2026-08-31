@@ -25,7 +25,19 @@ config: let
   colorProfile = config.colorProfile or d.colorProfile;
   project = config.project or d.project;
   groupOrder = config.groupOrder or [];
-  commands = config.commands or d.commands;
+  # Navigation commands prelude injects for its own components. When
+  # `builtins` is false the un-overridden entries drop out of the catalogue so
+  # an imported one (e.g. Justfile recipes) can own the menu; user commands
+  # that merely share a name (custom `exec`) are kept.
+  isNavigation = name: command:
+    (lib.elem name ["x" "docs" "portal"])
+    && ((command.exec or null) == null || (command.exec or null) == name);
+  commands = let
+    declared = config.commands or d.commands;
+  in
+    if (config.builtins or true)
+    then declared
+    else lib.filterAttrs (name: command: !isNavigation name command) declared;
   # Domain groups for validation (null keys preserved); projected groups for JSON.
   domainGroups = plib.normalizeCommandGroups groupOrder commands;
   groups = plib.projectMenuGroups groupOrder commands;
@@ -49,7 +61,10 @@ config: let
   keys = lib.filter (k: k != null) (map (t: t.key) tasks);
   names = map (t: t.name) tasks;
 
-  checkTasks = assert lib.assertMsg (tasks != []) "menu: no commands configured — set `commands`";
+  # An empty Nix catalogue is legitimate when Justfile recipes are imported
+  # at runtime (`menu.just.enable`); the menu then lists only those entries.
+  checkTasks = assert lib.assertMsg (tasks != [] || just.enable)
+  "menu: no commands configured — set `commands` or enable `menu.just`";
   assert lib.assertMsg (lib.all safeName names)
   "menu: command names may only contain [A-Za-z0-9:_.-]";
   assert lib.assertMsg (lib.all safeName keys) "menu: command keys may only contain [A-Za-z0-9:_.-]";
