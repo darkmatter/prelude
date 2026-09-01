@@ -73,6 +73,7 @@ type Arg struct {
 	Required    bool     `json:"required"`
 	Boolean     bool     `json:"boolean"`
 	Options     []string `json:"options"`
+	Default     *string  `json:"default"`
 }
 
 func loadConfig(path string) (*Config, error) {

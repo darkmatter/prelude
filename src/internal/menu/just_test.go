@@ -352,6 +352,113 @@ func TestParseJustDumpAliasWithoutTargetDoc(t *testing.T) {
 	}
 }
 
+func TestParseJustDumpMapsTypedArgAttributes(t *testing.T) {
+	data := []byte(`{
+		"recipes": {
+			"compound": {
+				"doc": "compound fees",
+				"name": "compound",
+				"namepath": "compound",
+				"private": false,
+				"parameters": [
+					{"default": "base", "flag": false, "help": "comma list of chains", "kind": "singular", "long": "chains", "name": "chains"},
+					{"default": "", "flag": false, "help": "target Safe (addr or ENS)", "kind": "singular", "long": "safe", "name": "safe"},
+					{"default": null, "flag": true, "help": "send transactions", "kind": "singular", "long": "broadcast", "name": "broadcast"},
+					{"default": null, "flag": false, "help": "extra flags after --", "kind": "star", "name": "extra"}
+				]
+			}
+		}
+	}`)
+
+	tasks, err := parseJustDump(data, JustConfig{Enable: true, Group: "just"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task := findTask(tasks, "compound")
+	if task == nil {
+		t.Fatal("compound recipe was not imported")
+	}
+	if task.Usage != "just compound [--chains=base] [--safe] [--broadcast] [extra...]" {
+		t.Fatalf("usage = %#v", task.Usage)
+	}
+	if len(task.Args) != 4 {
+		t.Fatalf("got %d args, want 4", len(task.Args))
+	}
+
+	chains := task.Args[0]
+	if chains.Token != "--chains" || chains.Description != "comma list of chains" ||
+		chains.Required || chains.Default == nil || *chains.Default != "base" {
+		t.Fatalf("chains arg = %#v", chains)
+	}
+	safe := task.Args[1]
+	if safe.Token != "--safe" || safe.Required || safe.Default == nil || *safe.Default != "" {
+		t.Fatalf("safe arg = %#v", safe)
+	}
+	broadcast := task.Args[2]
+	if broadcast.Token != "--broadcast" || !broadcast.Boolean || broadcast.Required {
+		t.Fatalf("broadcast arg = %#v", broadcast)
+	}
+	extra := task.Args[3]
+	if extra.Token != "extra" || extra.Required {
+		t.Fatalf("extra arg = %#v", extra)
+	}
+}
+
+func TestParseJustDumpPatternAlternationBecomesOptions(t *testing.T) {
+	data := []byte(`{
+		"recipes": {
+			"probe": {
+				"name": "probe",
+				"namepath": "probe",
+				"private": false,
+				"parameters": [
+					{"default": null, "flag": false, "help": null, "kind": "star", "name": "flag", "pattern": ["--help|--version"]}
+				]
+			}
+		}
+	}`)
+
+	tasks, err := parseJustDump(data, JustConfig{Enable: true, Group: "just"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task := findTask(tasks, "probe")
+	if task == nil {
+		t.Fatal("probe recipe was not imported")
+	}
+	options := task.Args[0].Options
+	if len(options) != 2 || options[0] != "--help" || options[1] != "--version" {
+		t.Fatalf("options = %#v", options)
+	}
+}
+
+func TestParseJustDumpRegexPatternStaysOptionless(t *testing.T) {
+	data := []byte(`{
+		"recipes": {
+			"probe": {
+				"name": "probe",
+				"namepath": "probe",
+				"private": false,
+				"parameters": [
+					{"default": null, "flag": false, "help": null, "kind": "singular", "name": "id", "pattern": ["^[a-z]+$"]}
+				]
+			}
+		}
+	}`)
+
+	tasks, err := parseJustDump(data, JustConfig{Enable: true, Group: "just"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task := findTask(tasks, "probe")
+	if task == nil {
+		t.Fatal("probe recipe was not imported")
+	}
+	if len(task.Args[0].Options) != 0 {
+		t.Fatalf("regex pattern must not become options: %#v", task.Args[0].Options)
+	}
+}
+
 func findTask(tasks []Task, name string) *Task {
 	for index := range tasks {
 		if tasks[index].Name == name {

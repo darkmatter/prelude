@@ -259,6 +259,11 @@
         default = false;
         description = "A flag that takes no value (confirm prompt).";
       };
+      default = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Value used when the argument is left empty; shown as (default: X) in arg-entry.";
+      };
       options = lib.mkOption {
         type = lib.types.listOf lib.types.str;
         default = [];

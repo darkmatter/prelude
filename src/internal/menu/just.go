@@ -39,12 +39,18 @@ type justAlias struct {
 }
 
 type justParameter struct {
-	Default *string `json:"default"`
-	Flag    bool    `json:"flag"`
-	Help    *string `json:"help"`
-	Kind    string  `json:"kind"`
-	Long    *string `json:"long"`
-	Name    string  `json:"name"`
+	Default  *string         `json:"default"`
+	Flag     bool            `json:"flag"`
+	Help     *string         `json:"help"`
+	Kind     string          `json:"kind"`
+	Long     *string         `json:"long"`
+	Max      *int            `json:"max"`
+	Min      *int            `json:"min"`
+	Multiple bool            `json:"multiple"`
+	Name     string          `json:"name"`
+	Pattern  json.RawMessage `json:"pattern"`
+	Short    *string         `json:"short"`
+	Value    *string         `json:"value"`
 }
 
 type justRecipeEntry struct {
@@ -203,6 +209,33 @@ func decodeGroupValue(raw json.RawMessage) []string {
 	return nil
 }
 
+// patternOptions turns a `[arg(pattern)]` constraint into pickable options
+// when it is a plain alternation of literals ("--help|--version"); regex
+// metacharacters mean the pattern is not presentable as a fixed choice set.
+func patternOptions(raw json.RawMessage) []string {
+	if len(raw) == 0 {
+		return nil
+	}
+	patterns := decodeGroupValue(raw)
+	for _, pattern := range patterns {
+		if pattern == "" || strings.ContainsAny(pattern, "()[]{}+*?.^$\\") {
+			return nil
+		}
+	}
+	options := make([]string, 0, len(patterns))
+	for _, pattern := range patterns {
+		for _, option := range strings.Split(pattern, "|") {
+			if option != "" && !justContains(options, option) {
+				options = append(options, option)
+			}
+		}
+	}
+	if len(options) < 2 {
+		return nil
+	}
+	return options
+}
+
 func justContains(values []string, value string) bool {
 	for _, candidate := range values {
 		if candidate == value {
@@ -225,30 +258,43 @@ func justTask(name string, recipe justRecipe, cfg JustConfig) Task {
 	usageArgs := make([]string, 0, len(recipe.Parameters))
 	for _, parameter := range recipe.Parameters {
 		token := parameter.Name
-		if parameter.Flag {
-			long := parameter.Name
-			if parameter.Long != nil && strings.TrimSpace(*parameter.Long) != "" {
-				long = *parameter.Long
-			}
+		long := parameter.Name
+		if parameter.Long != nil && strings.TrimSpace(*parameter.Long) != "" {
+			long = *parameter.Long
+		}
+		if parameter.Flag || parameter.Long != nil {
+			// Typed `[arg(long…)]` options surface as --long tokens, matching
+			// the invocation form just itself parses and validates.
 			token = "--" + strings.TrimLeft(long, "-")
 		}
 		description := ""
 		if parameter.Help != nil {
 			description = *parameter.Help
 		}
-		required := !parameter.Flag && parameter.Default == nil && parameter.Kind != "star"
+		// `min` forces a minimum count, so min > 0 makes the option required.
+		required := !parameter.Flag && parameter.Default == nil &&
+			parameter.Kind != "star" && (parameter.Min == nil || *parameter.Min > 0)
 		args = append(args, Arg{
 			Token:       token,
 			Description: description,
 			Required:    required,
 			Boolean:     parameter.Flag,
+			Options:     patternOptions(parameter.Pattern),
+			Default:     parameter.Default,
 		})
-		if required {
-			usageArgs = append(usageArgs, "<"+parameter.Name+">")
-		} else if parameter.Flag {
+		switch {
+		case required:
+			usageArgs = append(usageArgs, "<"+token+">")
+		case parameter.Flag:
 			usageArgs = append(usageArgs, "["+token+"]")
-		} else {
-			usageArgs = append(usageArgs, "["+parameter.Name+"]")
+		case parameter.Default != nil && *parameter.Default != "":
+			usageArgs = append(usageArgs, "["+token+"="+*parameter.Default+"]")
+		case parameter.Default != nil:
+			usageArgs = append(usageArgs, "["+token+"]")
+		case parameter.Kind == "star" || parameter.Multiple:
+			usageArgs = append(usageArgs, "["+token+"...]")
+		default:
+			usageArgs = append(usageArgs, "["+token+"]")
 		}
 	}
 

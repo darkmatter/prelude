@@ -23,6 +23,7 @@
     required = a.required or false;
     boolean = a.boolean or false;
     options = a.options or [];
+    default = a.default or null;
   };
 
   # Stable identity derived from the public command key. The first colon is

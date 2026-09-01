@@ -178,6 +178,27 @@ false
 
 
 
+## prelude\.commands\.\<name>\.args\.\*\.default
+
+
+
+Value used when the argument is left empty; shown as (default: X) in arg-entry\.
+
+
+
+*Type:*
+null or string
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+
+
 ## prelude\.commands\.\<name>\.args\.\*\.description
 
 
@@ -2368,8 +2389,6 @@ null
 
 ## prelude\.motd\.padding\.x
 
-
-
 Horizontal spacing (columns, left and right)\.
 
 
@@ -2388,6 +2407,8 @@ unsigned integer, meaning >=0
 
 
 ## prelude\.motd\.padding\.y
+
+
 
 Vertical spacing (lines, top and bottom)\.
 

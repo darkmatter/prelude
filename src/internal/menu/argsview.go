@@ -218,10 +218,17 @@ func (a *ArgsView) View(frame Frame, bodyHeight int) string {
 		case arg.Boolean:
 			tag = "FLAG"
 		}
+		description := arg.Description
+		if arg.Default != nil && *arg.Default != "" {
+			if description != "" {
+				description += " "
+			}
+			description += "(default: " + *arg.Default + ")"
+		}
 		row := st.sp.PaddingLeft(padX).Render("") +
 			st.sAccent.Bold(true).Width(tokenW).Render(arg.Token) + st.sp.Render("  ") +
 			tagStyle.Width(8).Render(tag) + st.sp.Render("  ") +
-			st.sMuted.Render(arg.Description)
+			st.sMuted.Render(description)
 		body = append(body, frame.Paint(row, st.sp))
 
 		nChips := len(arg.Options)
