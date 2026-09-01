@@ -59,6 +59,14 @@ complete -I -F _prelude_complete_initial 2>/dev/null || true
 if ((${#_prelude_catalogue_direct_names[@]})); then
   complete -F _prelude_complete_direct "${_prelude_catalogue_direct_names[@]}"
 fi
+# `just <TAB>` completes recipes and their typed options via just's own
+# dynamic completion engine — the same runtime source the menu imports from.
+# The generated script installs a `complete` hook that calls back into `just`
+# with JUST_COMPLETE set, so it stays version-matched for free.
+if [ "${_prelude_catalogue_just_import:-0}" = 1 ] && command -v just >/dev/null 2>&1; then
+  # shellcheck disable=SC2046
+  eval "$(JUST_COMPLETE=bash just)" 2>/dev/null || true
+fi
 
 eval "$("$_PRELUDE_STARSHIP" init bash)"
 # Submitted history rewrites only the left PS1 chrome (muted palette). The

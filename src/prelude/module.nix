@@ -574,6 +574,9 @@ in {
           projectName = cfg.project;
           navigation = internalShortcuts;
           commandEntries = commandEntries;
+          # The bash completion surfaces the same runtime Justfile import the
+          # menu performs; the flag keeps `x <TAB>` candidates dispatchable.
+          justImport = cfg.menu.just.enable;
           motdCommand =
             if cfg.motd.enable
             then "motd"

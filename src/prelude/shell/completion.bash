@@ -24,6 +24,21 @@ _prelude_catalogue_completion_candidates() {
   done
 }
 
+# Runtime Justfile import: the same recipes the menu imports. `just --summary`
+# lists public recipe names (underscore-prefixed and private recipes are
+# already excluded), so `x <TAB>` can offer the complete dispatchable catalogue
+# even when the Nix-declared one is empty.
+_prelude_complete_just_recipes() {
+  local _prelude_complete_prefix=$1
+  [ "${_prelude_catalogue_just_import:-0}" = 1 ] || return 0
+  command -v just >/dev/null 2>&1 || return 0
+  local recipe
+  for recipe in $(just --summary 2>/dev/null); do
+    _prelude_complete_yield "$recipe" ""
+  done
+  return 0
+}
+
 _prelude_complete_x() {
   local _prelude_complete_prefix=${COMP_WORDS[COMP_CWORD]-}
   local _prelude_complete_used_ble task_index=-1 i
@@ -34,6 +49,7 @@ _prelude_complete_x() {
         "${_prelude_catalogue_names[i]}" \
         "${_prelude_catalogue_descriptions[i]}"
     done
+    _prelude_complete_just_recipes "$_prelude_complete_prefix"
   else
     for ((i = 0; i < ${#_prelude_catalogue_names[@]}; i++)); do
       if [ "${COMP_WORDS[1]}" = "${_prelude_catalogue_names[i]}" ]; then
@@ -64,6 +80,14 @@ _prelude_complete_initial() {
     [[ "$candidate" == "${COMP_WORDS[0]}"* ]] || continue
     COMPREPLY+=("$candidate")
   done
+  if [ "${_prelude_catalogue_just_import:-0}" = 1 ] && command -v just >/dev/null 2>&1; then
+    local recipe
+    for recipe in $(just --summary 2>/dev/null); do
+      candidate="x $recipe"
+      [[ "$candidate" == "${COMP_WORDS[0]}"* ]] || continue
+      COMPREPLY+=("$candidate")
+    done
+  fi
   compopt -o nosort 2>/dev/null || true
   compopt -o noquote 2>/dev/null || true
 }
