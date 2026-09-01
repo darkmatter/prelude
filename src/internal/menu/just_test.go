@@ -459,6 +459,37 @@ func TestParseJustDumpRegexPatternStaysOptionless(t *testing.T) {
 	}
 }
 
+func TestParseJustDumpMetadataBecomesExamples(t *testing.T) {
+	data := []byte(`{
+		"recipes": {
+			"compound": {
+				"doc": "compound fees",
+				"name": "compound",
+				"namepath": "compound",
+				"private": false,
+				"attributes": [
+					{"metadata": ["just compound --chains base,eth --broadcast", "just compound --vnet"]}
+				],
+				"parameters": []
+			}
+		}
+	}`)
+
+	tasks, err := parseJustDump(data, JustConfig{Enable: true, Group: "just"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task := findTask(tasks, "compound")
+	if task == nil {
+		t.Fatal("compound recipe was not imported")
+	}
+	if len(task.Examples) != 2 ||
+		task.Examples[0] != "just compound --chains base,eth --broadcast" ||
+		task.Examples[1] != "just compound --vnet" {
+		t.Fatalf("examples = %#v", task.Examples)
+	}
+}
+
 func findTask(tasks []Task, name string) *Task {
 	for index := range tasks {
 		if tasks[index].Name == name {

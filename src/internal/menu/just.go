@@ -27,10 +27,12 @@ type justRecipe struct {
 	Private    bool              `json:"private"`
 }
 
-// justAttribute is one structured recipe attribute. Only group membership is
-// read; a group value is either a single string or a list of strings.
+// justAttribute is one structured recipe attribute. Group membership and
+// metadata (the examples carrier) are read; both accept a single string or a
+// list of strings.
 type justAttribute struct {
-	Group json.RawMessage `json:"group"`
+	Group    json.RawMessage `json:"group"`
+	Metadata json.RawMessage `json:"metadata"`
 }
 
 type justAlias struct {
@@ -193,6 +195,28 @@ func attributeGroups(recipe justRecipe) []string {
 	return groups
 }
 
+// attributeMetadata returns the recipe's `[metadata(...)]` entries — the
+// just-native carrier for worked example invocations, rendered by the menu as
+// the Examples section.
+func attributeMetadata(recipe justRecipe) []string {
+	examples := make([]string, 0, len(recipe.Attributes))
+	for _, raw := range recipe.Attributes {
+		var attribute justAttribute
+		if err := json.Unmarshal(raw, &attribute); err != nil {
+			continue
+		}
+		for _, entry := range decodeGroupValue(attribute.Metadata) {
+			if entry != "" {
+				examples = append(examples, entry)
+			}
+		}
+	}
+	if len(examples) == 0 {
+		return nil
+	}
+	return examples
+}
+
 // decodeGroupValue accepts the two dump shapes: `"ops"` and `["ops", "admin"]`.
 func decodeGroupValue(raw json.RawMessage) []string {
 	if len(raw) == 0 {
@@ -254,6 +278,7 @@ func justTask(name string, recipe justRecipe, cfg JustConfig) Task {
 	}
 
 	run := justPrefix(cfg) + " " + shellWord(name)
+	examples := attributeMetadata(recipe)
 	args := make([]Arg, 0, len(recipe.Parameters))
 	usageArgs := make([]string, 0, len(recipe.Parameters))
 	for _, parameter := range recipe.Parameters {
@@ -314,6 +339,7 @@ func justTask(name string, recipe justRecipe, cfg JustConfig) Task {
 		Description: description,
 		Usage:       usage,
 		Args:        args,
+		Examples:    examples,
 		group:       group,
 	}
 }
