@@ -10,7 +10,7 @@ Prelude keeps docs next to where you run the project. `docs` explains this repo;
 
 <br />
 <div align="center">
-<img align="center" width="800" src="https://github.com/darkmatter/prelude/raw/main/docs/media/shots/motd.png" />
+<img align="center" width="800" src="https://github.com/darkmatter/prelude/raw/main/docs/media/motd.png" />
 </div>
 <br />
 
