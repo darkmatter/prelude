@@ -21,7 +21,7 @@ let
     # palette.{{ . }} = null;
 {{- end }}
 
-    colorProfile = {{ nixString .ColorProfile }};  # "auto" | "truecolor" | "ansi256"; default "auto"
+    colorProfile = {{ nixString .ColorProfile }};  # "auto" | "truecolor" | "ansi256"; default "truecolor"
 
     project = {{ nixString .Project }};  # shown in the MOTD banner and menu header; default "acme"
   };

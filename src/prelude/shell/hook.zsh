@@ -26,8 +26,8 @@ _prelude_hook() {
     return 0
   fi
 
-  # The init records its path only after it has run, so a source failure is
-  # retried on the next prompt.
+  # Source the project-specific init in this shell. It records its path while
+  # installing the runtime so prompt setup cannot re-enter it.
   . "$PRELUDE_INIT"
 }
 

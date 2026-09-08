@@ -313,7 +313,7 @@ in {
               fi
               prelude --help | grep -Fq 'usage: prelude <command> [args...]'
               prelude --help | grep -Fq 'wizard         generate a Prelude project configuration'
-              prelude --help | grep -Fq 'preflight      print the shell code to eval'
+              prelude --help | grep -Fq 'preflight      print activation code for a custom shellHook'
               if prelude wizard --help >/dev/null 2>&1; then
                 echo 'the devshell dispatcher found prelude-wizard without its package being added' >&2
                 exit 1
@@ -351,18 +351,13 @@ in {
                 eval "$(prelude-preflight)" 2>preflight-builder
                 test ! -s preflight-builder
               )
-              # direnv's .envrc has terminal-visible stderr. Every explicit
-              # preflight evaluation renders independently.
+              # nix-direnv evaluates the cached shellHook inside .envrc, where
+              # DIRENV_IN_ENVRC makes the generated init render automatically.
               (
                 export PRELUDE_INIT=${config.packages.prelude-shell.shellInit}
                 export DIRENV_IN_ENVRC=1
-                eval "$(prelude-preflight)" 2>preflight-direnv
+                . "$PRELUDE_INIT" 2>preflight-direnv
                 test -s preflight-direnv
-                # An unexported render flag cannot leak into the environment
-                # direnv captures from .envrc.
-                test -z "''${_PRELUDE_PREFLIGHT_RENDER-}"
-                eval "$(prelude-preflight)" 2>preflight-direnv-again
-                test -s preflight-direnv-again
               )
               command -v starship >/dev/null
               command -v blesh-share >/dev/null
@@ -809,13 +804,12 @@ in {
       touch "$out"
     '';
 
-  # The banner has two possible renderers for one environment: preflight (from
-  # direnv's non-interactive .envrc) and `prelude hook` (from the interactive
-  # prompt). State-free activation lets each loader render independently; the
-  # hook's existing PRELUDE_INIT-path guard still prevents ordinary prompts from
-  # repeatedly sourcing the same init. A sentinel MOTD with the prompt disabled
-  # keeps this about loader behavior rather than ble.sh, Starship, or this repo's
-  # own banner text.
+  # The banner has two loader contexts for one environment: direnv's
+  # non-interactive .envrc and `prelude hook` in an interactive prompt. Separate
+  # loader shells render independently; the hook's PRELUDE_INIT-path guard
+  # prevents ordinary prompts from repeatedly sourcing the same init. A sentinel
+  # MOTD with the prompt disabled keeps this about loader behavior rather than
+  # ble.sh, Starship, or this repo's banner.
   preflight-hook-handoff = let
     backdrop = internalLib.resolveBackdropPalette "prelude" {};
     sentinel = pkgs.writeShellApplication {
@@ -855,7 +849,8 @@ in {
         ${shellPkg.runtime}/preflight.bash \
         ${shellPkg.runtime}/hook.bash \
         ${lib.escapeShellArg ptyCommandPath} \
-        PRELUDE-MOTD-SENTINEL
+        PRELUDE-MOTD-SENTINEL \
+        ${../src/prelude/shell/init.bash}
       touch "$out"
     '';
 

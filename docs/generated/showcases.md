@@ -17,7 +17,6 @@ A still image is available for renderers that do not animate GIFs:
 
 ```nix
 prelude = {
-  colorProfile = "truecolor";
   commands = {
     build = {
       args = [

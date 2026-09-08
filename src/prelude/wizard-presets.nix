@@ -10,7 +10,7 @@
 #   - example-default MOTD build in nix/motd-demo-builder.nix
 {
   theme = "prelude";
-  colorProfile = "auto";
+  colorProfile = "truecolor";
   project = "acme";
   # FIGlet font for the generated title.txt (wizard title step).
   font = "kompaktblk";

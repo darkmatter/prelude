@@ -9,9 +9,9 @@ import (
 )
 
 // StatusItems is a React-style, one-component-per-file presentation of the motd
-// status badges. It paints resolved status chips, optionally compact, with the
-// dot color reflecting Level. The component is stateless and uses the resolved
-// renderer context for MOTD-specific styles and layout.
+// status badges. It paints resolved status chips in the footer, optionally
+// compact, with the dot color reflecting Level. The component is stateless and
+// uses the resolved renderer context for MOTD-specific styles and layout.
 type StatusItems struct {
 	r renderer
 }
@@ -30,21 +30,21 @@ func (x StatusItems) Render(items []ResolvedStatus, compact bool) string {
 		var chip string
 		if compact {
 			if status != "" {
-				chip = ui.Inline(dot).Render("● ") + ui.Inline(x.r.st.headerMuted).Render(status)
+				chip = ui.Inline(dot).Render("● ") + ui.Inline(x.r.st.muted).Render(status)
 			} else if label != "" {
-				chip = ui.Inline(dot).Render("● ") + ui.Inline(x.r.st.headerMuted).Render(label)
+				chip = ui.Inline(dot).Render("● ") + ui.Inline(x.r.st.muted).Render(label)
 			}
 		} else {
 			if label != "" {
-				chip += ui.Inline(x.r.st.headerMuted).Render(label)
+				chip += ui.Inline(x.r.st.muted).Render(label)
 				if status != "" {
-					chip += ui.Inline(x.r.st.headerDim).Render("  ")
+					chip += ui.Inline(x.r.st.dim).Render("  ")
 				}
 			}
 			if status != "" {
-				chip += ui.Inline(dot).Render("● ") + ui.Inline(x.r.st.headerMuted).Render(status)
+				chip += ui.Inline(dot).Render("● ") + ui.Inline(x.r.st.muted).Render(status)
 			} else if label != "" {
-				chip += ui.Inline(x.r.st.headerDim).Render("  ") + ui.Inline(dot).Render("●")
+				chip += ui.Inline(x.r.st.dim).Render("  ") + ui.Inline(dot).Render("●")
 			}
 		}
 		if chip != "" {
@@ -54,10 +54,10 @@ func (x StatusItems) Render(items []ResolvedStatus, compact bool) string {
 	if len(parts) == 0 {
 		return ""
 	}
-	sep := ui.Inline(x.r.st.headerDim).Render(" / ")
+	sep := ui.Inline(x.r.st.dim).Render(" / ")
 	result := strings.Join(parts, sep)
 	if age := x.r.model.StatusAge; age != "" {
-		result += ui.Inline(x.r.st.headerDim).Render("  ") + ui.Inline(x.r.st.headerMuted).Render(age)
+		result += ui.Inline(x.r.st.dim).Render("  ") + ui.Inline(x.r.st.muted).Render(age)
 	}
 	return result
 }
@@ -66,13 +66,13 @@ func (x StatusItems) Render(items []ResolvedStatus, compact bool) string {
 func (x StatusItems) dot(level string) lipgloss.Style {
 	switch level {
 	case "success":
-		return x.r.st.headerSuccess
+		return x.r.st.success
 	case "warning":
-		return x.r.st.headerWarning
+		return x.r.st.warning
 	case "error":
-		return x.r.st.headerError
+		return x.r.st.error
 	default:
-		return x.r.st.headerInfo
+		return x.r.st.info
 	}
 }
 

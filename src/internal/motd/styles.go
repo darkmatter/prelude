@@ -45,12 +45,16 @@ type styles struct {
 	headerFill lipgloss.Style
 
 	// Block layer (page background).
-	dim    lipgloss.Style
-	muted  lipgloss.Style
-	fg     lipgloss.Style
-	fgBold lipgloss.Style
-	accent lipgloss.Style
-	amber  lipgloss.Style // accent2
+	dim     lipgloss.Style
+	muted   lipgloss.Style
+	fg      lipgloss.Style
+	fgBold  lipgloss.Style
+	accent  lipgloss.Style
+	amber   lipgloss.Style // accent2
+	success lipgloss.Style
+	warning lipgloss.Style
+	info    lipgloss.Style
+	error   lipgloss.Style
 
 	// Header layer (shared surface for wordmark + status).
 	headerDim     lipgloss.Style
@@ -125,12 +129,16 @@ func newStyles(model PaintModel) styles {
 		blockFill:  blockUI.Fill(),
 		headerFill: headerUI.Fill(),
 
-		dim:    blockUI.Dim(),
-		muted:  blockUI.Muted(),
-		fg:     blockUI.Foreground(),
-		fgBold: blockUI.Foreground().Bold(true),
-		accent: blockUI.Accent(),
-		amber:  blockUI.Accent2(),
+		dim:     blockUI.Dim(),
+		muted:   blockUI.Muted(),
+		fg:      blockUI.Foreground(),
+		fgBold:  blockUI.Foreground().Bold(true),
+		accent:  blockUI.Accent(),
+		amber:   blockUI.Accent2(),
+		success: blockUI.Success(),
+		warning: blockUI.Warning(),
+		info:    blockUI.Info(),
+		error:   blockUI.Error(),
 
 		headerDim:     headerUI.Dim(),
 		headerMuted:   headerUI.Muted(),

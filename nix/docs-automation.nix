@@ -141,13 +141,23 @@
     (readTree ../src/pkg/shared)
     pkgs.vhs.version
   ];
+  # MOTD title.text is a source path. Hash its contents, not its rendered
+  # /nix/store path: the latter changes whenever docs-record updates tracked
+  # media in a dirty checkout and would make its own freshness check loop.
+  fingerprintConfig = config:
+    config
+    // lib.optionalAttrs (
+      config ? title && config.title ? text && config.title.text != null
+    ) {
+      title = config.title // {text = builtins.readFile config.title.text;};
+    };
   fingerprint = componentInput: tapeText: config:
     builtins.hashString "sha256" (
       builtins.concatStringsSep "\n" [
         sharedInput
         componentInput
         tapeText
-        (builtins.toJSON config)
+        (builtins.toJSON (fingerprintConfig config))
       ]
     );
 

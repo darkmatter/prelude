@@ -18,9 +18,9 @@
   theme = "minted";
   palette = {};
 
-  # Color depth: "auto" detects the terminal profile, "truecolor" forces
-  # 24-bit output, and "ansi256" forces quantization to 256 colors.
-  colorProfile = "auto";
+  # Color depth: truecolor is the default; "auto" detects the terminal profile,
+  # while "ansi256" forces quantization to 256 colors.
+  colorProfile = "truecolor";
 
   # Project identity, shared by motd and menu.
   project = "acme";

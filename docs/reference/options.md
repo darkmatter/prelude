@@ -20,7 +20,7 @@ one of “auto”, “truecolor”, “ansi256”
 *Default:*
 
 ```nix
-"auto"
+"truecolor"
 ```
 
 

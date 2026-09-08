@@ -1,5 +1,4 @@
-# `prelude-preflight` prints the loader activation snippet — the line consumers
-# put in `.envrc` or a devshell `shellHook`:
+# `prelude-preflight` prints the activation snippet for custom shellHooks:
 #
 #   eval "$(prelude-preflight)"
 #
@@ -7,7 +6,8 @@
 # build-time paths, exactly like `prelude hook`. It decides what to do from the
 # shell it is evaluated in and delegates every project-specific fact — the MOTD
 # binary and PRELUDE_INIT_QUIET opt-out — to the init file `$PRELUDE_INIT`
-# names. Render requests do not exchange state between loaders.
+# names. Conventional nix-direnv consumers need only `use flake`; Prelude's
+# generated init recognizes direnv while the cached shellHook is evaluated.
 {writeShellApplication}: {
   # Prelude's generated shell runtime directory (shell-init.nix `runtime`),
   # which carries preflight.bash next to the hook snippets.
@@ -20,9 +20,9 @@ writeShellApplication {
       cat <<'EOF'
     usage: eval "$(prelude-preflight)"
 
-    Print the shell code that activates this project's Prelude environment.
-    Put it in .envrc (after `use flake`) or in a devshell shellHook; the
-    printed code decides what to do from the shell it is evaluated in.
+    Print shell code that activates this project's Prelude environment from a
+    custom shellHook. Conventional nix-direnv .envrc files need only
+    `use flake`.
     EOF
       exit 0
     fi

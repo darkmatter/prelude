@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify independent MOTD activation paths without exported coordination state.
+"""Verify loader-aware MOTD activation without duplicate renders.
 
 Two activation paths can run in one prompt-enabled `nix develop`: the consumer
 shellHook evaluates preflight, then Prelude's setup hook sources the same init.
@@ -11,15 +11,17 @@ Stage 1 emulates prompt-enabled `nix develop`: an interactive Bash evaluates
 preflight, skips the guarded setup-hook source, then evaluates preflight again.
 The two explicit invocations must each render, while the automatic source stays
 quiet.
-Stage 2 emulates direnv: a non-interactive shell with DIRENV_IN_ENVRC set evals
-the preflight snippet. It must render once without exporting private Prelude
-coordination variables.
+Stage 2 emulates nix-direnv: a non-interactive shell with DIRENV_IN_ENVRC set
+sources the init from the cached shellHook. It must render once without
+exporting private Prelude coordination variables.
 Stage 3 emulates the shell direnv hands off to: an interactive Bash on a PTY with
 that captured environment runs the `prelude hook` trampoline. It must render the
 banner once when the init loads, then stay quiet on the next ordinary prompt
 because the hook tracks the loaded PRELUDE_INIT path.
+Stage 4 emulates a prompt runtime attaching while init is still running. An
+already-installed trampoline must recognize that init and avoid a second render.
 
-usage: preflight-hook-pty-test.py BASH PRELUDE_INIT PREFLIGHT_SNIPPET HOOK PATH SENTINEL_TEXT
+usage: preflight-hook-pty-test.py BASH PRELUDE_INIT PREFLIGHT_SNIPPET HOOK PATH SENTINEL_TEXT RUNTIME_INIT
 """
 
 import errno
@@ -32,7 +34,9 @@ import struct
 import subprocess
 import sys
 import termios
+import tempfile
 import time
+from pathlib import Path
 
 
 def fail(message: str, output: bytes = b"") -> None:
@@ -130,15 +134,20 @@ fi
 
 def envrc_stage(
     bash: str,
-    snippet: str,
     init: str,
     env: dict[str, str],
     sentinel_text: str,
 ) -> dict[str, str]:
-    """Run the preflight snippet the way direnv runs .envrc; return its exports."""
+    """Run automatic direnv activation; return captured exports."""
     stage_env = dict(env, PRELUDE_INIT=init, DIRENV_IN_ENVRC="1")
     result = subprocess.run(
-        [bash, "--norc", "--noprofile", "-c", f'. "{snippet}"\nexec env -0'],
+        [
+            bash,
+            "--norc",
+            "--noprofile",
+            "-c",
+            f'. "{init}"\nexec env -0',
+        ],
         env=stage_env,
         capture_output=True,
         check=False,
@@ -186,16 +195,59 @@ def interactive_stage(bash: str, hook: str, init: str, env: dict[str, str]) -> b
         terminate(pid, master)
 
 
+def reentrant_init_stage(
+    bash: str,
+    runtime_init: str,
+    hook: str,
+    env: dict[str, str],
+    sentinel_text: str,
+) -> None:
+    """Ensure prompt attachment cannot source an init that is already running."""
+    with tempfile.TemporaryDirectory(prefix="prelude-reentrant-") as runtime:
+        runtime_path = Path(runtime)
+        (runtime_path / "catalogue.bash").write_text("", encoding="utf-8")
+        (runtime_path / "bash-init.bash").write_text(
+            '_prelude_init_show_motd\neval "${PROMPT_COMMAND-}"\n',
+            encoding="utf-8",
+        )
+        stage_env = dict(
+            env,
+            PRELUDE_INIT=runtime_init,
+            _PRELUDE_SHELL_RUNTIME=runtime,
+            _PRELUDE_PROMPT_ENABLED="1",
+            _PRELUDE_MOTD="motd",
+        )
+        result = subprocess.run(
+            [
+                bash,
+                "--norc",
+                "--noprofile",
+                "-i",
+                "-c",
+                f'. "{hook}"\n. "{runtime_init}"',
+            ],
+            env=stage_env,
+            capture_output=True,
+            check=False,
+        )
+    if result.returncode != 0:
+        fail("re-entrant init stage exited non-zero", result.stderr)
+    render_count = result.stderr.count(sentinel_text.encode())
+    if render_count != 1:
+        fail(
+            f"re-entrant prompt setup rendered {render_count} banners; expected one",
+            result.stderr,
+        )
 
 
 def main() -> None:
-    if len(sys.argv) != 7:
-        fail("usage: BASH PRELUDE_INIT SNIPPET HOOK PATH SENTINEL_TEXT")
-    bash, init, snippet, hook, command_path, sentinel_text = sys.argv[1:]
+    if len(sys.argv) != 8:
+        fail("usage: BASH PRELUDE_INIT SNIPPET HOOK PATH SENTINEL_TEXT RUNTIME_INIT")
+    bash, init, snippet, hook, command_path, sentinel_text, runtime_init = sys.argv[1:]
 
     env = base_env(command_path, os.path.join(os.environ.get("TMPDIR", "/tmp"), "preflight-home"))
     same_shell_stage(bash, snippet, init, env, sentinel_text)
-    exported = envrc_stage(bash, snippet, init, env, sentinel_text)
+    exported = envrc_stage(bash, init, env, sentinel_text)
     interactive = interactive_stage(bash, hook, init, exported)
     render_count = interactive.count(sentinel_text.encode())
     if render_count != 1:
@@ -203,6 +255,7 @@ def main() -> None:
             f"interactive hook rendered the MOTD {render_count} times; expected exactly once",
             interactive,
         )
+    reentrant_init_stage(bash, runtime_init, hook, env, sentinel_text)
 
 
 if __name__ == "__main__":

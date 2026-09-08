@@ -6,11 +6,11 @@ case "$-" in
   *i*) ;;
   *)
     # Non-interactive. Everything below this guard mutates an interactive shell,
-    # so the only work available here is the banner, and only when preflight
-    # explicitly asks for it. Direnv evaluates .envrc non-interactively with
-    # terminal-visible stderr; a bare non-interactive source, including lorri's
-    # shellHook run inside the Nix builder, stays silent.
-    [ "${_PRELUDE_PREFLIGHT_RENDER-0}" = 1 ] || return 0
+    # so the only work available here is the banner. nix-direnv evaluates the
+    # cached shellHook inside .envrc with terminal-visible stderr, so that
+    # context is itself a render request. A bare non-interactive source,
+    # including lorri's shellHook run inside the Nix builder, stays silent.
+    [ -n "${DIRENV_IN_ENVRC-}" ] || return 0
     ;;
 esac
 
@@ -23,13 +23,16 @@ _prelude_init_show_motd() {
   "$_PRELUDE_MOTD" >&2 || return 0
 }
 
-if [ "${_PRELUDE_PREFLIGHT_RENDER-0}" = 1 ]; then
-  # This shell is not the one the developer types into, so render only; install
-  # no prompt, completion, or shell hooks, and carry no render state forward.
-  _prelude_init_show_motd
-  unset -f _prelude_init_show_motd
-  return 0
-fi
+case "$-" in
+  *i*) ;;
+  *)
+    # This shell is not the one the developer types into, so render only;
+    # install no prompt, completion, or shell hooks.
+    _prelude_init_show_motd
+    unset -f _prelude_init_show_motd
+    return 0
+    ;;
+esac
 
 # Everything below mutates the shell irreversibly (ble.sh attaches, Starship
 # installs its hooks, completion registers). Those must happen at most once per
@@ -46,7 +49,13 @@ if [ -z "${_PRELUDE_INIT_DONE-}" ]; then
   elif [ -n "${BASH_VERSION-}" ]; then
     # shellcheck source=./catalogue.bash
     . "$_PRELUDE_SHELL_RUNTIME/catalogue.bash"
-    # bash-init.bash renders the MOTD itself, after ble.sh has attached.
+    # ble.sh's delayed attach runs PROMPT_COMMAND before bash-init returns. If a
+    # Prelude prompt trampoline is already installed, identify this init before
+    # that attach so the trampoline cannot re-enter it and render twice.
+    if [ -n "${PRELUDE_INIT-}" ]; then
+      _PRELUDE_INIT_LOADED=$PRELUDE_INIT
+    fi
+    # bash-init.bash renders the MOTD and then completes ble.sh's delayed attach.
     # shellcheck source=./bash-init.bash
     . "$_PRELUDE_SHELL_RUNTIME/bash-init.bash"
   elif [ -n "${ZSH_VERSION-}" ]; then

@@ -46,5 +46,6 @@ pkgs.mkShell {
     # whatever shell the user runs, and zsh rejects `%` in a variable name.
     # Shell-specific setup belongs in `prelude hook`, which runs where $SHELL
     # is actually meaningful.
+    eval "$(prelude hook $(basename $SHELL))"
   '';
 }

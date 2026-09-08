@@ -143,15 +143,10 @@ const defaultWizardConfigPath = "prelude.nix"
 
 const (
 	wizardEnvrcPath = ".envrc"
-	// prelude-preflight prints the activation code. direnv's .envrc is
-	// non-interactive, so the printed code asks the init to render the MOTD here
-	// rather than sourcing the interactive-only path. `has` keeps a devshell that
-	// predates the command (or has Prelude disabled) from failing the whole load.
-	wizardEnvrcContents = `use flake
-if has prelude-preflight; then
-  eval "$(prelude-preflight)"
-fi
-`
+	// Prelude's setup hook recognizes direnv's DIRENV_IN_ENVRC marker while
+	// nix-direnv evaluates the cached shellHook, so the conventional use-flake
+	// entrypoint loads the environment and renders the MOTD without extra glue.
+	wizardEnvrcContents = "use flake\n"
 )
 
 // runWizard drives the setup-wizard iteration of the chooser. The TUI renders

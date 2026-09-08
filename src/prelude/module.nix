@@ -470,7 +470,7 @@ in {
 
             Commands:
               hook           print the shell hook to add to your shell rc file
-              preflight      print the shell code to eval from .envrc or shellHook
+              preflight      print activation code for a custom shellHook
               wizard         generate a Prelude project configuration
               title          choose and render a MOTD title
               title-previews render every bundled title font
@@ -615,8 +615,8 @@ in {
       promptStatusPackages = lib.optional (promptStatusPkg != null) promptStatusPkg;
       preludeShellPkg = pkgs.symlinkJoin {
         name = "prelude-shell";
-        # preflight is unconditional: it is the line consumers put in .envrc or a
-        # shellHook, so it must resolve regardless of which components are on.
+        # preflight is unconditional so custom shellHooks can resolve it
+        # regardless of which components are enabled.
         paths =
           [
             preludeShellCli

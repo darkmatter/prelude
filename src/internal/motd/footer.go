@@ -14,8 +14,8 @@ import (
 // variant is active.
 type FooterView struct{ r renderer }
 
-// Render places status badges in generated-title layouts, optionally split
-// left/right with the async hint, followed by a centered links row.
+// Render places status badges in every title layout, optionally split left/right
+// with the async hint, followed by a centered links row.
 func (x FooterView) Render() string {
 	rows := x.statusRows()
 	if linkRow := x.linksRow(); linkRow != "" {
@@ -26,7 +26,7 @@ func (x FooterView) Render() string {
 
 // statusRows emits the status badges and optional async hint.
 func (x FooterView) statusRows() []string {
-	if x.r.model.Config.Title != "" && x.r.model.Config.Header.StatusHintLayout == "inline" {
+	if x.r.model.Config.Header.StatusHintLayout == "inline" {
 		if row := (StatusItems{r: x.r}).InlineHint(x.r.model.Status, x.r.contentWidth, false); row != "" {
 			return []string{ui.PlaceContentLine(
 				row,
@@ -39,10 +39,7 @@ func (x FooterView) statusRows() []string {
 		}
 	}
 
-	content := ""
-	if x.r.model.Config.Title != "" {
-		content = x.statusItems()
-	}
+	content := x.statusItems()
 	if content == "" {
 		return nil
 	}

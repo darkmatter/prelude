@@ -177,7 +177,7 @@ func newConfigData(r wizardResult, titlePath string) configData {
 	}
 	return configData{
 		Theme:        r.Theme,
-		ColorProfile: "auto",
+		ColorProfile: "truecolor",
 		Project:      r.Project,
 		TitlePath:    nixPath(titlePath),
 		Motd:         r.Motd,

@@ -54,10 +54,11 @@ prelude wizard
 
 That writes a **sidecar** `prelude.nix` and `title.txt` in the current
 directory — never `flake.nix` (refused if you pass `-o flake.nix`). The
-`.envrc` toggle is on by default and writes `use flake` plus
-`eval "$(prelude-preflight)"` to `.envrc` in the directory where the wizard runs.
-The generated entrypoint renders the MOTD after the flake environment loads,
-including when direnv enters the project after a `cd`. Turn it off to skip that file; an existing `.envrc` is kept unchanged.
+`.envrc` toggle is on by default and writes `use flake` to `.envrc` in the
+directory where the wizard runs. Prelude's generated shell init recognizes the
+direnv load and renders the MOTD after the flake environment becomes available,
+including when entering the project after a `cd`. Turn it off to skip that file;
+an existing `.envrc` is kept unchanged.
 
 Point `-o` at another config path to relocate the config and wordmark — the
 wordmark is always `title.txt` beside the config (e.g. `-o nix/prelude.nix` →

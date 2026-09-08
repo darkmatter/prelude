@@ -75,34 +75,26 @@ or devshell closure.
 Package-backed commands — `prelude.lib.fromPkg pkgs.foo { … }` — carry their
 runtime closure with them, so they work without adding the tool to the shell.
 
-`eval "$(prelude-preflight)"` activates the environment:
-`prelude-preflight` prints shell code, and that code decides what to do from the
-shell it is evaluated in — source `$PRELUDE_INIT` when interactive, and ask the
-init to render the MOTD when direnv is evaluating `.envrc`
-(`DIRENV_IN_ENVRC`). Any other non-interactive context — notably lorri's
-`shellHook`, which runs inside the Nix builder — stays silent rather than
-printing a banner into a build log. Activation paths carry no shared render
-state, so every explicit preflight or init invocation requests a banner. The
-prompt hook still avoids sourcing an unchanged `$PRELUDE_INIT` on every prompt.
-The wizard writes the `.envrc` invocation for you:
+Prelude's setup hook activates the environment through either standard loader.
+`nix develop` sources `$PRELUDE_INIT` in the interactive shell. nix-direnv
+evaluates the cached `shellHook` while direnv is loading `.envrc`, where
+`DIRENV_IN_ENVRC` tells the same init to render only the MOTD. Any other
+non-interactive context — notably lorri's `shellHook`, which runs inside the Nix
+builder — stays silent rather than printing a banner into a build log. The
+wizard therefore writes the conventional `.envrc` entrypoint:
 
 ```sh
 use flake
-if has prelude-preflight; then
-  eval "$(prelude-preflight)"
-fi
 ```
 
 lorri runs `shellHook` only inside the Nix builder — non-interactively, in the
 build directory — so its exported variables reach you but the MOTD never does.
-Route it through that same file with the direnv adapter: replace `use flake`
-with `eval "$(lorri export direnv-adapter)"`.
+For lorri, use its native prompt hook (`eval "$(lorri hook zsh)"` in rc) and
+append `prelude hook zsh` from inside the project. Do not `eval` that command:
+`prelude` is not on `PATH` when rc files initially run.
 
-Both paths live in the repository, so adding a developer never requires editing
-their shell rc. `prelude hook` exists only for people already running lorri's
-native prompt hook (`eval "$(lorri hook zsh)"` in rc): append `prelude hook zsh`
-from inside a project — do not `eval` it, because `prelude` is not on `PATH`
-when rc files run.
+The nix-direnv path lives entirely in the repository, so adding a developer
+requires no shell configuration beyond their existing direnv hook.
 
 Never `export -f` in a devshell `shellHook`. Bash stores an exported function
 as `BASH_FUNC_<name>%%`; loaders replay that into zsh, which rejects `%` in a

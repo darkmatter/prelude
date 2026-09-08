@@ -204,9 +204,9 @@ func TestWizardWalksEveryStepAndCollectsSelections(t *testing.T) {
 	}
 }
 
-func TestWizardEnvrcEvalsPreflight(t *testing.T) {
-	if !strings.Contains(wizardEnvrcContents, "\nif has prelude-preflight; then\n  eval \"$(prelude-preflight)\"\nfi\n") {
-		t.Fatalf("generated .envrc must eval prelude-preflight after use flake: %q", wizardEnvrcContents)
+func TestWizardEnvrcUsesConventionalFlakeLoader(t *testing.T) {
+	if wizardEnvrcContents != "use flake\n" {
+		t.Fatalf("generated .envrc = %q, want conventional use-flake entrypoint", wizardEnvrcContents)
 	}
 }
 
@@ -877,7 +877,7 @@ func TestRenderWizardConfigEmitsOptionsTemplate(t *testing.T) {
 		`default "prelude"`,
 		"# palette.fg = null;",
 		"# palette.accent = null;",
-		`colorProfile = "auto";`,
+		`colorProfile = "truecolor";`,
 		`project = "acme-web";`,
 		`default "acme"`,
 		"dev = {",

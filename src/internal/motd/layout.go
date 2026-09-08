@@ -5,7 +5,6 @@ import "prelude/pkg/ui"
 // Layout constants encode hard-coded column geometry — not configuration.
 const (
 	minimumCardWidth = 10
-	headerRightPad   = 2 // keep status off the header edge
 )
 
 // renderer is immutable render context for one MOTD pass. It carries the
