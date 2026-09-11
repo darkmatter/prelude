@@ -10,9 +10,10 @@ Prelude keeps docs next to where you run the project. `docs` explains this repo;
 
 <br />
 <div align="center">
-<img align="center" width="800" src="https://github.com/darkmatter/prelude/raw/main/docs/media/motd.png" />
+<img align="center" width="788" height="563" alt="22-motd" src="https://github.com/user-attachments/assets/3f3436e1-38c9-4006-a069-78d51e194840" />
 </div>
 <br />
+
 
 ## Quickstart (Setup Wizard)
 
