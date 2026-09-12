@@ -74,6 +74,7 @@
     Sleep 2s
     Type "build"
     Sleep 1500ms
+    Down 2
     Tab
     Sleep 2500ms
     Enter
