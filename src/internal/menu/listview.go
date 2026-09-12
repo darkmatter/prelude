@@ -76,6 +76,11 @@ func (l *ListView) Sync(flat []Task, matches []int, sel int, expanded bool, heig
 	if expanded {
 		targetH = max(targetH, len(lines))
 	}
+	// Viewport height padding is unstyled. Fill short lists with panel rows so
+	// the body background and side rails continue all the way to the footer.
+	for len(lines) < targetH {
+		lines = append(lines, frame.Blank())
+	}
 	l.height = targetH
 	l.viewport.SetHeight(max(targetH, 1))
 	l.viewport.SetWidth(max(l.inner+2, 1))
