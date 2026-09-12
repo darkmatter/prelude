@@ -25,7 +25,7 @@ nix run github:darkmatter/prelude -- wizard
 nix run github:darkmatter/prelude -- wizard -o nix/prelude.nix
 ```
 
-![demo](docs/recording.gif)
+![docs/recording.gif](https://github.com/darkmatter/prelude/blob/main/docs/recording.gif?raw=true)
 
 Import the generated sidecar — it never overwrites an existing `flake.nix`:
 
