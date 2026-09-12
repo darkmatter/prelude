@@ -14,7 +14,6 @@ Prelude keeps docs next to where you run the project. `docs` explains this repo;
 </div>
 <br />
 
-
 ## Quickstart (Setup Wizard)
 
 The wizard writes `prelude.nix`, a sibling `title.txt`, and a project-root `.envrc` (`use flake` plus preflight):
@@ -113,6 +112,8 @@ x check
 ```
 
 User-visible docs changes: `x sync-docs` (and `x record-docs` if media is stale).
+
+Render the README tour with `agg docs/recording.cast docs/recording.gif`. Preserve the cast's `term.theme` when replacing the recording so its terminal colors match Prelude instead of the renderer's fallback palette.
 
 ## License
 
