@@ -1,10 +1,13 @@
-# MOTD package builder. Nix resolves and validates configuration, then embeds a
-# normalized JSON file into the Go renderer at link time. Runtime terminal
-# layout, probes, Git state, and styling live in internal/motd — never in generated
-# shell source.
+# MOTD package builder. Nix resolves and validates configuration into a
+# normalized JSON file, and a thin wrapper hands that file to the Go renderer at
+# run time, as menu.nix does. Configuration never reaches the Go derivation, so
+# editing prelude.motd rebuilds a text file instead of recompiling Go. Runtime
+# terminal layout, probes, Git state, and styling live in internal/motd — never
+# in generated shell source.
 {
   lib,
   writeText,
+  writeShellApplication,
   buildGoModule,
   ...
 }:
@@ -240,6 +243,25 @@ config: let
         else m.maxWidth;
     }
   );
+
+  # Config-independent: the module's MOTD and every demo share this build.
+  renderer = buildGoModule {
+    pname = "motd";
+    version = "0.1.0";
+    src = import ./go-source.nix {inherit lib;};
+    subPackages = ["cmd/motd"];
+    # Banner layout is still in flux — don't block package builds on render tests.
+    doCheck = false;
+    vendorHash = "sha256-BHrU5pKVDuGDq0ZHbHKcUBa5olzHzfgoJXzv2IGXY4U=";
+    ldflags = [
+      "-s"
+      "-w"
+    ];
+    meta = {
+      description = "Devshell MOTD banner rendered in Go";
+      mainProgram = "motd";
+    };
+  };
 in
   assert lib.assertOneOf "motd align" m.align [
     "left"
@@ -287,21 +309,14 @@ in
   assert lib.assertMsg (
     m.maxWidth == null || builtins.isInt m.maxWidth
   ) "motd: maxWidth must be an integer or null";
-    buildGoModule {
-      pname = "motd";
-      version = "0.1.0";
-      src = ../.;
-      subPackages = ["cmd/motd"];
-      # Banner layout is still in flux — don't block package builds on render tests.
-      doCheck = false;
-      vendorHash = "sha256-BHrU5pKVDuGDq0ZHbHKcUBa5olzHzfgoJXzv2IGXY4U=";
-      ldflags = [
-        "-s"
-        "-w"
-        "-X main.defaultConfigPath=${configFile}"
-      ];
+    writeShellApplication {
+      name = "motd";
+      text = ''
+        exec ${lib.getExe renderer} --config ${configFile} "$@"
+      '';
+      passthru = {inherit configFile renderer;};
       meta = {
-        description = "Devshell MOTD banner rendered in Go";
+        inherit (renderer.meta) description;
         mainProgram = "motd";
       };
     }

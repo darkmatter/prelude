@@ -16,10 +16,8 @@ import (
 	"prelude/internal/menu"
 )
 
-// defaultConfigPath is injected by Nix at link time. Keeping configuration in
-// a data file preserves one Go renderer without reintroducing a shell wrapper.
-var defaultConfigPath string
-
+// Configuration arrives at run time (--config from the Nix wrappers), never at
+// link time, so one build serves every command catalogue.
 func main() {
-	menu.Run(defaultConfigPath)
+	menu.Run()
 }

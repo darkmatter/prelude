@@ -13,10 +13,8 @@ import (
 	"prelude/internal/portal"
 )
 
-// defaultConfigPath is injected by Nix at link time, matching cmd/menu: config
-// lives in a data file so one Go renderer serves every project.
-var defaultConfigPath string
-
+// Configuration arrives at run time (--config from the Nix wrappers), never at
+// link time, so one build serves every app catalogue.
 func main() {
-	portal.Run(defaultConfigPath)
+	portal.Run()
 }

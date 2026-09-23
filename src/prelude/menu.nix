@@ -106,7 +106,7 @@ config: let
   menuTui = buildGoModule {
     pname = "prelude-menu";
     version = "0.1.0";
-    src = ../.;
+    src = import ./go-source.nix {inherit lib;};
     subPackages = ["cmd/menu"];
     doCheck = false;
     vendorHash = "sha256-BHrU5pKVDuGDq0ZHbHKcUBa5olzHzfgoJXzv2IGXY4U=";
@@ -155,4 +155,5 @@ in
       # non-menu tools. Keeping the store path in passthru avoids teaching each
       # consumer how to reverse-engineer command wrappers or themes.
       passthru.configFile = configFile;
+      passthru.menuTui = menuTui;
     }

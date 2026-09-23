@@ -32,7 +32,7 @@
   titleChooser = buildGoModule {
     pname = "prelude-title";
     version = "0.1.0";
-    src = ../.;
+    src = import ./go-source.nix {inherit lib;};
     subPackages = ["cmd/title"];
     doCheck = false;
     vendorHash = "sha256-BHrU5pKVDuGDq0ZHbHKcUBa5olzHzfgoJXzv2IGXY4U=";

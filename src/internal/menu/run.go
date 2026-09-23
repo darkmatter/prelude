@@ -16,14 +16,10 @@ import (
 // debugLog is enabled via PRELUDE_MENU_DEBUG=<path> for TUI diagnostics.
 var debugLog bool
 
-// Run is the binary entry point. defaultConfigPath is injected by Nix at link
-// time via ldflags; it acts as the fallback when PRELUDE_MENU_CONFIG is unset.
-func Run(defaultConfigPath string) {
-	configPathDefault := os.Getenv("PRELUDE_MENU_CONFIG")
-	if configPathDefault == "" {
-		configPathDefault = defaultConfigPath
-	}
-	cfgPath := flag.String("config", configPathDefault, "path to the menu config JSON")
+// Run is the binary entry point. The Nix wrappers pass the config with
+// --config; PRELUDE_MENU_CONFIG supplies it when the binary runs unwrapped.
+func Run() {
+	cfgPath := flag.String("config", os.Getenv("PRELUDE_MENU_CONFIG"), "path to the menu config JSON")
 	xMode := flag.Bool("x", false, "dispatch using x command names")
 	xList := flag.Bool("list", false, "list x commands")
 	showHelp := flag.Bool("help", false, "print usage and exit")

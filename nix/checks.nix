@@ -151,6 +151,52 @@ in {
     '';
   consumer-template = evalConsumerShell ../templates/default/flake.nix;
   consumer-reference = evalConsumerShell ../examples/reference/flake.nix;
+  # Configuration reaches the Go binaries only through a run-time --config. A
+  # config path linked in with -ldflags -X would turn every option edit into a
+  # Go compile that nix-direnv waits on before the shell loads. Evaluation
+  # only: nothing here is built.
+  go-builds-config-independent = let
+    deps = {
+      inherit
+        (pkgs)
+        lib
+        writeText
+        writeShellApplication
+        symlinkJoin
+        runCommand
+        nixosOptionsDoc
+        figlet
+        ;
+      buildGoModule = pkgs.buildGo126Module;
+    };
+    mkMotd = import ../src/prelude/motd.nix deps;
+    mkDocs = import ../src/prelude/docs.nix deps;
+    mkMenu = import ../src/prelude/menu.nix deps;
+    mkPortal = import ../src/prelude/portal.nix deps;
+    mkPromptStatus = import ../src/prelude/prompt-status.nix deps;
+    pages = text: [{text = pkgs.writeText "prelude-config-independent.md" text;}];
+    promptStatus = check:
+      mkPromptStatus {
+        project = "fixture";
+        command = "dev";
+        inherit check;
+        ttl = "5m";
+        start = "x dev";
+      };
+    # Two configurations must yield different config artifacts, so the
+    # comparison is not vacuous, yet one shared Go derivation.
+    shareGoBuild = name: configured: goBuild: a: b:
+      lib.assertMsg (toString (configured a) != toString (configured b)) "${name}: fixture configurations must differ"
+      && lib.assertMsg ((goBuild a).drvPath == (goBuild b).drvPath) "${name}: a configuration edit reaches the Go derivation";
+  in
+    assert shareGoBuild "motd" (p: p.configFile) (p: p.renderer) (mkMotd {project = "alpha";}) (mkMotd {project = "beta";});
+    assert shareGoBuild "docs" (p: p.config) (p: p.viewer) (mkDocs {pages = pages "alpha";}) (mkDocs {pages = pages "beta";});
+    assert shareGoBuild "menu" (p: p.configFile) (p: p.menuTui) (mkMenu {project = "alpha";}) (mkMenu {project = "beta";});
+    assert shareGoBuild "portal" (p: p.configFile) (p: p.portalBin) (mkPortal {project = "alpha";}) (mkPortal {project = "beta";});
+    # No wrapper: status.bash passes the descriptor, so the package itself is
+    # the shared Go derivation.
+    assert shareGoBuild "prompt-status" (p: p.configFile) lib.id (promptStatus "true") (promptStatus "false");
+      pkgs.runCommand "go-builds-config-independent" {} ''touch "$out"'';
   # Building the module-produced packages runs shellcheck / go vet on the
   # generated artifacts.
   motd-default = config.packages.prelude-motd;
@@ -1157,6 +1203,7 @@ in {
           (pkgs)
           lib
           writeText
+          writeShellApplication
           buildGoModule
           runCommand
           nixosOptionsDoc
@@ -1245,6 +1292,7 @@ in {
           (pkgs)
           lib
           writeText
+          writeShellApplication
           runCommand
           nixosOptionsDoc
           figlet
@@ -1470,11 +1518,11 @@ in {
               export HOME="$TMPDIR/home"
               export XDG_CACHE_HOME="$TMPDIR/cache"
               mkdir -p "$HOME" "$XDG_CACHE_HOME"
-              cached="$(${lib.getExe statusPkg} --cached)"
+              cached="$(${lib.getExe statusPkg} --cached --config ${statusPkg.configFile})"
               test "$(printf '%s\n' "$cached" | awk -F '\t' '{ print NF }')" -eq 6
               printf '%s\n' "$cached" | grep -F 'checking'
               printf '%s\n' "$cached" | grep -F $'\tx dev\t'
-              refreshed="$(${lib.getExe statusPkg} --refresh)"
+              refreshed="$(${lib.getExe statusPkg} --refresh --config ${statusPkg.configFile})"
               test "$(printf '%s\n' "$refreshed" | awk -F '\t' '{ print NF }')" -eq 6
               printf '%s\n' "$refreshed" | grep -F 'healthy'
               printf '%s\n' "$refreshed" | grep -F $'\tx dev\t'
@@ -1789,6 +1837,7 @@ in {
           (pkgs)
           lib
           writeText
+          writeShellApplication
           buildGoModule
           runCommand
           nixosOptionsDoc
@@ -1857,6 +1906,7 @@ in {
           (pkgs)
           lib
           writeText
+          writeShellApplication
           buildGoModule
           runCommand
           nixosOptionsDoc
@@ -1944,6 +1994,7 @@ in {
           (pkgs)
           lib
           writeText
+          writeShellApplication
           buildGoModule
           runCommand
           nixosOptionsDoc
@@ -2012,6 +2063,7 @@ in {
           (pkgs)
           lib
           writeText
+          writeShellApplication
           buildGoModule
           runCommand
           nixosOptionsDoc
@@ -2083,6 +2135,7 @@ in {
           (pkgs)
           lib
           writeText
+          writeShellApplication
           buildGoModule
           runCommand
           nixosOptionsDoc

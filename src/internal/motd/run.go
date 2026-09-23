@@ -10,20 +10,16 @@ import (
 	"prelude/pkg/shared"
 )
 
-// Run is the binary entry point. defaultConfigPath is injected by Nix at link
-// time via ldflags; it acts as the fallback when PRELUDE_MOTD_CONFIG is unset.
+// Run is the binary entry point. The Nix wrapper passes the config with
+// --config; PRELUDE_MOTD_CONFIG supplies it when the binary runs unwrapped.
 //
 // Flow (E1): Preflight-if-needed → pure Render. Flags:
 //
 //	--preflight-only  write Cache only (blocking+async due, or --async subset)
 //	--async           with --preflight-only, only async status entries
 //	--pure            skip Preflight; Render from Config+Cache files only
-func Run(defaultConfigPath string) {
-	configPathDefault := os.Getenv("PRELUDE_MOTD_CONFIG")
-	if configPathDefault == "" {
-		configPathDefault = defaultConfigPath
-	}
-	configPath := flag.String("config", configPathDefault, "path to the MOTD config JSON")
+func Run() {
+	configPath := flag.String("config", os.Getenv("PRELUDE_MOTD_CONFIG"), "path to the MOTD config JSON")
 	preflightOnly := flag.Bool("preflight-only", false, "run Preflight and write Cache without painting")
 	asyncOnly := flag.Bool("async", false, "with --preflight-only, refresh only async status entries")
 	pure := flag.Bool("pure", false, "skip Preflight; render from Config and Cache only")

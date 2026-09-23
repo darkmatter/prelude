@@ -2,10 +2,13 @@
 # non-flake-parts users.
 #
 #   prelude.lib.mkMotd
-#     { inherit (pkgs) lib writeText; buildGoModule = pkgs.buildGo126Module; }
+#     {
+#       inherit (pkgs) lib writeText writeShellApplication;
+#       buildGoModule = pkgs.buildGo126Module;
+#     }
 #     { project = "acme-web"; commandCatalog.dev.exec = "pnpm dev"; }
 #
-# mkMenu additionally takes { writeShellApplication, symlinkJoin }.
+# mkMenu additionally takes { symlinkJoin }.
 {lib}: let
   internal = import ../src/prelude/lib.nix {inherit lib;};
 in {

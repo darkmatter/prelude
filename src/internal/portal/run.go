@@ -19,9 +19,9 @@ import (
 //
 // Two front ends over one core: the terminal view shows one environment per
 // app with a selector, the web view shows the whole grid at once.
-func Run(defaultConfigPath string) {
+func Run() {
 	args := os.Args[1:]
-	configPath := defaultConfigPath
+	configPath := ""
 	serve := false
 	listen := ""
 	list := false
