@@ -178,13 +178,23 @@
     ) {
       title = config.title // {text = builtins.readFile config.title.text;};
     };
+  # Config JSON carries store paths (package-backed commands, the fmt
+  # wrapper) whose hashes differ per system. CI re-records whatever it
+  # considers stale, so fingerprint the package names and keep every platform
+  # agreeing on which media are current.
+  withoutStoreHashes = text:
+    lib.concatMapStrings (part:
+      if builtins.isList part
+      then "${builtins.storeDir}/"
+      else part)
+    (builtins.split "${builtins.storeDir}/[0-9a-z]{32}-" (builtins.unsafeDiscardStringContext text));
   fingerprint = componentInput: tapeText: config:
     builtins.hashString "sha256" (
       builtins.concatStringsSep "\n" [
         sharedInput
         componentInput
         tapeText
-        (builtins.toJSON (fingerprintConfig config))
+        (withoutStoreHashes (builtins.toJSON (fingerprintConfig config)))
       ]
     );
 
