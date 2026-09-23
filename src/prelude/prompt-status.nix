@@ -2,8 +2,10 @@
 #
 # The descriptor is intentionally separate from both Starship and MOTD. The
 # executable has a pure cache-read mode for prompt rendering and a due-only
-# refresh mode that the shell can launch detached.
+# refresh mode that the shell can launch detached. status.bash passes the
+# descriptor with --config, so the executable stays config-independent.
 {
+  lib,
   writeText,
   buildGoModule,
   ...
@@ -21,14 +23,13 @@ in
   buildGoModule {
     pname = "prompt-status";
     version = "0.1.0";
-    src = ../.;
+    src = import ./go-source.nix {inherit lib;};
     subPackages = ["cmd/prompt-status"];
     doCheck = false;
     vendorHash = "sha256-BHrU5pKVDuGDq0ZHbHKcUBa5olzHzfgoJXzv2IGXY4U=";
     ldflags = [
       "-s"
       "-w"
-      "-X main.defaultDescriptorPath=${descriptor}"
     ];
     passthru.configFile = descriptor;
     meta = {

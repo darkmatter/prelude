@@ -12,14 +12,10 @@ import (
 	"prelude/internal/promptstatus"
 )
 
-var defaultDescriptorPath string
-
+// The shell passes the descriptor with --config, so one build serves every
+// local-server configuration.
 func main() {
-	defaultPath := os.Getenv("PRELUDE_PROMPT_STATUS_CONFIG")
-	if defaultPath == "" {
-		defaultPath = defaultDescriptorPath
-	}
-	configPath := flag.String("config", defaultPath, "path to the generated prompt-status descriptor")
+	configPath := flag.String("config", os.Getenv("PRELUDE_PROMPT_STATUS_CONFIG"), "path to the generated prompt-status descriptor")
 	cached := flag.Bool("cached", false, "read only the persisted health result")
 	refresh := flag.Bool("refresh", false, "refresh the result only when it is due")
 	flag.Parse()

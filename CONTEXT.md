@@ -72,6 +72,6 @@ Also: `PRELUDE_MOTD_PURE=1`.
 
 ## Relationships
 
-- **Nix → Config**: `motd.nix` / flake module embed JSON; Go does not re-default policy owned by Nix except live TTLs.
+- **Nix → Config**: `motd.nix` / flake module generate JSON that a thin wrapper passes to the Go binary at run time, so Config edits never recompile Go; Go does not re-default policy owned by Nix except live TTLs.
 - **Preflight → Cache → Render**: only direction for live facts; Render never calls Runtime.
 - **Menu / Docs**: own Config JSON; no MOTD Cache (unless a future design unifies).

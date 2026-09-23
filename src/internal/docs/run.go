@@ -11,14 +11,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// Run is the binary entry point. defaultConfigPath is injected by Nix at link
-// time via ldflags; it acts as the fallback when PRELUDE_DOCS_CONFIG is unset.
-func Run(defaultConfigPath string) {
-	configPathDefault := os.Getenv("PRELUDE_DOCS_CONFIG")
-	if configPathDefault == "" {
-		configPathDefault = defaultConfigPath
-	}
-	configPath := flag.String("config", configPathDefault, "path to the docs config JSON")
+// Run is the binary entry point. The Nix wrapper passes the config with
+// --config; PRELUDE_DOCS_CONFIG supplies it when the binary runs unwrapped.
+func Run() {
+	configPath := flag.String("config", os.Getenv("PRELUDE_DOCS_CONFIG"), "path to the docs config JSON")
 	flag.Parse()
 
 	cfg, err := loadConfig(*configPath)

@@ -145,7 +145,7 @@ in {
             i=0
             while :; do
               printf '\033[2J\033[H'
-              PRELUDE_MOTD_CONFIG="" "''${commands[i]}" || true
+              "''${commands[i]}" || true
               printf '\n\033[2mtheme %s · %d/%d · ← → change · q quit\033[0m\n' \
                 "''${themes[i]}" "$((i + 1))" "$n"
               IFS= read -rsn1 key || break
@@ -171,7 +171,7 @@ in {
             while [ "$i" -lt "$n" ]; do
               printf '\n\033[1m── theme %s\033[0m  (%d/%d)\n\n' \
                 "''${themes[i]}" "$((i + 1))" "$n"
-              PRELUDE_MOTD_CONFIG="" "''${commands[i]}"
+              "''${commands[i]}"
               i=$((i + 1))
             done
           fi

@@ -74,14 +74,13 @@ config: let
   portalBin = buildGoModule {
     pname = "prelude-portal";
     version = "0.1.0";
-    src = ../.;
+    src = import ./go-source.nix {inherit lib;};
     subPackages = ["cmd/portal"];
     doCheck = false;
     vendorHash = "sha256-BHrU5pKVDuGDq0ZHbHKcUBa5olzHzfgoJXzv2IGXY4U=";
     ldflags = [
       "-s"
       "-w"
-      "-X main.defaultConfigPath=${configFile}"
     ];
     meta = {
       description = "App launcher with live health lights (terminal + web)";

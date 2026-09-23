@@ -1,8 +1,11 @@
 # Docs package: nav tree → directory bundle → Go viewer.
 # Generated options use pkgs.nixosOptionsDoc; option records never enter JSON.
+# A thin wrapper hands the bundle to the viewer at run time, so editing a page
+# rebuilds the bundle instead of recompiling Go.
 {
   lib,
   writeText,
+  writeShellApplication,
   buildGoModule,
   runCommand,
   nixosOptionsDoc,
@@ -443,6 +446,24 @@ config: let
     cp ${metaFile} "$out/config.json"
     ${lib.optionalString (heroText != "") "cp ${heroDrv} \"$out/hero.txt\""}
   '';
+
+  # Config-independent: every docs configuration shares this build.
+  viewer = buildGoModule {
+    pname = "docs";
+    version = "0.1.0";
+    src = import ./go-source.nix {inherit lib;};
+    subPackages = ["cmd/docs"];
+    doCheck = false;
+    vendorHash = "sha256-BHrU5pKVDuGDq0ZHbHKcUBa5olzHzfgoJXzv2IGXY4U=";
+    ldflags = [
+      "-s"
+      "-w"
+    ];
+    meta = {
+      description = "Markdown project docs viewer";
+      mainProgram = "docs";
+    };
+  };
 in
   assert lib.assertMsg (pages != []) "docs: no pages configured — set prelude.docs.pages";
   assert lib.assertOneOf "docs colorProfile" colorProfile [
@@ -450,27 +471,17 @@ in
     "truecolor"
     "ansi256"
   ];
-    buildGoModule {
-      pname = "docs";
-      version = "0.1.0";
-      src = ../.;
-      subPackages = ["cmd/docs"];
-      doCheck = false;
-      vendorHash = "sha256-BHrU5pKVDuGDq0ZHbHKcUBa5olzHzfgoJXzv2IGXY4U=";
-      ldflags = [
-        "-s"
-        "-w"
-        "-X main.defaultConfigPath=${configBundle}/config.json"
-      ];
+    writeShellApplication {
+      name = "docs";
+      text = ''
+        exec ${lib.getExe viewer} --config ${configBundle}/config.json "$@"
+      '';
       passthru = {
         config = configBundle;
+        inherit viewer;
       };
-      # Keep configBundle in the Go drv graph even if ldflags only stringifies it.
-      postConfigure = ''
-        test -f ${configBundle}/config.json
-      '';
       meta = {
-        description = "Markdown project docs viewer";
+        inherit (viewer.meta) description;
         mainProgram = "docs";
       };
     }

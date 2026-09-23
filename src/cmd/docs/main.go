@@ -12,10 +12,8 @@ import (
 	"prelude/internal/docs"
 )
 
-// defaultConfigPath is injected by Nix at link time. Keeping configuration in
-// a data file preserves one Go renderer without reintroducing a shell wrapper.
-var defaultConfigPath string
-
+// Configuration arrives at run time (--config from the Nix wrapper), never at
+// link time, so editing a page does not recompile the viewer.
 func main() {
-	docs.Run(defaultConfigPath)
+	docs.Run()
 }
