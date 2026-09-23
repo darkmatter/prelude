@@ -15,11 +15,35 @@
   motdDemos = import ./motd-demo-builder.nix {
     inherit pkgs lib currentMotdConfig;
   };
+  # The showcase records this repo's own MOTD, but its footer must not report
+  # the recording machine's MOTD Cache or whether this repo's checks pass right
+  # now. Live checks become `true`, and the tape seeds a private Cache before
+  # the visible run, so every recording reads "just now".
+  recordedMotdConfig =
+    currentMotdConfig
+    // {
+      header =
+        currentMotdConfig.header
+        // {
+          status =
+            lib.mapAttrs (
+              _: status:
+                if (status.check or null) == null
+                then status
+                else status // {check = "true";}
+            )
+            currentMotdConfig.header.status;
+        };
+    };
+  recordedMotdDemos = import ./motd-demo-builder.nix {
+    inherit pkgs lib;
+    currentMotdConfig = recordedMotdConfig;
+  };
   menuDemo = import ./menu-demo-builder.nix {
     inherit pkgs lib currentMenuConfig;
   };
 
-  motdProgram = lib.getExe motdDemos.examplePackages.example-motd;
+  motdProgram = lib.getExe recordedMotdDemos.examplePackages.example-motd;
   menuProgram = lib.getExe menuDemo.package;
   minimalProgram = lib.getExe motdDemos.examplePackages.example-minimal;
   surfaceProgram = lib.getExe motdDemos.examplePackages.example-surface;
@@ -45,6 +69,8 @@
 
     Hide
     Type "export PS1=; clear"
+    Enter
+    Type@5ms "export HOME=$PWD/docs/.record-bin/home XDG_CACHE_HOME=$PWD/docs/.record-bin/cache; ./docs/.record-bin/example-motd --preflight-only --async"
     Enter
     Type "tput civis; clear; ./docs/.record-bin/example-motd"
     Enter
@@ -167,7 +193,7 @@
     (builtins.readFile ../src/prelude/motd.nix)
     (readTree ../src/internal/motd)
   ];
-  motdFingerprint = fingerprint motdComponentInput motdTapeText currentMotdConfig;
+  motdFingerprint = fingerprint motdComponentInput motdTapeText recordedMotdConfig;
   minimalFingerprint = fingerprint motdComponentInput minimalTapeText ex.motdDemos.minimal;
   surfaceFingerprint = fingerprint motdComponentInput surfaceTapeText ex.motdDemos.surface;
   menuFingerprint =
