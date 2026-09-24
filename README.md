@@ -40,7 +40,7 @@ The generated file lists every option as a commented default. Put clone-to-runni
 
 ### Command picker
 
-![menu](docs/media/shots/menu.png)
+![menu](docs/media/menu.gif)
 
 ```
 x                 # open the interactive picker
