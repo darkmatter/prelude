@@ -1,15 +1,9 @@
 # Runnable feature demos for the prelude components.
 #
-# Motd demos become packages/apps named `example-<name>`:
-#
-#   nix run .#example-minimal
-#
 # `nix run .#example-motd` and `nix run .#example-menu` render the prelude
 # repo's own dogfood config; `nix run .#example-default` previews stock wizard
 # presets; `nix run .#example-themes` pages the current MOTD through every
-# theme. The `minimal` and `surface` demos below exercise specific rendering
-# features (explicit styling, bounded cards) independent of any repo config.
-# Render everything:
+# theme. Render everything:
 #
 #   nix run .#examples
 #
@@ -187,54 +181,10 @@ let
       "ops"
     ];
   };
-
-  # --- motd feature demos --------------------------------------------------------
-
-  motdDemos = {
-    # Standalone header + description, no commands/env/shortcuts.
-    minimal = {
-      project = "minimal";
-      header.tagline.text = "just a header and a description";
-      clearScreen = false;
-      margin.top = 0;
-      align = "left";
-      description = {
-        text = "Explicit styling beats the theme — this line is italic with a custom color.";
-        foreground = "#8be9fd";
-        italic = true;
-      };
-    };
-
-    # Bounded opaque card + header status.
-    surface = {
-      project = "surface";
-      header = {
-        tagline.text = "the card stays visually bounded within the terminal";
-        status = {
-          api = {
-            order = 100;
-            label = "api";
-            status = "ready";
-          };
-          db = {
-            order = 200;
-            label = "db";
-            status = "ready";
-          };
-        };
-      };
-      clearScreen = false;
-      margin.top = 1;
-      margin.bottom = 1;
-      background = true;
-      description.text = "Only the bounded card paints a background; surrounding cells stay terminal-transparent.";
-    };
-  };
 in {
   inherit
     commands
     motd
     menu
-    motdDemos
     ;
 }

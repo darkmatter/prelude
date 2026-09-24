@@ -7,14 +7,9 @@
   config,
   ...
 }: let
-  ex = import ../src/prelude/examples.nix;
-
   currentMotdConfig = config.packages.prelude-motd.motdRenderConfig;
   currentMenuConfig = config.packages.prelude-menu.menuRenderConfig;
 
-  motdDemos = import ./motd-demo-builder.nix {
-    inherit pkgs lib currentMotdConfig;
-  };
   # The showcase records this repo's own MOTD, but its footer must not report
   # the recording machine's MOTD Cache or whether this repo's checks pass right
   # now. Live checks become `true`, and the tape seeds a private Cache before
@@ -45,8 +40,6 @@
 
   motdProgram = lib.getExe recordedMotdDemos.examplePackages.example-motd;
   menuProgram = lib.getExe menuDemo.package;
-  minimalProgram = lib.getExe motdDemos.examplePackages.example-minimal;
-  surfaceProgram = lib.getExe motdDemos.examplePackages.example-surface;
 
   vhsVisualSettings = ''
     Set FontFamily "MonaspiceNe Nerd Font Mono"
@@ -111,32 +104,8 @@
     Sleep 2s
   '';
 
-  mkStillTapeText = name: width: height: ''
-    Output docs/media/.${name}.gif
-
-    Set Shell "bash"
-    ${vhsVisualSettings}
-    Set Width ${toString width}
-    Set Height ${toString height}
-    Set Padding 12
-    Set Framerate 20
-
-    Hide
-    Type "export PS1=; clear"
-    Enter
-    Type "tput civis; clear; ./docs/.record-bin/example-${name}"
-    Enter
-    Sleep 400ms
-    Show
-    Sleep 2s
-  '';
-  minimalTapeText = mkStillTapeText "minimal" 1000 440;
-  surfaceTapeText = mkStillTapeText "surface" 1100 560;
-
   motdTape = pkgs.writeText "prelude-motd.tape" motdTapeText;
   menuTape = pkgs.writeText "prelude-menu.tape" menuTapeText;
-  minimalTape = pkgs.writeText "prelude-minimal.tape" minimalTapeText;
-  surfaceTape = pkgs.writeText "prelude-surface.tape" surfaceTapeText;
 
   # Keep fingerprints independent of host-specific store paths. Reading file
   # names and contents also avoids making the manifest depend on the dirty
@@ -204,8 +173,6 @@
     (readTree ../src/internal/motd)
   ];
   motdFingerprint = fingerprint motdComponentInput motdTapeText recordedMotdConfig;
-  minimalFingerprint = fingerprint motdComponentInput minimalTapeText ex.motdDemos.minimal;
-  surfaceFingerprint = fingerprint motdComponentInput surfaceTapeText ex.motdDemos.surface;
   menuFingerprint =
     fingerprint (builtins.concatStringsSep "\n" [
       (builtins.readFile ./menu-demo-builder.nix)
@@ -231,14 +198,6 @@
           "menu.gif"
           "menu.png"
         ];
-      };
-      minimal = {
-        fingerprint = minimalFingerprint;
-        outputs = ["minimal.png"];
-      };
-      surface = {
-        fingerprint = surfaceFingerprint;
-        outputs = ["surface.png"];
       };
     };
   };
@@ -427,31 +386,6 @@
 
     </details>
 
-    ### Explicit description styling
-
-    `prelude.motd.description.foreground` and `.italic` override the active
-    theme for one description, while `prelude.motd.align = "left"` keeps the
-    compact banner anchored to the terminal edge.
-
-    ![Minimal MOTD with explicit description styling](../media/minimal.png)
-
-    ```nix
-    prelude = ${lib.generators.toPretty {} (motdModuleConfig ex.motdDemos.minimal)};
-    ```
-
-    ### Bounded opaque card
-
-    An opaque `prelude.motd.background` paints only the card. Margins, gutters,
-    cleared rows, and the surrounding terminal remain transparent. The card
-    uses all width available inside its configured margins; static keyed
-    statuses appear in the header without running environment probes.
-
-    ![MOTD with a bounded opaque background](../media/surface.png)
-
-    ```nix
-    prelude = ${lib.generators.toPretty {} (motdModuleConfig ex.motdDemos.surface)};
-    ```
-
     ## Interactive command menu
 
     The menu demonstrates live filtering, command details, argument suggestion
@@ -487,18 +421,6 @@
     ../src/prelude/options/prompt.nix
   ];
   evaluatedOptions = lib.evalModules {modules = optionModules;};
-  validatedMotdConfigs =
-    map
-    (
-      config:
-        (lib.evalModules {
-          modules = optionModules ++ [{prelude = motdModuleConfig config;}];
-        }).config.prelude.motd
-    )
-    [
-      ex.motdDemos.minimal
-      ex.motdDemos.surface
-    ];
   optionsDoc = pkgs.nixosOptionsDoc {
     options = {
       inherit (evaluatedOptions.options) prelude;
@@ -554,31 +476,12 @@
       trap 'rm -rf docs/.record-bin' EXIT
       ln -s ${motdProgram} docs/.record-bin/example-motd
       ln -s ${menuProgram} docs/.record-bin/example-menu
-      ln -s ${minimalProgram} docs/.record-bin/example-minimal
-      ln -s ${surfaceProgram} docs/.record-bin/example-surface
 
       current_fingerprint() {
         local name=$1
         if [ -f docs/media/manifest.json ]; then
           jq -r --arg name "$name" '.recordings[$name].fingerprint // ""' \
             docs/media/manifest.json 2>/dev/null || true
-        fi
-      }
-
-      record_still() {
-        local name=$1
-        local expected=$2
-        local tape=$3
-        local current
-        current=$(current_fingerprint "$name")
-        if [ "$current" != "$expected" ] || [ ! -s "docs/media/$name.png" ]; then
-          echo "recording $name option showcase"
-          vhs --quiet "$tape"
-          ffmpeg -y -v error -sseof -0.5 -i "docs/media/.$name.gif" \
-            -frames:v 1 "docs/media/$name.png"
-          rm -f "docs/media/.$name.gif"
-        else
-          echo "$name option showcase is current"
         fi
       }
 
@@ -596,9 +499,6 @@
       else
         echo 'motd showcase is current'
       fi
-
-      record_still minimal ${minimalFingerprint} ${minimalTape}
-      record_still surface ${surfaceFingerprint} ${surfaceTape}
 
       menu_current=$(current_fingerprint menu)
       if [ "$menu_current" != "${menuFingerprint}" ] \
@@ -620,25 +520,24 @@
     '';
   };
 
-  docsFresh = assert builtins.deepSeq validatedMotdConfigs true;
-    pkgs.runCommand "docs-generated-fresh" {} ''
-      failed=0
-      compare() {
-        expected=$1
-        actual=$2
-        if [ ! -f "$actual" ] || ! cmp -s "$expected" "$actual"; then
-          echo "stale generated documentation: $actual" >&2
-          failed=1
-        fi
-      }
-      compare ${gallery} ${../.}/docs/generated/showcases.md
-      compare ${optionsReference} ${../.}/docs/reference/options.md
-      if [ "$failed" -ne 0 ]; then
-        echo 'run: nix run .#docs-sync' >&2
-        exit 1
+  docsFresh = pkgs.runCommand "docs-generated-fresh" {} ''
+    failed=0
+    compare() {
+      expected=$1
+      actual=$2
+      if [ ! -f "$actual" ] || ! cmp -s "$expected" "$actual"; then
+        echo "stale generated documentation: $actual" >&2
+        failed=1
       fi
-      touch "$out"
-    '';
+    }
+    compare ${gallery} ${../.}/docs/generated/showcases.md
+    compare ${optionsReference} ${../.}/docs/reference/options.md
+    if [ "$failed" -ne 0 ]; then
+      echo 'run: nix run .#docs-sync' >&2
+      exit 1
+    fi
+    touch "$out"
+  '';
 
   mediaFresh = pkgs.runCommand "docs-media-fresh" {} ''
     failed=0
@@ -647,7 +546,7 @@
       echo 'documentation media fingerprints are stale' >&2
       failed=1
     fi
-    for artifact in motd.gif motd.png menu.gif menu.png minimal.png surface.png; do
+    for artifact in motd.gif motd.png menu.gif menu.png; do
       if [ ! -s "${../.}/docs/media/$artifact" ]; then
         echo "missing documentation media: docs/media/$artifact" >&2
         failed=1
