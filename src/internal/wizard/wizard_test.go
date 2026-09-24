@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"strings"
@@ -84,6 +85,13 @@ func TestWizardWalksEveryStepAndCollectsSelections(t *testing.T) {
 	// Project: auto-filled from the title text.
 	if m.step != stepProject || m.projectInput.Value() != "acme" {
 		t.Fatalf("after font: step=%d project=%q", m.step, m.projectInput.Value())
+	}
+	m = enter(t, m)
+
+	// Without a Justfile, the command-source question defaults to entering
+	// commands here.
+	if m.step != stepCommandSource || m.useJustfile {
+		t.Fatalf("step = %d useJustfile = %v, want command source defaulting to entry", m.step, m.useJustfile)
 	}
 	m = enter(t, m)
 
@@ -263,7 +271,7 @@ func TestWizardThemeBackgroundToggleAffectsOnlyViewer(t *testing.T) {
 
 func TestWizardMOTDStyleStepsCollectSelectionsAndPreview(t *testing.T) {
 	m := testWizard()
-	for range 3 {
+	for range 4 {
 		m = enter(t, m)
 	}
 	if m.step != stepCommands {
@@ -349,8 +357,8 @@ func TestWizardSkipsMOTDStepsWhenDisabled(t *testing.T) {
 		t.Fatalf("step = %d, want components after commands", m.step)
 	}
 	current, total := m.stepProgress()
-	if current != 5 || total != 7 {
-		t.Fatalf("progress = %d/%d, want 5/7", current, total)
+	if current != 6 || total != 8 {
+		t.Fatalf("progress = %d/%d, want 6/8", current, total)
 	}
 	m = enter(t, m)
 	if m.step != stepTheme {
@@ -1335,5 +1343,89 @@ func TestWriteExampleFixture(t *testing.T) {
 	path := "../../../nix/internal/example.nix"
 	if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestWizardJustfileSkipsCommandsStep(t *testing.T) {
+	m := testWizard().withDetectedJustfile("Justfile")
+	m.commands = []wizardCommand{{Name: "dev"}} // typed before choosing the Justfile
+	m.step = stepCommandSource
+	if !m.useJustfile {
+		t.Fatal("a detected Justfile should be preselected as the command source")
+	}
+	if view := m.View().Content; !strings.Contains(view, "found ./Justfile") {
+		t.Fatalf("command source view does not name the Justfile:\n%s", view)
+	}
+	m = enter(t, m)
+	if m.step != stepComponents {
+		t.Fatalf("step = %d, want components straight after the Justfile choice", m.step)
+	}
+	if current, total := m.stepProgress(); current != 5 || total != 11 {
+		t.Fatalf("progress = %d/%d, want 5/11 without the commands step", current, total)
+	}
+	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	if m.step != stepCommandSource {
+		t.Fatalf("step = %d, want esc from components to return to the command source", m.step)
+	}
+
+	result := m.result()
+	if !result.Just || result.Commands != nil {
+		t.Fatalf("result Just = %v Commands = %v, want Justfile import and no typed commands", result.Just, result.Commands)
+	}
+	config := renderWizardConfig(result, "title.txt")
+	for _, want := range []string{"just.enable = true;", "Commands come from the Justfile", "commands = { };"} {
+		if !strings.Contains(config, want) {
+			t.Fatalf("generated config missing %q:\n%s", want, config)
+		}
+	}
+}
+
+func TestWizardCommandSourceTogglesToManualEntry(t *testing.T) {
+	m := testWizard().withDetectedJustfile("justfile")
+	m.step = stepCommandSource
+	m = letter(t, m, 'j')
+	if m.useJustfile {
+		t.Fatal("j should switch the command source to manual entry")
+	}
+	m = enter(t, m)
+	if m.step != stepCommands || m.commandPhase != commandList {
+		t.Fatalf("step = %d, want the commands list after choosing manual entry", m.step)
+	}
+	if config := renderWizardConfig(m.result(), "title.txt"); !strings.Contains(config, "just.enable = false;") {
+		t.Fatalf("manual entry should keep menu.just off:\n%s", config)
+	}
+}
+
+func TestDetectJustfile(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		file string
+		dir  bool
+		want string
+	}{
+		{name: "lowercase", file: "justfile", want: "justfile"},
+		{name: "capitalized", file: "Justfile", want: "Justfile"},
+		{name: "hidden", file: ".justfile", want: ".justfile"},
+		{name: "directory is not a Justfile", file: "justfile", dir: true, want: ""},
+		{name: "none", want: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if tc.file != "" {
+				path := filepath.Join(dir, tc.file)
+				var err error
+				if tc.dir {
+					err = os.Mkdir(path, 0o755)
+				} else {
+					err = os.WriteFile(path, []byte("dev:\n  echo dev\n"), 0o644)
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if got := detectJustfile(dir); got != tc.want {
+				t.Fatalf("detectJustfile = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }

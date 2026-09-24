@@ -29,6 +29,7 @@ type configData struct {
 	MotdStyle     motdStyle
 	MotdContent   motdContentData
 	Menu          bool
+	Just          bool // import Justfile recipes into the menu (menu.just)
 	Prompt        bool
 	Docs          bool
 	Commands      []commandData
@@ -190,6 +191,7 @@ func newConfigData(r wizardResult, titlePath string) configData {
 			DevServerHealthCheck: motdDevServerHealthCommand(devServerHealthURL),
 		},
 		Menu:          r.Menu,
+		Just:          r.Just,
 		Prompt:        r.Prompt,
 		Docs:          r.Docs,
 		Commands:      commands,

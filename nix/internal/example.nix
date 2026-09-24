@@ -207,6 +207,9 @@
     # Interactive command picker (bubbletea TUI).
     menu = {
       enable = true;
+      just.enable = false; # import Justfile recipes into the menu at runtime
+      # just.justfile = null;  # Justfile path; null uses just's own discovery
+      # just.group = "just";  # menu group for imported recipes
       # placeholder = "type to filter commands…";  # filter input hint
       # height = 20;  # filter list height in rows
       # execute = true;  # false prints the selected command instead of running it

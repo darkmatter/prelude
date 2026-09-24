@@ -23,6 +23,7 @@ const (
 	stepTitle wizardStep = iota
 	stepFont
 	stepProject
+	stepCommandSource
 	stepCommands
 	stepComponents
 	stepMotdContent
@@ -111,6 +112,12 @@ type wizardModel struct {
 	motdBorder             bool
 	motdClearScreen        bool
 
+	// justfile names the Justfile found in the wizard's working directory
+	// ("" when none). useJustfile chooses it as the command source, which
+	// skips the commands step and imports its recipes into the menu instead.
+	justfile    string
+	useJustfile bool
+
 	commands       []wizardCommand
 	commandPhase   commandEntryPhase
 	commandCursor  int
@@ -136,6 +143,7 @@ type wizardResult struct {
 	Prompt         bool
 	Docs           bool
 	Envrc          bool
+	Just           bool
 	Commands       []wizardCommand
 	MotdContent    wizardMotdContent
 	MotdContentSet bool
@@ -246,6 +254,8 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateFont(msg)
 		case stepProject:
 			return m.updateProject(msg)
+		case stepCommandSource:
+			return m.updateCommandSource(msg)
 		case stepTheme:
 			return m.updateTheme(msg)
 		case stepComponents:
@@ -360,8 +370,7 @@ func (m wizardModel) updateProject(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		m.motdDefaultProject = project
 		m.projectInput.Blur()
-		m.step = stepCommands
-		m.commandPhase = commandList
+		m.step = stepCommandSource
 		return m, nil
 	case "esc":
 		m.projectInput.Blur()
@@ -421,8 +430,7 @@ func (m wizardModel) updateComponents(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) 
 			m.beginMotdContent()
 		}
 	case "esc", "backspace":
-		m.step = stepCommands
-		m.commandPhase = commandList
+		m = m.backFromComponents()
 	case "q":
 		m.canceled = true
 		return m, tea.Quit
@@ -442,6 +450,50 @@ func (m wizardModel) updateConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 	return m, nil
+}
+
+// withDetectedJustfile records the Justfile found in the project directory and
+// preselects it as the command source, so a project that already keeps its
+// tasks there skips entering them again.
+func (m wizardModel) withDetectedJustfile(name string) wizardModel {
+	m.justfile = name
+	m.useJustfile = name != ""
+	return m
+}
+
+// updateCommandSource asks where project commands live: imported from a
+// Justfile at runtime (menu.just), or entered in the following commands step.
+func (m wizardModel) updateCommandSource(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "up", "down", "k", "j", "tab", "shift+tab", "space":
+		m.useJustfile = !m.useJustfile
+	case "enter":
+		if m.useJustfile {
+			m.step = stepComponents
+		} else {
+			m.step = stepCommands
+			m.commandPhase = commandList
+		}
+	case "esc", "backspace":
+		m.step = stepProject
+		m.projectInput.Focus()
+		m.projectInput.CursorEnd()
+	case "q":
+		m.canceled = true
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
+// backFromComponents returns to whichever step supplied the commands.
+func (m wizardModel) backFromComponents() wizardModel {
+	if m.useJustfile {
+		m.step = stepCommandSource
+		return m
+	}
+	m.step = stepCommands
+	m.commandPhase = commandList
+	return m
 }
 
 // updateCommands drives the commands step: a browsable list plus a
@@ -472,9 +524,7 @@ func (m wizardModel) updateCommands(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case "enter":
 			m.step = stepComponents
 		case "esc", "backspace":
-			m.step = stepProject
-			m.projectInput.Focus()
-			m.projectInput.CursorEnd()
+			m.step = stepCommandSource
 		case "q":
 			m.canceled = true
 			return m, tea.Quit
@@ -622,7 +672,8 @@ func (m wizardModel) result() wizardResult {
 		Prompt:         m.components[componentPrompt],
 		Docs:           m.components[componentDocs],
 		Envrc:          m.components[componentEnvrc],
-		Commands:       m.commands,
+		Just:           m.useJustfile,
+		Commands:       m.selectedCommands(),
 		MotdContent:    m.motdContent,
 		MotdContentSet: true,
 		MotdStyle:      m.selectedMotdStyle(),
@@ -700,6 +751,14 @@ func (m wizardModel) View() tea.View {
 			rows,
 			m.err,
 			"j/k move  ·  space toggle  ·  enter continue  ·  esc back",
+		)
+	case stepCommandSource:
+		body = s.listBody(
+			"Where do your commands live?",
+			"A Justfile skips entering commands here.  ·  "+step,
+			m.commandSourceRows(s),
+			m.err,
+			"j/k choose  ·  enter continue  ·  esc back",
 		)
 	case stepCommands:
 		body = m.commandsBody(s, step)
@@ -976,13 +1035,11 @@ func (m wizardModel) commandsBody(s formStyles, step string) string {
 }
 
 func (m wizardModel) stepProgress() (int, int) {
-	steps := []wizardStep{
-		stepTitle,
-		stepFont,
-		stepProject,
-		stepCommands,
-		stepComponents,
+	steps := []wizardStep{stepTitle, stepFont, stepProject, stepCommandSource}
+	if !m.useJustfile {
+		steps = append(steps, stepCommands)
 	}
+	steps = append(steps, stepComponents)
 	if m.components[componentMotd] {
 		steps = append(steps, stepMotdContent, stepMotdSurface, stepMotdSpacing, stepMotdLayout)
 	}
@@ -993,6 +1050,28 @@ func (m wizardModel) stepProgress() (int, int) {
 		}
 	}
 	return 1, len(steps)
+}
+
+// commandSourceRows offers the Justfile import or in-wizard entry, naming the
+// Justfile when one was found.
+func (m wizardModel) commandSourceRows(s formStyles) []string {
+	justHint := "no Justfile here yet; the menu imports it once one exists"
+	if m.justfile != "" {
+		justHint = "found ./" + m.justfile + "; the menu imports its recipes at runtime"
+	}
+	return []string{
+		listRow(s, m.useJustfile, fmt.Sprintf("%-12s", "Justfile")+s.muted.Render(justHint)),
+		listRow(s, !m.useJustfile, fmt.Sprintf("%-12s", "enter here")+s.muted.Render("list commands in the next step")),
+	}
+}
+
+// selectedCommands drops commands typed before switching to the Justfile, so
+// the review and the generated file agree with the chosen source.
+func (m wizardModel) selectedCommands() []wizardCommand {
+	if m.useJustfile {
+		return nil
+	}
+	return m.commands
 }
 
 func (m wizardModel) summaryRows(s formStyles) []string {
@@ -1010,7 +1089,9 @@ func (m wizardModel) summaryRows(s formStyles) []string {
 		return s.dim.Render(fmt.Sprintf("%-12s", label)) + s.base.Render(value)
 	}
 	commands := "none"
-	if len(result.Commands) > 0 {
+	if result.Just {
+		commands = "Justfile recipes (menu.just)"
+	} else if len(result.Commands) > 0 {
 		names := make([]string, len(result.Commands))
 		for i, command := range result.Commands {
 			names[i] = command.Name

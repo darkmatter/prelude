@@ -50,6 +50,10 @@
 {{- end }}
     };
 {{- else }}
+{{- if .Just }}
+    # Commands come from the Justfile: `menu.just` below imports its recipes
+    # at runtime. Add entries here for anything the Justfile doesn't cover.
+{{- end }}
     # commands = {
     #   dev = {
     #     exec = "pnpm dev";  # defaults to the key suffix after the first colon
@@ -80,6 +84,9 @@
     # Interactive command picker (bubbletea TUI).
     menu = {
       enable = {{ bool .Menu }};
+      just.enable = {{ bool .Just }};  # import Justfile recipes into the menu at runtime
+      # just.justfile = null;  # Justfile path; null uses just's own discovery
+      # just.group = "just";  # menu group for imported recipes
       # placeholder = "type to filter commands…";  # filter input hint
       # height = 20;  # filter list height in rows
       # execute = true;  # false prints the selected command instead of running it

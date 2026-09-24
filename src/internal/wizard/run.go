@@ -177,7 +177,7 @@ func runWizard(cfg Config, recipe Recipe, outputPath string, force bool) int {
 		return fail(errors.New("the wizard needs an interactive terminal"))
 	}
 
-	model := newWizard(cfg, recipe, renderFIGlet)
+	model := newWizard(cfg, recipe, renderFIGlet).withDetectedJustfile(detectJustfile("."))
 	final, err := tea.NewProgram(model, tea.WithOutput(os.Stderr)).Run()
 	if err != nil {
 		return fail(err)
@@ -261,6 +261,22 @@ func finishWizard(cfg Config, render renderFunc, result wizardResult, configPath
 	fmt.Fprintf(stderr, "wrote %s\n", configPath)
 	printWizardNextSteps(stderr, configPath, result.Motd, result.Envrc)
 	return 0
+}
+
+// detectJustfile returns the Justfile in dir that just would load (just
+// matches justfile and .justfile case-insensitively), or "" when there is none.
+func detectJustfile(dir string) string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if !entry.IsDir() && (strings.EqualFold(name, "justfile") || strings.EqualFold(name, ".justfile")) {
+			return name
+		}
+	}
+	return ""
 }
 
 // materializeWizardEnvrc installs the default direnv entrypoint in the current
