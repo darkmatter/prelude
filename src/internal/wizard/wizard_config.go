@@ -25,6 +25,8 @@ type configData struct {
 	ColorProfile  string
 	Project       string
 	TitlePath     string // already a Nix path literal
+	ReadmePath    string // project README, as a Nix path literal from the config file
+	DocsPagePath  string // starter docs page, as a Nix path literal from the config file
 	Motd          bool
 	MotdStyle     motdStyle
 	MotdContent   motdContentData
@@ -106,12 +108,13 @@ func mustParseConfigTemplates() *template.Template {
 	return template.Must(root.Funcs(funcMap).ParseFS(configTemplateFS, "templates/*.tmpl"))
 }
 
-// renderWizardConfig emits a ready-to-use flake-parts module. titlePath is the
-// path of the rendered wordmark relative to the config file (setup always uses
-// sibling title.txt). Wizard choices are active; every other option appears as
-// a commented default aligned with src/prelude/defaults.nix.
-func renderWizardConfig(r wizardResult, titlePath string) string {
-	data := newConfigData(r, titlePath)
+// renderWizardConfig emits a ready-to-use flake-parts module for the config
+// written at configPath. The wordmark is always the sibling title.txt; the
+// README and starter docs page live at the project root, so their references
+// are relative to configPath. Wizard choices are active; every other option
+// appears as a commented default aligned with src/prelude/defaults.nix.
+func renderWizardConfig(r wizardResult, configPath string) string {
+	data := newConfigData(r, configPath)
 	var buf bytes.Buffer
 	if err := configTemplates.ExecuteTemplate(&buf, "flake_parts.nix.tmpl", data); err != nil {
 		// Templates are compile-time assets; a runtime failure is a programming error.
@@ -122,8 +125,8 @@ func renderWizardConfig(r wizardResult, titlePath string) string {
 
 // renderStandaloneConfig emits prelude.lib builder calls for flakes that do
 // not use flake-parts. Kept for callers that need the direct lib API shape.
-func renderStandaloneConfig(r wizardResult, titlePath string) string {
-	data := newConfigData(r, titlePath)
+func renderStandaloneConfig(r wizardResult, configPath string) string {
+	data := newConfigData(r, configPath)
 	// Standalone command entries sit one indent level shallower.
 	for i := range data.Commands {
 		data.Commands[i].Pad = "    "
@@ -135,7 +138,7 @@ func renderStandaloneConfig(r wizardResult, titlePath string) string {
 	return buf.String()
 }
 
-func newConfigData(r wizardResult, titlePath string) configData {
+func newConfigData(r wizardResult, configPath string) configData {
 	const pad = "      " // flake-parts: under prelude.commands
 	motdStyle := r.MotdStyle
 	if !r.MotdStyleSet {
@@ -180,7 +183,9 @@ func newConfigData(r wizardResult, titlePath string) configData {
 		Theme:        r.Theme,
 		ColorProfile: "truecolor",
 		Project:      r.Project,
-		TitlePath:    nixPath(titlePath),
+		TitlePath:    nixPath("title.txt"),
+		ReadmePath:   nixPath(pathFromConfig(configPath, starterReadmePath)),
+		DocsPagePath: nixPath(pathFromConfig(configPath, starterDocsPath)),
 		Motd:         r.Motd,
 		MotdStyle:    motdStyle,
 		MotdContent: motdContentData{
@@ -285,6 +290,16 @@ var nixIdentifierPattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_'-]*$`)
 // `test:unit:watch`. The first colon derives menu grouping; the complete key
 // remains callable through x.
 var commandKeyPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+(:[A-Za-z0-9_.-]+)*$`)
+
+// pathFromConfig expresses a project-root path relative to the directory of
+// the config file, which is how Nix resolves path literals written in it.
+func pathFromConfig(configPath, target string) string {
+	rel, err := filepath.Rel(filepath.Dir(configPath), target)
+	if err != nil {
+		return target
+	}
+	return rel
+}
 
 // nixPath emits a Nix path literal. Relative paths gain the mandatory ./
 // prefix; absolute paths pass through.

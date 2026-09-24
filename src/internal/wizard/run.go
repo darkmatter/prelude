@@ -254,7 +254,7 @@ func finishWizard(cfg Config, render renderFunc, result wizardResult, configPath
 	if isFlakeNixPath(configPath) {
 		return fail(fmt.Errorf("refusing to write %s — setup emits a separate importable module (default %s)", configPath, defaultWizardConfigPath))
 	}
-	nixData := renderWizardConfig(result, "title.txt")
+	nixData := renderWizardConfig(result, configPath)
 	if err := writeAtomic(configPath, []byte(nixData)); err != nil {
 		return fail(fmt.Errorf("write %s: %w", configPath, err))
 	}

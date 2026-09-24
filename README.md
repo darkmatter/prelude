@@ -65,13 +65,16 @@ prelude.commands.dev = prelude.lib.fromPkg packages.dev {
 ![docs](docs/media/shots/docs.png)
 
 ```nix
-prelude.docs.pages = [
-  { text = ./README.md; }
-  { text = ./docs/getting-started.md; }
-];
+prelude.docs = {
+  rootReadme = ./README.md;
+  pages = [
+    (inputs.prelude.lib.mdSplit ./README.md)  # one page per ## section
+    { text = ./docs/getting-started.md; }
+  ];
+};
 ```
 
-Each Markdown file is one page. Digits jump, `Tab` steps, `j`/`k` scroll, `q` quits.
+Each Markdown file is one page, and `mdSplit` gives a file one page per `##` section. Digits jump, `Tab` steps, `j`/`k` scroll, `q` quits.
 
 ## Usage
 

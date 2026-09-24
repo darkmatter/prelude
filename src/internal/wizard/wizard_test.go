@@ -1126,8 +1126,10 @@ func TestFinishWizardWritesTitleStarterDocsAndConfig(t *testing.T) {
 		`project = "acme";`,
 		"text = ./title.txt;",
 		"docs.pages = [",
-		"text = ./README.md;",
+		"docs.rootReadme = ./README.md;",
+		"(inputs.prelude.lib.mdSplit ./README.md)",
 		"text = ./docs/getting-started.md;",
+		"{ inputs, ... }:",
 		"background = true;",
 		"border = false;",
 		`verticalAlign = "bottom";`,
@@ -1237,7 +1239,7 @@ func TestFinishWizardWritesTitleBesideNestedConfig(t *testing.T) {
 	result := wizardResult{
 		Recipe:  Recipe{Text: "acme", Font: "thin"},
 		Project: "acme", Theme: "nord",
-		Motd: true, Menu: true, Prompt: true, Envrc: true,
+		Motd: true, Menu: true, Prompt: true, Docs: true, Envrc: true,
 	}
 	var stderr bytes.Buffer
 	if code := finishWizard(m.cfg, m.render, result, "nix/prelude.nix", &stderr); code != 0 {
@@ -1260,6 +1262,12 @@ func TestFinishWizardWritesTitleBesideNestedConfig(t *testing.T) {
 	nixData, err := os.ReadFile("nix/prelude.nix")
 	if err != nil {
 		t.Fatalf("read nix/prelude.nix: %v", err)
+	}
+	// Docs live at the project root, so a nested config climbs to reach them.
+	for _, fragment := range []string{"docs.rootReadme = ../README.md;", "(inputs.prelude.lib.mdSplit ../README.md)", "text = ../docs/getting-started.md;"} {
+		if !strings.Contains(string(nixData), fragment) {
+			t.Fatalf("nested config missing %q:\n%s", fragment, nixData)
+		}
 	}
 	// Title path is relative to the config file, not the repo root.
 	if !strings.Contains(string(nixData), "text = ./title.txt;") {
