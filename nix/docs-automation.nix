@@ -54,8 +54,8 @@
 
     Set Shell "bash"
     ${vhsVisualSettings}
-    Set Width 1100
-    Set Height 940
+    Set Width 980
+    Set Height 640
     Set Padding 12
     Set Framerate 30
     Set TypingSpeed 50ms
@@ -77,8 +77,8 @@
 
     Set Shell "bash"
     ${vhsVisualSettings}
-    Set Width 1100
-    Set Height 780
+    Set Width 980
+    Set Height 640
     Set Padding 12
     Set Framerate 30
     Set TypingSpeed 80ms
