@@ -30,15 +30,20 @@
             currentMotdConfig.header.status;
         };
     };
-  recordedMotdDemos = import ./motd-demo-builder.nix {
-    inherit pkgs lib;
-    currentMotdConfig = recordedMotdConfig;
+  # Built from the config itself, not example-motd: that demo turns off
+  # clearScreen so `nix run .#examples` can stack banners, and without it the
+  # MOTD skips vertical alignment. The showcase should match a real shell.
+  mkMotd = import ../src/prelude/motd.nix {
+    inherit lib;
+    inherit (pkgs) writeShellApplication writeText;
+    buildGoModule = pkgs.buildGo126Module;
   };
   menuDemo = import ./menu-demo-builder.nix {
     inherit pkgs lib currentMenuConfig;
   };
 
-  motdProgram = lib.getExe recordedMotdDemos.examplePackages.example-motd;
+  recordedMotd = mkMotd recordedMotdConfig;
+  motdProgram = lib.getExe recordedMotd;
   # The tape types `x`, the command users run; the demo package provides it.
   menuProgram = lib.getExe' menuDemo.package "x";
 
@@ -169,11 +174,14 @@
     );
 
   motdComponentInput = builtins.concatStringsSep "\n" [
-    (builtins.readFile ./motd-demo-builder.nix)
     (builtins.readFile ../src/prelude/motd.nix)
     (readTree ../src/internal/motd)
   ];
-  motdFingerprint = fingerprint motdComponentInput motdTapeText recordedMotdConfig;
+  # Hash the JSON the recorded renderer reads, so any layout override on the
+  # recording path (not only recordedMotdConfig) marks the showcase stale.
+  motdFingerprint =
+    fingerprint motdComponentInput motdTapeText
+    (builtins.fromJSON recordedMotd.configFile.text);
   menuFingerprint =
     fingerprint (builtins.concatStringsSep "\n" [
       (builtins.readFile ./menu-demo-builder.nix)
