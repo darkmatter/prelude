@@ -39,7 +39,8 @@
   };
 
   motdProgram = lib.getExe recordedMotdDemos.examplePackages.example-motd;
-  menuProgram = lib.getExe menuDemo.package;
+  # The tape types `x`, the command users run; the demo package provides it.
+  menuProgram = lib.getExe' menuDemo.package "x";
 
   vhsVisualSettings = ''
     Set FontFamily "MonaspiceNe Nerd Font Mono"
@@ -84,11 +85,11 @@
     Set TypingSpeed 80ms
 
     Hide
-    Type "export PS1=; clear"
+    Type "export PS1=; export PATH=$PWD/docs/.record-bin:$PATH; clear"
     Enter
     Show
 
-    Type "./docs/.record-bin/example-menu"
+    Type "x"
     Enter
     Sleep 2s
     Type "build"
@@ -475,7 +476,7 @@
       mkdir -p docs/media docs/.record-bin docs/generated docs/reference
       trap 'rm -rf docs/.record-bin' EXIT
       ln -s ${motdProgram} docs/.record-bin/example-motd
-      ln -s ${menuProgram} docs/.record-bin/example-menu
+      ln -s ${menuProgram} docs/.record-bin/x
 
       current_fingerprint() {
         local name=$1
