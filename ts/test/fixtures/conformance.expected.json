@@ -1,0 +1,506 @@
+{
+  "menu": {
+    "catalogue": {
+      "colorProfile": "ansi256",
+      "execute": true,
+      "groups": [
+        {
+          "tasks": [
+            {
+              "args": [],
+              "command": "x db:migrate",
+              "description": "apply migrations",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "migrate",
+              "name": "db:migrate",
+              "run": "drizzle-kit migrate",
+              "usage": ""
+            },
+            {
+              "args": [],
+              "command": "x db:seed",
+              "description": "load sample rows",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "seed",
+              "name": "db:seed",
+              "run": "bun run seed",
+              "usage": ""
+            }
+          ],
+          "title": "db"
+        },
+        {
+          "tasks": [
+            {
+              "args": [
+                {
+                  "boolean": false,
+                  "default": null,
+                  "description": "",
+                  "options": [
+                    "staging",
+                    "production"
+                  ],
+                  "required": true,
+                  "token": "<target>"
+                }
+              ],
+              "command": "deploy",
+              "description": "",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "deploy",
+              "name": "deploy",
+              "run": "vercel deploy",
+              "usage": ""
+            },
+            {
+              "args": [
+                {
+                  "boolean": false,
+                  "default": "3000",
+                  "description": "port to bind",
+                  "options": [
+                    "3000",
+                    "8080"
+                  ],
+                  "required": false,
+                  "token": "--port"
+                },
+                {
+                  "boolean": true,
+                  "default": null,
+                  "description": "open a browser",
+                  "options": [],
+                  "required": false,
+                  "token": "--open"
+                }
+              ],
+              "command": "dev",
+              "description": "start the dev server",
+              "details": "Boots the dev server with hot reload.",
+              "examples": [
+                "dev --port 8080"
+              ],
+              "key": "d",
+              "label": "dev",
+              "name": "dev",
+              "run": "bun run dev",
+              "usage": "dev --port 3000"
+            },
+            {
+              "args": [],
+              "command": "test",
+              "description": "",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "test",
+              "name": "test",
+              "run": "bun test",
+              "usage": ""
+            }
+          ],
+          "title": "develop"
+        },
+        {
+          "tasks": [
+            {
+              "args": [],
+              "command": "lint",
+              "description": "lint the project",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "lint",
+              "name": "lint",
+              "run": "eslint .",
+              "usage": ""
+            }
+          ],
+          "title": "quality"
+        },
+        {
+          "tasks": [
+            {
+              "args": [],
+              "command": "x test:unit:watch",
+              "description": "watch unit tests",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "unit:watch",
+              "name": "test:unit:watch",
+              "run": "bun test --watch",
+              "usage": ""
+            }
+          ],
+          "title": "test"
+        }
+      ],
+      "height": 9,
+      "just": {
+        "enable": true,
+        "group": "recipes",
+        "justfile": "/tmp/Justfile"
+      },
+      "maxWidth": 100,
+      "motdCommands": [
+        {
+          "command": "dev",
+          "description": "start the dev server",
+          "name": "dev"
+        },
+        {
+          "command": "test",
+          "description": "",
+          "name": "test"
+        }
+      ],
+      "palette": {
+        "accent": "#ff00ff",
+        "accent2": "#f9b64f",
+        "accentBorder": "#284a2c",
+        "bg": "#0c110e",
+        "border": "#1a201d",
+        "dim": "#5d665f",
+        "error": "#e6443d",
+        "fg": 212,
+        "info": "#5eb7ff",
+        "muted": "#7d8a81",
+        "secondary": "#202622",
+        "selectionFg": "#0c110e",
+        "success": "#68e371",
+        "surface": "#131715",
+        "warning": "#f9b64f"
+      },
+      "placeholder": "pick one",
+      "project": "fixture"
+    },
+    "defaults": {
+      "colorProfile": "truecolor",
+      "execute": true,
+      "groups": [
+        {
+          "tasks": [
+            {
+              "args": [],
+              "command": "dev",
+              "description": "start the dev server",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "dev",
+              "name": "dev",
+              "run": "bun run dev",
+              "usage": ""
+            }
+          ],
+          "title": "develop"
+        }
+      ],
+      "height": 16,
+      "just": {
+        "enable": false,
+        "group": "just",
+        "justfile": null
+      },
+      "maxWidth": 80,
+      "motdCommands": [],
+      "palette": {
+        "accent": "#f2cdcd",
+        "accent2": "#CC99FF",
+        "accentBorder": "#3e4441",
+        "bg": "#0c0c13",
+        "border": "#1d1d2f",
+        "dim": "#4a5085",
+        "error": "#ee848e",
+        "fg": "#979db5",
+        "info": "#89b4fa",
+        "muted": "#6a6c85",
+        "secondary": "#24243f",
+        "selectionFg": "#0c0c13",
+        "success": "#b7ce99",
+        "surface": "#161623",
+        "warning": "#f2c17d"
+      },
+      "placeholder": "type to filter commands…",
+      "project": "fixture"
+    }
+  },
+  "motd": {
+    "content": {
+      "align": "center",
+      "background": "",
+      "backgroundBlend": 0,
+      "backgroundBlendSet": false,
+      "backgroundRelative": 0,
+      "border": false,
+      "clearScreen": true,
+      "colorProfile": "truecolor",
+      "commands": [
+        {
+          "command": "x db:migrate",
+          "description": "apply migrations"
+        },
+        {
+          "command": "dev",
+          "description": "start the dev server"
+        }
+      ],
+      "description": {
+        "background": "",
+        "backgroundRelative": 0,
+        "bold": true,
+        "faint": false,
+        "foreground": "#979db5",
+        "italic": false,
+        "text": "Welcome to the fixture.",
+        "tips": [
+          "run `dev` first"
+        ]
+      },
+      "env": [
+        {
+          "label": "node",
+          "probe": "",
+          "value": "22"
+        },
+        {
+          "label": "bun",
+          "probe": "bun --version",
+          "value": ""
+        }
+      ],
+      "gettingStarted": {
+        "commandNote": "prefix with `fixture` if shadowed",
+        "commandsLabel": "commands",
+        "examplesLabel": "examples",
+        "heading": "Start here"
+      },
+      "header": {
+        "background": "",
+        "backgroundRaised": false,
+        "backgroundRelative": 0,
+        "status": [
+          {
+            "async": true,
+            "check": "",
+            "fail": "fail",
+            "failLevel": "error",
+            "label": "build",
+            "ok": "ok",
+            "output": "",
+            "status": "green"
+          },
+          {
+            "async": false,
+            "check": "pg_isready",
+            "fail": "down",
+            "failLevel": "warning",
+            "label": "db",
+            "ok": "up",
+            "output": "light",
+            "status": ""
+          },
+          {
+            "async": false,
+            "check": "curl -sf localhost:3000",
+            "fail": "fail",
+            "failLevel": "error",
+            "label": "api",
+            "ok": "ok",
+            "output": "",
+            "status": ""
+          }
+        ],
+        "statusHintLayout": "below",
+        "statusHintLinks": [
+          {
+            "label": "repo",
+            "url": "https://example.com/repo"
+          }
+        ],
+        "subtitle": "all systems go",
+        "tagline": "ship it",
+        "taglineAlign": "center",
+        "taglineLayout": "inline",
+        "titleStyle": "spine"
+      },
+      "links": [
+        {
+          "label": "docs",
+          "url": "https://example.com/docs"
+        }
+      ],
+      "margin": {
+        "bottom": 2,
+        "left": 4,
+        "minHeight": 40,
+        "right": 4,
+        "top": 2
+      },
+      "maxWidth": 80,
+      "padding": {
+        "bottom": 4,
+        "left": 6,
+        "minHeight": 0,
+        "right": 6,
+        "top": 4
+      },
+      "palette": {
+        "accent": "#f2cdcd",
+        "accent2": "#CC99FF",
+        "accentBorder": "#3e4441",
+        "bg": "#0c0c13",
+        "border": "#1d1d2f",
+        "dim": "#4a5085",
+        "error": "#ee848e",
+        "fg": "#979db5",
+        "info": "#89b4fa",
+        "muted": "#6a6c85",
+        "secondary": "#24243f",
+        "selectionFg": "#0c0c13",
+        "success": "#b7ce99",
+        "surface": "#161623",
+        "warning": "#f2c17d"
+      },
+      "project": "fixture",
+      "recipes": [
+        {
+          "steps": [
+            {
+              "command": "",
+              "comment": "verify, then deploy"
+            },
+            {
+              "command": "bun test",
+              "comment": ""
+            },
+            {
+              "command": "vercel deploy",
+              "comment": ""
+            }
+          ],
+          "title": "ship a release"
+        },
+        {
+          "steps": [
+            {
+              "command": "",
+              "comment": "first run"
+            },
+            {
+              "command": "bun install",
+              "comment": ""
+            },
+            {
+              "command": "bun dev",
+              "comment": ""
+            }
+          ],
+          "title": "legacy"
+        }
+      ],
+      "shortcuts": [
+        {
+          "alias": "d",
+          "command": "fixture docs"
+        },
+        {
+          "alias": "",
+          "command": "fixture"
+        }
+      ],
+      "title": "",
+      "titleAlign": "center",
+      "verticalAlign": "center",
+      "width": 0
+    },
+    "layout": {
+      "align": "left",
+      "background": "#101010",
+      "backgroundBlend": 0,
+      "backgroundBlendSet": false,
+      "backgroundRelative": 0,
+      "border": true,
+      "clearScreen": false,
+      "colorProfile": "truecolor",
+      "commands": [],
+      "description": {
+        "background": "",
+        "backgroundRelative": -0.05,
+        "bold": false,
+        "faint": false,
+        "foreground": "#abcdef",
+        "italic": false,
+        "text": "",
+        "tips": []
+      },
+      "env": [],
+      "gettingStarted": {
+        "commandsLabel": "commands",
+        "examplesLabel": "examples",
+        "heading": "Getting Started"
+      },
+      "header": {
+        "background": "",
+        "backgroundRaised": false,
+        "backgroundRelative": 0.1,
+        "status": [],
+        "statusHintLayout": "inline",
+        "statusHintLinks": [],
+        "subtitle": null,
+        "tagline": "",
+        "taglineAlign": "left",
+        "taglineLayout": "stack",
+        "titleStyle": "bracketed"
+      },
+      "links": [],
+      "margin": {
+        "bottom": 2,
+        "left": 2,
+        "minHeight": 10,
+        "right": 2,
+        "top": 1
+      },
+      "maxWidth": 0,
+      "padding": {
+        "bottom": 1,
+        "left": 3,
+        "minHeight": 0,
+        "right": 6,
+        "top": 1
+      },
+      "palette": {
+        "accent": "#ffc761",
+        "accent2": "#fadc7d",
+        "accentBorder": "#523f23",
+        "bg": "#101010",
+        "border": "#261c14",
+        "dim": "#8d6a43",
+        "error": "#e9523f",
+        "fg": "#fcbe62",
+        "info": "#7fb4ca",
+        "muted": "#a97c46",
+        "secondary": "#291f18",
+        "selectionFg": "#110c08",
+        "success": "#a8c66c",
+        "surface": "#19120e",
+        "warning": "#fadc7d"
+      },
+      "project": "fixture",
+      "recipes": [],
+      "shortcuts": [],
+      "title": "",
+      "titleAlign": "left",
+      "verticalAlign": "top",
+      "width": 100
+    }
+  }
+}

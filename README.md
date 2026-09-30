@@ -58,8 +58,6 @@ prelude.commands.dev = prelude.lib.fromPkg packages.dev {
 };
 ```
 
-`examples/typescript/` imports `package.json` scripts the same way.
-
 ### Docs
 
 ![docs](docs/media/shots/docs.png)
@@ -72,6 +70,22 @@ prelude.docs.pages = [
 ```
 
 Each Markdown file is one page. Digits jump, `Tab` steps, `j`/`k` scroll, `q` quits.
+
+### TypeScript
+
+Bun apps get the same picker, MOTD, and docs viewer from TypeScript. Commands are functions declared next to the code they run, with typed arguments:
+
+```ts
+export const preludeCommand = Command.make({
+  description: "run the dev server",
+  args: [{ token: "--port", type: "number", default: 3000 }],
+  run: (args) => serve(args.port), // args.port: number
+});
+
+await Prelude.make({ project: "acme", commands: { dev: preludeCommand } }).main();
+```
+
+Walkthrough: [`examples/typescript/`](examples/typescript/). API: [`ts/`](ts/README.md) (not on npm yet).
 
 ## Usage
 

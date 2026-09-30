@@ -7,6 +7,7 @@
   demos,
   docsAutomation,
   previews,
+  typescript,
   flakePartsLib,
   inputs,
   localFlake,
@@ -49,6 +50,7 @@
     docsAutomation.sync
     docsAutomation.record
     previews
+    typescript.sync
   ];
 
   preludeShellClosure = pkgs.closureInfo {
@@ -2267,6 +2269,8 @@ in {
     grep -q 'Devshell UI for Nix flakes' "$out"
     grep -Fq '38;2;255;199;97' "$out"
     grep -Fq '38;2;119;245;201' "$out"
+    # The TypeScript example ran as a single-file executable, library embedded.
+    grep -q 'run acme to pick a task interactively' "$out"
   '';
 
   # Terminal-state emulator proof: the bounded MOTD card clears inherited
@@ -2303,4 +2307,9 @@ in {
   # Generated documentation and its media fingerprints must match the repo.
   docs-generated-fresh = docsAutomation.docsFresh;
   docs-media-fresh = docsAutomation.mediaFresh;
+
+  # TypeScript API: its Nix-generated inputs stay current, and bun test (with
+  # the conformance fixtures) passes against the built libprelude.
+  ts-generated-fresh = typescript.fresh;
+  ts-api = typescript.test;
 }

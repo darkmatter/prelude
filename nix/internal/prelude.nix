@@ -243,6 +243,25 @@ in {
         ];
         description = "run Go static analysis";
       };
+      # TypeScript API (ts/). The devshell's PRELUDE_LIB lets the FFI tests
+      # drive the real Go surfaces; `bun test` itself needs no install.
+      "ts:test" = self.lib.fromPkg pkgs.bun {
+        arguments = [
+          "--cwd"
+          "ts"
+          "test"
+        ];
+        description = "run the TypeScript API tests";
+      };
+      "ts:typecheck" = self.lib.mkCommand {
+        # `--cwd=ts`, not `--cwd ts`: bun run misreads the spaced form.
+        command = "bun --cwd=ts install --frozen-lockfile && bun --cwd=ts run typecheck";
+        description = "type-check the TypeScript API, including its type tests";
+      };
+      "ts:sync" = {
+        description = "regenerate the TypeScript API's themes, defaults, and fixtures";
+        exec = "ts-sync";
+      };
       check = self.lib.mkCommand {
         command = "nix flake check";
         description = "build + render smoke tests";

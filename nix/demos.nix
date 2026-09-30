@@ -4,6 +4,7 @@
   pkgs,
   lib,
   config,
+  typescript,
   ...
 }: let
   motdDemos = import ./motd-demo-builder.nix {
@@ -15,20 +16,14 @@
     currentMenuConfig = config.packages.prelude-menu.menuRenderConfig;
   };
   ex = import ../src/prelude/examples.nix;
-  typescriptPrelude = (import ../examples/typescript/prelude.nix {inherit lib;}).prelude;
-  typescriptMenu = menuDemo.mkMenu (
-    {
-      inherit (typescriptPrelude) project commands;
-    }
-    // lib.removeAttrs typescriptPrelude.menu ["enable"]
-  );
 
   # Feature demos — `example-<name>` packages/apps.
   examplePackages =
     motdDemos.examplePackages
     // {
       example-menu = menuDemo.package;
-      example-typescript-menu = typescriptMenu;
+      # The TypeScript API example, built as one executable (`acme`).
+      example-typescript = typescript.example;
     };
 
   # `nix run .#examples` — on a tty: a pager, one demo per screen,
@@ -62,9 +57,9 @@
           cmd = "${lib.getExe' examplePackages.example-menu "x"} --list";
         }
         {
-          label = "example-typescript-menu x --list";
-          hint = "x --list  # from the example-typescript-menu package";
-          cmd = "${lib.getExe' examplePackages.example-typescript-menu "x"} --list";
+          label = "example-typescript --list";
+          hint = "nix run .#example-typescript -- --list";
+          cmd = "${lib.getExe examplePackages.example-typescript} --list";
         }
       ];
     bashArray = name: f: "${name}=(${lib.concatMapStringsSep " " (e: lib.escapeShellArg (f e)) entries})";

@@ -1,0 +1,108 @@
+import * as Command from "../Command.ts";
+
+// The catalogue rules of src/prelude/command-catalogue.nix and the checks in
+// src/prelude/menu.nix, for commands keyed by their public name. The
+// conformance test compares this port's output with Nix's for shared fixtures.
+
+/** A mounted command with its presentation identity. */
+export interface Entry {
+  readonly key: string;
+  readonly group: string;
+  readonly label: string;
+  readonly command: Command.Any;
+}
+
+export interface Group {
+  readonly title: string;
+  readonly entries: readonly Entry[];
+}
+
+const safeName = /^[A-Za-z0-9:_.-]+$/;
+
+/** Byte order, as Nix compares strings. */
+export function compare(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * Mirrors `commandIdentity`: the first colon splits the menu group from the
+ * displayed label while the key stays whole (`go:test` → group `go`, label
+ * `test`). An explicit group overrides the inferred one; ungrouped keys fall
+ * under `develop`.
+ */
+export function identity(key: string, explicitGroup?: string): { group: string; label: string } {
+  if (!safeName.test(key)) {
+    throw new Error(`prelude: command key "${key}" may only contain letters, digits, and : _ . -`);
+  }
+  const [head = "", ...rest] = key.split(":");
+  const grouped = rest.length > 0;
+  const group = explicitGroup ?? (grouped ? head : "develop");
+  const label = grouped ? rest.join(":") : key;
+  if (group === "" || label === "") {
+    throw new Error(`prelude: command key "${key}" must have non-empty colon-separated segments`);
+  }
+  return { group, label };
+}
+
+/**
+ * Groups commands the way `normalizeCommandGroups` does: the `prelude` group,
+ * then groupOrder, then the rest alphabetically; each group sorted by label.
+ */
+export function catalogue(commands: Readonly<Record<string, Command.Any>>, groupOrder: readonly string[] = []): Group[] {
+  if (new Set(groupOrder).size !== groupOrder.length) {
+    throw new Error("prelude: groupOrder must not contain duplicates");
+  }
+  const entries: Entry[] = Object.entries(commands).map(([key, command]) => {
+    if (!Command.is(command)) {
+      throw new Error(`prelude: commands["${key}"] is not a command; create it with Command.make()`);
+    }
+    return { key, command, ...identity(key, command.group) };
+  });
+  validate(entries);
+
+  const available = [...new Set(entries.map((entry) => entry.group))];
+  const preferred = [...new Set(["prelude", ...groupOrder])].filter((group) => available.includes(group));
+  const remaining = available.filter((group) => !preferred.includes(group)).sort(compare);
+  return [...preferred, ...remaining].map((title) => ({
+    title,
+    entries: entries
+      .filter((entry) => entry.group === title)
+      .sort((a, b) => compare(a.label, b.label) || compare(a.key, b.key)),
+  }));
+}
+
+function validate(entries: readonly Entry[]): void {
+  const keys = new Set(entries.map((entry) => entry.key));
+  const shortcuts = new Map<string, string>();
+  for (const { key, command } of entries) {
+    const shortcut = command.shortcut;
+    if (shortcut === undefined) continue;
+    if (!safeName.test(shortcut)) {
+      throw new Error(`prelude: shortcut "${shortcut}" of ${key} may only contain letters, digits, and : _ . -`);
+    }
+    const owner = shortcuts.get(shortcut);
+    if (owner !== undefined) throw new Error(`prelude: shortcut "${shortcut}" is used by both ${owner} and ${key}`);
+    if (keys.has(shortcut)) throw new Error(`prelude: shortcut "${shortcut}" of ${key} collides with a command key`);
+    shortcuts.set(shortcut, key);
+  }
+
+  // Shell commands keep one canonical invocation each, as in Nix.
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const { command } of entries) {
+    if (command.exec === undefined) continue;
+    if (seen.has(command.exec)) duplicates.add(command.exec);
+    seen.add(command.exec);
+  }
+  if (duplicates.size > 0) {
+    throw new Error(`prelude: duplicate canonical command invocation(s): ${[...duplicates].join(", ")}`);
+  }
+}
+
+/** Mirrors `selectCommands`: commands with a `motd` position, ordered by it, then key. */
+export function gettingStarted(groups: readonly Group[]): Entry[] {
+  return groups
+    .flatMap((group) => group.entries)
+    .filter((entry) => entry.command.motd !== undefined)
+    .sort((a, b) => a.command.motd! - b.command.motd! || compare(a.key, b.key));
+}

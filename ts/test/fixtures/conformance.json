@@ -1,0 +1,113 @@
+{
+  "menu": {
+    "defaults": {
+      "project": "fixture",
+      "commands": {
+        "dev": { "exec": "bun run dev", "description": "start the dev server" }
+      }
+    },
+    "catalogue": {
+      "project": "fixture",
+      "theme": "phosphor",
+      "palette": { "accent": "#ff00ff", "fg": 212 },
+      "colorProfile": "ansi256",
+      "placeholder": "pick one",
+      "height": 9,
+      "maxWidth": 100,
+      "groupOrder": ["db", "develop"],
+      "just": { "enable": true, "justfile": "/tmp/Justfile", "group": "recipes" },
+      "commands": {
+        "dev": {
+          "exec": "bun run dev",
+          "description": "start the dev server",
+          "key": "d",
+          "motd": 1,
+          "usage": "dev --port 3000",
+          "details": "Boots the dev server with hot reload.",
+          "examples": ["dev --port 8080"],
+          "args": [
+            { "token": "--port", "description": "port to bind", "options": ["3000", "8080"], "default": "3000" },
+            { "token": "--open", "description": "open a browser", "boolean": true }
+          ]
+        },
+        "test": { "exec": "bun test", "motd": 2 },
+        "db:migrate": { "exec": "drizzle-kit migrate", "description": "apply migrations" },
+        "db:seed": { "exec": "bun run seed", "description": "load sample rows" },
+        "test:unit:watch": { "exec": "bun test --watch", "description": "watch unit tests" },
+        "lint": { "exec": "eslint .", "group": "quality", "description": "lint the project" },
+        "deploy": {
+          "exec": "vercel deploy",
+          "args": [{ "token": "<target>", "required": true, "options": ["staging", "production"] }]
+        }
+      }
+    }
+  },
+  "motd": {
+    "content": {
+      "project": "fixture",
+      "header": {
+        "tagline": { "text": "ship it", "subtitle": "all systems go", "layout": "inline", "align": "center" },
+        "statusHint": { "layout": "below", "links": [{ "label": "repo", "url": "https://example.com/repo" }] },
+        "status": {
+          "build": { "label": "build", "status": "green", "order": 1 },
+          "db": {
+            "label": "db",
+            "check": "pg_isready",
+            "ok": "up",
+            "fail": "down",
+            "failLevel": "warning",
+            "output": "light",
+            "async": false,
+            "order": 2
+          },
+          "api": { "label": "api", "check": "curl -sf localhost:3000", "async": false }
+        }
+      },
+      "description": { "text": "Welcome to the fixture.", "bold": true, "tips": ["run `dev` first"] },
+      "links": [{ "label": "docs", "url": "https://example.com/docs" }],
+      "env": [
+        { "label": "node", "value": "22" },
+        { "label": "bun", "probe": "bun --version" }
+      ],
+      "recipes": {
+        "ship": {
+          "order": 1,
+          "title": "ship a release",
+          "steps": [{ "comment": "verify, then deploy" }, { "command": "bun test" }, { "command": "vercel deploy" }]
+        },
+        "legacy": { "lines": ["# first run", "bun install", "", "bun dev"] }
+      },
+      "gettingStarted": { "heading": "Start here", "commandNote": "prefix with `fixture` if shadowed" },
+      "shortcuts": [{ "command": "fixture docs", "alias": "d" }, { "command": "fixture" }],
+      "commands": {
+        "dev": { "exec": "bun run dev", "description": "start the dev server", "motd": 2 },
+        "db:migrate": { "exec": "drizzle-kit migrate", "description": "apply migrations", "motd": 1 },
+        "lint": { "exec": "eslint .", "description": "lint the project" }
+      }
+    },
+    "layout": {
+      "project": "fixture",
+      "theme": "amber",
+      "palette": { "bg": "#101010" },
+      "colorProfile": "truecolor",
+      "title": { "align": "left", "style": "bracketed" },
+      "background": true,
+      "border": true,
+      "clearScreen": false,
+      "margin": { "x": 2, "top": 1, "minHeight": 10 },
+      "padding": { "y": 1, "left": 3 },
+      "align": "left",
+      "verticalAlign": "top",
+      "header": {
+        "background": { "relative": 0.1 },
+        "tagline": { "text": "" },
+        "statusHint": { "links": [] },
+        "status": {}
+      },
+      "description": { "text": "", "foreground": "#abcdef", "background": { "relative": -0.05 } },
+      "env": [],
+      "width": 100,
+      "maxWidth": null
+    }
+  }
+}
