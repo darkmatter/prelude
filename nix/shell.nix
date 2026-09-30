@@ -8,6 +8,7 @@
   config,
   docsAutomation,
   previews,
+  typescript,
   ...
 }:
 pkgs.mkShell {
@@ -19,11 +20,15 @@ pkgs.mkShell {
       docsAutomation.record
       docsAutomation.sync
       previews
+      typescript.sync
     ]
     ++ (with pkgs; [
       shellcheck
       nixfmt
     ]);
+  # The TypeScript API (ts/) loads the Go surfaces from this library; its FFI
+  # tests and examples run only when it is set.
+  PRELUDE_LIB = typescript.libraryPath;
   # DIRENV_LOG_FORMAT is deliberately not set here. A devshell variable lands in
   # the environment direnv is *producing*, which is too late to affect the
   # `direnv export` process already logging that load. Silencing direnv is a

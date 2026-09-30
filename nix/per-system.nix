@@ -2,6 +2,7 @@
 # app and component packages; repository-only packages/apps layer on top:
 #
 #   demos.nix     shared feature-demo builders (evaluated once)
+#   typescript.nix  libprelude and the TypeScript API's generated inputs
 #     └ checks.nix     build + render smoke tests
 #         └ previews.nix   utility that builds render checks and shows them
 #             └ packages.nix / apps.nix / shell.nix
@@ -25,13 +26,14 @@
       ;
     flakePartsLib = flake-parts-lib;
   };
-  demos = import ./demos.nix args;
+  demos = import ./demos.nix (args // {inherit typescript;});
   docsAutomation = import ./docs-automation.nix args;
   skill = import ./skill.nix args;
+  typescript = import ./typescript.nix args;
   # Mutually recursive but well-founded: previews only reads the (static)
   # attribute names of checks, while one check value resolves advertised
   # motd commands against the previews package.
-  checks = import ./checks.nix (args // {inherit demos docsAutomation previews;});
+  checks = import ./checks.nix (args // {inherit demos docsAutomation previews typescript;});
   previews = import ./previews.nix (args // {inherit checks;});
 in {
   packages = import ./packages.nix (
@@ -42,6 +44,7 @@ in {
         docsAutomation
         previews
         skill
+        typescript
         ;
     }
   );
@@ -56,7 +59,7 @@ in {
         ;
     }
   );
-  devShells.default = import ./shell.nix (args // {inherit docsAutomation previews;});
+  devShells.default = import ./shell.nix (args // {inherit docsAutomation previews typescript;});
   inherit checks;
   treefmt = {
     programs.alejandra.enable = true;

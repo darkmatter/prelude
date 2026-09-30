@@ -1,0 +1,9 @@
+{
+  // The example runs from a checkout of this repository, so the package
+  // resolves to its source in ts/ rather than to an installed copy.
+  "extends": "../../ts/tsconfig.json",
+  "compilerOptions": {
+    "paths": { "@drkmttr/prelude": ["../../ts/src/index.ts"] }
+  },
+  "include": ["."]
+}

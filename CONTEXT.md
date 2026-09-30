@@ -60,6 +60,18 @@ terminal size/bg and sync status: every non-pure run (TTL 0); async status and e
 **Static status**:
 Header badge with no check — Config only, never cached.
 
+### Library mode
+
+**libprelude**:
+The Go surfaces built as a C shared library (`src/cmd/libprelude`) for processes that run them in-process. One JSON request in, one JSON reply out; exports never exit or exec.
+
+**Host**:
+A process that runs a surface through libprelude, such as an app using the TypeScript API (`ts/`). The host owns execution: it runs Selections itself and gathers the live facts it evaluates in TypeScript.
+_Avoid_: embedder, client
+
+**Selection**:
+What the menu picker resolved: the chosen task's name, the argument line entered for it, and the assembled shell command. The CLI execs the command; a host dispatches on the name and parses the line.
+
 ### Flags
 
 **`--preflight-only`**:
@@ -75,3 +87,5 @@ Also: `PRELUDE_MOTD_PURE=1`.
 - **Nix → Config**: `motd.nix` / flake module generate JSON that a thin wrapper passes to the Go binary at run time, so Config edits never recompile Go; Go does not re-default policy owned by Nix except live TTLs.
 - **Preflight → Cache → Render**: only direction for live facts; Render never calls Runtime.
 - **Menu / Docs**: own Config JSON; no MOTD Cache (unless a future design unifies).
+- **TypeScript → Config**: `ts/` authors the same menu and MOTD Config JSON as Nix for Hosts; conformance fixtures hold the two authors to one output.
+- **Host → Render**: a Host has no Cache file or detached refresh. The MOTD runs shell checks and probes inline, as blocking Preflight does, and records the Host's own outcomes before Render.

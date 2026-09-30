@@ -1,0 +1,25 @@
+{
+  "name": "@drkmttr/prelude",
+  "version": "0.1.0",
+  "description": "Prelude's command menu, MOTD, and docs viewer for Bun apps",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "engines": {
+    "bun": ">=1.2"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p ../examples/typescript"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.13",
+    "typescript": "^5.9.3"
+  }
+}

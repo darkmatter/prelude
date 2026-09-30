@@ -106,6 +106,18 @@ prelude = {
       description = "regenerate option and showcase markdown";
       exec = "docs-sync";
     };
+    "ts:sync" = {
+      description = "regenerate the TypeScript API's themes, defaults, and fixtures";
+      exec = "ts-sync";
+    };
+    "ts:test" = {
+      description = "run the TypeScript API tests";
+      exec = "bun --cwd ts test";
+    };
+    "ts:typecheck" = {
+      description = "type-check the TypeScript API, including its type tests";
+      exec = "bun --cwd=ts install --frozen-lockfile && bun --cwd=ts run typecheck";
+    };
     x = {
       description = "open the interactive command menu";
       exec = "x";
@@ -325,6 +337,18 @@ prelude = {
     sync-docs = {
       description = "regenerate option and showcase markdown";
       exec = "docs-sync";
+    };
+    "ts:sync" = {
+      description = "regenerate the TypeScript API's themes, defaults, and fixtures";
+      exec = "ts-sync";
+    };
+    "ts:test" = {
+      description = "run the TypeScript API tests";
+      exec = "bun --cwd ts test";
+    };
+    "ts:typecheck" = {
+      description = "type-check the TypeScript API, including its type tests";
+      exec = "bun --cwd=ts install --frozen-lockfile && bun --cwd=ts run typecheck";
     };
     x = {
       description = "open the interactive command menu";

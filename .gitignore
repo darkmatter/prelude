@@ -12,6 +12,11 @@ docs/.record-bin/
 /src/cmd/prelude-shell-vt-host/prelude-shell-vt-host
 /src/motd
 
+# TypeScript API (ts/): dependencies installed by `bun install`, and the
+# library copied in to build a single-file executable
+node_modules/
+/examples/typescript/libprelude.so
+
 # direnv
 .direnv/
 
