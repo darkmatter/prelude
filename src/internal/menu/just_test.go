@@ -49,7 +49,7 @@ func TestParseJustDumpProjectsPublicRecipes(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(tasks) != 3 {
-		t.Fatalf("got %d tasks, want 3", len(tasks))
+		t.Fatalf("got %d tasks, want 3 (build, deploy, database parent)", len(tasks))
 	}
 
 	build := findTask(tasks, "build")
@@ -74,12 +74,36 @@ func TestParseJustDumpProjectsPublicRecipes(t *testing.T) {
 		t.Fatalf("flag arg = %#v", deploy.Args[2])
 	}
 
-	migrate := findTask(tasks, "database::migrate")
-	if migrate == nil {
-		t.Fatal("module recipe was not imported")
+	// A module imports as one parent row: selecting it (or `x database`) opens
+	// the subcommand picker over its recipes.
+	database := findTask(tasks, "database")
+	if database == nil {
+		t.Fatal("module parent was not imported")
 	}
-	if migrate.group != "database" || migrate.Label != "migrate" || migrate.Run != "just database::migrate" {
-		t.Fatalf("module task = %#v", *migrate)
+	if database.Label != "database" || database.Run != "just database" || database.group != "just" {
+		t.Fatalf("module parent = %#v", *database)
+	}
+	if database.Usage != "just database <subcommand>" {
+		t.Fatalf("module parent usage = %#v", database.Usage)
+	}
+	if database.Description != "1 subcommand" {
+		t.Fatalf("module parent description = %#v", database.Description)
+	}
+	if database.Details != "migrate — run migrations" {
+		t.Fatalf("module parent details = %#v", database.Details)
+	}
+	if len(database.Children) != 1 {
+		t.Fatalf("module parent has %d children, want 1", len(database.Children))
+	}
+	migrate := database.Children[0]
+	if migrate.Name != "database::migrate" || migrate.Label != "migrate" || migrate.Run != "just database::migrate" {
+		t.Fatalf("module child = %#v", migrate)
+	}
+	if migrate.group != "" || migrate.Description != "run migrations" {
+		t.Fatalf("module child placement = %#v", migrate)
+	}
+	if migrate.haystack == "" {
+		t.Fatal("module child must carry a precomputed filter haystack")
 	}
 }
 
@@ -243,6 +267,11 @@ func TestParseJustDumpGroupAttributeOverridesModuleNamepath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The explicit group keeps the recipe top-level, so the module contributes
+	// no submenu parent at all.
+	if len(tasks) != 1 {
+		t.Fatalf("got %d tasks, want 1 (grouped escape only, no parent)", len(tasks))
+	}
 	task := findTask(tasks, "deploy::staging")
 	if task == nil {
 		t.Fatal("module recipe was not imported")
@@ -296,8 +325,8 @@ func TestParseJustDumpImportsAliases(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tasks) != 6 {
-		t.Fatalf("got %d tasks, want 6", len(tasks))
+	if len(tasks) != 5 {
+		t.Fatalf("got %d tasks, want 5 (build, container-config, b, cc, deploy parent)", len(tasks))
 	}
 
 	b := findTask(tasks, "b")
@@ -316,15 +345,28 @@ func TestParseJustDumpImportsAliases(t *testing.T) {
 		t.Fatalf("alias must inherit the target group, got %#v", *cc)
 	}
 
-	st := findTask(tasks, "deploy::st")
-	if st == nil {
-		t.Fatal("module alias was not imported")
+	// The module's recipes and aliases both nest behind the parent row; the
+	// alias inherits the target's description.
+	deploy := findTask(tasks, "deploy")
+	if deploy == nil {
+		t.Fatal("module parent was not imported")
 	}
-	if st.Run != "just deploy::st" || st.group != "deploy" || st.Label != "st" {
-		t.Fatalf("module alias task = %#v", *st)
+	if len(deploy.Children) != 2 {
+		t.Fatalf("module parent has %d children, want staging + st", len(deploy.Children))
+	}
+	if deploy.Children[0].Name != "deploy::st" {
+		t.Fatalf("children must sort by key, got %#v", deploy.Children)
+	}
+	st := deploy.Children[0]
+	if st.Run != "just deploy::st" || st.Label != "st" || st.group != "" {
+		t.Fatalf("module alias child = %#v", st)
 	}
 	if st.Description != "deploy to staging" {
 		t.Fatalf("module alias description = %#v", st.Description)
+	}
+	staging := deploy.Children[1]
+	if staging.Name != "deploy::staging" || staging.Label != "staging" || staging.group != "" {
+		t.Fatalf("module recipe child = %#v", staging)
 	}
 
 	if findTask(tasks, "s") != nil {
@@ -332,6 +374,69 @@ func TestParseJustDumpImportsAliases(t *testing.T) {
 	}
 	if findTask(tasks, "dangling") != nil {
 		t.Fatal("alias with a dangling target must not be imported")
+	}
+}
+
+func TestParseJustDumpSkipsPrivateAliases(t *testing.T) {
+	data := []byte(`{
+		"recipes": {
+			"build": {"name": "build", "namepath": "build", "private": false}
+		},
+		"aliases": {
+			"b": {"attributes": ["private"], "name": "b", "target": "build"},
+			"pub": {"attributes": [], "name": "pub", "target": "build"}
+		}
+	}`)
+
+	tasks, err := parseJustDump(data, JustConfig{Enable: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if findTask(tasks, "b") != nil {
+		t.Fatal("private alias must not be imported")
+	}
+	if findTask(tasks, "pub") == nil {
+		t.Fatal("public alias was not imported")
+	}
+}
+
+func TestParseJustDumpNestsDeepModuleRecipes(t *testing.T) {
+	data := []byte(`{
+		"recipes": {},
+		"modules": {
+			"e2e": {
+				"recipes": {},
+				"modules": {
+					"desktop": {
+						"recipes": {
+							"smoke": {
+								"doc": "run the desktop smoke suite",
+								"name": "smoke",
+								"namepath": "e2e::desktop::smoke",
+								"private": false
+							}
+						},
+						"modules": {}
+					}
+				}
+			}
+		}
+	}`)
+
+	tasks, err := parseJustDump(data, JustConfig{Enable: true, Group: "just"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("got %d tasks, want the single e2e parent", len(tasks))
+	}
+	parent := tasks[0]
+	if parent.Name != "e2e" || len(parent.Children) != 1 {
+		t.Fatalf("parent = %#v", parent)
+	}
+	child := parent.Children[0]
+	if child.Name != "e2e::desktop::smoke" || child.Label != "desktop::smoke" || child.Run != "just e2e::desktop::smoke" {
+		t.Fatalf("nested child = %#v", child)
 	}
 }
 

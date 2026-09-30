@@ -104,8 +104,8 @@ func (m model) View() tea.View {
 	return view
 }
 
-// invocationPreview is the shell script Enter would hand to finish(). It is
-// the single source of truth for the last-row script preview: both list and
+// invocationPreview is the shell script Enter would hand to finish(). It is the
+// single source of truth for the last-row script preview: both list and
 // arg mode render it via renderScriptPreviewRow, so there is no second,
 // in-panel copy of the assembled command.
 func (m model) invocationPreview() string {
@@ -125,10 +125,11 @@ func (m model) invocationPreview() string {
 
 // pendingArgsHint reports whether the last-row preview should append a dim
 // ellipsis. In list mode, a task with Args advertises that Enter collects
-// arguments rather than running the command verbatim; the ellipsis is the same
-// affordance the old in-panel ArgsView preview used. In arg mode, an empty
-// argument line means the assembled command is still the bare Run string, so
-// the ellipsis marks the pending argument.
+// arguments rather than running the command verbatim, and a task with
+// subcommand children advertises that Enter opens the subcommand picker — the
+// ellipsis is the same affordance the old in-panel ArgsView preview used. In
+// arg mode, an empty argument line means the assembled command is still the
+// bare Run string, so the ellipsis marks the pending argument.
 func (m model) pendingArgsHint() bool {
 	switch m.mode {
 	case modeArgs:
@@ -137,7 +138,8 @@ func (m model) pendingArgsHint() bool {
 		if len(m.matches) == 0 {
 			return false
 		}
-		return len(m.flat[m.matches[m.sel]].Args) > 0
+		task := m.flat[m.matches[m.sel]]
+		return len(task.Args) > 0 || len(task.Children) > 0
 	}
 }
 
@@ -182,9 +184,9 @@ func overlayLastRow(canvas, row, fill string, height int) string {
 		return canvas
 	}
 	lines := strings.Split(strings.TrimRight(canvas, "\n"), "\n")
-	// collapsePreviewScript already stripped all CR/LF/control chars from
-	// the preview, so the replacement row is a single display line. Pad
-	// missing lines with themed fills so unused cells keep the window bg.
+	// collapsePreviewScript already stripped all CR/LF/control chars from the
+	// preview, so the replacement row is a single display line. Pad missing
+	// lines with themed fills so unused cells keep the window bg.
 	for len(lines) < height {
 		lines = append(lines, fill)
 	}

@@ -34,6 +34,9 @@ func (m model) updateList(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		task := m.flat[m.matches[m.sel]]
 		decision := beginInvocation(task)
 		switch decision.kind {
+		case collectSubcommandInvocation:
+			m.enterSubMode(decision.task)
+			return m, nil
 		case collectArgumentsInvocation:
 			m.enterArgMode(decision.task)
 			return m, nil
@@ -52,11 +55,23 @@ func (m model) updateList(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		case m.prompt.Value() != "":
 			m.prompt = m.prompt.Reset()
 			m.filter()
+		case m.sub != nil:
+			m.exitSubMode()
+			return m, nil
 		default:
 			return m, tea.Quit
 		}
 		m.syncList()
 		return m, nil
+
+	case "backspace":
+		// An empty query in a submenu backs out to the root list, mirroring
+		// argument-entry's backspace exit; otherwise the key falls through to
+		// the prompt's own deletion handling.
+		if m.sub != nil && m.prompt.Value() == "" {
+			m.exitSubMode()
+			return m, nil
+		}
 	}
 
 	var cmd tea.Cmd

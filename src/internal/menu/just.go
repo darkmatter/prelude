@@ -36,8 +36,9 @@ type justAttribute struct {
 }
 
 type justAlias struct {
-	Name   string `json:"name"`
-	Target string `json:"target"`
+	Attributes []json.RawMessage `json:"attributes"`
+	Name       string            `json:"name"`
+	Target     string            `json:"target"`
 }
 
 type justParameter struct {
@@ -65,6 +66,42 @@ type justAliasEntry struct {
 	target justRecipe
 }
 
+// justImported is a dump split by menu placement: flat entries stay top-level,
+// and per-module entries become one parent task's subcommand children.
+type justImported struct {
+	flat    []justRecipeEntry
+	aliases []justAliasEntry
+	modules map[string]*justModule
+}
+
+// justModule accumulates one just module's public recipes and aliases.
+type justModule struct {
+	name    string
+	recipes []justRecipeEntry
+	aliases []justAliasEntry
+}
+
+func (imported *justImported) module(name string) *justModule {
+	if imported.modules == nil {
+		imported.modules = make(map[string]*justModule)
+	}
+	module, found := imported.modules[name]
+	if !found {
+		module = &justModule{name: name}
+		imported.modules[name] = module
+	}
+	return module
+}
+
+// moduleRoot returns the first namepath segment: the module that owns a nested
+// entry ("e2e::sub::x" belongs to e2e).
+func moduleRoot(name string) string {
+	if separator := strings.Index(name, "::"); separator > 0 {
+		return name[:separator]
+	}
+	return name
+}
+
 // loadJustTasks runs just in the user's current shell directory. It is a
 // best-effort import: callers can keep the Nix-generated menu when just is not
 // installed, no Justfile is present, or the Justfile cannot be parsed.
@@ -86,39 +123,64 @@ func loadJustTasks(cfg JustConfig) ([]Task, error) {
 	return parseJustDump(output, cfg)
 }
 
+// parseJustDump projects a just dump onto menu tasks. Root recipes stay
+// top-level; a just module contributes one parent row whose subcommands are
+// picked in a submenu, so a module declutters the menu instead of adding one
+// row per recipe. An explicit [group(…)] attribute on a module recipe keeps
+// that recipe top-level in the named group — the escape hatch out of the
+// submenu.
 func parseJustDump(data []byte, cfg JustConfig) ([]Task, error) {
 	var dump justDump
 	if err := json.Unmarshal(data, &dump); err != nil {
 		return nil, fmt.Errorf("parse just JSON: %w", err)
 	}
 
-	entries := make([]justRecipeEntry, 0)
-	aliases := make([]justAliasEntry, 0)
-	collectJustTasks(dump, "", &entries, &aliases)
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].name < entries[j].name
-	})
-	sort.Slice(aliases, func(i, j int) bool {
-		return aliases[i].name < aliases[j].name
-	})
+	imported := justImported{}
+	collectJustTasks(dump, "", &imported)
 
-	tasks := make([]Task, 0, len(entries)+len(aliases))
-	for _, entry := range entries {
+	tasks := make([]Task, 0, len(imported.flat)+len(imported.aliases)+len(imported.modules))
+	for _, entry := range imported.flat {
 		if entry.recipe.Private || strings.HasPrefix(entry.name, "_") {
 			continue
 		}
 		tasks = append(tasks, justTask(entry.name, entry.recipe, cfg))
 	}
-	for _, entry := range aliases {
+	for _, entry := range imported.aliases {
 		if entry.target.Private || strings.HasPrefix(entry.name, "_") || strings.HasPrefix(entry.target.Name, "_") {
 			continue
 		}
 		tasks = append(tasks, justAliasTask(entry, cfg))
 	}
+	for _, module := range imported.modules {
+		children := make([]Task, 0, len(module.recipes)+len(module.aliases))
+		for _, entry := range module.recipes {
+			if entry.recipe.Private || strings.HasPrefix(entry.name, "_") {
+				continue
+			}
+			children = append(children, justChildTask(entry.name, entry.recipe, cfg))
+		}
+		for _, entry := range module.aliases {
+			if entry.target.Private || strings.HasPrefix(entry.name, "_") || strings.HasPrefix(entry.target.Name, "_") {
+				continue
+			}
+			children = append(children, justChildAliasTask(entry, cfg))
+		}
+		if len(children) == 0 {
+			continue
+		}
+		sort.Slice(children, func(i, j int) bool { return children[i].Name < children[j].Name })
+		tasks = append(tasks, justParentTask(module.name, children, cfg))
+	}
+
+	sort.Slice(tasks, func(i, j int) bool { return tasks[i].Name < tasks[j].Name })
 	return tasks, nil
 }
 
-func collectJustTasks(module justDump, prefix string, entries *[]justRecipeEntry, aliases *[]justAliasEntry) {
+// collectJustTasks walks one dump scope (the root Justfile or a module).
+// Recipes and aliases of the root scope stay top-level; recipes inside a
+// module join that module's parent unless an explicit [group(…)] attribute
+// keeps them top-level. An alias inherits its target's placement.
+func collectJustTasks(module justDump, prefix string, imported *justImported) {
 	for key, recipe := range module.Recipes {
 		name := recipe.Namepath
 		if name == "" {
@@ -127,10 +189,17 @@ func collectJustTasks(module justDump, prefix string, entries *[]justRecipeEntry
 		if name == "" {
 			name = key
 		}
-		if prefix != "" && !strings.Contains(name, "::") {
-			name = prefix + "::" + name
+		if prefix != "" {
+			if !strings.Contains(name, "::") {
+				name = prefix + "::" + name
+			}
+			if len(attributeGroups(recipe)) == 0 {
+				child := imported.module(moduleRoot(name))
+				child.recipes = append(child.recipes, justRecipeEntry{name: name, recipe: recipe})
+				continue
+			}
 		}
-		*entries = append(*entries, justRecipeEntry{name: name, recipe: recipe})
+		imported.flat = append(imported.flat, justRecipeEntry{name: name, recipe: recipe})
 	}
 
 	for key, child := range module.Modules {
@@ -138,7 +207,7 @@ func collectJustTasks(module justDump, prefix string, entries *[]justRecipeEntry
 		if prefix != "" {
 			childPrefix = prefix + "::" + key
 		}
-		collectJustTasks(child, childPrefix, entries, aliases)
+		collectJustTasks(child, childPrefix, imported)
 	}
 
 	for key, alias := range module.Aliases {
@@ -146,16 +215,25 @@ func collectJustTasks(module justDump, prefix string, entries *[]justRecipeEntry
 		if name == "" {
 			name = key
 		}
-		if prefix != "" {
-			name = prefix + "::" + name
-		}
 		// Alias targets resolve within their own Justfile scope; a dangling
 		// target cannot be invoked, so it never becomes a menu entry.
 		target, found := module.Recipes[alias.Target]
-		if !found {
+		if !found || aliasPrivate(alias) {
 			continue
 		}
-		*aliases = append(*aliases, justAliasEntry{name: name, target: target})
+		if prefix != "" {
+			if !strings.Contains(name, "::") {
+				name = prefix + "::" + name
+			}
+			// The alias inherits its target's placement: a grouped target
+			// keeps the alias top-level with it.
+			if len(attributeGroups(target)) == 0 {
+				child := imported.module(moduleRoot(name))
+				child.aliases = append(child.aliases, justAliasEntry{name: name, target: target})
+				continue
+			}
+		}
+		imported.aliases = append(imported.aliases, justAliasEntry{name: name, target: target})
 	}
 }
 
@@ -215,6 +293,18 @@ func attributeMetadata(recipe justRecipe) []string {
 		return nil
 	}
 	return examples
+}
+
+// aliasPrivate reports whether an alias carries the [private] attribute. The
+// dump renders alias attributes as plain strings.
+func aliasPrivate(alias justAlias) bool {
+	for _, raw := range alias.Attributes {
+		var value string
+		if err := json.Unmarshal(raw, &value); err == nil && value == "private" {
+			return true
+		}
+	}
+	return false
 }
 
 // decodeGroupValue accepts the two dump shapes: `"ops"` and `["ops", "admin"]`.
@@ -341,6 +431,65 @@ func justTask(name string, recipe justRecipe, cfg JustConfig) Task {
 		Args:        args,
 		Examples:    examples,
 		group:       group,
+		justPath:    justModulePath(name),
+	}
+}
+
+func justModulePath(name string) []string {
+	if !strings.Contains(name, "::") {
+		return nil
+	}
+	return strings.Split(name, "::")
+}
+
+// justChildTask keeps the Just namepath for execution, but the submenu shows
+// only the portion beneath the root module.
+func justChildTask(name string, recipe justRecipe, cfg JustConfig) Task {
+	task := justTask(name, recipe, cfg)
+	task.group = ""
+	task.haystack = taskHaystack(task)
+	return task
+}
+
+// justChildAliasTask builds one module subcommand from an alias. Alias-of
+// fields carry over from the flat alias shape.
+func justChildAliasTask(entry justAliasEntry, cfg JustConfig) Task {
+	task := justAliasTask(entry, cfg)
+	task.group = ""
+	task.haystack = taskHaystack(task)
+	return task
+}
+
+// justParentTask builds the single menu row for one just module. Enter opens a
+// subcommand picker over the children, and the details pane indexes them.
+func justParentTask(module string, children []Task, cfg JustConfig) Task {
+	group := cfg.Group
+	if group == "" {
+		group = "just"
+	}
+	run := justPrefix(cfg) + " " + shellWord(module)
+	description := fmt.Sprintf("%d subcommands", len(children))
+	if len(children) == 1 {
+		description = "1 subcommand"
+	}
+	var details strings.Builder
+	for _, child := range children {
+		details.WriteString(child.displayName())
+		if child.Description != "" {
+			details.WriteString(" — " + child.Description)
+		}
+		details.WriteString("\n")
+	}
+	return Task{
+		Name:        module,
+		Label:       module,
+		Run:         run,
+		Command:     run,
+		Description: description,
+		Usage:       run + " <subcommand>",
+		Details:     strings.TrimRight(details.String(), "\n"),
+		Children:    children,
+		group:       group,
 	}
 }
 
@@ -367,6 +516,7 @@ func justAliasTask(entry justAliasEntry, cfg JustConfig) Task {
 		Usage:       run,
 		Details:     "Alias of " + justAliasTarget(entry),
 		group:       group,
+		justPath:    justModulePath(entry.name),
 	}
 }
 

@@ -32,13 +32,19 @@ func (m model) viewList() string {
 	// rows at Sync time. View() is a pure return of that cache; Height() gives
 	// the row count so the status layer can be placed below.
 	listY := titleRows + promptRows + frameRows
+	// Inside a module submenu, esc first clears the filter and then backs out
+	// to the root list; the hint names the step the user is on.
+	escHint := "clear"
+	if m.sub != nil {
+		escHint = "back"
+	}
 	return lipgloss.NewCompositor(
 		lipgloss.NewLayer(m.title.View(title)).Y(0),
 		lipgloss.NewLayer(m.prompt.View(m.promptCtx, m.promptPlaceholder)).Y(titleRows),
 		lipgloss.NewLayer(m.frame.Top()).Y(titleRows+promptRows),
 		lipgloss.NewLayer(m.list.View()).Y(listY),
 		lipgloss.NewLayer(m.status.View([][2]string{
-			{"↑ ↓", "navigate"}, {"⇥", "details"}, {"↵", "run"}, {"esc", "clear"},
+			{"↑ ↓", "navigate"}, {"⇥", "details"}, {"↵", "run"}, {"esc", escHint},
 		}, "● ready")).Y(listY+m.list.Height()),
 	).Render()
 }

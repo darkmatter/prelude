@@ -43,8 +43,16 @@ The menu reads `just --dump --dump-format json`; only these fields surface:
 - `# doc comment` → menu description
 - `[group('ci')]` → menu group; the key stays flat (`x check`)
 - `alias ship := deploy` → its own entry, inheriting target's doc and group
-- `mod ops 'ops.just'` → `x ops::migrate` (module namepath groups the entry)
-- `[private]` or leading `_` → omitted from the menu
+- `mod ops 'ops.just'` → ONE `x ops` row; Enter (or bare `x ops`) opens a subcommand
+  picker over the module's recipes, while recipes dispatch publicly via parent routing
+  (`x ops migrate`, or `x ops <recipe> [args…]`). The recipe executes internally via its
+  canonical command (`just ops::migrate`). Imported module recipes cannot be selected
+  through double-colon keys (`x ops::migrate`). A module de-clutters the menu instead of
+  adding one row per recipe. Modules do not inherit the parent Justfile's `set` settings
+  or recipes; module recipes need their own private helpers (dependencies cannot cross module boundaries).
+- `[group('ops')]` on a module recipe → the recipe escapes the submenu and stays top-level
+  in that group in the menu, while remaining callable via parent routing (`x ops migrate`)
+- `[private]` or leading `_` → omitted from the menu (recipes and aliases)
 - `[metadata('just test --fix')]` → one worked Example row in the details pane
 - `[arg('package', long)]` → `--package` option in argument entry
 - `[arg('dry', long, flag)]` → toggleable flag in argument entry
@@ -65,6 +73,23 @@ test:
 [arg('package', help='import path, or ./... for all')]
 test-go $package="./...":
     go test "$package"
+
+# E2E suites grouped behind one menu row: `just e2e <suite>`
+mod e2e 'e2e.just'
+```
+
+with `e2e.just` carrying its own private helpers:
+
+```just
+[private]
+guard:
+    @test -n "${IN_NIX_SHELL:-}"
+
+# run the desktop e2e suite
+[metadata('just e2e desktop main')]
+[arg('revision', help='branch, commit, PR number or URL')]
+desktop $revision="main": guard
+    bun run desktop-test smoke "$revision"
 ```
 
 `$package` exports the parameter into the recipe environment; `"$package"`
@@ -83,6 +108,9 @@ Rules:
 - A parameter with no default is required; argument entry rejects blank submit
   until it is filled.
 - Scope edits to the request; never rename recipes — that changes public keys.
+  Moving recipes into a module changes their invocation path (e.g. `x coder-e2e` →
+  `x e2e coder`, internal `just e2e::coder`); do it only when the user asks for
+  that reorganization, and update any docs that show the old invocation.
 
 ## Dispatch contract
 
@@ -94,7 +122,10 @@ for multiword or untrusted values, with safe parameter handling in the recipe
 itself. Do not describe `x` forwarding as argv-preserving.
 
 Bare `x <recipe>` opens interactive argument entry when parameters exist.
-Modules dispatch as `x ops::migrate`, aliases as `x ship`.
+Bare `x <module>` opens the module's subcommand picker. Module recipes dispatch as
+`x <module> <recipe> [args…]` (or nested `x <parent> [submodule…] <recipe> [args…]`),
+executing the canonical `just <module>::<recipe>` command internally. Aliases dispatch as
+`x ship`.
 
 ## Documenting workflows
 
@@ -112,7 +143,7 @@ file loads, so even `--dry-run` can execute commands. Then, inside the shell:
 ```sh
 just --summary                  # new recipe listed
 just --dump --dump-format json  # the exact payload the menu imports
-x --list                        # entry appears under its group
+x --list                        # module appears as one row; children indented
 just --dry-run <recipe> [args…] # after inspection: prints lines without running them
 x <recipe>                     # exercise a safe no-argument recipe
 ```
