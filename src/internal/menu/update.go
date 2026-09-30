@@ -41,8 +41,7 @@ func (m model) updateList(msg tea.KeyPressMsg) (model, tea.Cmd) {
 			m.enterArgMode(decision.task)
 			return m, nil
 		case commandInvocation:
-			m.execCmd = decision.command
-			m.hasExecCmd = true
+			m.chosen = decision.selection()
 			return m, tea.Quit
 		default:
 			return m, nil

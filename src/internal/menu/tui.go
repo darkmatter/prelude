@@ -61,8 +61,9 @@ type model struct {
 	promptCtx         string // context label left of the caret
 	promptPlaceholder string // current placeholder text
 
-	execCmd    string // consumed by main after the TUI quits
-	hasExecCmd bool   // distinguishes a valid empty command from no selection
+	// chosen is what the picker resolved, consumed after the TUI quits; nil
+	// means the user left without choosing (a valid empty command is non-nil).
+	chosen *Selection
 }
 
 func newModel(cfg *Config, st styles, argTask *Task) model {

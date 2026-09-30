@@ -139,7 +139,7 @@ func (a *ArgsView) ChipFocus() int {
 }
 
 // Task returns the task under argument entry, or nil when not in arg mode. The
-// root calls this to drive completeInvocation on submit.
+// views read it to title and draw the argument panel.
 func (a *ArgsView) Task() *Task {
 	return a.argTask
 }
@@ -157,27 +157,19 @@ func (a *ArgsView) WithSize(inner int) *ArgsView {
 	return a
 }
 
-// Submit assembles the final shell command from the stored task and the
-// user-supplied argument line. It validates that required arguments are present
-// and returns the assembled command string. This keeps command assembly behind
-// the arg-entry seam instead of leaking it into the root model.
-func (a *ArgsView) Submit(promptValue string) (string, error) {
+// Submit resolves the stored task and the user-supplied argument line through
+// completeInvocation, which validates that required arguments are present and
+// assembles the final shell command. This keeps command assembly behind the
+// arg-entry seam instead of leaking it into the root model.
+func (a *ArgsView) Submit(promptValue string) (*Selection, error) {
 	if a.argTask == nil {
-		return "", fmt.Errorf("no task in argument-entry mode")
+		return nil, fmt.Errorf("no task in argument-entry mode")
 	}
-	argumentLine := strings.TrimSpace(promptValue)
-	if argumentLine == "" {
-		for _, arg := range a.argTask.Args {
-			if arg.Required {
-				return "", fmt.Errorf(
-					"%s: missing required argument %s",
-					a.argTask.Name,
-					arg.Token,
-				)
-			}
-		}
+	decision, err := completeInvocation(*a.argTask, promptValue)
+	if err != nil {
+		return nil, err
 	}
-	return assembleInvocation(*a.argTask, argumentLine), nil
+	return decision.selection(), nil
 }
 
 // View renders the complete argument-entry panel body: the framed arg list
