@@ -2,13 +2,16 @@ import { describe, expect, test } from "bun:test";
 
 import { Command, Docs, Menu, Motd } from "@drkmttr/prelude";
 
+import { platformLibrary } from "../src/internal/ffi.ts";
+
 // These drive the real Go surfaces through bun:ffi. The flake's ts-api check
-// and the repo devshell set PRELUDE_LIB; without it they are skipped. Only
-// non-interactive calls run here: the picker and viewer need a terminal.
+// and the repo devshell set PRELUDE_LIB, and CI builds the library into lib/;
+// with neither they are skipped. Only non-interactive calls run here: the
+// picker and viewer need a terminal.
 
 const plain = (text: string) => text.replace(/\x1b\[[0-9;:?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, "");
 
-describe.skipIf(!process.env.PRELUDE_LIB)("libprelude", () => {
+describe.skipIf(!process.env.PRELUDE_LIB && platformLibrary() === undefined)("libprelude", () => {
   const menu = Menu.make({
     project: "acme",
     dispatcher: "acme",

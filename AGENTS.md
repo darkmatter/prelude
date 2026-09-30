@@ -67,7 +67,9 @@ public name (`x go:test`).
   stale. Public modules are namespaces with `make` (`Command.make`); shared
   helpers stay in `ts/src/internal/`. The Go surfaces reach it through
   `libprelude` (`src/cmd/libprelude`, cgo c-shared), whose exports never exit
-  or exec: the host runs the selection.
+  or exec: the host runs the selection. A pushed `vX.Y.Z` tag on `main`
+  publishes it to npm with every platform's library inside; see
+  [`ts/README.md#release`](ts/README.md#release).
 
 When changing catalogue keys, grouping, or MOTD next-steps, read
 [`docs/guides/command-conventions.md`](docs/guides/command-conventions.md).

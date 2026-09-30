@@ -85,7 +85,7 @@ export const preludeCommand = Command.make({
 await Prelude.make({ project: "acme", commands: { dev: preludeCommand } }).main();
 ```
 
-Walkthrough: [`examples/typescript/`](examples/typescript/). API: [`ts/`](ts/README.md) (not on npm yet).
+Install with `bun add @drkmttr/prelude`. Walkthrough: [`examples/typescript/`](examples/typescript/). API: [`ts/`](ts/README.md).
 
 ## Usage
 
