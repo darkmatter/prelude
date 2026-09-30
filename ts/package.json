@@ -1,6 +1,6 @@
 {
   "name": "@drkmttr/prelude",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": false,
   "description": "Prelude's command menu, MOTD, and docs viewer for Bun apps",
   "license": "MIT",
