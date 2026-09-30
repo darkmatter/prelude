@@ -13,33 +13,48 @@ const (
 	invalidInvocation invocationKind = iota
 	commandInvocation
 	collectArgumentsInvocation
+	collectSubcommandInvocation
 )
 
 // invocationDecision carries exactly one variant: command is meaningful for
-// commandInvocation, while task is meaningful for collectArgumentsInvocation.
-// Callers must check kind because an empty command is still a valid decision.
+// commandInvocation, while task is meaningful for collectArgumentsInvocation
+// and collectSubcommandInvocation. Callers must check kind because an empty
+// command is still a valid decision.
 type invocationDecision struct {
 	kind    invocationKind
 	command string
 	task    Task
 }
 
-// resolveXInvocation resolves the public `x <command-key> [args…]` contract.
-// The complete key is globally unique and remains public; its first colon only
-// derives menu presentation. This is the same Task and assembler used by menu
-// selection, so both paths execute exactly the same canonical command.
+// resolveXInvocation shares the TUI's task assembler. Imported module recipes
+// use a space-separated path; their Just namepaths are not public selectors.
 func resolveXInvocation(cfg *Config, args []string) (invocationDecision, error) {
 	if len(args) == 0 {
 		return invocationDecision{}, fmt.Errorf("missing command name")
 	}
 	name := args[0]
 	task := findXTask(cfg, name)
+	if task == nil || len(task.Children) > 0 {
+		if child, consumed := findModuleRecipe(cfg, args); child != nil {
+			extra := args[consumed:]
+			if len(extra) > 0 && extra[0] == "--" {
+				extra = extra[1:]
+			}
+			return resolveTaskInvocation(*child, extra), nil
+		}
+	}
 	if task == nil {
 		return invocationDecision{}, fmt.Errorf("unknown command %q", name)
 	}
 	extra := args[1:]
 	if len(extra) > 0 && extra[0] == "--" {
 		extra = extra[1:]
+	}
+	// Unknown subcommands retain Just's native module-dispatch form.
+	if len(task.Children) > 0 && len(extra) > 0 {
+		if child, consumed := findSubcommand(*task, extra); child != nil {
+			return resolveTaskInvocation(*child, extra[consumed:]), nil
+		}
 	}
 	return resolveTaskInvocation(*task, extra), nil
 }
@@ -53,11 +68,12 @@ func resolveTaskInvocation(task Task, extra []string) invocationDecision {
 
 // findXTask resolves the public x selector. Exact catalogue name always wins;
 // single-key accelerators are a second pass so a key never shadows a name.
+// Imported module namepaths are internal, including explicitly grouped recipes.
 func findXTask(cfg *Config, name string) *Task {
 	for groupIndex := range cfg.Groups {
 		for taskIndex := range cfg.Groups[groupIndex].Tasks {
 			task := &cfg.Groups[groupIndex].Tasks[taskIndex]
-			if task.Name == name {
+			if task.Name == name && len(task.justPath) == 0 {
 				return task
 			}
 		}
@@ -73,9 +89,58 @@ func findXTask(cfg *Config, name string) *Task {
 	return nil
 }
 
-// beginInvocation prepares a task selected in the TUI. Declaring any arguments
-// opens argument-entry mode; otherwise the task is immediately executable.
+func findModuleRecipe(cfg *Config, args []string) (*Task, int) {
+	for gi := range cfg.Groups {
+		for ti := range cfg.Groups[gi].Tasks {
+			task := &cfg.Groups[gi].Tasks[ti]
+			if len(task.justPath) > 0 && routeMatches(task.justPath, args) {
+				return task, len(task.justPath)
+			}
+			if len(args) > 1 && task.Name == args[0] {
+				if child, consumed := findSubcommand(*task, args[1:]); child != nil {
+					return child, consumed + 1
+				}
+			}
+		}
+	}
+	return nil, 0
+}
+
+func routeMatches(path, args []string) bool {
+	if len(args) < len(path) {
+		return false
+	}
+	for i, part := range path {
+		if part != args[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func findSubcommand(parent Task, args []string) (*Task, int) {
+	for index := range parent.Children {
+		child := &parent.Children[index]
+		path := child.justPath
+		if len(path) > 1 {
+			path = path[1:]
+		} else {
+			path = []string{child.Label}
+		}
+		if routeMatches(path, args) {
+			return child, len(path)
+		}
+	}
+	return nil, 0
+}
+
+// beginInvocation prepares a task selected in the TUI. Subcommand parents open
+// the subcommand picker; declaring any arguments opens argument-entry mode;
+// otherwise the task is immediately executable.
 func beginInvocation(task Task) invocationDecision {
+	if len(task.Children) > 0 {
+		return invocationDecision{kind: collectSubcommandInvocation, task: task}
+	}
 	if len(task.Args) > 0 {
 		return invocationDecision{kind: collectArgumentsInvocation, task: task}
 	}

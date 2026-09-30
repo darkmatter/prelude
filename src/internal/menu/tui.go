@@ -20,6 +20,18 @@ type chip struct {
 	value string
 }
 
+// listFrame is a snapshot of the root list, saved while a module submenu is
+// open so esc restores the exact filtered position the user left.
+type listFrame struct {
+	flat              []Task
+	matches           []int
+	sel               int
+	expanded          bool
+	promptValue       string
+	promptCtx         string
+	promptPlaceholder string
+}
+
 type model struct {
 	cfg *Config
 	st  styles
@@ -31,6 +43,12 @@ type model struct {
 
 	expanded bool
 	mode     mode
+
+	// Submenu navigation: sub is the module parent whose children the list
+	// currently shows; saved holds the root list to restore on exit. Both are
+	// nil at the root level.
+	sub   *Task
+	saved *listFrame
 
 	list   *ListView // list body sub-model: owns scroll offset + cached rows
 	args   *ArgsView // arg-entry sub-model: owns chips/chipFocus/argErr/argTask

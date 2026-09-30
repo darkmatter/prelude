@@ -55,9 +55,15 @@ type Task struct {
 	Details     string   `json:"details"`
 	Examples    []string `json:"examples"`
 	Args        []Arg    `json:"args"`
+	// Children are the task's subcommands. A just module imports as one menu
+	// row and its recipes stay behind it: selecting the row (or `x <name>`)
+	// opens a subcommand picker. Children never appear in the root list and
+	// keep their complete key (`module::recipe`) for Just execution.
+	Children []Task `json:"children"`
 
-	group    string // owning group title
-	haystack string // precomputed lowercase filter target
+	group    string   // owning group title
+	haystack string   // precomputed lowercase filter target
+	justPath []string // public argv route for an imported module recipe
 }
 
 func (t Task) displayName() string {
@@ -90,15 +96,33 @@ func loadConfig(path string) (*Config, error) {
 	return cfg, nil
 }
 
-// flatten returns every task in group order with search metadata attached.
+// taskHaystack is the lowercase filter target for one task. flatten computes
+// it for top-level tasks; the just import precomputes it for subcommand
+// children, which enter filtering through the submenu's flat list.
+func taskHaystack(t Task) string {
+	return strings.ToLower(
+		t.Name + " " + t.displayName() + " " + t.Usage + " " + t.Description + " " + t.group,
+	)
+}
+
+// flatten returns every top-level task in group order with search metadata
+// attached. Subcommand children stay out of the root list, but their names
+// and descriptions are folded into the parent's haystack so a query like
+// "desktop" still surfaces the module row that owns them.
 func (c *Config) flatten() []Task {
 	var flat []Task
 	for _, g := range c.Groups {
 		for _, t := range g.Tasks {
 			t.group = g.Title
-			t.haystack = strings.ToLower(
-				t.Name + " " + t.displayName() + " " + t.Usage + " " + t.Description + " " + t.group,
-			)
+			t.haystack = taskHaystack(t)
+			for index := range t.Children {
+				child := t.Children[index]
+				if child.haystack == "" {
+					child.haystack = taskHaystack(child)
+					t.Children[index] = child
+				}
+				t.haystack += " " + child.haystack
+			}
 			flat = append(flat, t)
 		}
 	}

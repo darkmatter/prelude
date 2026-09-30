@@ -45,7 +45,13 @@ func printListTo(output io.Writer, environ []string, cfg *Config, st styles) {
 			fmt.Fprintln(w, st.muted.Render(ui.LetterSpace(g.Title)))
 		}
 		for _, t := range g.Tasks {
-			fmt.Fprintln(w, listRow(st, t, width))
+			fmt.Fprintln(w, listRow(st, t, width, 0))
+			// Subcommand children print one level indented under their module
+			// row so the table stays a complete catalogue reference; the
+			// interactive picker keeps them behind the submenu instead.
+			for _, child := range t.Children {
+				fmt.Fprintln(w, listRow(st, child, width, 1))
+			}
 		}
 	}
 	if cfg.justImportWarning != "" {
@@ -57,7 +63,8 @@ func printListTo(output io.Writer, environ []string, cfg *Config, st styles) {
 
 // listRow paints one non-interactive task line in the same language as the
 // picker: optional key rail, bold name, muted description, optional right hint.
-func listRow(st styles, t Task, width int) string {
+// depth indents subcommand children one level under their module row.
+func listRow(st styles, t Task, width int, depth int) string {
 	keyLabel := ""
 	if t.Key != "" {
 		keyLabel = t.Key
@@ -65,9 +72,11 @@ func listRow(st styles, t Task, width int) string {
 	marker := ""
 	if len(t.Args) > 0 {
 		marker = "◆ args"
+	} else if len(t.Children) > 0 {
+		marker = fmt.Sprintf("▸ %d", len(t.Children))
 	}
 
-	leftPad := st.fg.PaddingLeft(2).Render("")
+	leftPad := st.fg.PaddingLeft(2 + depth*2).Render("")
 	shortcut := ""
 	if keyLabel != "" {
 		// Plain (no bg) stand-in for the framed keycap used in the TUI.

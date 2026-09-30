@@ -79,10 +79,10 @@ The tool that owns a workflow also owns its underlying invocation:
 
 | Catalogue key | Canonical invocation |
 | ------------- | -------------------- |
-| `test` | `bun run test` |
-| `check` | `just check` |
-| `deploy` | `nix run .#deploy` |
-| `go:test` | `go test ./...` |
+| `test`        | `bun run test`       |
+| `check`       | `just check`         |
+| `deploy`      | `nix run .#deploy`   |
+| `go:test`     | `go test ./...`      |
 
 `x` dispatches to these commands; it does not translate every workflow into
 `nix run`. The Nix devshell provides dependencies and environment. Once inside
@@ -123,8 +123,20 @@ just --dump --dump-format json
 
 and merges the parsed recipes with the Nix catalogue. A configured
 `prelude.commands.<name>` entry wins a recipe with the same name. The imported
-recipe keeps `just <recipe>` as its canonical invocation, while module-qualified
-recipes such as `database::migrate` remain callable through `x database::migrate`.
+recipe keeps `just <recipe>` as its canonical invocation.
+
+A just module (`mod database 'database.just'`) imports as one menu row:
+selecting `database` in the picker — or running `x database` — opens a
+subcommand picker over the module's recipes, so a module declutters the menu
+instead of adding one row per recipe. Module recipes are invoked through parent
+dispatch (`x database migrate` or `x <module> [submodule…] <recipe> [args…]`),
+which executes the recipe's canonical command (`just database::migrate`).
+Imported module recipes cannot be selected through double-colon keys
+(`x database::migrate`). An explicit `[group(…)]` attribute on a
+module recipe keeps that recipe displayed in the named top-level group in the
+menu while remaining reachable through parent routing (`x database migrate`).
+Extras the parent does not recognize keep just's module-dispatch form
+(`just database <recipe> <args…>`).
 
 By default, `just` discovers the Justfile from the current working directory.
 Set `prelude.menu.just.justfile` to pin a specific Justfile path. Recipes marked

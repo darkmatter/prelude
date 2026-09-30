@@ -59,7 +59,7 @@ func Run() {
 
 	case *xMode:
 		// Bare `x` opens the same picker as bare `menu`.
-		runTUI(cfg, st, nil)
+		runTUI(cfg, st, nil, nil)
 
 	case len(args) > 0:
 		// `menu` only opens the interactive picker. Execution and listing
@@ -70,7 +70,7 @@ func Run() {
 		os.Exit(1)
 
 	default:
-		runTUI(cfg, st, nil)
+		runTUI(cfg, st, nil, nil)
 	}
 }
 
@@ -89,12 +89,18 @@ func finishDecision(cfg *Config, st styles, command string, decision invocationD
 	case commandInvocation:
 		finish(cfg, st, decision.command)
 	case collectArgumentsInvocation:
-		runTUI(cfg, st, &decision.task)
+		runTUI(cfg, st, &decision.task, nil)
+	case collectSubcommandInvocation:
+		runTUI(cfg, st, nil, &decision.task)
 	}
 }
 
-func runTUI(cfg *Config, st styles, argTask *Task) {
-	runProgram(cfg, st, newModel(cfg, st, argTask))
+func runTUI(cfg *Config, st styles, argTask *Task, subTask *Task) {
+	m := newModel(cfg, st, argTask)
+	if subTask != nil {
+		m.enterSubMode(*subTask)
+	}
+	runProgram(cfg, st, m)
 }
 
 // usage prints a short command synopsis to stderr and exits 0 without

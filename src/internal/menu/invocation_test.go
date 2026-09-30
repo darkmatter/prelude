@@ -63,6 +63,63 @@ func TestResolveXInvocationNameOutranksAcceleratorKey(t *testing.T) {
 	}
 }
 
+func submoduleTestConfig() *Config {
+	return &Config{Groups: []Group{
+		{Title: "just", Tasks: []Task{
+			{
+				Name:     "e2e",
+				Label:    "e2e",
+				Run:      "just e2e",
+				Children: []Task{{Name: "e2e::coder", Label: "coder", Run: "just e2e::coder"}},
+			},
+		}},
+	}}
+}
+
+func TestResolveXInvocationRejectsModuleChildCompleteKey(t *testing.T) {
+	cfg := submoduleTestConfig()
+
+	if _, err := resolveXInvocation(cfg, []string{"e2e::coder", "extra"}); err == nil {
+		t.Fatal("Just namepath unexpectedly resolved as a public selector")
+	}
+}
+
+func TestResolveXInvocationRoutesParentSubcommandSelector(t *testing.T) {
+	cfg := submoduleTestConfig()
+
+	decision, err := resolveXInvocation(cfg, []string{"e2e", "coder"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.kind != commandInvocation || decision.command != "just e2e::coder" {
+		t.Fatalf("decision = %#v", decision)
+	}
+}
+
+func TestResolveXInvocationBareParentOpensSubcommandPicker(t *testing.T) {
+	cfg := submoduleTestConfig()
+
+	decision, err := resolveXInvocation(cfg, []string{"e2e"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.kind != collectSubcommandInvocation {
+		t.Fatalf("decision = %#v, want the subcommand picker", decision)
+	}
+}
+
+func TestResolveXInvocationParentFallsBackToModuleDispatch(t *testing.T) {
+	cfg := submoduleTestConfig()
+
+	decision, err := resolveXInvocation(cfg, []string{"e2e", "unknown", "flag"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.kind != commandInvocation || decision.command != "just e2e unknown flag" {
+		t.Fatalf("decision = %#v", decision)
+	}
+}
+
 func xTestConfig() *Config {
 	return &Config{Groups: []Group{
 		{Title: "go", Tasks: []Task{{Name: "go:test", Label: "test", Key: "t", Run: "go test -C src ./..."}}},
