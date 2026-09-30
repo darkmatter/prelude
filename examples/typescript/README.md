@@ -39,6 +39,7 @@ builds and runs it the same way.
 
 ## In your own project
 
-`tsconfig.json` resolves `@drkmttr/prelude` to `../../ts` so the example runs
-from a checkout. The package is not on npm yet; see
+Install the package with `bun add @drkmttr/prelude` and import it the same way.
+This example's `tsconfig.json` resolves `@drkmttr/prelude` to `../../ts`
+instead, so it runs from a checkout without installing anything; see
 [`ts/README.md`](../../ts/README.md).

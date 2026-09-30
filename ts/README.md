@@ -33,6 +33,18 @@ directly, and `./main.ts --list` prints every command.
 [`examples/typescript/`](../examples/typescript/) is a complete app with a MOTD,
 docs, and a single-file build.
 
+## Install
+
+```sh
+bun add @drkmttr/prelude
+```
+
+The package is TypeScript source for Bun, plus libprelude, the Go side, built
+for macOS and Linux on arm64 and x64. All four libraries ship in the one
+package (about 18 MB to download), and it loads this machine's. Linux needs
+glibc 2.34 or newer, so it covers Ubuntu 22.04, Debian 12, and RHEL 9 onward,
+but not Alpine.
+
 ## Modules
 
 Each module is a namespace: `import { Command, Menu } from "@drkmttr/prelude"`.
@@ -99,27 +111,29 @@ viewer take over the terminal and block until the person leaves them.
 
 ## libprelude
 
-The package loads the library named by `PRELUDE_LIB`, or the path given to
-`Library.use()`. This repository's devshell sets `PRELUDE_LIB`; elsewhere,
-`nix build github:darkmatter/prelude#libprelude` builds it.
+The package loads the path given to `Library.use()`, else `PRELUDE_LIB`, else
+the library it ships for this machine under `lib/<platform>-<arch>/`. This
+repository's devshell sets `PRELUDE_LIB`; `nix build github:darkmatter/prelude#libprelude` builds the library elsewhere.
 
 A single-file executable embeds the library, so it needs neither Bun nor
-`PRELUDE_LIB` where it runs. Import the library as a file and pass it to
-`Library.use()` before the app starts, as
+`PRELUDE_LIB` where it runs. Import the target platform's library as a file and
+pass it to `Library.use()` before the app starts, as
 [`standalone.ts`](../examples/typescript/standalone.ts) does:
 
-```sh
-cp "$PRELUDE_LIB" examples/typescript/libprelude.so
-bun build --compile examples/typescript/standalone.ts --outfile acme
+```ts
+import { Library } from "@drkmttr/prelude";
+import library from "@drkmttr/prelude/lib/darwin-arm64/libprelude.dylib" with { type: "file" };
+
+Library.use(library);
 ```
 
-The library is built with cgo, once per platform.
+Build once per target platform, importing that platform's library.
 
 ## Development
 
 ```sh
 x ts:test       # bun test (FFI tests need PRELUDE_LIB)
-x ts:typecheck  # tsc over src, tests, and the example
+x ts:typecheck  # tsc over src, tests, scripts, and the example
 x ts:sync       # regenerate src/internal/generated.ts and the conformance fixtures
 ```
 
@@ -130,3 +144,66 @@ the namespaces do not expose. The config builders port Nix rules:
 output with the JSON Nix generates for the same fixtures. When those Nix files
 change, update the port and run `x ts:sync`; `x check` fails while the
 generated inputs are stale.
+
+[`scripts/npm-package.ts`](scripts/npm-package.ts) builds the libraries the
+package ships:
+
+```sh
+bun scripts/npm-package.ts library   # this machine's library → lib/<platform>-<arch>/
+bun scripts/npm-package.ts check     # fail unless all four platforms' libraries are in lib/
+bun scripts/npm-package.ts smoke     # install the packed package and load the menu
+```
+
+CI builds the linux-x64 library, tests against it, and runs `smoke` on every
+push, beside `nix flake check`.
+
+## Release
+
+Releases are cut by CI from pushed version tags, as in
+[adhere](https://github.com/darkmatter/adhere). From a clean, up-to-date
+`main`, push the release tag:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The tag push starts `.github/workflows/release.yml`, which checks out `main`,
+derives `0.1.0` from `v0.1.0`, and runs `bun run release -- --ci 0.1.0` in
+`ts/`. Release-it bumps `ts/package.json`, commits `chore: release v0.1.0`
+back to `main`, skips npm publish, and creates the GitHub Release for the
+existing tag.
+
+Publishing stays in `.github/workflows/publish.yml`: after release-it
+finishes, `release.yml` calls the reusable publish workflow directly, avoiding
+a chained GitHub Release event created by `GITHUB_TOKEN`. libprelude needs
+cgo, so the publish workflow first runs `.github/workflows/libraries.yml`,
+which builds each platform's library on its own runner (both macOS libraries
+on the arm64 Mac), and collects them into `lib/`.
+Then it verifies that `ts/package.json` matches the release tag, checks that
+all four libraries are there, tests against the linux-x64 one, loads the
+packed package the way an install does, and publishes `@drkmttr/prelude` with
+`npm publish --access public --provenance`. No npm token is used, so the
+package has to be published once by hand before it can be given trusted
+publishers on npmjs.com. npm checks the workflow that started the run, so it
+needs two: `release.yml`, which calls the publish workflow for tag releases,
+and `publish.yml`, for manual runs. The publish workflow can be run manually
+for an already-created release tag if a publish needs to be retried; it skips
+a version that is already on npm.
+
+### From a checkout
+
+The first publish happens by hand, since npm has to know a package before it
+takes trusted publishers. Run the libraries workflow, download its four
+libraries into `lib/`, and publish:
+
+```sh
+gh workflow run libraries.yml --ref main
+run=$(gh run list --workflow libraries.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+gh run watch "$run" && gh run download "$run" --dir ts/lib
+cd ts && bun scripts/npm-package.ts check && npm publish
+```
+
+That publishes `ts/package.json`'s version, `0.0.0` until the first release
+tag bumps it, which is enough to create the package; release tags publish from
+then on.

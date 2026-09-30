@@ -1,0 +1,73 @@
+name: Publish
+
+on:
+  workflow_call:
+    inputs:
+      tag_name:
+        description: "Release tag to publish, for example v0.3.0."
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Release tag to publish, for example v0.3.0."
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  libraries:
+    uses: ./.github/workflows/libraries.yml
+
+  publish:
+    needs: libraries
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+      - name: Verify release tag matches package version
+        env:
+          TAG_NAME: ${{ inputs.tag_name }}
+        run: |
+          version="${TAG_NAME#v}"
+          if [[ "$version" == "$TAG_NAME" || ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release tags must look like vX.Y.Z, optionally with a prerelease/build suffix." >&2
+            exit 1
+          fi
+          package_version="$(node -p "require('./package.json').version")"
+          if [ "$version" != "$package_version" ]; then
+            echo "Release tag $TAG_NAME does not match package.json version $package_version." >&2
+            exit 1
+          fi
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - uses: actions/download-artifact@v4
+        with:
+          path: ts/lib
+      - run: bun scripts/npm-package.ts check
+      - run: bun run test
+      - name: Load the package the way an install does
+        run: bun scripts/npm-package.ts smoke
+      - name: Publish @drkmttr/prelude with every platform's library
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          # A rerun after the version is out does nothing.
+          if npm view "@drkmttr/prelude@$version" version >/dev/null 2>&1; then
+            echo "@drkmttr/prelude@$version is already published."
+          else
+            npm publish --access public --provenance
+          fi

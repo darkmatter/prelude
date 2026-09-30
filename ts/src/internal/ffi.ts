@@ -1,4 +1,6 @@
-import { CString, dlopen, FFIType, ptr } from "bun:ffi";
+import { CString, dlopen, FFIType, ptr, suffix } from "bun:ffi";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 // The C ABI of src/cmd/libprelude: each operation takes one JSON request and
 // returns one JSON reply, {"ok": …} or {"error": "…"}, released with
@@ -21,9 +23,20 @@ export type Operation = Exclude<keyof typeof symbols, "prelude_abi_version" | "p
 let chosenPath: string | undefined;
 let library: Library | undefined;
 
+const platform = `${process.platform}-${process.arch}`;
+
 /**
- * Uses a specific libprelude instead of the PRELUDE_LIB path, such as one
- * embedded in a single-file executable:
+ * This machine's libprelude from the package's lib/<os>-<cpu>/, which ships
+ * one for each supported platform (see scripts/npm-package.ts).
+ */
+export function platformLibrary(root = new URL("../../", import.meta.url)): string | undefined {
+  const path = fileURLToPath(new URL(`lib/${platform}/libprelude.${suffix}`, root));
+  return existsSync(path) ? path : undefined;
+}
+
+/**
+ * Uses a specific libprelude instead of PRELUDE_LIB or the bundled one, such
+ * as one embedded in a single-file executable:
  *
  *     import lib from "./libprelude.so" with { type: "file" }
  *     Library.use(lib)
@@ -37,10 +50,11 @@ export function use(path: string): void {
 
 function load(): Library {
   if (library !== undefined) return library;
-  const path = chosenPath ?? process.env.PRELUDE_LIB;
+  const path = chosenPath ?? (process.env.PRELUDE_LIB || platformLibrary());
   if (!path) {
     throw new Error(
-      "prelude: cannot find libprelude. Set PRELUDE_LIB to its path (`nix build github:darkmatter/prelude#libprelude`) or call Library.use().",
+      `prelude: no libprelude for ${platform}. The package ships one for macOS and Linux on arm64 and x64;` +
+        " in a checkout, build it with `bun scripts/npm-package.ts library`. Otherwise set PRELUDE_LIB or call Library.use().",
     );
   }
   const opened = dlopen(path, symbols);

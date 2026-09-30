@@ -14,3 +14,25 @@ jobs:
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - run: nix flake check
     - run: nix develop . -c echo OK
+  typescript:
+    # The npm package in ts/, as adhere's CI checks its own: typecheck, test
+    # against a freshly built libprelude, then install the packed package and
+    # load it.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ts
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: src/go.mod
+        cache-dependency-path: src/go.sum
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: "1.4.2"
+    - run: bun install --frozen-lockfile
+    - run: bun run typecheck
+    - run: bun scripts/npm-package.ts library linux-x64
+    - run: bun run test
+    - run: bun scripts/npm-package.ts smoke

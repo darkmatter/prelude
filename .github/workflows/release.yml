@@ -1,0 +1,76 @@
+name: Release
+
+# Releases @drkmttr/prelude (ts/) from a pushed vX.Y.Z tag on main; see
+# ts/README.md#release.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Derive version from tag
+        id: release
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if [[ "$version" == "$GITHUB_REF_NAME" || ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release tags must look like vX.Y.Z, optionally with a prerelease/build suffix." >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure tag was cut from current main
+        shell: bash
+        run: |
+          tag_sha="$(git rev-list -n 1 "$GITHUB_REF_NAME")"
+          main_sha="$(git rev-parse HEAD)"
+          if [[ "$tag_sha" != "$main_sha" ]]; then
+            echo "Tag $GITHUB_REF_NAME must point at current main before release-it adds the version bump commit." >&2
+            echo "tag=$tag_sha main=$main_sha" >&2
+            exit 1
+          fi
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Configure git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run test
+      - name: Create GitHub release
+        run: bun run release -- --ci "${{ steps.release.outputs.version }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    needs: release
+    uses: ./.github/workflows/publish.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      tag_name: ${{ github.ref_name }}
