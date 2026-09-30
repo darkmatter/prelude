@@ -26,11 +26,15 @@ func printListTo(output io.Writer, environ []string, cfg *Config, st styles) {
 			width = w
 		}
 	}
+	writeList(shared.ColorWriter(output, environ, cfg.ColorProfile), cfg, st, width)
+}
+
+// writeList paints the table for a known terminal width (capped by maxWidth)
+// into w, which already applies the output's color profile.
+func writeList(w io.Writer, cfg *Config, st styles, width int) {
 	if cfg.MaxWidth > 0 && width > cfg.MaxWidth {
 		width = cfg.MaxWidth
 	}
-
-	w := shared.ColorWriter(output, environ, cfg.ColorProfile)
 
 	first := true
 	for _, g := range cfg.Groups {
@@ -57,8 +61,12 @@ func printListTo(output io.Writer, environ []string, cfg *Config, st styles) {
 	if cfg.justImportWarning != "" {
 		fmt.Fprintln(w, st.dim.Render(cfg.justImportWarning))
 	}
+	dispatcher := cfg.Dispatcher
+	if dispatcher == "" {
+		dispatcher = "x"
+	}
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, st.dim.Render("run x to pick a task interactively"))
+	fmt.Fprintln(w, st.dim.Render("run "+dispatcher+" to pick a task interactively"))
 }
 
 // listRow paints one non-interactive task line in the same language as the

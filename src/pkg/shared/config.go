@@ -3,6 +3,7 @@ package shared
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -16,13 +17,23 @@ func LoadJSON[T any](path string) (*T, error) {
 	if err != nil {
 		return nil, err
 	}
+	cfg, err := DecodeJSON[T](raw)
+	if err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", path, err)
+	}
+	return cfg, nil
+}
 
+// DecodeJSON is LoadJSON for a payload already in memory, such as the config a
+// TypeScript host hands libprelude. The same strictness applies: its JSON is a
+// second author of the Nix boundary and must not drift from it either.
+func DecodeJSON[T any](raw []byte) (*T, error) {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 
 	var cfg T
 	if err := decoder.Decode(&cfg); err != nil {
-		return nil, fmt.Errorf("parsing %s: %w", path, err)
+		return nil, err
 	}
 
 	var trailing json.RawMessage
@@ -30,8 +41,8 @@ func LoadJSON[T any](path string) (*T, error) {
 	case io.EOF:
 		return &cfg, nil
 	case nil:
-		return nil, fmt.Errorf("parsing %s: unexpected data after first JSON value", path)
+		return nil, errors.New("unexpected data after first JSON value")
 	default:
-		return nil, fmt.Errorf("parsing %s: trailing data: %w", path, err)
+		return nil, fmt.Errorf("trailing data: %w", err)
 	}
 }

@@ -102,6 +102,19 @@ func moduleRoot(name string) string {
 	return name
 }
 
+// importJust merges the runtime Justfile recipes into cfg when enabled. A
+// failed import keeps the configured catalogue and leaves a visible warning.
+func importJust(cfg *Config) {
+	if !cfg.Just.Enable {
+		return
+	}
+	if tasks, err := loadJustTasks(cfg.Just); err == nil {
+		mergeJustTasks(cfg, tasks)
+	} else {
+		cfg.justImportWarning = "just recipes unavailable; check that just and a Justfile are available"
+	}
+}
+
 // loadJustTasks runs just in the user's current shell directory. It is a
 // best-effort import: callers can keep the Nix-generated menu when just is not
 // installed, no Justfile is present, or the Justfile cannot be parsed.

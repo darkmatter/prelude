@@ -16,14 +16,21 @@ const (
 	collectSubcommandInvocation
 )
 
-// invocationDecision carries exactly one variant: command is meaningful for
-// commandInvocation, while task is meaningful for collectArgumentsInvocation
-// and collectSubcommandInvocation. Callers must check kind because an empty
-// command is still a valid decision.
+// invocationDecision carries exactly one variant: command and line are
+// meaningful for commandInvocation, while task is meaningful for every kind —
+// the task to collect input for, or the task a command was assembled from.
+// Callers must check kind because an empty command is still a valid decision.
 type invocationDecision struct {
 	kind    invocationKind
 	command string
 	task    Task
+	line    string // argument text appended to task.Run
+}
+
+// selection projects a command decision for library hosts, which dispatch on
+// the task and its argument text rather than exec'ing the assembled command.
+func (d invocationDecision) selection() *Selection {
+	return &Selection{Name: d.task.Name, Line: d.line, Command: d.command}
 }
 
 // resolveXInvocation shares the TUI's task assembler. Imported module recipes
@@ -61,7 +68,7 @@ func resolveXInvocation(cfg *Config, args []string) (invocationDecision, error) 
 
 func resolveTaskInvocation(task Task, extra []string) invocationDecision {
 	if len(extra) > 0 {
-		return commandDecision(assembleInvocation(task, strings.Join(extra, " ")))
+		return commandDecision(task, strings.Join(extra, " "))
 	}
 	return beginInvocation(task)
 }
@@ -144,7 +151,7 @@ func beginInvocation(task Task) invocationDecision {
 	if len(task.Args) > 0 {
 		return invocationDecision{kind: collectArgumentsInvocation, task: task}
 	}
-	return commandDecision(assembleInvocation(task, ""))
+	return commandDecision(task, "")
 }
 
 // completeInvocation validates and assembles text submitted from argument-entry
@@ -163,13 +170,18 @@ func completeInvocation(task Task, argumentLine string) (invocationDecision, err
 			}
 		}
 	}
-	return commandDecision(assembleInvocation(task, argumentLine)), nil
+	return commandDecision(task, argumentLine), nil
 }
 
 // commandDecision records command presence separately from command contents.
 // This preserves empty commands instead of collapsing them into "no action".
-func commandDecision(command string) invocationDecision {
-	return invocationDecision{kind: commandInvocation, command: command}
+func commandDecision(task Task, line string) invocationDecision {
+	return invocationDecision{
+		kind:    commandInvocation,
+		command: assembleInvocation(task, line),
+		task:    task,
+		line:    line,
+	}
 }
 
 // assembleInvocation trims only the complete command. Interactive callers pass

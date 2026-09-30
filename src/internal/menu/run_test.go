@@ -19,11 +19,14 @@ func TestEnterOnReadyCommandQuitsToFinish(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("enter on a ready command returned a nil command")
 	}
-	if !got.hasExecCmd {
+	if got.chosen == nil {
 		t.Fatal("enter kept the menu alive instead of handing the command to finish")
 	}
-	if got.execCmd != "nix develop -c $SHELL" {
-		t.Fatalf("execCmd = %q, want assembled run script", got.execCmd)
+	if got.chosen.Command != "nix develop -c $SHELL" {
+		t.Fatalf("chosen.Command = %q, want assembled run script", got.chosen.Command)
+	}
+	if got.chosen.Name != "dev" || got.chosen.Line != "" {
+		t.Fatalf("chosen = %+v, want the dev task with no argument line", *got.chosen)
 	}
 	if _, ok := cmd().(tea.QuitMsg); !ok {
 		t.Fatal("enter must quit the TUI so finish replaces this process")
@@ -49,11 +52,16 @@ func TestArgSubmitQuitsToFinish(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("arg submit returned a nil command")
 	}
-	if !got.hasExecCmd {
+	if got.chosen == nil {
 		t.Fatal("arg submit kept the menu alive instead of handing the command to finish")
 	}
-	if got.execCmd != "just deploy prod" {
-		t.Fatalf("execCmd = %q, want assembled run script", got.execCmd)
+	if got.chosen.Command != "just deploy prod" {
+		t.Fatalf("chosen.Command = %q, want assembled run script", got.chosen.Command)
+	}
+	// Library hosts parse the argument text themselves, so it must survive
+	// separately from the assembled command.
+	if got.chosen.Name != "deploy" || got.chosen.Line != "prod" {
+		t.Fatalf("chosen = %+v, want the deploy task with line %q", *got.chosen, "prod")
 	}
 	if _, ok := cmd().(tea.QuitMsg); !ok {
 		t.Fatal("arg submit must quit the TUI so finish replaces this process")
@@ -71,8 +79,8 @@ func TestEnterOnMultilineCommandPreservesScriptForFinish(t *testing.T) {
 	if !ok {
 		t.Fatalf("Update returned %T, want model", next)
 	}
-	if got.execCmd != run {
-		t.Fatalf("execCmd = %q, want original multiline script", got.execCmd)
+	if got.chosen == nil || got.chosen.Command != run {
+		t.Fatalf("chosen = %+v, want original multiline script", got.chosen)
 	}
 	if _, ok := cmd().(tea.QuitMsg); !ok {
 		t.Fatal("enter must quit the TUI so finish replaces this process")
@@ -96,7 +104,7 @@ func TestEnterOnArgTaskStaysInMenu(t *testing.T) {
 	if cmd != nil {
 		t.Fatal("enter on an arg task must not quit or exec")
 	}
-	if got.hasExecCmd {
+	if got.chosen != nil {
 		t.Fatal("enter on an arg task must not mark a command for finish")
 	}
 	if got.mode != modeArgs {
@@ -123,7 +131,7 @@ func TestEnterOnModuleParentOpensSubmenu(t *testing.T) {
 	if cmd != nil {
 		t.Fatal("enter on a module parent must not quit or exec")
 	}
-	if got.hasExecCmd {
+	if got.chosen != nil {
 		t.Fatal("enter on a module parent must not mark a command for finish")
 	}
 	if got.sub == nil || got.sub.Name != "e2e" {

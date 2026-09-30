@@ -20,9 +20,9 @@ type Config struct {
 	// build-time FIGlet wordmark baked into the bundle, or empty when no hero
 	// is present (older bundles, empty project name). Loaded into Hero at init.
 	HeroFile string `json:"heroFile,omitempty"`
-	// Hero is the rendered FIGlet hero loaded from HeroFile at config load.
-	// Empty when absent so the viewer falls back to the bold project name.
-	Hero string `json:"-"`
+	// Hero is the rendered FIGlet hero: loaded from HeroFile at config load, or
+	// given inline by a library host. Empty falls back to the bold project name.
+	Hero string `json:"hero,omitempty"`
 }
 
 // NavNode is one sidebar entry. Leaves hold Markdown; groups hold children.
@@ -37,8 +37,9 @@ type NavNode struct {
 	// RootReadme is set in Nix when leaf text path equals prelude.docs.rootReadme.
 	RootReadme bool `json:"rootReadme,omitempty"`
 
-	// Markdown is filled after load from MarkdownFile (not in JSON).
-	Markdown string `json:"-"`
+	// Markdown is the leaf body: given inline by a library host, else filled at
+	// load from MarkdownFile (the Nix bundle's form).
+	Markdown string `json:"markdown,omitempty"`
 }
 
 func loadConfig(path string) (*Config, error) {
@@ -49,6 +50,12 @@ func loadConfig(path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	return parseConfig(raw, filepath.Dir(path))
+}
+
+// parseConfig decodes a docs config and loads the Markdown and hero files it
+// names, resolving relative paths against base.
+func parseConfig(raw []byte, base string) (*Config, error) {
 	var cfg Config
 	if err := json.Unmarshal(raw, &cfg); err != nil {
 		return nil, fmt.Errorf("docs config: %w", err)
@@ -70,7 +77,6 @@ func loadConfig(path string) (*Config, error) {
 	if len(cfg.Nav) == 0 {
 		return nil, fmt.Errorf("docs: no pages configured")
 	}
-	base := filepath.Dir(path)
 	if err := loadNavMarkdown(cfg.Nav, base); err != nil {
 		return nil, err
 	}

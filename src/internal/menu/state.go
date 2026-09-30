@@ -106,13 +106,12 @@ func (m *model) appendChip(c chip) {
 }
 
 func (m model) submitArgs() (model, tea.Cmd) {
-	cmd, err := m.args.Submit(m.prompt.Value())
+	chosen, err := m.args.Submit(m.prompt.Value())
 	if err != nil {
 		m.args = m.args.SetErr(err.Error())
 		return m, nil
 	}
-	m.execCmd = cmd
-	m.hasExecCmd = true
+	m.chosen = chosen
 	return m, tea.Quit
 }
 

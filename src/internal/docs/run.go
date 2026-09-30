@@ -4,11 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-
-	"prelude/pkg/manual"
-	"prelude/pkg/shared"
-
-	tea "charm.land/bubbletea/v2"
 )
 
 // Run is the binary entry point. The Nix wrapper passes the config with
@@ -38,14 +33,7 @@ func Run() {
 		return
 	}
 
-	viewer := manual.New(manualDocument(cfg), cfg.Palette)
-
-	options := []tea.ProgramOption{}
-	if profile, ok := shared.ConfiguredColorProfile(cfg.ColorProfile); ok {
-		options = append(options, tea.WithColorProfile(profile))
-	}
-	p := tea.NewProgram(viewer, options...)
-	if _, err := p.Run(); err != nil {
+	if err := View(cfg); err != nil {
 		fmt.Fprintln(os.Stderr, "docs:", err)
 		os.Exit(1)
 	}

@@ -33,13 +33,7 @@ func Run() {
 		fmt.Fprintln(os.Stderr, "menu:", err)
 		os.Exit(1)
 	}
-	if cfg.Just.Enable {
-		if tasks, err := loadJustTasks(cfg.Just); err == nil {
-			mergeJustTasks(cfg, tasks)
-		} else {
-			cfg.justImportWarning = "just recipes unavailable; check that just and a Justfile are available"
-		}
-	}
+	importJust(cfg)
 	if path := os.Getenv("PRELUDE_MENU_DEBUG"); path != "" {
 		if f, err := tea.LogToFile(path, "menu"); err == nil {
 			defer f.Close()
@@ -96,11 +90,17 @@ func finishDecision(cfg *Config, st styles, command string, decision invocationD
 }
 
 func runTUI(cfg *Config, st styles, argTask *Task, subTask *Task) {
+	runProgram(cfg, st, newPicker(cfg, st, argTask, subTask))
+}
+
+// newPicker opens the TUI where a decision still needs input: argument entry
+// for argTask, the subcommand picker for subTask, else the root list.
+func newPicker(cfg *Config, st styles, argTask *Task, subTask *Task) model {
 	m := newModel(cfg, st, argTask)
 	if subTask != nil {
 		m.enterSubMode(*subTask)
 	}
-	runProgram(cfg, st, m)
+	return m
 }
 
 // usage prints a short command synopsis to stderr and exits 0 without
@@ -113,21 +113,34 @@ func usage() {
 }
 
 func runProgram(cfg *Config, st styles, m model) {
-	options := []tea.ProgramOption{}
-	if profile, ok := shared.ConfiguredColorProfile(cfg.ColorProfile); ok {
-		options = append(options, tea.WithColorProfile(profile))
-	}
-	p := tea.NewProgram(m, options...)
-	final, err := p.Run()
+	chosen, err := runPicker(cfg, m)
 	if err != nil {
 		w := shared.ColorWriter(os.Stderr, os.Environ(), cfg.ColorProfile)
 		fmt.Fprintln(w, "menu:", err)
 		fmt.Fprintln(w, st.dim.Render("hint: `x --list` prints the tasks non-interactively"))
 		os.Exit(1)
 	}
-	if fm, ok := final.(model); ok && fm.hasExecCmd {
-		finish(cfg, st, fm.execCmd)
+	if chosen != nil {
+		finish(cfg, st, chosen.Command)
 	}
+}
+
+// runPicker runs the TUI to completion and returns what it resolved, or nil
+// when the user left without choosing. It never exits or execs, so library
+// hosts share it with the CLI.
+func runPicker(cfg *Config, m model) (*Selection, error) {
+	options := []tea.ProgramOption{}
+	if profile, ok := shared.ConfiguredColorProfile(cfg.ColorProfile); ok {
+		options = append(options, tea.WithColorProfile(profile))
+	}
+	final, err := tea.NewProgram(m, options...).Run()
+	if err != nil {
+		return nil, err
+	}
+	if fm, ok := final.(model); ok {
+		return fm.chosen, nil
+	}
+	return nil, nil
 }
 
 // finish either execs the assembled command (replacing this process) or
