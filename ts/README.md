@@ -142,6 +142,10 @@ x ts:typecheck  # tsc over src, tests, scripts, and the example
 x ts:sync       # regenerate src/internal/generated.ts and the conformance fixtures
 ```
 
+Change dependencies with the devshell's Bun (`bun install` inside
+`nix develop`). The lockfile it writes is one both it and CI's newer Bun
+accept; a lockfile written by a newer Bun can't be read by the devshell's.
+
 Public modules sit in `src/`; helpers they share sit in `src/internal/`, which
 the namespaces do not expose. The config builders port Nix rules:
 `src/internal/catalogue.ts` from `command-catalogue.nix` and `menu.nix`, and
