@@ -9,6 +9,7 @@ and a docs page. Each command is declared next to the code it runs.
 | `server.ts` | a module that exports its API and a command wrapping it |
 | `db.ts` | a TypeScript command with a flag, and a shell command |
 | `main.ts` | the app: commands mounted under names, MOTD, docs |
+| `package.json` | scripts the app's menu imports as commands |
 | `guide.md` | the docs page, bundled into the app as text |
 | `standalone.ts` | the entry point for a single-file executable |
 
@@ -19,19 +20,26 @@ Inside `nix develop`, which sets `PRELUDE_LIB` to the Go library:
 ```sh
 ./examples/typescript/main.ts                      # pick a command
 ./examples/typescript/main.ts dev --port 8080      # run one directly
-./examples/typescript/main.ts db:migrate --dry-run
+./examples/typescript/main.ts db/migrate --dry-run
 ./examples/typescript/main.ts motd                 # built in: the banner
 ./examples/typescript/main.ts docs                 # built in: the docs viewer
 ./examples/typescript/main.ts --list
 ```
 
+The `/` in `db/migrate` puts `migrate` under a `db` group in the menu; the
+whole key is still the name you type. The `build` and `clean` scripts in
+`package.json` show up under `scripts`. Each runs exactly as written, from
+this folder, wherever you start the app.
+
 ## One executable
 
 ```sh
-cp "$PRELUDE_LIB" examples/typescript/libprelude.so
-bun build --compile examples/typescript/standalone.ts --outfile acme
-./acme
+./examples/typescript/main.ts build     # the package.json script
+./examples/typescript/acme
 ```
+
+The `build` script copies the Go library next to `standalone.ts` and compiles
+the app with `bun build --compile`.
 
 `acme` carries Bun, the app, the docs page, and the Go library, so it runs
 where none of them are installed. `nix run .#example-typescript -- --list`

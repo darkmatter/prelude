@@ -1,0 +1,8 @@
+{
+  "name": "acme",
+  "private": true,
+  "scripts": {
+    "build": "cp \"$PRELUDE_LIB\" libprelude.so && bun build --compile standalone.ts --outfile acme",
+    "clean": "rm -f acme libprelude.so"
+  }
+}

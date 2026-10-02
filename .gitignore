@@ -17,6 +17,7 @@ docs/.record-bin/
 # package ships, built by ts/scripts/npm-package.ts (CI publishes them)
 node_modules/
 /examples/typescript/libprelude.so
+/examples/typescript/acme
 /ts/lib/
 
 # direnv

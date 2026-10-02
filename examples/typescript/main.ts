@@ -1,16 +1,25 @@
 #!/usr/bin/env bun
-// The app. Each command is mounted under the name people type, and the first
-// colon groups it in the menu (`db:migrate` goes under "db"). Configuring a
-// MOTD and docs adds the built-in `motd` and `docs` commands.
+// The app. Each command is mounted under the name people type, and a `/` (or
+// a `:`) groups it in the menu (`db/migrate` goes under "db"). The scripts in
+// package.json join the menu too, and configuring a MOTD and docs adds the
+// built-in `motd` and `docs` commands.
 //
 //   ./main.ts                   pick a command
 //   ./main.ts dev --port 8080   run one directly
+//   ./main.ts build             run a package.json script, from this folder
 //   ./main.ts --list            print them all
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { Prelude } from "@drkmttr/prelude";
 
 import { migrateCommand, seedCommand } from "./db.ts";
 import guide from "./guide.md" with { type: "text" };
 import { preludeCommand as dev } from "./server.ts";
+
+// The scripts next to this file. A single-file build of the app has no
+// package.json beside it, so it leaves them out.
+const packageJson = fileURLToPath(new URL("./package.json", import.meta.url));
 
 const app = Prelude.make({
   project: "acme",
@@ -18,9 +27,11 @@ const app = Prelude.make({
 
   commands: {
     dev,
-    "db:migrate": migrateCommand,
-    "db:seed": seedCommand,
+    "db/migrate": migrateCommand,
+    "db/seed": seedCommand,
   },
+
+  menu: { scripts: { enable: existsSync(packageJson), packageJson } },
 
   motd: {
     header: {
