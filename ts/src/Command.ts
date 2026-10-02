@@ -18,7 +18,7 @@ export interface RunContext {
 /** Metadata every command carries, as `prelude.commands.<key>` does in Nix. */
 interface Info<Specs extends readonly Args.Spec[]> {
   description?: string;
-  /** Menu group. Default: the key's first colon segment, else `develop`. */
+  /** Menu group. Default: the key's segment before its first `:` or `/`, else `develop`. */
   group?: string;
   /** Single-character accelerator in the picker (Nix: `key`). */
   shortcut?: string;

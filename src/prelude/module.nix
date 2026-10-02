@@ -280,9 +280,9 @@ in {
       # invocation share one execution contract. Bare `menu` remains a
       # picker-only compatibility wrapper outside the catalogue.
       needsWrapper = entry: builtins.head (lib.splitString " " entry.run) != entry.name;
-      # Colon-grouped entries are catalogue identity only. Never turn them
-      # into shell executables: the complete key stays public through x while
-      # its first colon derives menu presentation.
+      # Grouped entries (`go:test`, `go/test`) are catalogue identity only.
+      # Never turn them into shell executables: the complete key stays public
+      # through x while its first `:` or `/` derives menu presentation.
       wrappedCommandEntries = lib.filter (entry: !entry.grouped && needsWrapper entry) commandEntries;
       commandWrappers = let
         wrapped = wrappedCommandEntries;
@@ -574,9 +574,11 @@ in {
           projectName = cfg.project;
           navigation = internalShortcuts;
           commandEntries = commandEntries;
-          # The bash completion surfaces the same runtime Justfile import the
-          # menu performs; the flag keeps `x <TAB>` candidates dispatchable.
+          # `just <TAB>` uses just's own completion when recipes are imported.
           justImport = cfg.menu.just.enable;
+          # `x <TAB>` offers the entries the menu imports at runtime, read
+          # from the menu itself, so its candidates stay dispatchable.
+          runtimeImports = cfg.menu.just.enable || cfg.menu.scripts.enable;
           motdCommand =
             if cfg.motd.enable
             then "motd"

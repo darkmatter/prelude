@@ -61,7 +61,7 @@ in {
       commands = lib.mkOption {
         type = lib.types.attrsOf t.commandType;
         default = defaults.commands;
-        description = "Project commands keyed by their public `x` name. The first colon infers the menu group; the remaining suffix is the displayed name, while the complete key remains callable.";
+        description = "Project commands keyed by their public `x` name. The first `:` or `/` infers the menu group (`go:test`, `db/migrate`); the remaining suffix is the displayed name, while the complete key remains callable.";
         example = {
           dev = {
             description = "start the dev server";

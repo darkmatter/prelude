@@ -6,7 +6,7 @@
 # browses the Markdown pages under ./docs.
 #
 # Add project commands under prelude.commands (keyed by public `x` name;
-# the first colon infers the menu group) and docs pages under prelude.docs.pages.
+# the first `:` or `/` infers the menu group) and docs pages under prelude.docs.pages.
 {
   description = "My Prelude-powered devshell";
 
@@ -40,8 +40,8 @@
         motd.enable = true;
         menu.enable = true;
 
-        # Project commands keyed by public `x` name. The first colon infers
-        # the menu group; the full key stays callable (e.g. `x build:fast`).
+        # Project commands keyed by public `x` name. The first `:` or `/`
+        # infers the menu group; the full key stays callable (e.g. `x build:fast`).
         # commands.dev = {
         #   exec = "echo hello from the dev server";
         #   description = "start the dev server";

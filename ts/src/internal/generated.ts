@@ -185,7 +185,12 @@ export const defaults = {
       "justfile": null
     },
     "maxWidth": 80,
-    "placeholder": "type to filter commands…"
+    "placeholder": "type to filter commands…",
+    "scripts": {
+      "enable": false,
+      "group": "scripts",
+      "packageJson": null
+    }
   },
   "motd": {
     "align": "center",

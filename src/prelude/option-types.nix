@@ -278,11 +278,11 @@
         type = lib.types.nullOr lib.types.str;
         default = null;
         description = ''
-          Menu group override. When null, the group is inferred from the first
-          colon segment of the command key (`go:test` → group `go`); ungrouped
-          keys land in `develop`. Set this to place a command under a different
-          group without colon-prefixing the key — useful for Justfile recipes
-          and other imports where the key name should stay flat.
+          Menu group override. When null, the group is inferred from the
+          segment before the key's first `:` or `/` (`go:test` and `go/test` →
+          group `go`); ungrouped keys land in `develop`. Set this to place a
+          command under a different group without prefixing the key — useful
+          for Justfile recipes and other imports where the key should stay flat.
         '';
       };
       exec = lib.mkOption {
@@ -290,7 +290,7 @@
         default = null;
         description = ''
           Shell command executed by the menu. Defaults to the command suffix
-          after the first colon, or to the whole key when ungrouped. Colon-grouped
+          after the first `:` or `/`, or to the whole key when ungrouped. Grouped
           keys never create PATH executables.
         '';
       };

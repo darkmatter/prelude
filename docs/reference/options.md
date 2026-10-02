@@ -29,7 +29,7 @@ one of “auto”, “truecolor”, “ansi256”
 
 
 
-Project commands keyed by their public ` x ` name\. The first colon infers the menu group; the remaining suffix is the displayed name, while the complete key remains callable\.
+Project commands keyed by their public ` x ` name\. The first ` : ` or ` / ` infers the menu group (` go:test `, ` db/migrate `); the remaining suffix is the displayed name, while the complete key remains callable\.
 
 
 
@@ -343,7 +343,7 @@ list of string
 
 
 Shell command executed by the menu\. Defaults to the command suffix
-after the first colon, or to the whole key when ungrouped\. Colon-grouped
+after the first ` : ` or ` / `, or to the whole key when ungrouped\. Grouped
 keys never create PATH executables\.
 
 
@@ -365,11 +365,11 @@ null
 
 
 
-Menu group override\. When null, the group is inferred from the first
-colon segment of the command key (` go:test ` → group ` go `); ungrouped
-keys land in ` develop `\. Set this to place a command under a different
-group without colon-prefixing the key — useful for Justfile recipes
-and other imports where the key name should stay flat\.
+Menu group override\. When null, the group is inferred from the
+segment before the key’s first ` : ` or ` / ` (` go:test ` and ` go/test ` →
+group ` go `); ungrouped keys land in ` develop `\. Set this to place a
+command under a different group without prefixing the key — useful
+for Justfile recipes and other imports where the key should stay flat\.
 
 
 
@@ -928,6 +928,85 @@ string
 
 ```nix
 "type to filter commands…"
+```
+
+
+
+## prelude\.menu\.scripts\.enable
+
+
+
+Import package\.json scripts into the command menu at runtime\. Each script runs exactly as written, from its package\.json directory with node_modules/\.bin ahead of PATH\. No package manager runs it, so pre/post scripts and npm_\* variables do not apply\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+
+
+*Example:*
+
+```nix
+true
+```
+
+
+
+## prelude\.menu\.scripts\.packageJson
+
+
+
+package\.json to import\. null uses the nearest package\.json at or above the working directory at runtime\. A relative path resolves from the project root (the nearest directory holding flake\.nix)\. A string, not a Nix path, so it is never copied into the store away from its node_modules\.
+
+
+
+*Type:*
+null or string
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+
+
+*Example:*
+
+```nix
+"web/package.json"
+```
+
+
+
+## prelude\.menu\.scripts\.group
+
+
+
+Menu group for imported package\.json scripts whose names have no ` : ` or ` / `\.
+
+
+
+*Type:*
+string
+
+
+
+*Default:*
+
+```nix
+"scripts"
 ```
 
 
@@ -2323,8 +2402,6 @@ null
 
 ## prelude\.motd\.padding\.minHeight
 
-
-
 Apply the vertical sides (top/bottom) only when the terminal is
 at least this many rows tall; 0 always applies\. Horizontal sides
 are unaffected\. Terminals that cannot report a size count as the
@@ -2388,6 +2465,8 @@ null
 
 
 ## prelude\.motd\.padding\.x
+
+
 
 Horizontal spacing (columns, left and right)\.
 

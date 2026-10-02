@@ -30,7 +30,14 @@ type invocationDecision struct {
 // selection projects a command decision for library hosts, which dispatch on
 // the task and its argument text rather than exec'ing the assembled command.
 func (d invocationDecision) selection() *Selection {
-	return &Selection{Name: d.task.Name, Line: d.line, Command: d.command}
+	return &Selection{
+		Name:       d.task.Name,
+		Line:       d.line,
+		Command:    d.command,
+		Source:     d.task.source(),
+		Dir:        d.task.Dir,
+		PathPrefix: d.task.PathPrefix,
+	}
 }
 
 // resolveXInvocation shares the TUI's task assembler. Imported module recipes

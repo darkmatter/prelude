@@ -54,20 +54,21 @@ config: let
 
   m = d.menu // config;
   just = d.menu.just // (config.just or {});
+  scripts = d.menu.scripts // (config.scripts or {});
 
   # --- validation ----------------------------------------------------------------
 
-  safeName = n: builtins.match "[A-Za-z0-9:_.-]+" n != null;
+  safeName = n: builtins.match "[A-Za-z0-9:/_.-]+" n != null;
   keys = lib.filter (k: k != null) (map (t: t.key) tasks);
   names = map (t: t.name) tasks;
 
-  # An empty Nix catalogue is legitimate when Justfile recipes are imported
-  # at runtime (`menu.just.enable`); the menu then lists only those entries.
-  checkTasks = assert lib.assertMsg (tasks != [] || just.enable)
-  "menu: no commands configured — set `commands` or enable `menu.just`";
+  # An empty Nix catalogue is legitimate when Justfile recipes or package.json
+  # scripts are imported at runtime; the menu then lists only those entries.
+  checkTasks = assert lib.assertMsg (tasks != [] || just.enable || scripts.enable)
+  "menu: no commands configured — set `commands`, or enable `menu.just` or `menu.scripts`";
   assert lib.assertMsg (lib.all safeName names)
-  "menu: command names may only contain [A-Za-z0-9:_.-]";
-  assert lib.assertMsg (lib.all safeName keys) "menu: command keys may only contain [A-Za-z0-9:_.-]";
+  "menu: command names may only contain [A-Za-z0-9:/_.-]";
+  assert lib.assertMsg (lib.all safeName keys) "menu: command keys may only contain [A-Za-z0-9:/_.-]";
   assert lib.assertMsg (lib.unique keys == keys) "menu: command keys must be unique";
   assert lib.assertMsg (
     lib.intersectLists keys names == []
@@ -98,6 +99,7 @@ config: let
         inherit (just) enable group;
         justfile = just.justfile;
       };
+      scripts = {inherit (scripts) enable packageJson group;};
     }
   );
 

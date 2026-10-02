@@ -109,9 +109,9 @@ func importJust(cfg *Config) {
 		return
 	}
 	if tasks, err := loadJustTasks(cfg.Just); err == nil {
-		mergeJustTasks(cfg, tasks)
+		mergeTasks(cfg, tasks)
 	} else {
-		cfg.justImportWarning = "just recipes unavailable; check that just and a Justfile are available"
+		cfg.importWarnings = append(cfg.importWarnings, "just recipes unavailable; check that just and a Justfile are available")
 	}
 }
 
@@ -443,6 +443,7 @@ func justTask(name string, recipe justRecipe, cfg JustConfig) Task {
 		Usage:       usage,
 		Args:        args,
 		Examples:    examples,
+		Source:      sourceJust,
 		group:       group,
 		justPath:    justModulePath(name),
 	}
@@ -502,6 +503,7 @@ func justParentTask(module string, children []Task, cfg JustConfig) Task {
 		Usage:       run + " <subcommand>",
 		Details:     strings.TrimRight(details.String(), "\n"),
 		Children:    children,
+		Source:      sourceJust,
 		group:       group,
 	}
 }
@@ -528,6 +530,7 @@ func justAliasTask(entry justAliasEntry, cfg JustConfig) Task {
 		Description: description,
 		Usage:       run,
 		Details:     "Alias of " + justAliasTarget(entry),
+		Source:      sourceJust,
 		group:       group,
 		justPath:    justModulePath(entry.name),
 	}
@@ -537,64 +540,14 @@ func justAliasTarget(entry justAliasEntry) string {
 	return entry.target.Name
 }
 
-// mergeJustTasks appends imported recipes to the baked catalogue. Existing
-// tasks win by name, so explicit Nix declarations remain the override surface.
+// justPrefix is how every imported task invokes just; a pinned Justfile
+// travels with it.
 func justPrefix(cfg JustConfig) string {
 	prefix := "just"
 	if cfg.Justfile != nil && strings.TrimSpace(*cfg.Justfile) != "" {
 		prefix += " --justfile " + shellWord(*cfg.Justfile)
 	}
 	return prefix
-}
-
-func mergeJustTasks(cfg *Config, tasks []Task) {
-	if len(tasks) == 0 {
-		return
-	}
-
-	existing := make(map[string]struct{})
-	groupIndexes := make(map[string]int, len(cfg.Groups))
-	for index, group := range cfg.Groups {
-		groupIndexes[group.Title] = index
-		for _, task := range group.Tasks {
-			existing[task.Name] = struct{}{}
-		}
-	}
-
-	for _, task := range tasks {
-		if _, found := existing[task.Name]; found {
-			continue
-		}
-		existing[task.Name] = struct{}{}
-
-		index, found := groupIndexes[taskGroup(task)]
-		if !found {
-			index = len(cfg.Groups)
-			cfg.Groups = append(cfg.Groups, Group{Title: taskGroup(task)})
-			groupIndexes[taskGroup(task)] = index
-		}
-		cfg.Groups[index].Tasks = append(cfg.Groups[index].Tasks, task)
-	}
-
-	for index := range cfg.Groups {
-		sort.SliceStable(cfg.Groups[index].Tasks, func(i, j int) bool {
-			left, right := cfg.Groups[index].Tasks[i], cfg.Groups[index].Tasks[j]
-			if left.displayName() == right.displayName() {
-				return left.Name < right.Name
-			}
-			return left.displayName() < right.displayName()
-		})
-	}
-}
-
-func taskGroup(task Task) string {
-	if task.group != "" {
-		return task.group
-	}
-	if separator := strings.IndexByte(task.Name, ':'); separator > 0 {
-		return task.Name[:separator]
-	}
-	return "just"
 }
 
 func shellWord(value string) string {

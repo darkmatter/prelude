@@ -25,9 +25,9 @@
   # Project identity, shared by motd and menu.
   project = "acme";
 
-  # Example catalogue for ACME. The first colon infers the menu group; the
-  # complete key stays callable through `x`. Set `group` on a command to
-  # override the inferred group without colon-prefixing the key. Commands
+  # Example catalogue for ACME. The first `:` or `/` infers the menu group;
+  # the complete key stays callable through `x`. Set `group` on a command to
+  # override the inferred group without prefixing the key. Commands
   # with `motd = N` appear on the Getting Started list (ascending order).
   # `x` is always listed when the menu component is enabled.
   #
@@ -305,6 +305,12 @@
       enable = false;
       justfile = null;
       group = "just";
+    };
+
+    scripts = {
+      enable = false;
+      packageJson = null;
+      group = "scripts";
     };
   };
 

@@ -1,6 +1,7 @@
 package menu
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -33,8 +34,8 @@ func TestSelectResolvesReadyCommandsWithoutThePicker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Select(dev): %v", err)
 	}
-	if *got != (Selection{Name: "dev", Command: "bun run dev"}) {
-		t.Fatalf("Select(dev) = %+v", *got)
+	if want := (Selection{Name: "dev", Command: "bun run dev", Source: "declared"}); !reflect.DeepEqual(*got, want) {
+		t.Fatalf("Select(dev) = %+v, want %+v", *got, want)
 	}
 
 	// Explicit arguments skip argument entry; the host receives them as the
@@ -43,8 +44,8 @@ func TestSelectResolvesReadyCommandsWithoutThePicker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Select(deploy …): %v", err)
 	}
-	want := Selection{Name: "deploy", Line: "--alias staging", Command: "just deploy --alias staging"}
-	if *got != want {
+	want := Selection{Name: "deploy", Line: "--alias staging", Command: "just deploy --alias staging", Source: "declared"}
+	if !reflect.DeepEqual(*got, want) {
 		t.Fatalf("Select(deploy …) = %+v, want %+v", *got, want)
 	}
 }

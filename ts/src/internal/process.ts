@@ -1,5 +1,5 @@
 import { constants } from "node:os";
-import { basename, isAbsolute, relative } from "node:path";
+import { basename, delimiter, isAbsolute, relative } from "node:path";
 
 import type * as Palette from "../Palette.ts";
 import { paint } from "./palette.ts";
@@ -17,14 +17,21 @@ export function defaultDispatcher(): string {
 
 /**
  * Runs shell text with bash (sh when bash is missing) on this terminal and
- * resolves with its exit status, 128 + n for a signal. Terminal signals
- * (Ctrl+C, Ctrl+\) reach the child through the shared process group, so this
- * process ignores them and outlives it; SIGTERM and SIGHUP sent here are
- * forwarded.
+ * resolves with its exit status, 128 + n for a signal. It runs in `dir` when
+ * given, with `pathPrefix` ahead of PATH. Terminal signals (Ctrl+C, Ctrl+\)
+ * reach the child through the shared process group, so this process ignores
+ * them and outlives it; SIGTERM and SIGHUP sent here are forwarded.
  */
-export async function runShell(command: string): Promise<number> {
+export async function runShell(
+  command: string,
+  { dir, pathPrefix = [] }: { dir?: string; pathPrefix?: readonly string[] } = {},
+): Promise<number> {
   const shell = Bun.which("bash") ?? Bun.which("sh") ?? "sh";
-  const child = Bun.spawn([shell, "-c", command], { stdio: ["inherit", "inherit", "inherit"] });
+  const env =
+    pathPrefix.length === 0
+      ? process.env
+      : { ...process.env, PATH: [...pathPrefix, ...(process.env.PATH ? [process.env.PATH] : [])].join(delimiter) };
+  const child = Bun.spawn([shell, "-c", command], { cwd: dir, env, stdio: ["inherit", "inherit", "inherit"] });
   const ignore = () => {};
   const forward = (signal: NodeJS.Signals) => child.kill(signal);
   process.on("SIGINT", ignore);

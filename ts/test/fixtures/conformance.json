@@ -16,6 +16,7 @@
       "maxWidth": 100,
       "groupOrder": ["db", "develop"],
       "just": { "enable": true, "justfile": "/tmp/Justfile", "group": "recipes" },
+      "scripts": { "enable": true, "packageJson": "web/package.json", "group": "npm" },
       "commands": {
         "dev": {
           "exec": "bun run dev",
@@ -33,6 +34,8 @@
         "test": { "exec": "bun test", "motd": 2 },
         "db:migrate": { "exec": "drizzle-kit migrate", "description": "apply migrations" },
         "db:seed": { "exec": "bun run seed", "description": "load sample rows" },
+        "db/reset": { "exec": "bun run reset", "description": "drop and reseed" },
+        "ui/build:watch": { "exec": "vite build --watch", "description": "rebuild the UI on change" },
         "test:unit:watch": { "exec": "bun test --watch", "description": "watch unit tests" },
         "lint": { "exec": "eslint .", "group": "quality", "description": "lint the project" },
         "deploy": {

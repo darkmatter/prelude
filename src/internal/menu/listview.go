@@ -245,6 +245,10 @@ func (l *ListView) renderDetails(t Task) []string {
 		out = append(out, paintInset(indent+st.inset(st.pal.Dim).Render("example ")+
 			st.inset(st.pal.Accent).Render("❯ ")+st.inset(st.pal.Muted).Render(ex)))
 	}
+	for _, hidden := range t.hides {
+		out = append(out, paintInset(indent+st.inset(st.pal.Dim).Render("hides ")+
+			st.inset(st.pal.Muted).Render(hidden.noun+" "+hidden.name)))
+	}
 	out = append(out, paintInset(""))
 	return out
 }

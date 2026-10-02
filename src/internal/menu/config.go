@@ -20,11 +20,12 @@ type Config struct {
 	Groups       []Group        `json:"groups"`
 	MOTDCommands []CommandHint  `json:"motdCommands"`
 	Just         JustConfig     `json:"just"`
+	Scripts      ScriptsConfig  `json:"scripts"`
 	// Dispatcher is the public command that opens this picker and runs its
 	// keys. Empty means the devshell's `x`; a TypeScript app names itself.
 	Dispatcher string `json:"dispatcher,omitempty"`
 
-	justImportWarning string
+	importWarnings []string // imports that failed, said under `x --list`
 }
 
 // JustConfig controls the optional runtime import from a Justfile. A nil
@@ -33,6 +34,24 @@ type JustConfig struct {
 	Enable   bool    `json:"enable"`
 	Justfile *string `json:"justfile"`
 	Group    string  `json:"group"`
+}
+
+// ScriptsConfig controls the optional runtime import of package.json scripts.
+// A nil PackageJSON uses the nearest package.json at or above the working
+// directory. A relative one resolves from the project root, the nearest
+// directory holding flake.nix, else from the working directory.
+type ScriptsConfig struct {
+	Enable      bool    `json:"enable"`
+	PackageJSON *string `json:"packageJson"`
+	Group       string  `json:"group"`
+}
+
+// dispatcher is the command that runs this catalogue's keys.
+func (c *Config) dispatcher() string {
+	if c.Dispatcher == "" {
+		return "x"
+	}
+	return c.Dispatcher
 }
 
 // CommandHint is the reduced command projection used by compact catalogue
@@ -64,10 +83,18 @@ type Task struct {
 	// opens a subcommand picker. Children never appear in the root list and
 	// keep their complete key (`module::recipe`) for Just execution.
 	Children []Task `json:"children"`
+	// Source is where the task came from; "" means declared, in Nix or by a
+	// host. Imports set it.
+	Source string `json:"source,omitempty"`
+	// Dir is the directory Run runs in ("" = the caller's), and PathPrefix
+	// the directories put ahead of PATH for it, nearest first.
+	Dir        string   `json:"dir,omitempty"`
+	PathPrefix []string `json:"pathPrefix,omitempty"`
 
-	group    string   // owning group title
-	haystack string   // precomputed lowercase filter target
-	justPath []string // public argv route for an imported module recipe
+	group    string        // owning group title
+	haystack string        // precomputed lowercase filter target
+	justPath []string      // public argv route for an imported module recipe
+	hides    []hiddenEntry // imports this task hid by claiming their key first
 }
 
 func (t Task) displayName() string {

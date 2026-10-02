@@ -13,22 +13,28 @@ import (
 
 // Selection is what the picker resolved. Name is the chosen task's catalogue
 // name and Line the argument text entered for it ("" when none). Command is
-// the shell form the CLI would exec: the task's run text plus Line.
+// the shell form the CLI would exec: the task's run text plus Line, run in
+// Dir with PathPrefix ahead of PATH. Source says where the task came from, so
+// a host runs its own function only for a declared task.
 type Selection struct {
-	Name    string `json:"name"`
-	Line    string `json:"line"`
-	Command string `json:"command"`
+	Name       string   `json:"name"`
+	Line       string   `json:"line"`
+	Command    string   `json:"command"`
+	Source     string   `json:"source"`
+	Dir        string   `json:"dir,omitempty"`
+	PathPrefix []string `json:"pathPrefix,omitempty"`
 }
 
 // ParseConfig decodes one strict menu Config JSON value and applies the same
-// defaults and runtime Justfile import as the CLI's --config path.
+// defaults and runtime imports (Justfile recipes, package.json scripts) as the
+// CLI's --config path.
 func ParseConfig(raw []byte) (*Config, error) {
 	cfg, err := shared.DecodeJSON[Config](raw)
 	if err != nil {
 		return nil, err
 	}
 	cfg.applyDefaults()
-	importJust(cfg)
+	importSources(cfg)
 	return cfg, nil
 }
 

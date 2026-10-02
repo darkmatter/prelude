@@ -231,6 +231,62 @@ in {
       test "$(jq -r '.just.justfile' ${menu.configFile})" = ${justfile}
       touch "$out"
     '';
+  # package.json scripts end to end: `x` lists them, runs one exactly as
+  # written from its package.json directory with node_modules/.bin ahead of
+  # PATH, notes the script a declared command hides, and feeds `x <TAB>`
+  # through `x --imports`.
+  menu-scripts-import = let
+    menu =
+      (import ../src/prelude/menu.nix {
+        inherit
+          (pkgs)
+          lib
+          writeShellApplication
+          writeText
+          symlinkJoin
+          ;
+        buildGoModule = pkgs.buildGo126Module;
+      })
+      {
+        commands.dev = {
+          exec = "echo dev";
+          description = "start the dev server";
+        };
+        scripts.enable = true;
+      };
+  in
+    pkgs.runCommand "menu-scripts-import" {} ''
+      mkdir -p bin project/web/src project/web/node_modules/.bin
+      ln -s ${lib.getExe' menu "x"} bin/x
+      export PATH="$PWD/bin:$PATH"
+      printf '#!/bin/sh\necho "greeted from $(pwd -P)"\n' > project/web/node_modules/.bin/greet
+      chmod +x project/web/node_modules/.bin/greet
+      echo '{"scripts": {"greet": "greet", "test:unit": "echo unit", "dev": "echo hidden"}}' > project/web/package.json
+      web=$(cd project/web && pwd -P)
+      cd project/web/src
+
+      x --list > list
+      grep -q 'echo unit' list
+      grep -q 'dev: package.json script hidden by declared command' list
+      x greet > ran
+      grep -q "greeted from $web" ran
+
+      x --imports > imports
+      grep -q "^greet$(printf '\t')greet$" imports
+      # errexit ignores a negated command, so fail explicitly.
+      if grep -q '^dev' imports; then exit 1; fi
+
+      _prelude_catalogue_imports=1
+      _prelude_catalogue_names=(dev)
+      _prelude_catalogue_descriptions=("start the dev server")
+      _prelude_catalogue_candidate_values=()
+      source ${../src/prelude/shell/completion.bash}
+      COMP_WORDS=(x gr)
+      COMP_CWORD=1
+      _prelude_complete_x
+      test "''${COMPREPLY[*]}" = greet
+      touch "$out"
+    '';
   status-gradient-width = pkgs.runCommand "status-gradient-width" {} ''
     gradient_line=$(grep '^_PRELUDE_PROMPT_STATUS_GRADIENT=' ${config.packages.prelude-shell.shellInit})
     test "$(printf '%s' "$gradient_line" | tr -cd '#' | wc -c)" -eq 64
@@ -1754,6 +1810,27 @@ in {
     assert colonKey.label == "test";
     assert colonKey.grouped == true;
       pkgs.runCommand "explicit-group-override" {} "touch $out";
+
+  # A slash groups a key the way a colon does. Only the first separator of
+  # either kind is structural, and a grouped key never becomes a PATH name.
+  slash-grouped-commands = let
+    internalPreludeLib = import ../src/prelude/lib.nix {inherit lib;};
+    slash = builtins.head (internalPreludeLib.normalizeCommandEntries {"db/migrate".exec = "drizzle-kit migrate";});
+    colonThenSlash = internalPreludeLib.normalizeCommand "test:unit/watch" {exec = "bun test --watch";};
+    slashThenColon = internalPreludeLib.normalizeCommand "ui/build:watch" {exec = "vite build --watch";};
+    emptyGroup = builtins.tryEval (builtins.deepSeq (internalPreludeLib.normalizeCommand "/migrate" {}) true);
+  in
+    assert slash.name == "db/migrate";
+    assert slash.group == "db";
+    assert slash.label == "migrate";
+    assert slash.grouped == true;
+    assert slash.xInvocation == "x db/migrate";
+    assert colonThenSlash.group == "test";
+    assert colonThenSlash.label == "unit/watch";
+    assert slashThenColon.group == "ui";
+    assert slashThenColon.label == "build:watch";
+    assert !emptyGroup.success;
+      pkgs.runCommand "slash-grouped-commands" {} "touch $out";
 
   duplicate-canonical-invocations-rejected = let
     internalPreludeLib = import ../src/prelude/lib.nix {inherit lib;};

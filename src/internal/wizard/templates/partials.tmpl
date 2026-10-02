@@ -4,9 +4,9 @@
 {{define "commandEntry"}}
 {{ .Pad }}{{ .Key }} = {
 {{- if .Exec }}
-{{ .Pad }}  exec = {{ nixString .Exec }};  # defaults to the key suffix after the first colon
+{{ .Pad }}  exec = {{ nixString .Exec }};  # defaults to the key suffix after the first : or /
 {{- else }}
-{{ .Pad }}  # exec = {{ nixString .InferredExec }};  # defaults to the key suffix after the first colon
+{{ .Pad }}  # exec = {{ nixString .InferredExec }};  # defaults to the key suffix after the first : or /
 {{- end }}
 {{- if .Description }}
 {{ .Pad }}  description = {{ nixString .Description }};
@@ -14,7 +14,7 @@
 {{ .Pad }}  # description = "";
 {{- end }}
 {{- if .Group }}
-{{ .Pad }}  # group inferred from key: {{ .Group }}  # first colon segment; builtins land in "prelude"
+{{ .Pad }}  # group inferred from key: {{ .Group }}  # segment before the first : or /; builtins land in "prelude"
 {{- end }}
 {{- if .KeyAccel }}
 {{ .Pad }}  key = {{ nixString .KeyAccel }};  # single-key accelerator (`x <key>`)

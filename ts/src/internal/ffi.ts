@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 // The C ABI of src/cmd/libprelude: each operation takes one JSON request and
 // returns one JSON reply, {"ok": …} or {"error": "…"}, released with
 // prelude_free. Bump abiVersion together with the Go constant.
-const abiVersion = 1;
+const abiVersion = 2;
 
 const symbols = {
   prelude_abi_version: { args: [], returns: FFIType.i32 },

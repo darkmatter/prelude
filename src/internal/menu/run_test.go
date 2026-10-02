@@ -1,6 +1,9 @@
 package menu
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -207,5 +210,33 @@ func TestEnterOnSubmenuChildOpensArgMode(t *testing.T) {
 	}
 	if got.args.Task() == nil || got.args.Task().Name != "e2e::coder" {
 		t.Fatalf("arg task = %#v, want the subcommand", got.args.Task())
+	}
+}
+
+func TestStandaloneCommandRunsWhereTheSelectionSays(t *testing.T) {
+	if got := standaloneCommand(&Selection{Command: "go test ./..."}); got != "go test ./..." {
+		t.Fatalf("a selection with nowhere to go should print bare, got %q", got)
+	}
+
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "bin")
+	if err := os.Mkdir(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "greet"), []byte("#!/bin/sh\necho \"hi from $(pwd)\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A trailing comment must not swallow the subshell's closing parenthesis.
+	sel := &Selection{Command: "greet # say hello", Dir: dir, PathPrefix: []string{bin}}
+	sh, err := shellPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(sh, "-c", standaloneCommand(sel)).CombinedOutput()
+	if err != nil {
+		t.Fatalf("%s: %v\n%s", standaloneCommand(sel), err, out)
+	}
+	if string(out) != "hi from "+dir+"\n" {
+		t.Fatalf("output = %q, want greet run from %s", out, dir)
 	}
 }

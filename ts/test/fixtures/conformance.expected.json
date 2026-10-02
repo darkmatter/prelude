@@ -20,6 +20,18 @@
             },
             {
               "args": [],
+              "command": "x db/reset",
+              "description": "drop and reseed",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "reset",
+              "name": "db/reset",
+              "run": "bun run reset",
+              "usage": ""
+            },
+            {
+              "args": [],
               "command": "x db:seed",
               "description": "load sample rows",
               "details": "",
@@ -141,6 +153,23 @@
             }
           ],
           "title": "test"
+        },
+        {
+          "tasks": [
+            {
+              "args": [],
+              "command": "x ui/build:watch",
+              "description": "rebuild the UI on change",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "build:watch",
+              "name": "ui/build:watch",
+              "run": "vite build --watch",
+              "usage": ""
+            }
+          ],
+          "title": "ui"
         }
       ],
       "height": 9,
@@ -180,7 +209,12 @@
         "warning": "#f9b64f"
       },
       "placeholder": "pick one",
-      "project": "fixture"
+      "project": "fixture",
+      "scripts": {
+        "enable": true,
+        "group": "npm",
+        "packageJson": "web/package.json"
+      }
     },
     "defaults": {
       "colorProfile": "truecolor",
@@ -230,7 +264,12 @@
         "warning": "#f2c17d"
       },
       "placeholder": "type to filter commands…",
-      "project": "fixture"
+      "project": "fixture",
+      "scripts": {
+        "enable": false,
+        "group": "scripts",
+        "packageJson": null
+      }
     }
   },
   "motd": {

@@ -18,8 +18,12 @@ Interactive task picker and non-interactive dispatcher over the command catalogu
 Full-screen Markdown viewer over pages embedded at build time.
 
 **Command catalogue**:
-Project tasks declared in Nix (`prelude.commands`), projected into menu groups and MOTD next-steps.
+Project tasks declared in Nix (`prelude.commands`) or by a Host, projected into menu groups and MOTD next-steps, plus the ones the menu imports when it opens (Justfile recipes, package.json scripts), which appear only in the menu.
 _Avoid_: Task list (prefer catalogue for the Nix-side whole; menu still uses Task at its JSON boundary)
+
+**Source**:
+Where a catalogue task came from: `declared` (Nix or a Host), or an import (`just`, then `scripts`). When two sources produce the same key, or an import's key is a declared shortcut, the one listed first keeps it and the other is hidden: reported under `x --list` and in the picker's details, never dropped silently. A source is not part of a task's identity.
+_Avoid_: origin, provider
 
 ### MOTD pipeline
 
@@ -70,7 +74,7 @@ A process that runs a surface through libprelude, such as an app using the TypeS
 _Avoid_: embedder, client
 
 **Selection**:
-What the menu picker resolved: the chosen task's name, the argument line entered for it, and the assembled shell command. The CLI execs the command; a host dispatches on the name and parses the line.
+What the menu picker resolved: the chosen task's name, the argument line entered for it, the assembled shell command, the task's Source, and where the command runs (a directory and directories ahead of `PATH`, when the task sets them). The CLI execs the command there; a Host runs its own function for a declared Selection, parsing the line, and the shell command otherwise.
 
 ### Flags
 

@@ -198,22 +198,23 @@ func newConfigData(r wizardResult, titlePath string) configData {
 }
 
 // inferredCommandExec mirrors prelude's exec default: the segment after the
-// first colon, or the whole key when ungrouped.
+// first `:` or `/`, or the whole key when ungrouped.
 func inferredCommandExec(name string) string {
-	if i := strings.IndexByte(name, ':'); i >= 0 && i+1 < len(name) {
+	if i := strings.IndexAny(name, ":/"); i >= 0 && i+1 < len(name) {
 		return name[i+1:]
 	}
 	return name
 }
 
 // inferredCommandGroup mirrors prelude's catalogue identity: builtins land in
-// "prelude", colon keys use the first segment, everything else is "develop".
+// "prelude", grouped keys use the segment before the first `:` or `/`, and
+// everything else is "develop".
 func inferredCommandGroup(name string) string {
 	switch name {
 	case "x", "docs":
 		return "prelude"
 	}
-	if i := strings.IndexByte(name, ':'); i > 0 {
+	if i := strings.IndexAny(name, ":/"); i > 0 {
 		return name[:i]
 	}
 	return "develop"
@@ -269,7 +270,7 @@ func nixString(value string) string {
 }
 
 // nixAttrKey renders an attrset key, quoting it only when it is not a plain
-// Nix identifier (public keys containing colons, such as `test:unit`, need quotes).
+// Nix identifier (grouped keys such as `test:unit` and `db/reset` need quotes).
 func nixAttrKey(name string) string {
 	if nixIdentifierPattern.MatchString(name) {
 		return name
@@ -279,10 +280,10 @@ func nixAttrKey(name string) string {
 
 var nixIdentifierPattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_'-]*$`)
 
-// commandKeyPattern accepts public keys such as `test:unit` and
-// `test:unit:watch`. The first colon derives menu grouping; the complete key
-// remains callable through x.
-var commandKeyPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+(:[A-Za-z0-9_.-]+)*$`)
+// commandKeyPattern accepts public keys such as `test:unit`, `test/unit`, and
+// `test:unit:watch`. The first `:` or `/` derives menu grouping; the complete
+// key remains callable through x.
+var commandKeyPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+([:/][A-Za-z0-9_.-]+)*$`)
 
 // nixPath emits a Nix path literal. Relative paths gain the mandatory ./
 // prefix; absolute paths pass through.

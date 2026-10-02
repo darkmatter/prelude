@@ -3,6 +3,7 @@
 {lib}: {
   commandEntries ? [],
   justImport ? false,
+  runtimeImports ? false,
 }: let
   oneLine = value:
     lib.replaceStrings ["\n" "\r" "\t"] [" " " " " "] (
@@ -53,6 +54,11 @@
 in ''
   _prelude_catalogue_just_import=${
     if justImport
+    then "1"
+    else "0"
+  }
+  _prelude_catalogue_imports=${
+    if runtimeImports
     then "1"
     else "0"
   }

@@ -20,10 +20,11 @@
   motdCommand ? null,
   motdRevision ? null,
   statusEnabled ? false,
-  # When true, the catalogue completion also offers Justfile recipes (the same
-  # runtime import the menu performs), and bash-init registers just's own
-  # completion for `just <TAB>`.
+  # When true, bash-init registers just's own completion for `just <TAB>`.
   justImport ? false,
+  # When true, `x <TAB>` also offers what the menu imports at runtime
+  # (Justfile recipes, package.json scripts), read from `x --imports`.
+  runtimeImports ? false,
   promptFinalConfig ? null,
   promptStatusCommand ? null,
   promptStatusConfig ? null,
@@ -80,7 +81,7 @@
   ];
   catalogue = writeText "prelude-shell-catalogue.bash" (
     import ./shell/catalogue.nix {inherit lib;} {
-      inherit commandEntries justImport;
+      inherit commandEntries justImport runtimeImports;
     }
   );
   schemePalette = {

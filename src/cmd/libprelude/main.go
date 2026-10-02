@@ -28,7 +28,7 @@ import (
 
 // abiVersion changes whenever a request or reply shape does, so a host can
 // refuse a library it does not speak instead of misreading it.
-const abiVersion = 1
+const abiVersion = 2
 
 //export prelude_abi_version
 func prelude_abi_version() C.int {

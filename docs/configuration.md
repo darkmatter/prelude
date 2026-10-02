@@ -11,8 +11,9 @@ Everything is a `prelude.*` option, validated at build time.
 - **`prelude.motd.*`** — title (FIGlet or file), tagline, status probes,
   description, advertised commands, and multi-step recipes.
 - **`prelude.commands`** — the shared catalogue keyed by public `x` command.
-  The first colon derives menu group/name while the complete key remains
-  callable through `x`; an explicit `group` field overrides the inferred
+  The first `:` or `/` derives menu group/name (`go:test`, `db/migrate`) while
+  the complete key remains callable through `x`; an explicit `group` field
+  overrides the inferred
   group. MOTD rows show ungrouped commands bare (they are on PATH) and
   grouped keys in their `x <key>` dispatch form.
 - **`prelude.docs.pages`** — nav tree of Markdown leaves, groups, and optional

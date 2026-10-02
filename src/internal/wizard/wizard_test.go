@@ -862,6 +862,7 @@ func TestRenderWizardConfigEmitsOptionsTemplate(t *testing.T) {
 		Commands: []wizardCommand{
 			{Name: "dev", Exec: "pnpm dev", Description: "start the dev server"},
 			{Name: "db:migrate", Description: "apply pending migrations"},
+			{Name: "db/reset", Description: "drop and reseed the database"},
 		},
 	}, "title.txt")
 
@@ -888,6 +889,10 @@ func TestRenderWizardConfigEmitsOptionsTemplate(t *testing.T) {
 		"# exec = \"migrate\";",
 		`description = "apply pending migrations";`,
 		"motd = 2;",
+		`"db/reset" = {`,
+		"# exec = \"reset\";",
+		"# group inferred from key: db",
+		"motd = 3;",
 		"# key = null;",
 		"# usage =",
 		"# details = null;",

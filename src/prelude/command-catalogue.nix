@@ -8,9 +8,9 @@
 #   { name, group, label, grouped, run, invocation, xInvocation,
 #     description, key, usage, details, examples, args, raw }
 #
-# `group` is either the explicit override from `command.group` or the
-# colon-inferred default; `grouped` tracks whether the key has a colon
-# (PATH-wrapper vs x-only dispatch) and is independent of `group`.
+# `group` is either the explicit override from `command.group` or the default
+# inferred from the key's first `:` or `/`; `grouped` tracks whether the key
+# has one (PATH-wrapper vs x-only dispatch) and is independent of `group`.
 #
 # Projections:
 #   projectMenuGroups  → menu TUI JSON groups/tasks
@@ -26,14 +26,16 @@
     default = a.default or null;
   };
 
-  # Stable identity derived from the public command key. The first colon is
-  # presentation-only (menu group + label); the complete key remains the
-  # callable `x` name. When `explicitGroup` is non-null it overrides the
-  # colon-inferred group, letting callers place a flat key under a named group
-  # without colon-prefixing it.
+  # Stable identity derived from the public command key. The first `:` or `/`
+  # is presentation-only (menu group + label): `go:test` and `go/test` both
+  # show `test` under `go`, while the complete key remains the callable `x`
+  # name. Later separators of either kind stay in the label. When
+  # `explicitGroup` is non-null it overrides the inferred group, letting
+  # callers place a flat key under a named group without prefixing it.
   commandIdentity = sourceName: explicitGroup: let
-    parts = lib.splitString ":" sourceName;
-    grouped = builtins.length parts > 1;
+    # [group label] around the first separator, or null for a flat key.
+    parts = builtins.match "([^:/]*)[:/](.*)" sourceName;
+    grouped = parts != null;
     builtin = lib.elem sourceName [
       "x"
       "docs"
@@ -42,7 +44,7 @@
       if builtin
       then "prelude"
       else if grouped
-      then builtins.head parts
+      then builtins.elemAt parts 0
       else "develop";
     group =
       if explicitGroup != null
@@ -50,7 +52,7 @@
       else inferredGroup;
     label =
       if grouped
-      then lib.concatStringsSep ":" (lib.tail parts)
+      then builtins.elemAt parts 1
       else sourceName;
   in
     assert lib.assertMsg (
@@ -58,7 +60,7 @@
     ) "prelude: command key must be non-empty and contain no whitespace";
     assert lib.assertMsg (
       group != "" && label != ""
-    ) "prelude: command key must have non-empty colon-separated segments"; {
+    ) "prelude: command key must have non-empty segments around its first `:` or `/`"; {
       inherit
         sourceName
         group
@@ -86,8 +88,8 @@
   in
     identity
     // {
-      # The key is both stable identity and public x command. The first colon
-      # derives presentation only; it remains part of the key (`x go:test`).
+      # The key is both stable identity and public x command. The first `:` or
+      # `/` derives presentation only; it remains part of the key (`x go:test`).
       name = sourceName;
       # The Go menu still calls executable shell text `run` at its JSON boundary.
       run =
@@ -211,7 +213,7 @@
   # Menu TUI JSON boundary: groups of tasks with the fields Go menu.Config
   # expects. Keeps catalogue metadata (usage/details/examples/args/key) intact.
   # `command` is the user-runnable form: ungrouped entries are PATH commands,
-  # while colon-grouped catalogue identities dispatch through `x`. Consumers
+  # while grouped catalogue identities dispatch through `x`. Consumers
   # such as the shell status host must use this rather than reconstructing
   # invocation rules from a display label.
   projectMenuGroups = groupOrder: commands:

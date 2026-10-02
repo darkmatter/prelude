@@ -138,25 +138,6 @@ func TestParseJustDumpSkipsPrivateRecipes(t *testing.T) {
 	}
 }
 
-func TestMergeJustTasksPreservesExplicitTasks(t *testing.T) {
-	cfg := &Config{Groups: []Group{{Title: "just", Tasks: []Task{{Name: "build", Run: "nix build"}}}}}
-	tasks := []Task{
-		{Name: "build", Run: "just build", group: "just"},
-		{Name: "test", Label: "test", Run: "just test", group: "just"},
-	}
-
-	mergeJustTasks(cfg, tasks)
-	if len(cfg.Groups) != 1 || len(cfg.Groups[0].Tasks) != 2 {
-		t.Fatalf("groups = %#v", cfg.Groups)
-	}
-	if cfg.Groups[0].Tasks[0].Name != "build" || cfg.Groups[0].Tasks[0].Run != "nix build" {
-		t.Fatalf("explicit task was not preserved: %#v", cfg.Groups[0].Tasks)
-	}
-	if cfg.Groups[0].Tasks[1].Name != "test" {
-		t.Fatalf("imported task missing: %#v", cfg.Groups[0].Tasks)
-	}
-}
-
 func TestLoadJustTasksRunsJustDump(t *testing.T) {
 	dir := t.TempDir()
 	just := filepath.Join(dir, "just")
@@ -171,7 +152,7 @@ printf '%s\n' '{"recipes":{"check":{"name":"check","namepath":"check","private":
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tasks) != 1 || tasks[0].Name != "check" || tasks[0].Run != "just check" {
+	if len(tasks) != 1 || tasks[0].Name != "check" || tasks[0].Run != "just check" || tasks[0].Source != sourceJust {
 		t.Fatalf("tasks = %#v", tasks)
 	}
 }

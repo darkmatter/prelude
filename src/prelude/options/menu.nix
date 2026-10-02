@@ -57,5 +57,27 @@ in {
         description = "Menu group for imported ungrouped Justfile recipes.";
       };
     };
+
+    scripts = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = defaults.menu.scripts.enable;
+        example = true;
+        description = "Import package.json scripts into the command menu at runtime. Each script runs exactly as written, from its package.json directory with node_modules/.bin ahead of PATH. No package manager runs it, so pre/post scripts and npm_* variables do not apply.";
+      };
+
+      packageJson = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = defaults.menu.scripts.packageJson;
+        example = "web/package.json";
+        description = "package.json to import. null uses the nearest package.json at or above the working directory at runtime. A relative path resolves from the project root (the nearest directory holding flake.nix). A string, not a Nix path, so it is never copied into the store away from its node_modules.";
+      };
+
+      group = lib.mkOption {
+        type = lib.types.str;
+        default = defaults.menu.scripts.group;
+        description = "Menu group for imported package.json scripts whose names have no `:` or `/`.";
+      };
+    };
   };
 }

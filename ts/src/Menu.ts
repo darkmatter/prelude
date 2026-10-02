@@ -14,7 +14,7 @@ export interface Options extends Palette.Options {
   project?: string;
   /** How people run this app from a shell (`acme`). Default: derived from process.argv. */
   dispatcher?: string;
-  /** Commands keyed by their public name; the first colon groups them (`db:migrate`). */
+  /** Commands keyed by their public name; the first `:` or `/` groups them (`db:migrate`, `db/migrate`). */
   commands: Readonly<Record<string, Command.Any>>;
   /** Preferred group order; unlisted groups follow alphabetically. */
   groupOrder?: readonly string[];
@@ -26,6 +26,13 @@ export interface Options extends Palette.Options {
   maxWidth?: number | null;
   /** Import public Justfile recipes when the picker opens, like `prelude.menu.just`. */
   just?: { enable?: boolean; justfile?: string | null; group?: string };
+  /**
+   * Import package.json scripts when the picker opens, like
+   * `prelude.menu.scripts`. Each runs exactly as written, from its
+   * package.json directory with node_modules/.bin ahead of PATH. Default: the
+   * nearest package.json at or above the working directory.
+   */
+  scripts?: { enable?: boolean; packageJson?: string | null; group?: string };
 }
 
 type TaskArg = { token: string; description: string; required: boolean; boolean: boolean; options: string[]; default: string | null };
@@ -55,8 +62,12 @@ export interface Config {
   groups: { title: string; tasks: Task[] }[];
   motdCommands: { name: string; command: string; description: string }[];
   just: { enable: boolean; justfile: string | null; group: string };
+  scripts: { enable: boolean; packageJson: string | null; group: string };
   dispatcher: string;
 }
+
+/** Where a command came from: this app's own commands, or an import. */
+export type Source = "declared" | "just" | "scripts";
 
 /** What the picker resolved. */
 export interface Selection {
@@ -66,6 +77,12 @@ export interface Selection {
   readonly line: string;
   /** The shell form: exec text plus the line. */
   readonly shell: string;
+  /** Where the command came from. Only a declared one can be a function of this app. */
+  readonly source: Source;
+  /** The directory the shell form runs in; absent means this process's. */
+  readonly dir?: string;
+  /** Directories put ahead of PATH for the shell form, nearest first. */
+  readonly pathPrefix?: readonly string[];
 }
 
 export interface Menu {
@@ -99,8 +116,13 @@ function buildConfig(options: Options, dispatcher: string): Config {
     justfile: options.just?.justfile ?? defaults.menu.just.justfile,
     group: options.just?.group ?? defaults.menu.just.group,
   };
-  if (groups.length === 0 && !just.enable) {
-    throw new Error("prelude: no commands configured; add commands or enable just");
+  const scripts = {
+    enable: options.scripts?.enable ?? defaults.menu.scripts.enable,
+    packageJson: options.scripts?.packageJson ?? defaults.menu.scripts.packageJson,
+    group: options.scripts?.group ?? defaults.menu.scripts.group,
+  };
+  if (groups.length === 0 && !just.enable && !scripts.enable) {
+    throw new Error("prelude: no commands configured; add commands or enable just or scripts");
   }
   const height = options.height ?? defaults.menu.height;
   if (!Number.isInteger(height) || height <= 0) {
@@ -123,6 +145,7 @@ function buildConfig(options: Options, dispatcher: string): Config {
       description: entry.command.description ?? "",
     })),
     just,
+    scripts,
     dispatcher,
   };
 }
@@ -164,8 +187,24 @@ export function make(options: Options): Menu {
   const { palette } = config;
 
   const select = (args: readonly string[] = []): Selection | null => {
-    const chosen = call<{ name: string; line: string; command: string } | null>("prelude_menu_select", { config, args });
-    return chosen && { key: chosen.name, line: chosen.line, shell: chosen.command };
+    const chosen = call<{
+      name: string;
+      line: string;
+      command: string;
+      source: Source;
+      dir?: string;
+      pathPrefix?: string[];
+    } | null>("prelude_menu_select", { config, args });
+    return (
+      chosen && {
+        key: chosen.name,
+        line: chosen.line,
+        shell: chosen.command,
+        source: chosen.source,
+        dir: chosen.dir,
+        pathPrefix: chosen.pathPrefix,
+      }
+    );
   };
 
   const list = (width = process.stdout.columns ?? 80): string => call<string>("prelude_menu_list", { config, width });
@@ -182,12 +221,14 @@ export function make(options: Options): Menu {
 
   // A picker choice, or words Go resolved like `x` (shortcuts of shell
   // commands, Justfile recipes and module routes, typed extra arguments).
+  // Only a declared selection can name one of this app's functions; an
+  // import that shares a key still runs its own shell text.
   const prepareSelection = (selection: Selection): (() => Promise<number>) => {
-    const command = commands[selection.key];
+    const command = selection.source === "declared" ? commands[selection.key] : undefined;
     if (command?.run === undefined) {
       return () => {
         announce(palette, selection.shell);
-        return runShell(selection.shell);
+        return runShell(selection.shell, selection);
       };
     }
     const line = selection.line === "" ? "" : ` ${selection.line}`;

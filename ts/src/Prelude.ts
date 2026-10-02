@@ -12,7 +12,7 @@ export interface Options extends Palette.Options {
   dispatcher?: string;
   commands: Readonly<Record<string, Command.Any>>;
   groupOrder?: readonly string[];
-  menu?: Pick<Menu.Options, "placeholder" | "height" | "maxWidth" | "just">;
+  menu?: Pick<Menu.Options, "placeholder" | "height" | "maxWidth" | "just" | "scripts">;
   motd?: Omit<Motd.Options, keyof Palette.Options | "project" | "commands" | "groupOrder" | "dispatcher">;
   docs?: Omit<Docs.Options, keyof Palette.Options | "project">;
 }

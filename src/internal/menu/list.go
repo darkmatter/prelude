@@ -58,15 +58,14 @@ func writeList(w io.Writer, cfg *Config, st styles, width int) {
 			}
 		}
 	}
-	if cfg.justImportWarning != "" {
-		fmt.Fprintln(w, st.dim.Render(cfg.justImportWarning))
+	for _, note := range hiddenNotes(cfg) {
+		fmt.Fprintln(w, st.dim.Render(note))
 	}
-	dispatcher := cfg.Dispatcher
-	if dispatcher == "" {
-		dispatcher = "x"
+	for _, warning := range cfg.importWarnings {
+		fmt.Fprintln(w, st.dim.Render(warning))
 	}
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, st.dim.Render("run "+dispatcher+" to pick a task interactively"))
+	fmt.Fprintln(w, st.dim.Render("run "+cfg.dispatcher()+" to pick a task interactively"))
 }
 
 // listRow paints one non-interactive task line in the same language as the

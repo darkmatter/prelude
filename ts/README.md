@@ -83,9 +83,9 @@ Surfaces are built with `make`, and a module's main type shares its name
 
 A command has no name of its own. Its key comes from where it is mounted
 (`commands: { "db:migrate": migrate }`), so modules export commands without
-claiming public names. As in the devshell, the first colon picks the menu
-group (`db:migrate` → group `db`, label `migrate`), `group` overrides it, and
-ungrouped keys fall under `develop`.
+claiming public names. As in the devshell, the first `:` or `/` picks the
+menu group (`db:migrate` and `db/migrate` → group `db`, label `migrate`),
+`group` overrides it, and ungrouped keys fall under `develop`.
 
 ## Surfaces
 
@@ -97,7 +97,12 @@ ungrouped keys fall under `develop`.
 - `Menu.make(options)` returns a menu with `select()` (the choice, without
   running it), `list()`, `run(selection)`, `launch()` (picker, then run), and
   `dispatch(argv)` (`x` semantics). `launch` and `dispatch` set
-  `process.exitCode`.
+  `process.exitCode`. The `just` and `scripts` options import Justfile
+  recipes and package.json scripts when the picker opens, as
+  `prelude.menu.just` and `prelude.menu.scripts` do. A selection's `source`
+  says where its command came from: `run` calls your function only for a
+  `declared` one, and runs an import as shell text, in its `dir` with its
+  `pathPrefix` ahead of `PATH`.
 - `Motd.make(options)` returns a banner with `render(size?)` and `print()`.
   Options mirror `prelude.motd.*`. A status `check` or env `probe` is shell
   text (run by Go, as Preflight does) or a function (run here).

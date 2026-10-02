@@ -525,7 +525,7 @@ func (m wizardModel) commitCommandField() (tea.Model, tea.Cmd) {
 	switch m.commandPhase {
 	case commandName:
 		if !commandKeyPattern.MatchString(value) {
-			m.err = "command name must use [A-Za-z0-9_.:-] with no empty colon segments"
+			m.err = "command name must use [A-Za-z0-9_.:/-] with no empty segments around : or /"
 			return m, nil
 		}
 		// `menu` and `x` are Prelude-owned entrypoints; a custom exec would

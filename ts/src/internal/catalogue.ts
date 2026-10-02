@@ -17,7 +17,7 @@ export interface Group {
   readonly entries: readonly Entry[];
 }
 
-const safeName = /^[A-Za-z0-9:_.-]+$/;
+const safeName = /^[A-Za-z0-9:/_.-]+$/;
 
 /** Byte order, as Nix compares strings. */
 export function compare(a: string, b: string): number {
@@ -25,21 +25,21 @@ export function compare(a: string, b: string): number {
 }
 
 /**
- * Mirrors `commandIdentity`: the first colon splits the menu group from the
- * displayed label while the key stays whole (`go:test` → group `go`, label
- * `test`). An explicit group overrides the inferred one; ungrouped keys fall
- * under `develop`.
+ * Mirrors `commandIdentity`: the first `:` or `/` splits the menu group from
+ * the displayed label while the key stays whole (`go:test` and `go/test` →
+ * group `go`, label `test`); later separators stay in the label. An explicit
+ * group overrides the inferred one; ungrouped keys fall under `develop`.
  */
 export function identity(key: string, explicitGroup?: string): { group: string; label: string } {
   if (!safeName.test(key)) {
-    throw new Error(`prelude: command key "${key}" may only contain letters, digits, and : _ . -`);
+    throw new Error(`prelude: command key "${key}" may only contain letters, digits, and : / _ . -`);
   }
-  const [head = "", ...rest] = key.split(":");
-  const grouped = rest.length > 0;
-  const group = explicitGroup ?? (grouped ? head : "develop");
-  const label = grouped ? rest.join(":") : key;
+  const separator = key.search(/[:/]/);
+  const grouped = separator !== -1;
+  const group = explicitGroup ?? (grouped ? key.slice(0, separator) : "develop");
+  const label = grouped ? key.slice(separator + 1) : key;
   if (group === "" || label === "") {
-    throw new Error(`prelude: command key "${key}" must have non-empty colon-separated segments`);
+    throw new Error(`prelude: command key "${key}" must have non-empty segments around its first : or /`);
   }
   return { group, label };
 }
@@ -78,7 +78,7 @@ function validate(entries: readonly Entry[]): void {
     const shortcut = command.shortcut;
     if (shortcut === undefined) continue;
     if (!safeName.test(shortcut)) {
-      throw new Error(`prelude: shortcut "${shortcut}" of ${key} may only contain letters, digits, and : _ . -`);
+      throw new Error(`prelude: shortcut "${shortcut}" of ${key} may only contain letters, digits, and : / _ . -`);
     }
     const owner = shortcuts.get(shortcut);
     if (owner !== undefined) throw new Error(`prelude: shortcut "${shortcut}" is used by both ${owner} and ${key}`);

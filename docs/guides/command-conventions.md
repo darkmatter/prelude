@@ -26,7 +26,8 @@ entry. This keeps `PATH` small and avoids synthetic aliases such as `go-test`.
 ## The key is the public identity
 
 A command key is globally unique and is also its public `x` name. No separate
-source, discriminator, or label is needed.
+namespace, discriminator, or label is needed; where a command came from is not
+part of its key.
 
 The first colon derives menu presentation without changing the key:
 
@@ -38,7 +39,18 @@ go:test
 public invocation: x go:test
 ```
 
-Only the first colon is structural. The remainder stays intact:
+A slash does the same, for keys that read better as a path:
+
+```text
+db/migrate
+│  └── displayed command: migrate
+└───── menu group: db
+
+public invocation: x db/migrate
+```
+
+Only the first `:` or `/` is structural. The remainder stays intact,
+separators included:
 
 ```text
 test:unit:watch
@@ -64,14 +76,16 @@ prelude.commands.lint = {
 };
 ```
 
-`lint` stays on PATH (no colon → `grouped` is false) and is callable as
+`lint` stays on PATH (no `:` or `/` → `grouped` is false) and is callable as
 `x lint`, but the menu places it under `quality` instead of the default
 `develop` group. The override also applies to colon-keyed commands —
 setting `group = "ci"` on `go:test` moves it to `ci` while keeping the
 `x go:test` dispatch form.
 
-Because keys are globally unique, command resolution is exact and deterministic:
-there is no collision priority or discriminator syntax.
+Because keys are unique within the catalogue, command resolution is exact and
+deterministic: there is no discriminator syntax. When an import produces a key
+that is already declared, the declaration keeps it (see
+[Precedence](#precedence)).
 
 ## Keep canonical commands canonical
 
@@ -79,10 +93,10 @@ The tool that owns a workflow also owns its underlying invocation:
 
 | Catalogue key | Canonical invocation |
 | ------------- | -------------------- |
-| `test`        | `bun run test`       |
-| `check`       | `just check`         |
-| `deploy`      | `nix run .#deploy`   |
-| `go:test`     | `go test ./...`      |
+| `test` | `bun run test` |
+| `check` | `just check` |
+| `deploy` | `nix run .#deploy` |
+| `go:test` | `go test ./...` |
 
 `x` dispatches to these commands; it does not translate every workflow into
 `nix run`. The Nix devshell provides dependencies and environment. Once inside
@@ -107,10 +121,30 @@ Existing project files remain authoritative:
 
 Imported names become command keys verbatim. A package script named `test:unit`
 therefore becomes `x test:unit`; Prelude does not reject, rename, or normalize
-it. Its first colon also naturally organizes the menu under `test`.
+it. Its first colon (or slash) also organizes the menu under `test`.
 
 Do not write generated entries back to source files, and do not copy imported
 commands into `prelude.commands`. Imports are one-way.
+
+### Precedence
+
+Declared commands (`prelude.commands`, or a TypeScript app's own commands)
+come first, then Justfile recipes, then `package.json` scripts. When two
+produce the same key, the earlier one keeps it, so declaring a key is how you
+override an import. The hidden entry is reported, not dropped silently:
+`x --list` prints a note under the table,
+
+```text
+test: just recipe hidden by declared command
+```
+
+and the declared command's details in the picker say `hides just recipe test`.
+A declared shortcut counts as a claimed key too, because `x <word>` tries names
+before shortcuts: an imported entry named like a declared shortcut is hidden
+the same way. Prelude's own commands bring three shortcuts, `m` (`x`), `d`
+(`docs`), and `p` (`portal`), so a Justfile `alias d := deploy` is hidden while
+`docs` is enabled. Free a shortcut by clearing it, for example
+`prelude.commands.docs.key = null;`.
 
 ### Justfile import
 
@@ -122,8 +156,9 @@ just --dump --dump-format json
 ```
 
 and merges the parsed recipes with the Nix catalogue. A configured
-`prelude.commands.<name>` entry wins a recipe with the same name. The imported
-recipe keeps `just <recipe>` as its canonical invocation.
+`prelude.commands.<name>` entry wins a recipe with the same name, as
+[Precedence](#precedence) describes. The imported recipe keeps
+`just <recipe>` as its canonical invocation.
 
 A just module (`mod database 'database.just'`) imports as one menu row:
 selecting `database` in the picker — or running `x database` — opens a
@@ -141,8 +176,28 @@ Extras the parent does not recognize keep just's module-dispatch form
 By default, `just` discovers the Justfile from the current working directory.
 Set `prelude.menu.just.justfile` to pin a specific Justfile path. Recipes marked
 private (including `_`-prefixed recipes) are omitted. If `just` is unavailable,
-the Justfile is missing, or parsing fails, the menu falls back to the static Nix
-catalogue.
+the Justfile is missing, or parsing fails, the menu keeps the declared commands
+and its other imports, and `x --list` says the recipes are unavailable.
+
+### package.json import
+
+Set `prelude.menu.scripts.enable = true` to import the `scripts` of a
+`package.json` at menu runtime. The menu reads the nearest `package.json` at or
+above the working directory; set `prelude.menu.scripts.packageJson` to pin one
+(a relative path resolves from the project root, the directory holding
+`flake.nix`).
+
+Each script runs exactly as written, with no package manager in front:
+`x build --watch` runs the `build` script's text with `--watch` appended, as
+`npm run build -- --watch` would. It runs from its `package.json` directory,
+with `node_modules/.bin` from there up to the filesystem root ahead of `PATH`,
+which is how `"test": "vitest"` finds `vitest`. Because no package manager runs
+it, `pre`/`post` scripts do not run and `npm_*` variables are not set.
+
+Script names become keys verbatim, and a name without `:` or `/` lands in the
+`scripts` group (`prelude.menu.scripts.group`). If the `package.json` is
+missing or cannot be parsed, `x --list` says so under the table and the rest of
+the menu stays.
 
 ## Ownership boundaries
 

@@ -10,19 +10,21 @@ const titles = (commands: Menu.Options["commands"], groupOrder?: string[]) =>
   ]);
 
 describe("catalogue identity", () => {
-  test("the first colon picks the group and the rest is the label", () => {
+  test("the first colon or slash picks the group and the rest is the label", () => {
     expect(
       titles({
         build: shell("make"),
         "go:test": shell("go test ./..."),
+        "go/vet": shell("go vet ./..."),
         "test:unit:watch": shell("bun test --watch"),
+        "test/e2e:headed": shell("playwright test --headed"),
         lint: shell("eslint .", { group: "quality" }),
       }),
     ).toEqual([
       ["develop", ["build"]],
-      ["go", ["test"]],
+      ["go", ["test", "vet"]],
       ["quality", ["lint"]],
-      ["test", ["unit:watch"]],
+      ["test", ["e2e:headed", "unit:watch"]],
     ]);
   });
 
@@ -42,7 +44,8 @@ describe("catalogue identity", () => {
 
   test("rejects keys and shortcuts the dispatcher cannot resolve", () => {
     expect(() => titles({ "has space": shell("x") })).toThrow('command key "has space"');
-    expect(() => titles({ "go:": shell("x") })).toThrow("non-empty colon-separated segments");
+    expect(() => titles({ "go:": shell("x") })).toThrow("non-empty segments around its first : or /");
+    expect(() => titles({ "/go": shell("x") })).toThrow("non-empty segments around its first : or /");
     expect(() => titles({ a: shell("a", { shortcut: "b" }), b: shell("b") })).toThrow("collides with a command key");
     expect(() => titles({ a: shell("a", { shortcut: "x" }), b: shell("b", { shortcut: "x" }) })).toThrow(
       "used by both a and b",
