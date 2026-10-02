@@ -24,6 +24,10 @@
   minimalProgram = lib.getExe motdDemos.examplePackages.example-minimal;
   surfaceProgram = lib.getExe motdDemos.examplePackages.example-surface;
 
+  # VHS draws in headless Chromium, which finds fonts through fontconfig. The
+  # recording app points fontconfig at this font, so CI and every machine
+  # record the same glyphs instead of whatever fallback the host has.
+  recordFonts = pkgs.makeFontsConf {fontDirectories = [pkgs.nerd-fonts.monaspace];};
   vhsVisualSettings = ''
     Set FontFamily "MonaspiceNe Nerd Font Mono"
     Set FontSize 14
@@ -512,10 +516,16 @@
       pkgs.vhs
     ];
     text = ''
+      export FONTCONFIG_FILE=${recordFonts}
       root=$(git rev-parse --show-toplevel)
       cd "$root"
       mkdir -p docs/media docs/.record-bin docs/generated docs/reference
-      trap 'rm -rf docs/.record-bin' EXIT
+      # Record against an empty MOTD Cache, so a live status shows as pending
+      # rather than whatever this machine last cached. Go reads this variable
+      # on Linux, where CI records.
+      XDG_CACHE_HOME=$(mktemp -d)
+      export XDG_CACHE_HOME
+      trap 'rm -rf docs/.record-bin "$XDG_CACHE_HOME"' EXIT
       ln -s ${motdProgram} docs/.record-bin/example-motd
       ln -s ${menuProgram} docs/.record-bin/example-menu
       ln -s ${minimalProgram} docs/.record-bin/example-minimal
