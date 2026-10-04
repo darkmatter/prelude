@@ -208,7 +208,7 @@ func inferredCommandExec(name string) string {
 
 // inferredCommandGroup mirrors prelude's catalogue identity: builtins land in
 // "prelude", grouped keys use the segment before the first `:` or `/`, and
-// everything else is "develop".
+// everything else has no group ("", listed without a heading).
 func inferredCommandGroup(name string) string {
 	switch name {
 	case "x", "docs":
@@ -217,7 +217,7 @@ func inferredCommandGroup(name string) string {
 	if i := strings.IndexAny(name, ":/"); i > 0 {
 		return name[:i]
 	}
-	return "develop"
+	return ""
 }
 
 // commentLines prefixes every line with "# " so a whole block can be shipped

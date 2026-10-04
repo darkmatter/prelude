@@ -116,3 +116,19 @@ func TestWriteImportsListsTheImportsXDispatches(t *testing.T) {
 		t.Fatalf("writeImports = %q, want %q", out.String(), want)
 	}
 }
+
+func TestListShowsUngroupedCommandsFirstWithoutAHeading(t *testing.T) {
+	cfg := testMenuConfig()
+	cfg.Groups = []Group{
+		{Title: "", Tasks: []Task{{Name: "build", Description: "compile the app"}}},
+		{Title: "db", Tasks: []Task{{Name: "db/migrate", Label: "migrate", Description: "apply migrations"}}},
+	}
+
+	lines := listLines(cfg)
+	if !strings.HasPrefix(lines[0], "build") {
+		t.Fatalf("an ungrouped command should open the list with no heading above it:\n%s", strings.Join(lines, "\n"))
+	}
+	if !slices.Contains(lines, "DB") {
+		t.Fatalf("a named group keeps its heading:\n%s", strings.Join(lines, "\n"))
+	}
+}

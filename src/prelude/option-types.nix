@@ -280,9 +280,9 @@
         description = ''
           Menu group override. When null, the group is inferred from the
           segment before the key's first `:` or `/` (`go:test` and `go/test` →
-          group `go`); ungrouped keys land in `develop`. Set this to place a
-          command under a different group without prefixing the key — useful
-          for Justfile recipes and other imports where the key should stay flat.
+          group `go`); a key without either has no group and lists above every
+          heading. Set this to place a command under a group without prefixing
+          the key, or to `""` to list a grouped key without a heading.
         '';
       };
       exec = lib.mkOption {

@@ -63,7 +63,7 @@ in {
     commands.motd = {
       description = "reprint the welcome banner";
     };
-    commands."prelude:previews" = {
+    commands."prelude/previews" = {
       description = "build render checks and print their output to inspect the command catalogue, title fonts, and feature demos without opening an interactive surface";
       exec = "prelude-previews";
       details = ''
@@ -86,7 +86,7 @@ in {
         }
       ];
     };
-    commands."prelude:wizard" = {
+    commands."prelude/wizard" = {
       description = "run the interactive setup wizard to choose a title, theme, and command catalogue, then write a consumer's Prelude sidecar without replacing flake.nix";
       exec = "nix run . -- wizard";
       motd = 0;
@@ -272,10 +272,9 @@ in {
       # };
     };
 
-    # Preferred command-group order. Unlisted groups follow alphabetically;
-    # Prelude's built-in navigation group remains first.
+    # Preferred command-group order. Commands without a group list above every
+    # heading, then Prelude's own group; unlisted groups follow alphabetically.
     sort.groups = [
-      "develop"
       "go"
       "docs"
       "demos"

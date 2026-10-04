@@ -9,8 +9,9 @@
 #     description, key, usage, details, examples, args, raw }
 #
 # `group` is either the explicit override from `command.group` or the default
-# inferred from the key's first `:` or `/`; `grouped` tracks whether the key
-# has one (PATH-wrapper vs x-only dispatch) and is independent of `group`.
+# inferred from the key's first `:` or `/`; "" means no group, listed without
+# a heading. `grouped` tracks whether the key has a separator (PATH-wrapper vs
+# x-only dispatch) and is independent of `group`.
 #
 # Projections:
 #   projectMenuGroups  → menu TUI JSON groups/tasks
@@ -29,9 +30,10 @@
   # Stable identity derived from the public command key. The first `:` or `/`
   # is presentation-only (menu group + label): `go:test` and `go/test` both
   # show `test` under `go`, while the complete key remains the callable `x`
-  # name. Later separators of either kind stay in the label. When
-  # `explicitGroup` is non-null it overrides the inferred group, letting
-  # callers place a flat key under a named group without prefixing it.
+  # name. Later separators of either kind stay in the label. A flat key has no
+  # group (""), so the menu lists it above every heading. When `explicitGroup`
+  # is non-null it overrides the inferred group, letting callers place a flat
+  # key under a named group without prefixing it, or a grouped key in none.
   commandIdentity = sourceName: explicitGroup: let
     # [group label] around the first separator, or null for a flat key.
     parts = builtins.match "([^:/]*)[:/](.*)" sourceName;
@@ -45,7 +47,7 @@
       then "prelude"
       else if grouped
       then builtins.elemAt parts 0
-      else "develop";
+      else "";
     group =
       if explicitGroup != null
       then explicitGroup
@@ -58,8 +60,10 @@
     assert lib.assertMsg (
       builtins.match "[^ \t]+" sourceName != null
     ) "prelude: command key must be non-empty and contain no whitespace";
+    # A separator needs a name on each side, unless an explicit group replaces
+    # the one before it.
     assert lib.assertMsg (
-      group != "" && label != ""
+      label != "" && (!grouped || explicitGroup != null || builtins.elemAt parts 0 != "")
     ) "prelude: command key must have non-empty segments around its first `:` or `/`"; {
       inherit
         sourceName
@@ -139,12 +143,16 @@
   normalizeCommandGroups = groupOrder: commands: let
     entries = normalizeCommandEntries commands;
     availableGroups = lib.unique (map (entry: entry.group) entries);
+    # Commands without a group have no heading, so they list above every
+    # group; placed lower, they would read as part of the group above them.
+    ungrouped = lib.optional (lib.elem "" availableGroups) "";
+    named = lib.filter (group: group != "") availableGroups;
     requestedGroups = ["prelude"] ++ groupOrder;
-    preferredGroups = lib.unique (lib.filter (group: lib.elem group availableGroups) requestedGroups);
+    preferredGroups = lib.unique (lib.filter (group: lib.elem group named) requestedGroups);
     remainingGroups = lib.sort builtins.lessThan (
-      lib.filter (group: !lib.elem group preferredGroups) availableGroups
+      lib.filter (group: !lib.elem group preferredGroups) named
     );
-    groupNames = preferredGroups ++ remainingGroups;
+    groupNames = ungrouped ++ preferredGroups ++ remainingGroups;
     commandsInGroup = group: lib.sort (a: b: a.label < b.label) (lib.filter (entry: entry.group == group) entries);
   in
     assert lib.assertMsg (

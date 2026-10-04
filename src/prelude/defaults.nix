@@ -110,10 +110,9 @@
     };
   };
 
-  # Preferred command-group order. Ungrouped commands fall under develop;
-  # Prelude navigation stays first; unlisted groups follow alphabetically.
+  # Preferred command-group order. Commands without a group list above every
+  # heading, then Prelude's own group; unlisted groups follow alphabetically.
   sort.groups = [
-    "develop"
     "database"
     "ops"
   ];

@@ -56,7 +56,7 @@ One command catalogue gathers commands from every place a project already keeps 
 
 | `source` | Enabled by | Group for keys without a colon | `run` | `dir` | `pathPrefix` |
 | --- | --- | --- | --- | --- | --- |
-| `declared` | `prelude.commands`, `Menu.make({ commands })` | `develop` | `exec`, else the key | caller's | — |
+| `declared` | `prelude.commands`, `Menu.make({ commands })` | none: listed at the top, without a heading | `exec`, else the key | caller's | — |
 | `host` | `prelude.menu.hosts.<name>` | `<name>` | `<command> <key>` | project root | — |
 | `just` | `prelude.menu.just`, `Menu.make({ just })` | `just.group` (`just`) | `just [--justfile f] <recipe>` | caller's | — |
 | `scripts` | `prelude.menu.scripts`, `Menu.make({ scripts })` | `scripts.group` (`scripts`) | the script text | the `package.json` directory | each `node_modules/.bin` upward |

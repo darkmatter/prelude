@@ -85,7 +85,8 @@ A command has no name of its own. Its key comes from where it is mounted
 (`commands: { "db:migrate": migrate }`), so modules export commands without
 claiming public names. As in the devshell, the first `:` or `/` picks the
 menu group (`db:migrate` and `db/migrate` → group `db`, label `migrate`),
-`group` overrides it, and ungrouped keys fall under `develop`.
+`group` overrides it, and a key with neither lists at the top of the menu,
+without a heading.
 
 ### Subcommands
 

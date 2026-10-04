@@ -115,8 +115,9 @@
     docs.pages = [ ];
 {{- end }}
 
-    # Preferred command-group order. Groups omitted follow alphabetically;
-    # the built-in "prelude" group (menu/docs) stays first.
-    # sort.groups = [ "develop" "database" "ops" ];
+    # Preferred command-group order. Commands without a group list above every
+    # heading, then the built-in "prelude" group (menu/docs); groups omitted
+    # follow alphabetically.
+    # sort.groups = [ "database" "ops" ];
   };
 }
