@@ -1,6 +1,6 @@
 # Prelude
 
-Flake-parts module that greets `nix develop` with a MOTD, command picker (`x`),
+Devshell UI suite that greets `nix develop` with a MOTD, command picker (`x`),
 docs viewer, and themed prompt. Nix owns declarative config; small Go binaries
 consume generated JSON.
 
@@ -16,7 +16,7 @@ invent synonyms.
 | `prelude.nix` | Dogfood sidecar (same shape a consumer gets from the wizard) |
 | `nix/` | Flake output composition, render checks, Python PTY tests |
 | `nix/internal/` | This repo's MOTD/menu/docs identity, imported by `prelude.nix` |
-| `src/prelude/` | flake-parts module, options, shell init, fonts |
+| `src/prelude/` | flake-parts module, `lib.evalModule`, the package builder both share, options, shell init, fonts |
 | `src/cmd/` | Go mains (`motd`, `menu`, `docs`, `title`, `prompt-status`, VT host, `libprelude`) |
 | `src/internal/` | Go surface implementations (MOTD, menu, docs, wizard) |
 | `src/pkg/` | Shared Go (palette, manual viewer, UI primitives) |
@@ -24,7 +24,10 @@ invent synonyms.
 | `examples/`, `templates/` | Consumer fixtures; evaluated as checks |
 | `ts/` | TypeScript API (`@drkmttr/prelude`, Bun): commands, menu, MOTD, docs over `libprelude` |
 
-Import `flakeModules.default`, never `src/prelude/module.nix` directly.
+Consumers use `flakeModules.default` or `lib.evalModule`, never
+`src/prelude/module.nix` directly. Both evaluate `src/prelude/modules.nix` and
+build through `src/prelude/packages.nix`, and a check holds their derivations
+equal; put package logic there, not in either entry point.
 
 ## Commands
 

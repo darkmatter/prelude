@@ -41,6 +41,37 @@ Edit project identity, commands, and MOTD copy in `prelude.nix` — it lists eve
 option with commented defaults. The wizard refuses `-o flake.nix` so an existing
 flake cannot be overwritten by mistake.
 
+## Without flake-parts
+
+Any other flake — [blueprint](https://github.com/numtide/blueprint), a plain
+`outputs` function — evaluates the same sidecar with `prelude.lib.evalModule`.
+It runs the options through the module system with your `pkgs` and answers the
+packages `flakeModules.default` would expose, as the same derivations:
+
+```nix
+# blueprint: devshell.nix (nix/devshells/default.nix with prefix = "nix/")
+{ pkgs, inputs, ... }:
+let
+  prelude = inputs.prelude.lib.evalModule pkgs ./prelude.nix;
+in
+pkgs.mkShell {
+  packages = [ prelude.packages.prelude-shell ];
+}
+```
+
+The result also carries the evaluated `config` and `options`. Modules receive
+`pkgs`, so a package-backed command goes straight into `prelude.commands` with
+no `perSystem`. Pass any other argument a module takes through `_module.args`:
+
+```nix
+inputs.prelude.lib.evalModule pkgs {
+  imports = [ ./prelude.nix ];
+  _module.args = { inherit inputs; self = flake; };
+}
+```
+
+`examples/without-flake-parts/` is a complete plain flake.
+
 ## Copy the reference example
 
 `examples/reference/` is a complete consumer flake:

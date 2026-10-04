@@ -1,11 +1,12 @@
 ---
 name: prelude-install
-description: Install and configure Prelude (darkmatter/prelude) in any repository — run the setup wizard, wire the flake-parts module into an existing or new flake, activate packages.prelude-shell in the devshell, and verify with real smoke checks. Use for adding devshell UI (MOTD, x command picker, docs viewer, themed prompt), integrating the generated prelude.nix sidecar, or activation questions (nix develop, direnv, lorri).
+description: Install and configure Prelude (darkmatter/prelude) in any repository — run the setup wizard, wire it into an existing or new flake (the flake-parts module, or prelude.lib.evalModule for blueprint and other flakes), activate packages.prelude-shell in the devshell, and verify with real smoke checks. Use for adding devshell UI (MOTD, x command picker, docs viewer, themed prompt), integrating the generated prelude.nix sidecar, or activation questions (nix develop, direnv, lorri).
 ---
 
 # Install & configure Prelude
 
-Prelude is a flake-parts module suite: a `nix develop` welcome banner (MOTD),
+Prelude is a devshell UI suite — a flake-parts module, or `prelude.lib.evalModule`
+for any other flake: a `nix develop` welcome banner (MOTD),
 an interactive command picker (`x`), a Markdown docs viewer, and a themed
 Starship prompt. Everything runs from the published flake — no checkout of
 the Prelude repo is needed. Print docs without cloning:
@@ -19,9 +20,10 @@ nix run github:darkmatter/prelude#skill -- options    # generated prelude.* refe
 
 Before changing anything, look at the repo:
 
-- `flake.nix` — flake-parts (`flake-parts.lib.mkFlake`)? plain flakes need
-  small restructuring first. Note existing `inputs`, `imports`, and
-  `devShells` to preserve them.
+- `flake.nix` — flake-parts (`flake-parts.lib.mkFlake`) takes the module;
+  anything else (blueprint, a plain `outputs` function) uses
+  `prelude.lib.evalModule`, with no restructuring. Note existing `inputs`,
+  `imports`, and `devShells` to preserve them.
 - `prelude.nix` / `title.txt` — inspect any existing sidecar before deciding
   setup is needed. Edit existing configuration in place; wizard reruns
   overwrite both files.
@@ -84,6 +86,23 @@ devShells.default = pkgs.mkShell {
 Add only `config.packages.prelude-shell` to the devshell — it bundles every
 enabled component and activates via its setup-hook. Do not add
 `packages.prelude` (that backs the `prelude` app).
+
+**No flake-parts** (blueprint, a plain `outputs` function): keep the flake as
+it is and evaluate the same sidecar where the devshell is defined. It builds
+the same packages as the module:
+
+```nix
+# blueprint: devshell.nix (nix/devshells/default.nix with prefix = "nix/")
+{pkgs, inputs, ...}: let
+  prelude = inputs.prelude.lib.evalModule pkgs ./prelude.nix;
+in
+  pkgs.mkShell {packages = [prelude.packages.prelude-shell];}
+```
+
+Modules receive `pkgs`, so package-backed commands go straight into
+`prelude.commands`; there is no `perSystem`. Pass other module arguments
+(`self`, `inputs`) through `_module.args` on a wrapper module. Reference:
+`examples/without-flake-parts/`.
 
 ## 3. Activation paths
 
