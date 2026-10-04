@@ -1121,9 +1121,12 @@ in {
           prelude.commands = {
             x = {};
             dev = {};
-            "docs:sync" = {};
-            "docs:record" = {};
-            "demos:menu".exec = "nix run .#example-menu";
+            "docs:sync".group = "docs";
+            "docs:record".group = "docs";
+            "demos:menu" = {
+              exec = "nix run .#example-menu";
+              group = "demos";
+            };
           };
         }
         {
@@ -1173,13 +1176,13 @@ in {
         commands = [
           {
             name = "docs:record";
-            label = "record";
-            run = "record";
+            label = "docs:record";
+            run = "docs:record";
           }
           {
             name = "docs:sync";
-            label = "sync";
-            run = "sync";
+            label = "docs:sync";
+            run = "docs:sync";
           }
         ];
       }
@@ -1188,7 +1191,7 @@ in {
         commands = [
           {
             name = "demos:menu";
-            label = "menu";
+            label = "demos:menu";
             run = "nix run .#example-menu";
           }
         ];
@@ -1452,7 +1455,8 @@ in {
             name = "build";
             label = "build";
             group = "development";
-            grouped = true;
+            path = ["build"];
+            onPath = false;
             invocation = "nix build";
             xInvocation = "x build";
             description = "build fixture";
@@ -1462,7 +1466,8 @@ in {
             name = "check";
             label = "check";
             group = "development";
-            grouped = true;
+            path = ["check"];
+            onPath = false;
             invocation = "nix flake check";
             xInvocation = "x check";
             description = "check fixture";
@@ -1707,8 +1712,10 @@ in {
         in
           builtins.deepSeq evaluated.config evaluated.config
       );
-    commandKey = "dev;unsafe";
-    start = "x ${lib.escapeShellArg commandKey}";
+    # A subcommand: the start hint is the catalogue's own `x` form, one word
+    # per level, never the key as typed (`dev/serve`).
+    commandKey = "dev/serve";
+    start = "x dev serve";
     # Keep the nested flake evaluation isolated from this repository's
     # outputs. Reusing the outer `self` would recursively evaluate the
     # production perSystem module instead of the fixture below.
@@ -1772,7 +1779,7 @@ in {
     invalidOverflowTtl = evalPrompt (validLocalServer // {ttl = "9223372036854775807h";}) null;
     invalidCheck = evalPrompt (validLocalServer // {check = "  ";}) null;
     custom = evalPrompt validLocalServer customConfigFile;
-    perSystemValid = evalFixture (validLocalServer // {command = commandKey;});
+    perSystemValid = evalFixture (validLocalServer // {command = "dev serve";});
     perSystemUnknown = builtins.tryEval (evalFixture (validLocalServer // {command = "missing";}));
     statusConfig = perSystemValid.configFile;
   in
@@ -1845,13 +1852,14 @@ in {
       exec = "npm run test:unit";
     };
   in
+    # `:` is part of the name: no group, the whole key is the label.
     assert imported.name == "test:unit";
-    assert imported.group == "test";
-    assert imported.label == "unit";
+    assert imported.group == "";
+    assert imported.label == "test:unit";
       pkgs.runCommand "colon-command-names-preserved" {} "touch $out";
 
-  # Explicit `group` overrides the colon-inferred default without changing the
-  # key identity, label, or `grouped` (PATH-wrapper) behavior.
+  # Explicit `group` is the only source of a group; it never changes the key
+  # identity, label, or whether the name may be a PATH command.
   explicit-group-override = let
     internalPreludeLib = import ../src/prelude/lib.nix {inherit lib;};
     flat = internalPreludeLib.normalizeCommand "lint" {
@@ -1866,38 +1874,84 @@ in {
     assert flat.name == "lint";
     assert flat.group == "quality";
     assert flat.label == "lint";
-    assert flat.grouped == false;
+    assert flat.direct;
     assert colonKey.name == "go:test";
     assert colonKey.group == "ci";
-    assert colonKey.label == "test";
-    assert colonKey.grouped == true;
+    assert colonKey.label == "go:test";
+    assert !colonKey.direct;
       pkgs.runCommand "explicit-group-override" {} "touch $out";
 
-  # A slash groups a key the way a colon does. Only the first separator of
-  # either kind is structural, and a grouped key never becomes a PATH name.
-  slash-grouped-commands = let
+  # A space or `/` makes a subcommand; `:` is an ordinary name character and
+  # keys are never parsed for a group.
+  subcommand-keys = let
     internalPreludeLib = import ../src/prelude/lib.nix {inherit lib;};
     slash = builtins.head (internalPreludeLib.normalizeCommandEntries {"db/migrate".exec = "drizzle-kit migrate";});
     colonThenSlash = internalPreludeLib.normalizeCommand "test:unit/watch" {exec = "bun test --watch";};
     slashThenColon = internalPreludeLib.normalizeCommand "ui/build:watch" {exec = "vite build --watch";};
-    emptyGroup = builtins.tryEval (builtins.deepSeq (internalPreludeLib.normalizeCommand "/migrate" {}) true);
+    rejects = commands: !(builtins.tryEval (builtins.deepSeq (internalPreludeLib.commandNodes commands) true)).success;
   in
-    assert slash.name == "db/migrate";
-    assert slash.group == "db";
+    assert slash.name == "db migrate";
+    assert slash.path == ["db" "migrate"];
+    assert slash.group == "";
     assert slash.label == "migrate";
-    assert slash.grouped == true;
-    assert slash.xInvocation == "x db/migrate";
-    assert colonThenSlash.group == "test";
-    assert colonThenSlash.label == "unit/watch";
-    assert slashThenColon.group == "ui";
+    assert slash.xInvocation == "x db migrate";
+    assert colonThenSlash.path == ["test:unit" "watch"];
+    assert colonThenSlash.group == "";
+    assert slashThenColon.path == ["ui" "build:watch"];
     assert slashThenColon.label == "build:watch";
-    assert !emptyGroup.success;
-      pkgs.runCommand "slash-grouped-commands" {} "touch $out";
+    assert rejects {"/migrate" = {};};
+    assert rejects {"db  migrate" = {};};
+    assert rejects {"db/" = {};};
+    # One command, two spellings.
+    assert rejects {
+      "db/migrate".exec = "a";
+      "db migrate".exec = "b";
+    };
+    # Groups belong to top-level commands.
+    assert rejects {
+      "db migrate" = {
+        exec = "a";
+        group = "data";
+      };
+    };
+      pkgs.runCommand "subcommand-keys" {} "touch $out";
+
+  # Subcommands nest under their parent, synthesized when only they declare it.
+  # A synthesized parent only opens its subcommands and stays off PATH, so the
+  # whole subtree runs through `x`; a declared parent is a command of its own
+  # and lets its subtree run bare.
+  subcommand-tree = let
+    internalPreludeLib = import ../src/prelude/lib.nix {inherit lib;};
+    synthesized = internalPreludeLib.commandNodes {
+      "db migrate".exec = "drizzle-kit migrate";
+      "db/seed".exec = "bun seed";
+      "db seed users".exec = "bun seed users";
+    };
+    db = builtins.head synthesized;
+    migrate = builtins.elemAt db.children 0;
+    seed = builtins.elemAt db.children 1;
+    declared = builtins.head (internalPreludeLib.commandNodes {
+      db.description = "database";
+      "db migrate".exec = "drizzle-kit migrate";
+    });
+  in
+    assert map (node: node.name) synthesized == ["db"];
+    assert db.synthesized && db.container && !db.onPath;
+    assert db.run == "" && db.description == "2 subcommands";
+    assert db.command == "x db";
+    assert map (node: node.label) db.children == ["migrate" "seed"];
+    assert migrate.command == "x db migrate" && migrate.children == [];
+    assert !seed.container && seed.run == "bun seed";
+    assert map (node: node.name) seed.children == ["db seed users"];
+    assert declared.container && declared.onPath;
+    assert declared.description == "database";
+    assert (builtins.head declared.children).command == "db migrate";
+      pkgs.runCommand "subcommand-tree" {} "touch $out";
 
   duplicate-canonical-invocations-rejected = let
     internalPreludeLib = import ../src/prelude/lib.nix {inherit lib;};
     attempted = builtins.tryEval (
-      builtins.deepSeq (internalPreludeLib.normalizeCommandEntries {
+      builtins.deepSeq (internalPreludeLib.commandNodes {
         "go:test" = {
           exec = "go test";
         };
@@ -1911,9 +1965,11 @@ in {
     assert !attempted.success;
       pkgs.runCommand "duplicate-canonical-invocations-rejected" {} "touch $out";
 
-  # Group prefixes are parsed into menu metadata and never become PATH names.
-  # Canonical package invocations remain the native CLI syntax.
+  # `:` keys never become PATH names; canonical package invocations remain the
+  # native CLI syntax. A declared parent with subcommands is a PATH command.
   grouped-commands-use-canonical-invocations = assert lib.elem "go:vet" config.packages.prelude-menu.commandNames;
+  assert lib.elem "demos" config.packages.prelude-menu.commandWrapperNames;
+  assert lib.elem "demos themes" config.packages.prelude-menu.commandNames;
   assert lib.elem "go vet -C src ./..." config.packages.prelude-menu.commandInvocations;
   assert lib.elem "x go:vet" config.packages.prelude-menu.xInvocations;
   assert !lib.elem "go:vet" config.packages.prelude-menu.commandWrapperNames;
@@ -2317,8 +2373,10 @@ in {
   menu-list-renders = pkgs.runCommand "menu-list-renders" {} ''
     ${lib.getExe' config.packages.prelude-menu "x"} --list > "$out"
     test -s "$out"
-    grep -q '^DEMOS$' "$out"
-    grep -q "tour every feature demo" "$out"
+    grep -q '^GO$' "$out"
+    # `demos` is one row; its subcommands print indented below it.
+    grep -q "demos tour every feature demo" "$out"
+    grep -q '^  *themes render a mini motd per theme' "$out"
   '';
 
   # Public contract: bare `menu` opens the picker only. Task/list args must

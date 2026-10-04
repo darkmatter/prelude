@@ -5,69 +5,78 @@ own project workflows.
 
 ## One public entrypoint
 
-Every menu entry is runnable through `x` using its complete command key:
+Every menu entry is runnable through `x` using its words:
 
 ```sh
-x                 # open the interactive menu
-x test             # run an ungrouped command
-x go:test          # run a grouped command
+x                  # open the interactive menu
+x test             # run a command
+x db migrate       # run a subcommand
 x test:unit:watch  # source-owned colons remain valid
 x --list           # list available commands
 x --help           # show command help
 ```
 
 The interactive picker and `x` are two views of the same catalogue. Menu-only
-commands are not allowed. Selecting an entry interactively and invoking its key
-through `x` reaches the same dispatcher and canonical command.
+commands are not allowed. Selecting an entry interactively and invoking its
+words through `x` reaches the same dispatcher and canonical command.
 
-Prelude generates only the `x` dispatcher, not one executable per catalogue
-entry. This keeps `PATH` small and avoids synthetic aliases such as `go-test`.
+Besides `x`, each declared top-level command whose name has no `:` is a thin
+PATH wrapper around `x`, so `test` and `db migrate` run bare. Nothing else is
+added to `PATH`: no synthetic aliases such as `go-test`.
 
 ## The key is the public identity
 
 A command key is globally unique and is also its public `x` name. No separate
-namespace, discriminator, or label is needed; where a command came from is not
-part of its key.
+namespace or discriminator is needed; where a command came from is not part of
+its key.
 
-The first colon derives menu presentation without changing the key:
-
-```text
-go:test
-│  └── displayed command: test
-└───── menu group: go
-
-public invocation: x go:test
-```
-
-A slash does the same, for keys that read better as a path:
+A space or `/` separates a subcommand from its parent. Both spellings name the
+same command; declaring both is an error:
 
 ```text
-db/migrate
-│  └── displayed command: migrate
-└───── menu group: db
+db migrate      (or db/migrate)
+│  └── subcommand: migrate
+└───── parent: db
 
-public invocation: x db/migrate
+public invocation: x db migrate
 ```
 
-Only the first `:` or `/` is structural. The remainder stays intact,
-separators included:
+Keys nest as deep as you need (`"db seed users"`). The menu shows the parent as
+one row; Enter opens its subcommands, and Backspace on an empty search goes
+back. Search still finds a subcommand from the top.
+
+A parent that only its subcommands declare opens them and does nothing else.
+Declare the parent to give it a description, a group, or a command of its own:
+
+```nix
+prelude.commands = {
+  db = {
+    description = "database tasks";
+    group = "data";
+  };
+  "db migrate".exec = "drizzle-kit migrate";
+  "db seed".exec = "bun run seed";
+};
+```
+
+With `exec`, the parent is a command too: Enter runs it, → opens its
+subcommands, and `x db --help` passes `--help` to it. `x db migrate` always
+prefers the longest command the words name.
+
+`:` is an ordinary name character with no structure:
 
 ```text
 test:unit:watch
-│    └──────── displayed command: unit:watch
-└───────────── menu group: test
 
 public invocation: x test:unit:watch
 ```
 
-An ungrouped key such as `build` has no group: the menu lists it at the top,
-above every heading, alphabetically with the other ungrouped commands.
-Prelude-owned navigation commands appear in `prelude`.
+## Groups
 
-### Explicit group override
-
-When the key name should stay flat but the command belongs under a named
-menu group, set `group` on the command:
+Groups come only from a command's `group`; keys are never parsed for one. A
+command without a group lists at the top, above every heading, alphabetically
+with the other ungrouped commands. Prelude-owned navigation commands appear in
+`prelude`.
 
 ```nix
 prelude.commands.lint = {
@@ -77,11 +86,10 @@ prelude.commands.lint = {
 };
 ```
 
-`lint` stays on PATH (no `:` or `/` → `grouped` is false) and is callable as
-`x lint`, but the menu places it under `quality` instead of at the top. The
-override also applies to grouped keys: setting `group = "ci"` on `go:test`
-moves it to `ci` while keeping the `x go:test` dispatch form, and
-`group = ""` lists it at the top without a heading.
+`lint` stays on PATH and is callable as `x lint`; the menu lists it under
+`quality`. Only top-level commands take a group: a subcommand lists under its
+parent, so set the group on the parent. A Justfile recipe's `[group('…')]`
+attribute works the same way. `prelude.sort.groups` orders the headings.
 
 Because keys are unique within the catalogue, command resolution is exact and
 deterministic: there is no discriminator syntax. When an import produces a key
@@ -98,18 +106,23 @@ The tool that owns a workflow also owns its underlying invocation:
 | `check` | `just check` |
 | `deploy` | `nix run .#deploy` |
 | `go:test` | `go test ./...` |
+| `db migrate` | `drizzle-kit migrate` |
 
 `x` dispatches to these commands; it does not translate every workflow into
 `nix run`. The Nix devshell provides dependencies and environment. Once inside
 that shell, Prelude invokes the owning tool directly.
 
-The MOTD advertises project commands bare — each ungrouped command is on PATH,
-so the row matches what you type — and always lists bare `x` so the command
-palette is discoverable from the banner. Grouped keys (`go:test`) have no PATH
-entry, so those rows keep the `x go:test` dispatch form. If another command
-shadows a bare name, `x <name>` still runs the catalogue command; the banner
-notes this under the list. Command details may show the canonical invocation
-(`go test ./...`).
+The MOTD advertises project commands the way you type them: bare when the
+command's top-level name is on PATH (`test`, `db migrate` under a declared
+`db`), else through `x` (`x go:test`, and `x db migrate` when only subcommands
+declare `db`). It always lists bare `x` so the command palette is discoverable
+from the banner. If another command shadows a bare name, `x <name>` still runs
+the catalogue command; the banner notes this under the list. Command details may
+show the canonical invocation (`go test ./...`).
+
+A parent that only its subcommands declare never becomes a PATH command, so
+`"go test"` cannot shadow the `go` binary. A declared parent does, like any
+declared command; name it after a tool you also run and it shadows that tool.
 
 ## Import; do not export
 
@@ -122,7 +135,7 @@ Existing project files remain authoritative:
 
 Imported names become command keys verbatim. A package script named `test:unit`
 therefore becomes `x test:unit`; Prelude does not reject, rename, or normalize
-it. Its first colon (or slash) also organizes the menu under `test`.
+it, and the colon does not group it.
 
 Do not write generated entries back to source files, and do not copy imported
 commands into `prelude.commands`. Imports are one-way.
@@ -164,7 +177,8 @@ and merges the parsed recipes with the Nix catalogue. A configured
 A just module (`mod database 'database.just'`) imports as one menu row:
 selecting `database` in the picker — or running `x database` — opens a
 subcommand picker over the module's recipes, so a module declutters the menu
-instead of adding one row per recipe. Module recipes are invoked through parent
+instead of adding one row per recipe. Submodules nest the same way
+(`e2e` → `sub` → its recipes). Module recipes are invoked through parent
 dispatch (`x database migrate` or `x <module> [submodule…] <recipe> [args…]`),
 which executes the recipe's canonical command (`just database::migrate`).
 Imported module recipes cannot be selected through double-colon keys
@@ -195,10 +209,11 @@ with `node_modules/.bin` from there up to the filesystem root ahead of `PATH`,
 which is how `"test": "vitest"` finds `vitest`. Because no package manager runs
 it, `pre`/`post` scripts do not run and `npm_*` variables are not set.
 
-Script names become keys verbatim, and a name without `:` or `/` lands in the
-`scripts` group (`prelude.menu.scripts.group`). If the `package.json` is
-missing or cannot be parsed, `x --list` says so under the table and the rest of
-the menu stays.
+Every script lands in the `scripts` group (`prelude.menu.scripts.group`). A
+`/` in a script name makes a subcommand, as in a catalogue key: `db/migrate`
+runs as `x db migrate` under a `db` row. If the `package.json` is missing or
+cannot be parsed, `x --list` says so under the table and the rest of the menu
+stays.
 
 ## Ownership boundaries
 
@@ -207,7 +222,7 @@ nix develop
   provides tools, packages, and environment
 
 x
-  resolves an exact catalogue key and dispatches
+  resolves a command's words and dispatches
 
 bun / just / nix run / native CLI
   executes the canonical workflow

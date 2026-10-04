@@ -117,18 +117,6 @@ _prelude_status_tokenize() {
   done
 }
 
-_prelude_status_find_command() {
-  local name=${1-} i
-  _prelude_status_command_index=-1
-  for ((i = 0; i < ${#_prelude_catalogue_names[@]}; i++)); do
-    if [ "$name" = "${_prelude_catalogue_names[i]}" ]; then
-      _prelude_status_command_index=$i
-      return 0
-    fi
-  done
-  return 1
-}
-
 _prelude_status_candidates() {
   local command_index=$1 argument_index=$2 prefix=$3 i value result=
   for ((i = 0; i < ${#_prelude_catalogue_candidate_values[@]}; i++)); do
@@ -154,21 +142,25 @@ _prelude_status_discovery() {
     return 0
   fi
 
-  command_name=${_prelude_status_words[0]}
-  _prelude_status_find_command "$command_name" || return 0
-  command_index=$_prelude_status_command_index
+  # The longest command the words name (`x db migrate` → `db migrate`);
+  # the words after it are its arguments. _prelude_catalogue_match comes with
+  # the generated catalogue.
+  _prelude_catalogue_match "${_prelude_status_words[@]}" || return 0
+  command_index=$_prelude_catalogue_match_index
+  local consumed=$_prelude_catalogue_match_words
+  command_name=${_prelude_catalogue_names[command_index]}
   description=${_prelude_catalogue_descriptions[command_index]}
-  if ((count == 1)) && [[ $input != *' ' && $input != *$'\t' ]]; then
+  if ((count == consumed)) && [[ $input != *' ' && $input != *$'\t' ]]; then
     invocation=${_prelude_catalogue_x_invocations[command_index]:-x $command_name}
     _prelude_status_message="$description  ·  $invocation  ·  bare x then Tab for details"
     return 0
   fi
 
   if [[ $input == *' ' || $input == *$'\t' ]]; then
-    position=$((count - 1))
+    position=$((count - consumed))
     prefix=
   else
-    position=$((count - 2))
+    position=$((count - consumed - 1))
     prefix=${_prelude_status_words[$((count - 1))]}
   fi
   local argument_index=-1 i

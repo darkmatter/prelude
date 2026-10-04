@@ -61,13 +61,17 @@ in {
       commands = lib.mkOption {
         type = lib.types.attrsOf t.commandType;
         default = defaults.commands;
-        description = "Project commands keyed by their public `x` name. The first `:` or `/` infers the menu group (`go:test`, `db/migrate`); the remaining suffix is the displayed name, while the complete key remains callable.";
+        description = "Project commands keyed by their public `x` name. A space or `/` makes a subcommand: `\"db migrate\"` (or `db/migrate`) is `migrate` under `db`, run as `x db migrate`, and the menu shows `db` as one row that opens its subcommands. `:` is an ordinary name character. Groups come only from each command's `group`.";
         example = {
           dev = {
             description = "start the dev server";
             exec = "pnpm dev";
           };
-          "database:migrate" = {
+          db = {
+            description = "database tasks";
+            group = "data";
+          };
+          "db migrate" = {
             description = "apply pending migrations";
             exec = "drizzle-kit migrate";
           };

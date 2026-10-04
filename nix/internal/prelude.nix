@@ -57,19 +57,21 @@ in {
     # commands
     # --------------------------------------------------------
 
-    # If exec is omitted, it is inferred from the parsed command name. The
-    # ungrouped `motd` command already exists in the shell. Repository tools
-    # use grouped catalogue keys so their prefixed executables stay private.
+    # If exec is omitted, it is the key's last word. The `motd` command
+    # already exists in the shell. Repository tools use `:` keys, which stay
+    # reachable only through `x`, so no `prelude:wizard` lands on PATH.
     commands.motd = {
       description = "reprint the welcome banner";
     };
-    commands."prelude/previews" = {
+    commands."prelude:previews" = {
       description = "build the render checks and show their output";
       exec = "prelude-previews";
+      group = "prelude";
     };
-    commands."prelude/wizard" = {
+    commands."prelude:wizard" = {
       description = "run the interactive setup wizard";
       exec = "nix run . -- wizard";
+      group = "prelude";
       motd = 0;
     };
     commands.build = {
@@ -101,20 +103,21 @@ in {
       exec = "docs-record";
     };
 
-    commands."demos:titles" = {
-      description = "inspect rendered titles";
-      exec = "prelude-title-previews prelude";
-    };
-    commands."demos" = {
+    # `demos` runs the tour and also opens its subcommands (`x demos themes`).
+    commands.demos = {
       description = "tour every feature demo";
       exec = "nix run .#examples";
       motd = 3;
     };
-    commands."demos:themes" = {
+    commands."demos titles" = {
+      description = "inspect rendered titles";
+      exec = "prelude-title-previews prelude";
+    };
+    commands."demos themes" = {
       description = "render a mini motd per theme";
       exec = "nix run .#example-themes";
     };
-    commands."demos:defaults" = {
+    commands."demos defaults" = {
       description = "preview MOTD from stock setup wizard presets";
       exec = "nix run .#example-default";
     };
@@ -209,8 +212,7 @@ in {
     # heading, then Prelude's own group; unlisted groups follow alphabetically.
     sort.groups = [
       "go"
-      "docs"
-      "demos"
+      "ts"
     ];
   };
 
@@ -221,45 +223,55 @@ in {
     ...
   }: {
     prelude.commands = {
-      # The first colon derives menu group/label while the complete key stays
-      # public (`x go:test`). fromPkg derives the canonical `go test …`
+      # `:` keys stay reachable only through `x` (`x go:test`), so no
+      # wrapper named after the tool shadows `go` itself; `group` places them
+      # under a `go` heading. fromPkg derives the canonical `go test …`
       # invocation and carries Go onto PATH; no extra executable is generated.
-      "go:test" = self.lib.fromPkg pkgs.go {
-        arguments = [
-          "test"
-          "-C"
-          "src"
-          "./..."
-        ];
-        description = "run the Go unit tests";
-      };
-      "go:vet" = self.lib.fromPkg pkgs.go {
-        arguments = [
-          "vet"
-          "-C"
-          "src"
-          "./..."
-        ];
-        description = "run Go static analysis";
-      };
+      "go:test" =
+        self.lib.fromPkg pkgs.go {
+          arguments = [
+            "test"
+            "-C"
+            "src"
+            "./..."
+          ];
+          description = "run the Go unit tests";
+        }
+        // {group = "go";};
+      "go:vet" =
+        self.lib.fromPkg pkgs.go {
+          arguments = [
+            "vet"
+            "-C"
+            "src"
+            "./..."
+          ];
+          description = "run Go static analysis";
+        }
+        // {group = "go";};
       # TypeScript API (ts/). The devshell's PRELUDE_LIB lets the FFI tests
       # drive the real Go surfaces; `bun test` itself needs no install.
-      "ts:test" = self.lib.fromPkg pkgs.bun {
-        arguments = [
-          "--cwd"
-          "ts"
-          "test"
-        ];
-        description = "run the TypeScript API tests";
-      };
-      "ts:typecheck" = self.lib.mkCommand {
-        # `--cwd=ts`, not `--cwd ts`: bun run misreads the spaced form.
-        command = "bun --cwd=ts install --frozen-lockfile && bun --cwd=ts run typecheck";
-        description = "type-check the TypeScript API, including its type tests";
-      };
+      "ts:test" =
+        self.lib.fromPkg pkgs.bun {
+          arguments = [
+            "--cwd"
+            "ts"
+            "test"
+          ];
+          description = "run the TypeScript API tests";
+        }
+        // {group = "ts";};
+      "ts:typecheck" =
+        self.lib.mkCommand {
+          # `--cwd=ts`, not `--cwd ts`: bun run misreads the spaced form.
+          command = "bun --cwd=ts install --frozen-lockfile && bun --cwd=ts run typecheck";
+          description = "type-check the TypeScript API, including its type tests";
+        }
+        // {group = "ts";};
       "ts:sync" = {
         description = "regenerate the TypeScript API's themes, defaults, and fixtures";
         exec = "ts-sync";
+        group = "ts";
       };
       check = self.lib.mkCommand {
         command = "nix flake check";

@@ -47,8 +47,8 @@ x ts:sync         # regenerate ts/ themes, defaults, and conformance fixtures
 ```
 
 `x <key>` is the only generated dispatcher. Do not add PATH aliases such as
-`go-test`. The first `:` or `/` is menu presentation; the complete key stays
-the public name (`x go:test`, `x db/migrate`).
+`go-test`. A space or `/` in a key makes a subcommand (`x db migrate`); `:` is
+part of the name (`x go:test`), and groups come only from `group`.
 
 ## Architecture
 

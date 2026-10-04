@@ -47,6 +47,17 @@ func (m model) updateList(msg tea.KeyPressMsg) (model, tea.Cmd) {
 			return m, nil
 		}
 
+	case "right":
+		// At the end of the query the right arrow opens the selected row's
+		// subcommands, which is how a runnable parent (whose Enter runs it)
+		// reaches them; elsewhere it moves the cursor.
+		if len(m.matches) > 0 && m.prompt.AtEnd() {
+			if task := m.flat[m.matches[m.sel]]; len(task.Children) > 0 {
+				m.enterSubMode(task)
+				return m, nil
+			}
+		}
+
 	case "esc":
 		switch {
 		case m.expanded:
@@ -54,7 +65,7 @@ func (m model) updateList(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		case m.prompt.Value() != "":
 			m.prompt = m.prompt.Reset()
 			m.filter()
-		case m.sub != nil:
+		case m.sub() != nil:
 			m.exitSubMode()
 			return m, nil
 		default:
@@ -64,10 +75,10 @@ func (m model) updateList(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		return m, nil
 
 	case "backspace":
-		// An empty query in a submenu backs out to the root list, mirroring
+		// An empty query in a subcommand picker backs out one level, mirroring
 		// argument-entry's backspace exit; otherwise the key falls through to
 		// the prompt's own deletion handling.
-		if m.sub != nil && m.prompt.Value() == "" {
+		if m.sub() != nil && m.prompt.Value() == "" {
 			m.exitSubMode()
 			return m, nil
 		}

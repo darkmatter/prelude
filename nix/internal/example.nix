@@ -50,14 +50,16 @@
 
     project = "acme"; # shown in the MOTD banner and menu header; default "acme"
 
-    # Project commands keyed by public `x` name. The first `:` or `/` infers
-    # the menu group; the complete key stays callable (e.g. `x db:migrate`).
+    # Project commands keyed by public `x` name. A space or `/` makes a
+    # subcommand (`"db migrate"` runs as `x db migrate`); `:` is an ordinary
+    # name character. Menu groups come only from each command's `group`.
     # Defaults ship an ACME example catalogue (dev/test/build + database/ops);
     # defining any commands.* replaces that catalogue entirely.
     commands = {
       dev = {
-        exec = "pnpm dev"; # defaults to the key suffix after the first : or /
+        exec = "pnpm dev"; # defaults to the key's last word
         description = "start the dev server with hot reload";
+        # group = null;  # menu heading; null lists the command above every heading
         # key = null;  # single-key accelerator (`x <key>`)
         # usage = "pnpm dev";  # usage form shown in menu details
         # details = null;  # extended description before arg entry
@@ -68,8 +70,9 @@
       };
 
       test = {
-        exec = "pnpm test"; # defaults to the key suffix after the first : or /
+        exec = "pnpm test"; # defaults to the key's last word
         description = "run the unit test suite";
+        # group = null;  # menu heading; null lists the command above every heading
         # key = null;  # single-key accelerator (`x <key>`)
         # usage = "pnpm test";  # usage form shown in menu details
         # details = null;  # extended description before arg entry
@@ -80,8 +83,9 @@
       };
 
       build = {
-        exec = "pnpm build"; # defaults to the key suffix after the first : or /
+        exec = "pnpm build"; # defaults to the key's last word
         description = "compile an optimized production bundle";
+        # group = null;  # menu heading; null lists the command above every heading
         # key = null;  # single-key accelerator (`x <key>`)
         # usage = "pnpm build";  # usage form shown in menu details
         # details = null;  # extended description before arg entry

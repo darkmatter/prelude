@@ -131,8 +131,9 @@ every option sits there as a commented default. Highlights:
 - `prelude.theme` — `prelude` (default), `phosphor`, `minted`, `amber`,
   `solarized`, `nord`, `gruvbox`, `paper` (light), `mono`, `apathy`; token
   overrides via `prelude.palette`.
-- `prelude.commands.<key>` — catalogue entries behind `x`; the first colon
-  infers the menu group (`db:migrate` → `db`). Package-backed commands:
+- `prelude.commands.<key>` — catalogue entries behind `x`; a space or `/`
+  makes a subcommand (`"db migrate"` → `x db migrate` under a `db` row), and
+  `group = "…"` sets the menu heading. Package-backed commands:
   `prelude.lib.fromPkg packages.dev { description = …; motd = 1; }`.
 - `prelude.docs.pages = [{text = ./docs/foo.md;}]` — one page per file.
 

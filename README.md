@@ -38,6 +38,7 @@ The generated file lists every option as a commented default. Put clone-to-runni
 ```
 x                 # open the interactive picker
 x dev             # run a command by catalogue key
+x db migrate      # …a subcommand ("db migrate" or "db/migrate" in Nix)
 x d               # …or by its single-key accelerator
 x --list          # print the command table
 ```

@@ -64,6 +64,31 @@ describe("dispatch", () => {
     const menu = Menu.make({ dispatcher: "acme", commands: { ok: Command.make({ run: async () => "done" }) } });
     expect(await menu.dispatch(["ok"])).toBe(0);
   });
+
+  test("follows one word per subcommand, and the words left over are arguments", async () => {
+    const calls: unknown[] = [];
+    const menu = Menu.make({
+      dispatcher: "acme",
+      commands: {
+        "db/seed": Command.make({
+          args: [{ token: "<table>" }],
+          run: (args, context) => void calls.push([args, context]),
+        }),
+        "db seed users": Command.make({
+          args: [{ token: "--count", type: "number", default: 3 }],
+          run: (args, context) => void calls.push([args, context]),
+        }),
+      },
+    });
+
+    expect(await menu.dispatch(["db", "seed", "users", "--count", "9"])).toBe(0);
+    // A word that names no subcommand is the runnable parent's argument.
+    expect(await menu.dispatch(["db", "seed", "projects"])).toBe(0);
+    expect(calls).toEqual([
+      [{ count: 9 }, { key: "db seed users", argv: ["--count", "9"] }],
+      [{ table: "projects" }, { key: "db/seed", argv: ["projects"] }],
+    ]);
+  });
 });
 
 describe("run", () => {
@@ -103,5 +128,21 @@ describe("run", () => {
     expect(ran).toBe(false);
     expect(await quietly(() => menu.run({ key: "test", line: "", shell: "acme test", source: "declared" }))).toBe(0);
     expect(ran).toBe(true);
+  });
+
+  test("finds a declared subcommand by the name Go selects it by, its words joined by spaces", async () => {
+    const calls: unknown[] = [];
+    const menu = Menu.make({
+      dispatcher: "acme",
+      commands: {
+        "db/migrate": Command.make({
+          args: [{ token: "--dry-run", boolean: true }],
+          run: (args, context) => void calls.push([args, context]),
+        }),
+      },
+    });
+    const selection = { key: "db migrate", line: "--dry-run", shell: "acme db migrate --dry-run", source: "declared" } as const;
+    expect(await quietly(() => menu.run(selection))).toBe(0);
+    expect(calls).toEqual([[{ dryRun: true }, { key: "db/migrate", argv: ["--dry-run"] }]]);
   });
 });

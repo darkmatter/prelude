@@ -11,11 +11,10 @@ Everything is a `prelude.*` option, validated at build time.
 - **`prelude.motd.*`** — title (FIGlet or file), tagline, status probes,
   description, advertised commands, and multi-step recipes.
 - **`prelude.commands`** — the shared catalogue keyed by public `x` command.
-  The first `:` or `/` derives menu group/name (`go:test`, `db/migrate`) while
-  the complete key remains callable through `x`; an explicit `group` field
-  overrides the inferred
-  group. MOTD rows show ungrouped commands bare (they are on PATH) and
-  grouped keys in their `x <key>` dispatch form.
+  A space or `/` makes a subcommand (`"db migrate"` runs as `x db migrate`
+  under one `db` row); `:` is an ordinary name character. Groups come only
+  from each command's `group`. MOTD rows show a command bare when its
+  top-level name is on PATH and in its `x …` dispatch form otherwise.
 - **`prelude.docs.pages`** — nav tree of Markdown leaves, groups, and optional
   `{ generate = "nixosOptions"; split?; }` selectors. Generate `split`:
   `allLeaves` (default, nested tree of every terminal option) or `shallow`

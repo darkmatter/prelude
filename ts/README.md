@@ -69,8 +69,8 @@ Surfaces are built with `make`, and a module's main type shares its name
 
 - **Behavior:** `run` is a function called in this process with the parsed
   arguments; a returned number becomes the exit status. `exec` is shell text
-  run with bash, with any argument text appended as typed. A command has
-  exactly one of them.
+  run with bash, with any argument text appended as typed. A command has at
+  most one of them, and one with neither only holds subcommands.
 - **Arguments:** `--port` is an option, `--open` with `boolean: true` a flag,
   and `<target>` a positional. Values arrive under camelCase names
   (`--dry-run` → `args.dryRun`), typed from the declaration: `type: "number"`
@@ -82,11 +82,18 @@ Surfaces are built with `make`, and a module's main type shares its name
   MOTD's Getting Started list.
 
 A command has no name of its own. Its key comes from where it is mounted
-(`commands: { "db:migrate": migrate }`), so modules export commands without
-claiming public names. As in the devshell, the first `:` or `/` picks the
-menu group (`db:migrate` and `db/migrate` → group `db`, label `migrate`),
-`group` overrides it, and a key with neither lists at the top of the menu,
-without a heading.
+(`commands: { "db migrate": migrate }`), so modules export commands without
+claiming public names. As in the devshell, a space or `/` in a key makes a
+subcommand: `db migrate` and `db/migrate` are both `migrate` under `db`, run
+as `./main.ts db migrate`, and keys nest deeper (`db seed users`). The menu
+shows `db` as one row that opens its subcommands. Mount a command at `db` too
+to describe it or give it a group: with `run` or `exec` it also runs itself,
+and with neither (`Command.make({ group: "data" })`) it only opens them. `:`
+is an ordinary name character.
+
+Keys are never parsed for a group. A command lists under its `group`, or at
+the top of the menu, without a heading, when it has none. Only a top-level
+command takes a group; a subcommand lists under its parent.
 
 ## Surfaces
 

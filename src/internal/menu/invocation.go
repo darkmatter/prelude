@@ -25,6 +25,9 @@ type invocationDecision struct {
 	command string
 	task    Task
 	line    string // argument text appended to task.Run
+	// trail is the parents dispatch descended through to reach task, root
+	// first, so a picker opened for task sits under theirs.
+	trail []Task
 }
 
 // selection projects a command decision for library hosts, which dispatch on
@@ -40,37 +43,52 @@ func (d invocationDecision) selection() *Selection {
 	}
 }
 
-// resolveXInvocation shares the TUI's task assembler. Imported module recipes
-// use a space-separated path; their Just namepaths are not public selectors.
+// resolveXInvocation shares the TUI's task assembler. `x a b c …` finds the
+// top-level task a, then descends while the next word is a child's label; the
+// words left over are the reached task's arguments. A container has none to
+// take, so a leftover word there is an unknown command, except under a just
+// module, which hands it to just. Just namepaths are not public selectors: an
+// explicitly grouped module recipe keeps its module route (`x deploy staging`)
+// and wins only where it matches more words than the descent.
 func resolveXInvocation(cfg *Config, args []string) (invocationDecision, error) {
 	if len(args) == 0 {
 		return invocationDecision{}, fmt.Errorf("missing command name")
 	}
-	name := args[0]
-	task := findXTask(cfg, name)
-	if task == nil || len(task.Children) > 0 {
-		if child, consumed := findModuleRecipe(cfg, args); child != nil {
-			extra := args[consumed:]
-			if len(extra) > 0 && extra[0] == "--" {
-				extra = extra[1:]
+	top := findXTask(cfg, args[0])
+	task, consumed := top, 0
+	var trail []Task
+	if top != nil {
+		consumed = 1
+		for consumed < len(args) && args[consumed] != "--" {
+			child := findChild(task, args[consumed])
+			if child == nil {
+				break
 			}
-			return resolveTaskInvocation(*child, extra), nil
+			trail = append(trail, *task)
+			task = child
+			consumed++
+		}
+	}
+	if top == nil || len(top.Children) > 0 {
+		if recipe := findModuleRecipe(cfg, args); recipe != nil && len(recipe.justPath) > consumed {
+			task, consumed, trail = recipe, len(recipe.justPath), nil
 		}
 	}
 	if task == nil {
-		return invocationDecision{}, fmt.Errorf("unknown command %q", name)
+		return invocationDecision{}, fmt.Errorf("unknown command %q", args[0])
 	}
-	extra := args[1:]
+
+	extra := args[consumed:]
 	if len(extra) > 0 && extra[0] == "--" {
 		extra = extra[1:]
 	}
-	// Unknown subcommands retain Just's native module-dispatch form.
-	if len(task.Children) > 0 && len(extra) > 0 {
-		if child, consumed := findSubcommand(*task, extra); child != nil {
-			return resolveTaskInvocation(*child, extra[consumed:]), nil
-		}
+	if len(extra) > 0 && task.Run == "" && len(task.Children) > 0 {
+		// Name the words as typed up to the first that matched nothing.
+		return invocationDecision{}, fmt.Errorf("unknown command %q", strings.Join(args[:consumed+1], " "))
 	}
-	return resolveTaskInvocation(*task, extra), nil
+	decision := resolveTaskInvocation(*task, extra)
+	decision.trail = trail
+	return decision, nil
 }
 
 func resolveTaskInvocation(task Task, extra []string) invocationDecision {
@@ -103,21 +121,30 @@ func findXTask(cfg *Config, name string) *Task {
 	return nil
 }
 
-func findModuleRecipe(cfg *Config, args []string) (*Task, int) {
-	for gi := range cfg.Groups {
-		for ti := range cfg.Groups[gi].Tasks {
-			task := &cfg.Groups[gi].Tasks[ti]
-			if len(task.justPath) > 0 && routeMatches(task.justPath, args) {
-				return task, len(task.justPath)
-			}
-			if len(args) > 1 && task.Name == args[0] {
-				if child, consumed := findSubcommand(*task, args[1:]); child != nil {
-					return child, consumed + 1
-				}
+// findChild returns the subcommand of parent whose label is word.
+func findChild(parent *Task, word string) *Task {
+	for index := range parent.Children {
+		if parent.Children[index].displayName() == word {
+			return &parent.Children[index]
+		}
+	}
+	return nil
+}
+
+// findModuleRecipe returns the explicitly grouped just module recipe whose
+// module route args begin with, the longest when routes share a prefix.
+func findModuleRecipe(cfg *Config, args []string) *Task {
+	var found *Task
+	for groupIndex := range cfg.Groups {
+		for taskIndex := range cfg.Groups[groupIndex].Tasks {
+			task := &cfg.Groups[groupIndex].Tasks[taskIndex]
+			if len(task.justPath) > 0 && routeMatches(task.justPath, args) &&
+				(found == nil || len(task.justPath) > len(found.justPath)) {
+				found = task
 			}
 		}
 	}
-	return nil, 0
+	return found
 }
 
 func routeMatches(path, args []string) bool {
@@ -132,27 +159,11 @@ func routeMatches(path, args []string) bool {
 	return true
 }
 
-func findSubcommand(parent Task, args []string) (*Task, int) {
-	for index := range parent.Children {
-		child := &parent.Children[index]
-		path := child.justPath
-		if len(path) > 1 {
-			path = path[1:]
-		} else {
-			path = []string{child.Label}
-		}
-		if routeMatches(path, args) {
-			return child, len(path)
-		}
-	}
-	return nil, 0
-}
-
-// beginInvocation prepares a task selected in the TUI. Subcommand parents open
-// the subcommand picker; declaring any arguments opens argument-entry mode;
-// otherwise the task is immediately executable.
+// beginInvocation prepares a task selected in the TUI. A container opens its
+// subcommand picker; declaring any arguments opens argument-entry mode;
+// otherwise the task, a runnable parent included, is immediately executable.
 func beginInvocation(task Task) invocationDecision {
-	if len(task.Children) > 0 {
+	if task.isContainer() {
 		return invocationDecision{kind: collectSubcommandInvocation, task: task}
 	}
 	if len(task.Args) > 0 {

@@ -35,10 +35,13 @@ func (t Task) source() string {
 // that report one entry hiding another.
 func taskNoun(t Task) string {
 	switch {
-	case t.source() == sourceJust && len(t.Children) > 0:
+	case t.justModule:
 		return "just module"
 	case t.source() == sourceJust:
 		return "just recipe"
+	case t.source() == sourceScripts && t.Run == "" && len(t.Children) > 0:
+		// A name prefix the scripts share, not a script of its own.
+		return "package.json scripts"
 	case t.source() == sourceScripts:
 		return "package.json script"
 	default:
@@ -122,24 +125,45 @@ func hiddenNotes(cfg *Config) []string {
 	return notes
 }
 
-// completableKey matches the keys completion can insert as one bare word:
-// the characters a declared key may use.
-var completableKey = regexp.MustCompile(`^[A-Za-z0-9:/_.-]+$`)
+// completableWord matches a route word completion can insert bare: the
+// characters a declared key's words may use.
+var completableWord = regexp.MustCompile(`^[A-Za-z0-9:_.-]+$`)
 
-// writeImports prints each imported key `x` dispatches, tab-separated from
-// its one-line description, in catalogue order. Shell completion reads it, so
-// `x <TAB>` offers what the menu imported instead of rediscovering it. A just
-// module recipe shown in its own group is reached through its module, not its
-// namepath, so only the module is offered; a key that needs shell quoting
-// (a script named "lint fix") stays in the picker but is not offered.
+// oneLine keeps a description on its completion line.
+var oneLine = strings.NewReplacer("\t", " ", "\n", " ", "\r", " ")
+
+// writeImports prints the route of every imported node `x` dispatches, at
+// every depth, tab-separated from its one-line description, in catalogue
+// order. A route is the node's public words joined by spaces (`e2e sub x`).
+// Shell completion reads it, so `x <TAB>` offers what the menu imported
+// instead of rediscovering it. An explicitly grouped just module recipe is
+// reached by its module route (`deploy staging`), not its namepath; a word
+// that needs shell quoting (a script named "lint fix") stays in the picker
+// but is not offered, and neither is anything beneath it.
 func writeImports(w io.Writer, cfg *Config) {
-	oneLine := strings.NewReplacer("\t", " ", "\n", " ", "\r", " ")
 	for _, group := range cfg.Groups {
 		for _, task := range group.Tasks {
-			if task.source() == sourceDeclared || len(task.justPath) > 0 || !completableKey.MatchString(task.Name) {
+			if task.source() == sourceDeclared {
 				continue
 			}
-			fmt.Fprintf(w, "%s\t%s\n", task.Name, oneLine.Replace(task.Description))
+			route := []string{task.Name}
+			if len(task.justPath) > 0 {
+				route = task.justPath
+			}
+			writeImportRoutes(w, task, route)
 		}
+	}
+}
+
+// writeImportRoutes prints task's route and then each subcommand's beneath it.
+func writeImportRoutes(w io.Writer, task Task, route []string) {
+	for _, word := range route {
+		if !completableWord.MatchString(word) {
+			return
+		}
+	}
+	fmt.Fprintf(w, "%s\t%s\n", strings.Join(route, " "), oneLine.Replace(task.Description))
+	for _, child := range task.Children {
+		writeImportRoutes(w, child, append(route[:len(route):len(route)], child.displayName()))
 	}
 }

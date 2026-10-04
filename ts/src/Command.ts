@@ -9,7 +9,7 @@ const TypeId: unique symbol = Symbol.for("@drkmttr/prelude/Command");
 
 /** What `run` receives besides its parsed arguments. */
 export interface RunContext {
-  /** The key the command is mounted under, e.g. `db:migrate`. */
+  /** The key the command is mounted under, e.g. `db/migrate`. */
   readonly key: string;
   /** The raw argument words the values were parsed from. */
   readonly argv: readonly string[];
@@ -18,7 +18,12 @@ export interface RunContext {
 /** Metadata every command carries, as `prelude.commands.<key>` does in Nix. */
 interface Info<Specs extends readonly Args.Spec[]> {
   description?: string;
-  /** Menu group. Default: the key's segment before its first `:` or `/`, else none (listed without a heading). */
+  /**
+   * Menu group: the heading the command lists under. Keys are never parsed
+   * for one; without it the command lists above every heading. Only a
+   * top-level command takes a group: a subcommand (`db migrate`) lists under
+   * its parent, so set the group there.
+   */
   group?: string;
   /** Single-character accelerator in the picker (Nix: `key`). */
   shortcut?: string;
@@ -45,9 +50,20 @@ export interface ShellDefinition<Specs extends readonly Args.Spec[]> extends Inf
   run?: never;
 }
 
+/**
+ * A command that only holds subcommands, like a Nix command without `exec`:
+ * mounted at `db` beside `db migrate`, choosing it opens them. Declare one to
+ * give them a group or description; a parent only subcommands imply has none.
+ */
+export interface ParentDefinition<Specs extends readonly Args.Spec[]> extends Info<Specs> {
+  run?: never;
+  exec?: never;
+}
+
 export type Definition<Specs extends readonly Args.Spec[]> =
   | FunctionDefinition<Specs>
-  | ShellDefinition<Specs>;
+  | ShellDefinition<Specs>
+  | ParentDefinition<Specs>;
 
 /** A command from Command.make, ready to mount in a menu under a key. */
 export type Command<Specs extends readonly Args.Spec[] = readonly Args.Spec[]> =
@@ -66,6 +82,7 @@ export type Any = Info<readonly Args.Spec[]> & {
 } & (
     | { run(args: never, context: RunContext): unknown; exec?: never }
     | { exec: string; run?: never }
+    | { run?: never; exec?: never }
   );
 
 /**
@@ -81,9 +98,14 @@ export type Any = Info<readonly Args.Spec[]> & {
 export function make<const Specs extends readonly Args.Spec[] = readonly []>(
   definition: Definition<Specs>,
 ): Command<Specs> {
-  if ((typeof definition.run === "function") === (typeof definition.exec === "string")) {
+  const { run, exec } = definition as { run?: unknown; exec?: unknown };
+  if (
+    (run !== undefined && typeof run !== "function") ||
+    (exec !== undefined && typeof exec !== "string") ||
+    (run !== undefined && exec !== undefined)
+  ) {
     throw new Error(
-      "prelude: Command.make needs exactly one of `run` (a function) or `exec` (shell text)",
+      "prelude: Command.make takes at most one of `run` (a function) or `exec` (shell text)",
     );
   }
   const args = definition.args ?? ([] as unknown as Specs);

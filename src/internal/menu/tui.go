@@ -20,9 +20,11 @@ type chip struct {
 	value string
 }
 
-// listFrame is a snapshot of the root list, saved while a module submenu is
-// open so esc restores the exact filtered position the user left.
+// listFrame is one open subcommand picker: the parent whose children the list
+// shows, and a snapshot of the list it replaced, so closing it restores the
+// exact filtered position the user left.
 type listFrame struct {
+	parent            Task
 	flat              []Task
 	matches           []int
 	sel               int
@@ -44,11 +46,9 @@ type model struct {
 	expanded bool
 	mode     mode
 
-	// Submenu navigation: sub is the module parent whose children the list
-	// currently shows; saved holds the root list to restore on exit. Both are
-	// nil at the root level.
-	sub   *Task
-	saved *listFrame
+	// pickers holds one frame per open subcommand picker, outermost first;
+	// the last one's parent owns the list currently shown. Empty at the root.
+	pickers []listFrame
 
 	list   *ListView // list body sub-model: owns scroll offset + cached rows
 	args   *ArgsView // arg-entry sub-model: owns chips/chipFocus/argErr/argTask

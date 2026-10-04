@@ -4,20 +4,38 @@ import * as Command from "../Command.ts";
 // src/prelude/menu.nix, for commands keyed by their public name. The
 // conformance test compares this port's output with Nix's for shared fixtures.
 
-/** A mounted command with its presentation identity. */
-export interface Entry {
-  readonly key: string;
-  readonly group: string;
+/**
+ * One node of the command tree: a mounted command, or a parent only its
+ * subcommands imply (`db` for `db migrate`), which has no key or command.
+ */
+export interface Node {
+  /** The words after the dispatcher: `["db", "migrate"]`. */
+  readonly path: readonly string[];
+  /** The canonical name, the words joined by single spaces: `db migrate`. */
+  readonly name: string;
+  /** The last word, shown in the menu. */
   readonly label: string;
-  readonly command: Command.Any;
+  /** Menu group: "" lists without a heading. Only top-level nodes are grouped. */
+  readonly group: string;
+  /** The key the command is mounted under: `db/migrate` or `db migrate`. */
+  readonly key?: string;
+  readonly command?: Command.Any;
+  /** Subcommands, sorted by label, then name. */
+  readonly children: readonly Node[];
 }
+
+/** A node some key mounts a command at. */
+export type Declared = Node & { readonly key: string; readonly command: Command.Any };
 
 export interface Group {
   readonly title: string;
-  readonly entries: readonly Entry[];
+  /** Top-level nodes; subcommands sit under them. */
+  readonly nodes: readonly Node[];
 }
 
-const safeName = /^[A-Za-z0-9:/_.-]+$/;
+const keyPattern = /^[A-Za-z0-9:_.-]+([ /][A-Za-z0-9:_.-]+)*$/;
+// Single-key accelerators are one word, checked as menu.nix checks them.
+const safeShortcut = /^[A-Za-z0-9:/_.-]+$/;
 
 /** Byte order, as Nix compares strings. */
 export function compare(a: string, b: string): number {
@@ -25,71 +43,154 @@ export function compare(a: string, b: string): number {
 }
 
 /**
- * Mirrors `commandIdentity`: the first `:` or `/` splits the menu group from
- * the displayed label while the key stays whole (`go:test` and `go/test` →
- * group `go`, label `test`); later separators stay in the label. A key with
- * neither has no group (""), so the menu lists it without a heading. An
- * explicit group overrides the inferred one, `""` included.
+ * Mirrors `commandIdentity`. A key is words separated by one space or `/`:
+ * `db migrate` and `db/migrate` both name `migrate` under `db`, and `:` is an
+ * ordinary name character. Keys are never parsed for a group: a command's
+ * group is the explicit one, else "" (listed above every heading), except
+ * that Prelude's own `x` and `docs` default to `prelude`. Only top-level
+ * commands take a group; a subcommand lists under its parent.
  */
-export function identity(key: string, explicitGroup?: string): { group: string; label: string } {
-  if (!safeName.test(key)) {
-    throw new Error(`prelude: command key "${key}" may only contain letters, digits, and : / _ . -`);
+export function identity(
+  key: string,
+  explicitGroup?: string,
+): { path: string[]; name: string; label: string; group: string } {
+  if (!keyPattern.test(key)) {
+    throw new Error(
+      `prelude: command key "${key}" must be words of letters, digits, : _ . - separated by a single space or /`,
+    );
   }
-  const separator = key.search(/[:/]/);
-  const grouped = separator !== -1;
-  const group = explicitGroup ?? (grouped ? key.slice(0, separator) : "");
-  const label = grouped ? key.slice(separator + 1) : key;
-  // A separator needs a name on each side, unless an explicit group replaces
-  // the one before it.
-  if (label === "" || (grouped && explicitGroup === undefined && group === "")) {
-    throw new Error(`prelude: command key "${key}" must have non-empty segments around its first : or /`);
+  const path = key.split(/[ /]/);
+  const name = path.join(" ");
+  const root = path[0]!;
+  const subcommand = path.length > 1;
+  if (subcommand && explicitGroup !== undefined) {
+    throw new Error(`prelude: "${name}" is a subcommand of "${root}"; set group on "${root}" instead`);
   }
-  return { group, label };
+  const group = explicitGroup ?? (!subcommand && (name === "x" || name === "docs") ? "prelude" : "");
+  return { path, name, label: path.at(-1)!, group };
 }
 
 /**
- * Groups commands the way `normalizeCommandGroups` does: commands without a
- * group first (no heading, so they can't read as part of the group above),
- * then the `prelude` group, then groupOrder, then the rest alphabetically;
- * each group sorted by label.
+ * Whether choosing a node only opens its subcommands: it has some and nothing
+ * of its own to run. One with `run` or `exec` is a runnable parent instead.
+ */
+export function isContainer(node: Node): boolean {
+  return node.children.length > 0 && node.command?.run === undefined && node.command?.exec === undefined;
+}
+
+/** A node's description; a container without one counts its subcommands. */
+export function describe(node: Node): string {
+  const own = node.command?.description ?? "";
+  if (own !== "" || !isContainer(node)) return own;
+  const count = node.children.length;
+  return count === 1 ? "1 subcommand" : `${count} subcommands`;
+}
+
+/**
+ * How people run a node from a shell: Nix's `command`. Nix runs a node bare
+ * when its root is a declared top-level command without `:`, which gets a
+ * PATH wrapper, and as `x <words>` otherwise. A TypeScript app has no PATH
+ * wrappers, only its dispatcher, so every node takes the dispatch form.
+ */
+export function invocation(node: Node, dispatcher: string): string {
+  return `${dispatcher} ${node.name}`;
+}
+
+/** Whether a key mounts a command at a node, rather than its subcommands implying it. */
+export function isDeclared(node: Node): node is Declared {
+  return node.command !== undefined;
+}
+
+/** Every node, parents before their subcommands. */
+export function flatten(nodes: readonly Node[]): Node[] {
+  return nodes.flatMap((node) => [node, ...flatten(node.children)]);
+}
+
+/**
+ * Builds the command tree and groups its top-level nodes the way
+ * `normalizeCommandGroups` does: commands without a group first (no heading,
+ * so they can't read as part of the group above), then the `prelude` group,
+ * then groupOrder, then the rest alphabetically; each group sorted by label,
+ * then name.
  */
 export function catalogue(commands: Readonly<Record<string, Command.Any>>, groupOrder: readonly string[] = []): Group[] {
   if (new Set(groupOrder).size !== groupOrder.length) {
     throw new Error("prelude: groupOrder must not contain duplicates");
   }
-  const entries: Entry[] = Object.entries(commands).map(([key, command]) => {
+  const entries: Declared[] = Object.entries(commands).map(([key, command]) => {
     if (!Command.is(command)) {
       throw new Error(`prelude: commands["${key}"] is not a command; create it with Command.make()`);
     }
-    return { key, command, ...identity(key, command.group) };
+    return { ...identity(key, command.group), key, command, children: [] };
   });
-  validate(entries);
+  const nodes = level(0, entries);
+  validate(entries, flatten(nodes));
 
-  const available = [...new Set(entries.map((entry) => entry.group))];
+  const available = [...new Set(nodes.map((node) => node.group))];
   const ungrouped = available.includes("") ? [""] : [];
   const named = available.filter((group) => group !== "");
   const preferred = [...new Set(["prelude", ...groupOrder])].filter((group) => named.includes(group));
   const remaining = named.filter((group) => !preferred.includes(group)).sort(compare);
   return [...ungrouped, ...preferred, ...remaining].map((title) => ({
     title,
-    entries: entries
-      .filter((entry) => entry.group === title)
-      .sort((a, b) => compare(a.label, b.label) || compare(a.key, b.key)),
+    nodes: nodes.filter((node) => node.group === title),
   }));
 }
 
-function validate(entries: readonly Entry[]): void {
-  const keys = new Set(entries.map((entry) => entry.key));
+/**
+ * Mirrors `buildNodes`: the nodes one level below a shared path, at word
+ * `depth`. Each is the command declared for its path, or else a parent
+ * synthesized for a path only subcommands declare, with its own subcommands
+ * below it.
+ */
+function level(depth: number, entries: readonly Declared[]): Node[] {
+  const words = [...new Set(entries.map((entry) => entry.path[depth]!))];
+  return words
+    .map((word): Node => {
+      const members = entries.filter((entry) => entry.path[depth] === word);
+      const declared = members.find((entry) => entry.path.length === depth + 1);
+      const children = level(
+        depth + 1,
+        members.filter((entry) => entry.path.length > depth + 1),
+      );
+      return declared === undefined
+        ? { ...identity(members[0]!.path.slice(0, depth + 1).join(" ")), children }
+        : { ...declared, children };
+    })
+    .sort((a, b) => compare(a.label, b.label) || compare(a.name, b.name));
+}
+
+function validate(entries: readonly Declared[], nodes: readonly Node[]): void {
+  // `db/migrate` and `db migrate` are one command; declaring both is a typo.
+  const sameName = [...Map.groupBy(entries, (entry) => entry.name)]
+    .filter(([, group]) => group.length > 1)
+    .sort(([a], [b]) => compare(a, b))
+    .map(([, group]) => group.map((entry) => `"${entry.key}"`).sort(compare).join(", "));
+  if (sameName.length > 0) {
+    throw new Error(`prelude: these keys name the same command: ${sameName.join("; ")}`);
+  }
+
+  // A Nix command without `exec` runs its last word from PATH; a TypeScript
+  // one without `run` or `exec` has nothing to run unless it holds subcommands.
+  for (const { key, command, children } of nodes) {
+    if (command !== undefined && command.run === undefined && command.exec === undefined && children.length === 0) {
+      throw new Error(
+        `prelude: commands["${key}"] has neither \`run\` nor \`exec\`; only a command with subcommands may leave both out`,
+      );
+    }
+  }
+
+  const names = new Set(nodes.map((node) => node.name));
   const shortcuts = new Map<string, string>();
   for (const { key, command } of entries) {
     const shortcut = command.shortcut;
     if (shortcut === undefined) continue;
-    if (!safeName.test(shortcut)) {
+    if (!safeShortcut.test(shortcut)) {
       throw new Error(`prelude: shortcut "${shortcut}" of ${key} may only contain letters, digits, and : / _ . -`);
     }
     const owner = shortcuts.get(shortcut);
     if (owner !== undefined) throw new Error(`prelude: shortcut "${shortcut}" is used by both ${owner} and ${key}`);
-    if (keys.has(shortcut)) throw new Error(`prelude: shortcut "${shortcut}" of ${key} collides with a command key`);
+    if (names.has(shortcut)) throw new Error(`prelude: shortcut "${shortcut}" of ${key} collides with a command name`);
     shortcuts.set(shortcut, key);
   }
 
@@ -106,10 +207,13 @@ function validate(entries: readonly Entry[]): void {
   }
 }
 
-/** Mirrors `selectCommands`: commands with a `motd` position, ordered by it, then key. */
-export function gettingStarted(groups: readonly Group[]): Entry[] {
-  return groups
-    .flatMap((group) => group.entries)
-    .filter((entry) => entry.command.motd !== undefined)
-    .sort((a, b) => a.command.motd! - b.command.motd! || compare(a.key, b.key));
+/**
+ * Mirrors `selectCommands`: commands at any depth with a `motd` position,
+ * ordered by it, then name.
+ */
+export function gettingStarted(groups: readonly Group[]): Declared[] {
+  return flatten(groups.flatMap((group) => group.nodes))
+    .filter(isDeclared)
+    .filter((node) => node.command.motd !== undefined)
+    .sort((a, b) => a.command.motd! - b.command.motd! || compare(a.name, b.name));
 }

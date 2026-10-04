@@ -43,6 +43,24 @@
           "args": [{ "token": "<target>", "required": true, "options": ["staging", "production"] }]
         }
       }
+    },
+    "subcommands": {
+      "project": "fixture",
+      "groupOrder": ["data"],
+      "commands": {
+        "db": { "description": "database tasks", "group": "data" },
+        "db migrate": { "exec": "drizzle-kit migrate", "description": "apply migrations", "motd": 2 },
+        "db/seed": { "exec": "bun run seed", "description": "load sample rows" },
+        "db seed/users": { "exec": "bun run seed users", "motd": 1 },
+        "tools": { "group": "data", "motd": 3 },
+        "tools fmt": { "exec": "nix fmt" },
+        "cache": { "exec": "nix-store --gc", "description": "collect garbage" },
+        "cache stats": { "exec": "du -sh /nix/store" },
+        "ops/deploy/web": { "exec": "vercel deploy" },
+        "ops deploy/api": { "exec": "fly deploy", "key": "a" },
+        "go:test": { "exec": "go test ./...", "group": "go" },
+        "go:test race": { "exec": "go test -race ./..." }
+      }
     }
   },
   "motd": {
@@ -111,6 +129,19 @@
       "env": [],
       "width": 100,
       "maxWidth": null
+    },
+    "subcommands": {
+      "project": "fixture",
+      "header": { "tagline": { "text": "" }, "statusHint": { "links": [] }, "status": {} },
+      "description": { "text": "" },
+      "env": [],
+      "commands": {
+        "db": { "description": "database tasks" },
+        "db migrate": { "exec": "drizzle-kit migrate", "description": "apply migrations", "motd": 2 },
+        "tools": { "motd": 1 },
+        "tools fmt": { "exec": "nix fmt" },
+        "go test": { "exec": "go test ./...", "motd": 3 }
+      }
     }
   }
 }

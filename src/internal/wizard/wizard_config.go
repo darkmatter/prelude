@@ -54,7 +54,8 @@ type commandData struct {
 	Exec          string // empty → emit commented inferred default
 	InferredExec  string
 	Description   string
-	Group         string // inferred menu group from the public key
+	Group         string // default menu group: "prelude" for builtins, else none
+	Parent        string // first word of a subcommand key; "" for a top-level one
 	KeyAccel      string // single-key accelerator when set
 	Usage         string // active usage override
 	InferredUsage string // commented default usage form
@@ -164,6 +165,7 @@ func newConfigData(r wizardResult, titlePath string) configData {
 			InferredExec:  inferred,
 			Description:   command.Description,
 			Group:         inferredCommandGroup(command.Name),
+			Parent:        commandParent(command.Name),
 			InferredUsage: run,
 			// Deeper fields stay empty from the current step UI; the template
 			// emits them as documented comments with inferred defaults so the
@@ -197,25 +199,39 @@ func newConfigData(r wizardResult, titlePath string) configData {
 	}
 }
 
-// inferredCommandExec mirrors prelude's exec default: the segment after the
-// first `:` or `/`, or the whole key when ungrouped.
-func inferredCommandExec(name string) string {
-	if i := strings.IndexAny(name, ":/"); i >= 0 && i+1 < len(name) {
-		return name[i+1:]
-	}
-	return name
+// commandWords splits a public key into its words: one space or `/`
+// separates a subcommand from its parent, and `:` is an ordinary character.
+func commandWords(name string) []string {
+	return strings.Fields(strings.ReplaceAll(name, "/", " "))
 }
 
-// inferredCommandGroup mirrors prelude's catalogue identity: builtins land in
-// "prelude", grouped keys use the segment before the first `:` or `/`, and
-// everything else has no group ("", listed without a heading).
+// inferredCommandExec mirrors prelude's exec default: the key's last word
+// (`migrate` for `db migrate`), or the whole key when it has one word.
+func inferredCommandExec(name string) string {
+	words := commandWords(name)
+	if len(words) == 0 {
+		return name
+	}
+	return words[len(words)-1]
+}
+
+// inferredCommandGroup mirrors prelude's catalogue identity: keys are never
+// parsed for a group, so only the builtins default to one ("prelude"); every
+// other command has none ("", listed without a heading) until it sets group.
 func inferredCommandGroup(name string) string {
 	switch name {
 	case "x", "docs":
 		return "prelude"
 	}
-	if i := strings.IndexAny(name, ":/"); i > 0 {
-		return name[:i]
+	return ""
+}
+
+// commandParent is the word a subcommand key lists under (`db` for
+// `db/migrate`), or "" for a top-level key. Groups apply to top-level
+// commands only, so a subcommand takes its parent's.
+func commandParent(name string) string {
+	if words := commandWords(name); len(words) > 1 {
+		return words[0]
 	}
 	return ""
 }
@@ -270,7 +286,7 @@ func nixString(value string) string {
 }
 
 // nixAttrKey renders an attrset key, quoting it only when it is not a plain
-// Nix identifier (grouped keys such as `test:unit` and `db/reset` need quotes).
+// Nix identifier (keys such as `test:unit` and `db/reset` need quotes).
 func nixAttrKey(name string) string {
 	if nixIdentifierPattern.MatchString(name) {
 		return name
@@ -280,10 +296,10 @@ func nixAttrKey(name string) string {
 
 var nixIdentifierPattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_'-]*$`)
 
-// commandKeyPattern accepts public keys such as `test:unit`, `test/unit`, and
-// `test:unit:watch`. The first `:` or `/` derives menu grouping; the complete
-// key remains callable through x.
-var commandKeyPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+([:/][A-Za-z0-9_.-]+)*$`)
+// commandKeyPattern accepts public keys such as `test:unit`, `db migrate`,
+// and `db/seed/users`: words of name characters, where `:` is ordinary, each
+// separated by one space or `/`, which makes a subcommand (`x db migrate`).
+var commandKeyPattern = regexp.MustCompile(`^[A-Za-z0-9:_.-]+([ /][A-Za-z0-9:_.-]+)*$`)
 
 // nixPath emits a Nix path literal. Relative paths gain the mandatory ./
 // prefix; absolute paths pass through.

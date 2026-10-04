@@ -886,12 +886,13 @@ func TestRenderWizardConfigEmitsOptionsTemplate(t *testing.T) {
 		`description = "start the dev server";`,
 		"motd = 1;",
 		`"db:migrate" = {`,
-		"# exec = \"migrate\";",
+		"# exec = \"db:migrate\";",
 		`description = "apply pending migrations";`,
+		"# group = null;",
 		"motd = 2;",
 		`"db/reset" = {`,
 		"# exec = \"reset\";",
-		"# group inferred from key: db",
+		`# subcommand of "db": set any group on "db", not here`,
 		"motd = 3;",
 		"# key = null;",
 		"# usage =",
@@ -1054,10 +1055,12 @@ func TestWizardCommandNameValidation(t *testing.T) {
 	m.commandPhase = commandList
 
 	m = letter(t, m, 'a')
-	m.commandInput.SetValue("bad name")
-	m = enter(t, m)
-	if m.commandPhase != commandName || m.err == "" {
-		t.Fatalf("invalid name accepted: phase=%d err=%q", m.commandPhase, m.err)
+	for _, bad := range []string{"bad  name", "db/", "bad!name"} {
+		m.commandInput.SetValue(bad)
+		m = enter(t, m)
+		if m.commandPhase != commandName || m.err == "" {
+			t.Fatalf("invalid name %q accepted: phase=%d err=%q", bad, m.commandPhase, m.err)
+		}
 	}
 
 	m.commandInput.SetValue("scripts:test:unit")
@@ -1074,6 +1077,18 @@ func TestWizardCommandNameValidation(t *testing.T) {
 	m = enter(t, m)
 	if m.commandPhase != commandName || !strings.Contains(m.err, "already exists") {
 		t.Fatalf("duplicate accepted: phase=%d err=%q", m.commandPhase, m.err)
+	}
+
+	// A space or `/` makes a subcommand, so both spellings name one command.
+	m.commandInput.SetValue("db migrate")
+	m = enter(t, m) // name -> exec
+	m = enter(t, m) // exec (empty ok) -> description
+	m = enter(t, m) // description (empty ok) -> appended
+	m = letter(t, m, 'a')
+	m.commandInput.SetValue("db/migrate")
+	m = enter(t, m)
+	if m.commandPhase != commandName || !strings.Contains(m.err, `"db migrate" already exists`) {
+		t.Fatalf("same command under another spelling accepted: phase=%d err=%q", m.commandPhase, m.err)
 	}
 }
 

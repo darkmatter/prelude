@@ -29,7 +29,7 @@ one of “auto”, “truecolor”, “ansi256”
 
 
 
-Project commands keyed by their public ` x ` name\. The first ` : ` or ` / ` infers the menu group (` go:test `, ` db/migrate `); the remaining suffix is the displayed name, while the complete key remains callable\.
+Project commands keyed by their public ` x ` name\. A space or ` / ` makes a subcommand: ` "db migrate" ` (or ` db/migrate `) is ` migrate ` under ` db `, run as ` x db migrate `, and the menu shows ` db ` as one row that opens its subcommands\. ` : ` is an ordinary name character\. Groups come only from each command’s ` group `\.
 
 
 
@@ -123,7 +123,11 @@ attribute set of (submodule)
 
 ```nix
 {
-  "database:migrate" = {
+  db = {
+    description = "database tasks";
+    group = "data";
+  };
+  "db migrate" = {
     description = "apply pending migrations";
     exec = "drizzle-kit migrate";
   };
@@ -342,9 +346,10 @@ list of string
 
 
 
-Shell command executed by the menu\. Defaults to the command suffix
-after the first ` : ` or ` / `, or to the whole key when ungrouped\. Grouped
-keys never create PATH executables\.
+Shell command executed by the menu\. Defaults to the key’s last word
+(` migrate ` for ` "db migrate" `)\. A command with subcommands and no
+` exec ` only opens its subcommands\. Keys containing ` : ` never create
+PATH executables; reach them through ` x `\.
 
 
 
@@ -365,11 +370,11 @@ null
 
 
 
-Menu group override\. When null, the group is inferred from the
-segment before the key’s first ` : ` or ` / ` (` go:test ` and ` go/test ` →
-group ` go `); a key without either has no group and lists above every
-heading\. Set this to place a command under a group without prefixing
-the key, or to ` "" ` to list a grouped key without a heading\.
+Menu group: the heading this command lists under\. Keys are never
+parsed for a group; without this the command has none and lists above
+every heading (Prelude’s own ` x ` and ` docs ` default to ` prelude `)\.
+Only top-level commands take a group: a subcommand (` "db migrate" `)
+lists under its parent, so set the group on the parent\.
 
 
 

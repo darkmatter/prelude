@@ -277,9 +277,9 @@
     ) (lib.mapAttrsToList lib.nameValuePair attrs);
 
   # --- command catalogue (domain + projections) ---------------------------------
-  # Identity, normalization, grouping, selection, and surface projections live
-  # in command-catalogue.nix. lib.nix re-exports them so existing call sites
-  # (`plib.normalizeCommand*`, etc.) keep working.
+  # Identity, normalization, the subcommand tree, grouping, selection, and
+  # surface projections live in command-catalogue.nix. lib.nix re-exports them
+  # so existing call sites (`plib.normalizeCommand*`, etc.) keep working.
   catalogue = import ./command-catalogue.nix {inherit lib;};
   inherit
     (catalogue)
@@ -287,6 +287,8 @@
     commandIdentity
     normalizeCommand
     normalizeCommandEntries
+    commandNodes
+    flattenNodes
     normalizeCommandGroups
     flatCommands
     selectCommands
@@ -642,6 +644,8 @@ in {
     commandIdentity
     normalizeCommand
     normalizeCommandEntries
+    commandNodes
+    flattenNodes
     normalizeCommandGroups
     flatCommands
     selectCommands

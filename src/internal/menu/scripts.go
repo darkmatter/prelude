@@ -77,8 +77,9 @@ func nearestWith(dir, name string) (string, bool) {
 // parseScripts projects a package.json's scripts onto menu tasks. Each runs
 // exactly as written, with no package manager in front: from the
 // package.json's directory, with the node_modules/.bin directories npm would
-// put ahead of PATH. Keys stay verbatim, and the first `:` or `/` picks the
-// group.
+// put ahead of PATH. Every script lands in the configured group, and a `/`
+// nests it under the scripts sharing its prefix (`db/migrate` is `migrate`
+// under `db`); `:` and spaces are ordinary name characters.
 func parseScripts(data []byte, path string, cfg ScriptsConfig) ([]Task, error) {
 	var manifest struct {
 		Scripts map[string]json.RawMessage `json:"scripts"`
@@ -89,31 +90,96 @@ func parseScripts(data []byte, path string, cfg ScriptsConfig) ([]Task, error) {
 	dir := filepath.Dir(path)
 	bins := nodeModulesBins(dir)
 
-	tasks := make([]Task, 0, len(manifest.Scripts))
+	root := &scriptNode{}
 	for name, raw := range manifest.Scripts {
 		// Non-string entries are comments by convention ("//": [...]).
 		var script string
 		if name == "" || json.Unmarshal(raw, &script) != nil {
 			continue
 		}
-		group, label := cfg.Group, name
-		if separator := strings.IndexAny(name, ":/"); separator > 0 {
-			group, label = name[:separator], name[separator+1:]
-		}
-		tasks = append(tasks, Task{
+		node := root.descend(scriptPath(name))
+		node.task = &Task{
 			Name:        name,
-			Label:       label,
 			Run:         script,
 			Description: script,
 			Usage:       script,
 			Source:      sourceScripts,
 			Dir:         dir,
 			PathPrefix:  bins,
-			group:       group,
-		})
+		}
 	}
-	sort.Slice(tasks, func(i, j int) bool { return tasks[i].Name < tasks[j].Name })
+	tasks := root.tasks()
+	for index := range tasks {
+		tasks[index].group = cfg.Group
+	}
 	return tasks, nil
+}
+
+// scriptPath splits a script name into its words at each `/`. A name with an
+// empty word (`/x`, `a//b`, `x/`) has no parent to nest under, so it stays
+// one word.
+func scriptPath(name string) []string {
+	path := strings.Split(name, "/")
+	for _, word := range path {
+		if word == "" {
+			return []string{name}
+		}
+	}
+	return path
+}
+
+// scriptNode is one word of the scripts tree: the script named by the path to
+// it, if there is one, and the words below it.
+type scriptNode struct {
+	path     []string
+	task     *Task
+	children map[string]*scriptNode
+}
+
+// descend returns the node at path below n, creating the missing ones.
+func (n *scriptNode) descend(path []string) *scriptNode {
+	node := n
+	for _, word := range path {
+		if node.children == nil {
+			node.children = make(map[string]*scriptNode)
+		}
+		child, found := node.children[word]
+		if !found {
+			child = &scriptNode{path: append(node.path[:len(node.path):len(node.path)], word)}
+			node.children[word] = child
+		}
+		node = child
+	}
+	return node
+}
+
+// tasks builds the tasks below n, sorted by label then name. A word no script
+// names itself becomes a container that only opens the scripts beneath it,
+// described by how many there are.
+func (n *scriptNode) tasks() []Task {
+	if len(n.children) == 0 {
+		return nil
+	}
+	tasks := make([]Task, 0, len(n.children))
+	for _, child := range n.children {
+		task := Task{Name: strings.Join(child.path, "/"), Source: sourceScripts}
+		if child.task != nil {
+			task = *child.task
+		}
+		task.Label = child.path[len(child.path)-1]
+		task.Children = child.tasks()
+		if child.task == nil {
+			task.Description = subcommandsDescription(len(task.Children))
+		}
+		tasks = append(tasks, task)
+	}
+	sort.Slice(tasks, func(i, j int) bool {
+		if tasks[i].Label != tasks[j].Label {
+			return tasks[i].Label < tasks[j].Label
+		}
+		return tasks[i].Name < tasks[j].Name
+	})
+	return tasks
 }
 
 // nodeModulesBins lists node_modules/.bin in dir and in every directory above

@@ -39,8 +39,9 @@
 
     project = {{ nixString .Project }};  # shown in the MOTD banner and menu header; default "acme"
 
-    # Project commands keyed by public `x` name. The first `:` or `/` infers
-    # the menu group; the complete key stays callable (e.g. `x db:migrate`).
+    # Project commands keyed by public `x` name. A space or `/` makes a
+    # subcommand (`"db migrate"` runs as `x db migrate`); `:` is an ordinary
+    # name character. Menu groups come only from each command's `group`.
     # Defaults ship an ACME example catalogue (dev/test/build + database/ops);
     # defining any commands.* replaces that catalogue entirely.
 {{- if .Commands }}
@@ -52,7 +53,7 @@
 {{- else }}
     # commands = {
     #   dev = {
-    #     exec = "pnpm dev";  # defaults to the key suffix after the first : or /
+    #     exec = "pnpm dev";  # defaults to the key's last word
     #     description = "start the dev server";
     #     # motd = 1;  # include on Getting Started at this sort order
 {{ template "commandFieldsCommented" }}

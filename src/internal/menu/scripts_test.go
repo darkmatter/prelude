@@ -86,15 +86,79 @@ func TestScriptsRunAsWrittenWhereTheyLive(t *testing.T) {
 		t.Fatalf("Select(build --watch) = %+v\nwant %+v", *got, want)
 	}
 
-	// The first `:` or `/` picks the group; other names use the configured one.
+	// Every script lists in the configured group; names are never parsed for
+	// one, and a `/` nests the script under its prefix instead.
 	lines := listLines(cfg)
-	for _, title := range []string{"NPM", "TEST", "WEB"} {
-		if !slices.Contains(lines, title) {
-			t.Fatalf("--list should have a %s group:\n%s", title, strings.Join(lines, "\n"))
+	for _, title := range []string{"TEST", "WEB"} {
+		if slices.Contains(lines, title) {
+			t.Fatalf("--list should not infer a %s group:\n%s", title, strings.Join(lines, "\n"))
 		}
+	}
+	for _, line := range []string{"NPM", "test:unit vitest run", "dev vite"} {
+		if !slices.Contains(lines, line) {
+			t.Fatalf("--list should show %q:\n%s", line, strings.Join(lines, "\n"))
+		}
+	}
+	if got, err := Select(cfg, []string{"web", "dev"}); err != nil || got.Command != "vite" || got.Dir != dir {
+		t.Fatalf("Select(web dev) = %+v (%v), want vite run in %s", got, err, dir)
 	}
 	if text := strings.Join(lines, "\n"); strings.Contains(text, "comments are not scripts") {
 		t.Fatalf("a non-string entry was imported as a script:\n%s", text)
+	}
+}
+
+func TestScriptsNestOnSlash(t *testing.T) {
+	path := writePackageJSON(t, t.TempDir(), `{
+		"db": "echo db",
+		"db/migrate": "migrate up",
+		"db/seed/users": "seed users",
+		"lint:fix": "eslint --fix .",
+		"/odd": "echo odd"
+	}`)
+	cfg := testMenuConfig(Task{Name: "dev", Run: "bun run dev"})
+	cfg.Scripts = ScriptsConfig{Enable: true, PackageJSON: &path, Group: "scripts"}
+	cfg = parseTestConfig(t, cfg)
+
+	for _, tc := range []struct {
+		args    []string
+		command string
+	}{
+		// db is a script and a prefix: it runs like any script.
+		{args: []string{"db"}, command: "echo db"},
+		{args: []string{"db", "--dry-run"}, command: "echo db --dry-run"},
+		{args: []string{"db", "migrate"}, command: "migrate up"},
+		{args: []string{"db", "seed", "users"}, command: "seed users"},
+		{args: []string{"lint:fix"}, command: "eslint --fix ."},
+		// An empty word has nothing to nest under, so the name stays whole.
+		{args: []string{"/odd"}, command: "echo odd"},
+	} {
+		got, err := Select(cfg, tc.args)
+		if err != nil || got.Command != tc.command {
+			t.Fatalf("x %v = %+v (%v), want %q", tc.args, got, err, tc.command)
+		}
+	}
+	// seed is only a prefix: it opens its scripts and takes no arguments.
+	if decision, err := resolveXInvocation(cfg, []string{"db", "seed"}); err != nil || decision.kind != collectSubcommandInvocation {
+		t.Fatalf("x db seed = %#v (%v), want the subcommand picker", decision, err)
+	}
+	if _, err := resolveXInvocation(cfg, []string{"db", "seed", "nope"}); err == nil || err.Error() != `unknown command "db seed nope"` {
+		t.Fatalf("x db seed nope error = %v", err)
+	}
+
+	var out strings.Builder
+	List(&out, nil, nil, cfg, 100)
+	rendered := ansi.Strip(out.String())
+	indents := []int{
+		rowIndent(rendered, "db echo db"),
+		rowIndent(rendered, "seed 1 subcommand"),
+		rowIndent(rendered, "users seed users"),
+	}
+	if indents[0] < 0 || indents[0] >= indents[1] || indents[1] >= indents[2] {
+		t.Fatalf("rows should indent one level per depth, got %v:\n%s", indents, rendered)
+	}
+	lines := listLines(cfg)
+	if !slices.Contains(lines, "SCRIPTS") || slices.Contains(lines, "DB") || slices.Contains(lines, "LINT") {
+		t.Fatalf("every script should list under SCRIPTS:\n%s", strings.Join(lines, "\n"))
 	}
 }
 

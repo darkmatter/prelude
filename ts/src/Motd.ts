@@ -2,7 +2,7 @@ import { basename } from "node:path";
 
 import type * as Command from "./Command.ts";
 import * as Palette from "./Palette.ts";
-import { catalogue, compare, gettingStarted } from "./internal/catalogue.ts";
+import { catalogue, compare, describe, gettingStarted, invocation } from "./internal/catalogue.ts";
 import { call } from "./internal/ffi.ts";
 import { defaults } from "./internal/generated.ts";
 import { resolveColorProfile } from "./internal/palette.ts";
@@ -345,9 +345,9 @@ function buildConfig(options: Options): Config {
     },
     links: [...(options.links ?? d.links)],
     env,
-    commands: gettingStarted(catalogue(options.commands ?? {}, options.groupOrder)).map((entry) => ({
-      command: `${dispatcher} ${entry.key}`,
-      description: entry.command.description ?? "",
+    commands: gettingStarted(catalogue(options.commands ?? {}, options.groupOrder)).map((node) => ({
+      command: invocation(node, dispatcher),
+      description: describe(node),
     })),
     recipes,
     gettingStarted: merge(d.gettingStarted, options.gettingStarted),

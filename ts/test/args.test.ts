@@ -64,9 +64,12 @@ describe("Args.split", () => {
 });
 
 describe("Command.make", () => {
-  test("needs exactly one of run or exec", () => {
-    expect(() => Command.make({} as never)).toThrow("exactly one of `run`");
-    expect(() => Command.make({ exec: "true", run: () => {} } as never)).toThrow("exactly one of `run`");
+  test("takes at most one of run or exec", () => {
+    expect(() => Command.make({ exec: "true", run: () => {} } as never)).toThrow("at most one of `run`");
+    expect(() => Command.make({ run: "true" } as never)).toThrow("at most one of `run`");
+    expect(() => Command.make({ exec: 1 } as never)).toThrow("at most one of `run`");
+    // Neither makes a parent that only holds subcommands.
+    expect(Command.is(Command.make({ description: "database tasks" }))).toBe(true);
   });
 
   test("rejects argument tokens the parser cannot honor", () => {
