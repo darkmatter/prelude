@@ -20,7 +20,7 @@ The argument to this skill is the user's task description — interpret it; do n
 
 Inside the shell (each with a single-key accelerator): `x` (`m`) opens the picker, `x <key>` dispatches a catalogue command, `x --list` prints the table; `motd` (`?`) reprints the banner; `docs` (`d`) opens the viewer; `portal` (`p`) launches apps with health lights.
 
-Bootstrap from outside: `nix run github:darkmatter/prelude -- wizard` writes a `prelude.nix` sidecar (+ `title.txt`, `.envrc`) without touching `flake.nix`. The flake also exports `apps.prelude` with subcommands `wizard`, `hook`, `preflight`, `title`, `title-previews`, and passthroughs for enabled components. `nix run github:org/repo#prelude -- docs` documents any prelude-enabled dependency.
+Bootstrap from outside: `nix run github:darkmatter/prelude -- wizard` writes a `prelude.nix` sidecar (+ `title.txt`, `.envrc`) without touching `flake.nix`. The flake also exports `apps.prelude` with subcommands `wizard`, `hook`, `preflight`, `title`, `title-previews`, and passthroughs for enabled components. `nix run github:org/repo#prelude-docs` (or `#prelude -- docs`) documents any prelude-enabled dependency, and `nix run github:darkmatter/prelude#docs` documents whatever checkout it runs in, through that flake's own `prelude-docs` when it has one.
 
 ## Command catalogue rules
 

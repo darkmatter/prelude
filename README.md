@@ -6,7 +6,7 @@
 
 Greets `nix develop` with a MOTD, command picker, docs viewer, and themed prompt. Use it as a flake-parts module or, in any other flake (blueprint, a plain `outputs` function), through `prelude.lib.evalModule`.
 
-Prelude keeps docs next to where you run the project. `docs` explains this repo; `nix run github:org/repo#prelude -- docs` explains any prelude-enabled dependency. The only command to remember is `nix develop`.
+Prelude keeps docs next to where you run the project. `docs` in the devshell explains this repo; `nix run github:darkmatter/prelude#docs` explains whatever checkout you are in, with its own Prelude theme and pages when it has them; `nix run github:org/repo#prelude-docs` explains a prelude-enabled dependency. The only command to remember is `nix develop`.
 
 <br />
 <div align="center">
@@ -120,6 +120,23 @@ pkgs.mkShell {
 The module receives `pkgs`, so package-backed commands go straight into `prelude.commands`; pass anything else it takes (`self`, `inputs`) through `_module.args`. A complete plain flake: [`examples/without-flake-parts/`](examples/without-flake-parts/).
 
 A custom `shellHook` activates with `eval "$(prelude-preflight)"`.
+
+### Reading docs without the devshell
+
+`nix run github:darkmatter/prelude#docs` shows the docs of the repository you are in. It opens the flake's own `prelude-docs` package when there is one, so the project's theme, pages and hero apply; any other repository gets Prelude's defaults over its `README.md` and `docs/`. The same package serves `nix run github:org/repo#prelude-docs`.
+
+With flake-parts, `packages.prelude-docs` exists as soon as `prelude.docs.pages` lists a page. Without it, expose the packages `evalModule` returns; `legacyPackages` keeps them out of `nix flake check`:
+
+```nix
+legacyPackages = forAllSystems (pkgs: (prelude.lib.evalModule pkgs ./prelude.nix).packages);
+```
+
+In blueprint, a package file does it: `packages/prelude-docs.nix`, with `prelude.nix` one directory up.
+
+```nix
+{ pkgs, inputs, ... }:
+(inputs.prelude.lib.evalModule pkgs ../prelude.nix).packages.prelude-docs
+```
 
 Full consumer walkthrough: [Your own repo](docs/your-own-repo.md). Command keys and grouping: [command conventions](docs/guides/command-conventions.md). Options: [reference](docs/reference/options.md).
 

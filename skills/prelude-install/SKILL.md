@@ -104,6 +104,11 @@ Modules receive `pkgs`, so package-backed commands go straight into
 (`self`, `inputs`) through `_module.args` on a wrapper module. Reference:
 `examples/without-flake-parts/`.
 
+To let `nix run github:darkmatter/prelude#docs` (and `#prelude-docs`) open the
+project's own docs, expose `prelude-docs`: flake-parts does it already;
+otherwise add `legacyPackages = forAllSystems (pkgs: (prelude.lib.evalModule pkgs ./prelude.nix).packages);`
+or, in blueprint, `packages/prelude-docs.nix`.
+
 ## 3. Activation paths
 
 - `nix develop` — with the prompt component enabled (wizard default) the
