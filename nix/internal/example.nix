@@ -58,7 +58,6 @@
       dev = {
         exec = "pnpm dev"; # defaults to the key suffix after the first : or /
         description = "start the dev server with hot reload";
-        # group inferred from key: develop  # segment before the first : or /; builtins land in "prelude"
         # key = null;  # single-key accelerator (`x <key>`)
         # usage = "pnpm dev";  # usage form shown in menu details
         # details = null;  # extended description before arg entry
@@ -71,7 +70,6 @@
       test = {
         exec = "pnpm test"; # defaults to the key suffix after the first : or /
         description = "run the unit test suite";
-        # group inferred from key: develop  # segment before the first : or /; builtins land in "prelude"
         # key = null;  # single-key accelerator (`x <key>`)
         # usage = "pnpm test";  # usage form shown in menu details
         # details = null;  # extended description before arg entry
@@ -84,7 +82,6 @@
       build = {
         exec = "pnpm build"; # defaults to the key suffix after the first : or /
         description = "compile an optimized production bundle";
-        # group inferred from key: develop  # segment before the first : or /; builtins land in "prelude"
         # key = null;  # single-key accelerator (`x <key>`)
         # usage = "pnpm build";  # usage form shown in menu details
         # details = null;  # extended description before arg entry
@@ -233,8 +230,9 @@
     # ];
     docs.pages = [];
 
-    # Preferred command-group order. Groups omitted follow alphabetically;
-    # the built-in "prelude" group (menu/docs) stays first.
-    # sort.groups = [ "develop" "database" "ops" ];
+    # Preferred command-group order. Commands without a group list above every
+    # heading, then the built-in "prelude" group (menu/docs); groups omitted
+    # follow alphabetically.
+    # sort.groups = [ "database" "ops" ];
   };
 }

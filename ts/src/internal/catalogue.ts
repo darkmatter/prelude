@@ -27,8 +27,9 @@ export function compare(a: string, b: string): number {
 /**
  * Mirrors `commandIdentity`: the first `:` or `/` splits the menu group from
  * the displayed label while the key stays whole (`go:test` and `go/test` →
- * group `go`, label `test`); later separators stay in the label. An explicit
- * group overrides the inferred one; ungrouped keys fall under `develop`.
+ * group `go`, label `test`); later separators stay in the label. A key with
+ * neither has no group (""), so the menu lists it without a heading. An
+ * explicit group overrides the inferred one, `""` included.
  */
 export function identity(key: string, explicitGroup?: string): { group: string; label: string } {
   if (!safeName.test(key)) {
@@ -36,17 +37,21 @@ export function identity(key: string, explicitGroup?: string): { group: string; 
   }
   const separator = key.search(/[:/]/);
   const grouped = separator !== -1;
-  const group = explicitGroup ?? (grouped ? key.slice(0, separator) : "develop");
+  const group = explicitGroup ?? (grouped ? key.slice(0, separator) : "");
   const label = grouped ? key.slice(separator + 1) : key;
-  if (group === "" || label === "") {
+  // A separator needs a name on each side, unless an explicit group replaces
+  // the one before it.
+  if (label === "" || (grouped && explicitGroup === undefined && group === "")) {
     throw new Error(`prelude: command key "${key}" must have non-empty segments around its first : or /`);
   }
   return { group, label };
 }
 
 /**
- * Groups commands the way `normalizeCommandGroups` does: the `prelude` group,
- * then groupOrder, then the rest alphabetically; each group sorted by label.
+ * Groups commands the way `normalizeCommandGroups` does: commands without a
+ * group first (no heading, so they can't read as part of the group above),
+ * then the `prelude` group, then groupOrder, then the rest alphabetically;
+ * each group sorted by label.
  */
 export function catalogue(commands: Readonly<Record<string, Command.Any>>, groupOrder: readonly string[] = []): Group[] {
   if (new Set(groupOrder).size !== groupOrder.length) {
@@ -61,9 +66,11 @@ export function catalogue(commands: Readonly<Record<string, Command.Any>>, group
   validate(entries);
 
   const available = [...new Set(entries.map((entry) => entry.group))];
-  const preferred = [...new Set(["prelude", ...groupOrder])].filter((group) => available.includes(group));
-  const remaining = available.filter((group) => !preferred.includes(group)).sort(compare);
-  return [...preferred, ...remaining].map((title) => ({
+  const ungrouped = available.includes("") ? [""] : [];
+  const named = available.filter((group) => group !== "");
+  const preferred = [...new Set(["prelude", ...groupOrder])].filter((group) => named.includes(group));
+  const remaining = named.filter((group) => !preferred.includes(group)).sort(compare);
+  return [...ungrouped, ...preferred, ...remaining].map((title) => ({
     title,
     entries: entries
       .filter((entry) => entry.group === title)

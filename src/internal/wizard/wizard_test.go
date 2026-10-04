@@ -921,7 +921,7 @@ func TestRenderWizardConfigEmitsOptionsTemplate(t *testing.T) {
 		"# maxWidth = 80;",
 		"prompt = {",
 		"docs.pages = [ ];",
-		`# sort.groups = [ "develop" "database" "ops" ];`,
+		`# sort.groups = [ "database" "ops" ];`,
 		"packages = [ config.packages.prelude-shell ];",
 	} {
 		if !strings.Contains(got, fragment) {

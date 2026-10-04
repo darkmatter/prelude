@@ -21,25 +21,33 @@ describe("catalogue identity", () => {
         lint: shell("eslint .", { group: "quality" }),
       }),
     ).toEqual([
-      ["develop", ["build"]],
+      ["", ["build"]],
       ["go", ["test", "vet"]],
       ["quality", ["lint"]],
       ["test", ["e2e:headed", "unit:watch"]],
     ]);
   });
 
-  test("prelude's group comes first, then groupOrder, then the rest alphabetically", () => {
+  test("ungrouped commands come first, then prelude's group, then groupOrder, then the rest alphabetically", () => {
     expect(
       titles(
         {
           "z:one": shell("z1"),
           "a:one": shell("a1"),
           "db:up": shell("up"),
+          deploy: shell("deploy"),
+          "ui/build": shell("vite build", { group: "" }),
           docs: Command.make({ group: "prelude", run: () => {} }),
         },
         ["db"],
-      ).map(([title]) => title),
-    ).toEqual(["prelude", "db", "a", "z"]);
+      ),
+    ).toEqual([
+      ["", ["build", "deploy"]],
+      ["prelude", ["docs"]],
+      ["db", ["up"]],
+      ["a", ["one"]],
+      ["z", ["one"]],
+    ]);
   });
 
   test("rejects keys and shortcuts the dispatcher cannot resolve", () => {

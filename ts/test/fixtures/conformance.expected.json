@@ -7,47 +7,6 @@
         {
           "tasks": [
             {
-              "args": [],
-              "command": "x db:migrate",
-              "description": "apply migrations",
-              "details": "",
-              "examples": [],
-              "key": "",
-              "label": "migrate",
-              "name": "db:migrate",
-              "run": "drizzle-kit migrate",
-              "usage": ""
-            },
-            {
-              "args": [],
-              "command": "x db/reset",
-              "description": "drop and reseed",
-              "details": "",
-              "examples": [],
-              "key": "",
-              "label": "reset",
-              "name": "db/reset",
-              "run": "bun run reset",
-              "usage": ""
-            },
-            {
-              "args": [],
-              "command": "x db:seed",
-              "description": "load sample rows",
-              "details": "",
-              "examples": [],
-              "key": "",
-              "label": "seed",
-              "name": "db:seed",
-              "run": "bun run seed",
-              "usage": ""
-            }
-          ],
-          "title": "db"
-        },
-        {
-          "tasks": [
-            {
               "args": [
                 {
                   "boolean": false,
@@ -118,7 +77,48 @@
               "usage": ""
             }
           ],
-          "title": "develop"
+          "title": ""
+        },
+        {
+          "tasks": [
+            {
+              "args": [],
+              "command": "x db:migrate",
+              "description": "apply migrations",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "migrate",
+              "name": "db:migrate",
+              "run": "drizzle-kit migrate",
+              "usage": ""
+            },
+            {
+              "args": [],
+              "command": "x db/reset",
+              "description": "drop and reseed",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "reset",
+              "name": "db/reset",
+              "run": "bun run reset",
+              "usage": ""
+            },
+            {
+              "args": [],
+              "command": "x db:seed",
+              "description": "load sample rows",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "seed",
+              "name": "db:seed",
+              "run": "bun run seed",
+              "usage": ""
+            }
+          ],
+          "title": "db"
         },
         {
           "tasks": [
@@ -235,7 +235,7 @@
               "usage": ""
             }
           ],
-          "title": "develop"
+          "title": ""
         }
       ],
       "height": 16,

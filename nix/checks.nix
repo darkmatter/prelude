@@ -1105,8 +1105,9 @@ in {
       touch "$out"
     '';
 
-  # Complete command keys stay public while the first colon derives group/label
-  # presentation. Prelude stays first and configured groups follow in order.
+  # Complete command keys stay public while the first `:` or `/` derives
+  # group/label presentation. Commands without a group list first, without a
+  # heading; Prelude's own group follows, then configured groups in order.
   command-ordering = let
     plib = import ../src/prelude/lib.nix {inherit lib;};
     evaluated = lib.evalModules {
@@ -1115,7 +1116,6 @@ in {
         {
           prelude.sort.groups = [
             "docs"
-            "develop"
             "demos"
           ];
           prelude.commands = {
@@ -1149,6 +1149,16 @@ in {
       normalized;
     expected = [
       {
+        title = "";
+        commands = [
+          {
+            name = "dev";
+            label = "dev";
+            run = "dev";
+          }
+        ];
+      }
+      {
         title = "prelude";
         commands = [
           {
@@ -1174,16 +1184,6 @@ in {
         ];
       }
       {
-        title = "develop";
-        commands = [
-          {
-            name = "dev";
-            label = "dev";
-            run = "dev";
-          }
-        ];
-      }
-      {
         title = "demos";
         commands = [
           {
@@ -1194,7 +1194,7 @@ in {
         ];
       }
     ];
-    docsGroup = builtins.elemAt normalized 1;
+    docsGroup = builtins.elemAt normalized 2;
   in
     assert !(evaluated.options ? sort);
     assert evaluated.options.prelude.sort ? groups;
