@@ -153,6 +153,48 @@ in {
     '';
   consumer-template = evalConsumerShell ../templates/default/flake.nix;
   consumer-reference = evalConsumerShell ../examples/reference/flake.nix;
+  consumer-without-flake-parts = evalConsumerShell ../examples/without-flake-parts/flake.nix;
+  # lib.evalModule and flakeModules.default build through one packages.nix, so
+  # the same configuration must give the same derivations either way.
+  eval-module-matches-flake-module = let
+    system = pkgs.stdenv.hostPlatform.system;
+    configuration = {
+      prelude = {
+        project = "eval-module";
+        motd.enable = true;
+        menu.enable = true;
+        prompt.enable = true;
+        commands."go:test" = {
+          description = "run the Go tests";
+          exec = "go test ./...";
+        };
+        docs.pages = [{text = ../docs/commands.md;}];
+      };
+    };
+    viaFunction = (preludeLib.evalModule pkgs configuration).packages;
+    viaModule =
+      (flakePartsLib.evalFlakeModule {inputs.self.outPath = toString ../.;} {
+        systems = [system];
+        imports = [
+          localFlake.flakeModules.default
+          configuration
+        ];
+        perSystem = {...}: {
+          _module.args.pkgs = pkgs;
+        };
+      }).config.allSystems.${
+        system
+      }.packages;
+    drvPaths = lib.mapAttrs (_: package: package.drvPath);
+  in
+    assert lib.assertMsg (drvPaths viaFunction == drvPaths viaModule) ''
+      lib.evalModule and flakeModules.default disagree:
+        evalModule: ${builtins.toJSON (builtins.attrNames viaFunction)}
+        module:     ${builtins.toJSON (builtins.attrNames viaModule)}
+    '';
+      pkgs.runCommand "eval-module-matches-flake-module" {} ''
+        touch "$out"
+      '';
   # Configuration reaches the Go binaries only through a run-time --config. A
   # config path linked in with -ldflags -X would turn every option edit into a
   # Go compile that nix-direnv waits on before the shell loads. Evaluation
