@@ -30,5 +30,10 @@
         packages = [shell.packages.prelude-shell];
       };
     });
+
+    # `prelude-docs` here lets `nix run github:darkmatter/prelude#docs` (and
+    # `nix run .#prelude-docs`) open these docs with this configuration.
+    # legacyPackages keeps them out of `nix flake check`.
+    legacyPackages = forAllSystems (pkgs: (prelude.lib.evalModule pkgs ./prelude.nix).packages);
   };
 }

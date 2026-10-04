@@ -72,6 +72,33 @@ inputs.prelude.lib.evalModule pkgs {
 
 `examples/without-flake-parts/` is a complete plain flake.
 
+## Reading docs without the devshell
+
+`nix run github:darkmatter/prelude#docs` shows the docs of the repository you
+run it in (its git root, or the current directory). When that flake has a
+`prelude-docs` package or legacy package, it runs that one, so the project's
+theme, pages and hero apply. Any other repository gets Prelude's defaults over
+its `README.md` (split at `##` headings) and `docs/**/*.md`, built through
+`lib.evalModule` like a configured project. The same package also serves
+remote readers: `nix run github:org/repo#prelude-docs`.
+
+flakeModules.default exposes `packages.prelude-docs` whenever
+`prelude.docs.pages` is non-empty; nothing else is needed. Without flake-parts,
+expose the packages `evalModule` returns. `legacyPackages` keeps them out of
+`nix flake check`:
+
+```nix
+legacyPackages = forAllSystems (pkgs: (prelude.lib.evalModule pkgs ./prelude.nix).packages);
+```
+
+In blueprint, a package file does it, `packages/prelude-docs.nix` beside
+`prelude.nix` (`nix/packages/` with `prefix = "nix/"`):
+
+```nix
+{ pkgs, inputs, ... }:
+(inputs.prelude.lib.evalModule pkgs ../prelude.nix).packages.prelude-docs
+```
+
 ## Copy the reference example
 
 `examples/reference/` is a complete consumer flake:
