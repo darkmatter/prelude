@@ -1,6 +1,11 @@
 # The flake's `lib` output: small command adapters plus curried builders for
 # non-flake-parts users.
 #
+#   prelude.lib.evalModule pkgs ./prelude.nix
+#
+# evaluates a Prelude configuration without flake-parts and answers its
+# `packages` (see src/prelude/eval.nix). The builders below are lower level:
+#
 #   prelude.lib.mkMotd
 #     {
 #       inherit (pkgs) lib writeText writeShellApplication;
@@ -12,6 +17,7 @@
 {lib}: let
   internal = import ../src/prelude/lib.nix {inherit lib;};
 in {
+  evalModule = import ../src/prelude/eval.nix;
   fromPkg = import ../src/prelude/from-pkg.nix {inherit lib;};
   mkCommand = import ../src/prelude/task.nix {inherit lib;};
   mkMotd = import ../src/prelude/motd.nix;

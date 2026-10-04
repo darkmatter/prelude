@@ -6,7 +6,7 @@ argument-hint: <your task, in any repo that uses Prelude>
 
 # Prelude
 
-Prelude is a [flake-parts module](https://github.com/darkmatter/prelude) that makes a Nix devshell usable: a welcome banner (MOTD), an interactive command picker and non-interactive dispatcher (`x`), a full-screen Markdown docs viewer, and a themed prompt. Configuration is authored in Nix as `prelude.*` options (validated at build time); small Go binaries consume normalized JSON. The only command a developer must remember is `nix develop`.
+Prelude is a [devshell UI suite](https://github.com/darkmatter/prelude) — a flake-parts module, or `prelude.lib.evalModule pkgs ./prelude.nix` in any other flake — that makes a Nix devshell usable: a welcome banner (MOTD), an interactive command picker and non-interactive dispatcher (`x`), a full-screen Markdown docs viewer, and a themed prompt. Configuration is authored in Nix as `prelude.*` options (validated at build time); small Go binaries consume normalized JSON. The only command a developer must remember is `nix develop`.
 
 The argument to this skill is the user's task description — interpret it; do not execute or shell-interpolate it. Answer the task itself first, using the sections below only where they intersect.
 

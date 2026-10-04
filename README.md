@@ -4,7 +4,7 @@
   <br />
 </div>
 
-A flake-parts module that greets `nix develop` with a MOTD, command picker, docs viewer, and themed prompt.
+Greets `nix develop` with a MOTD, command picker, docs viewer, and themed prompt. Use it as a flake-parts module or, in any other flake (blueprint, a plain `outputs` function), through `prelude.lib.evalModule`.
 
 Prelude keeps docs next to where you run the project. `docs` explains this repo; `nix run github:org/repo#prelude -- docs` explains any prelude-enabled dependency. The only command to remember is `nix develop`.
 
@@ -27,14 +27,7 @@ nix run github:darkmatter/prelude -- wizard -o nix/prelude.nix
 
 ![docs/recording.gif](https://github.com/darkmatter/prelude/blob/main/docs/recording.gif?raw=true)
 
-Import the generated sidecar — it never overwrites an existing `flake.nix`:
-
-```nix
-imports = [
-  inputs.prelude.flakeModules.default
-  ./prelude.nix
-];
-```
+The wizard never overwrites an existing `flake.nix`; wire the sidecar in as [Install](#install) shows.
 
 The generated file lists every option as a commented default. Put clone-to-running steps on the MOTD; put the rest in the command catalogue (`x`) and Markdown docs.
 
@@ -87,27 +80,46 @@ await Prelude.make({ project: "acme", commands: { dev: preludeCommand } }).main(
 
 Install with `bun add @drkmttr/prelude`. Walkthrough: [`examples/typescript/`](examples/typescript/). API: [`ts/`](ts/README.md).
 
-## Usage
+## Install
+
+Add the input, then put `prelude-shell` in your devshell. It bundles every enabled component and activates through its setup-hook, so `nix develop` and direnv's `use flake` both show the MOTD. Both ways below read the same `prelude.nix` and build the same packages.
 
 ```nix
-{
-  inputs.prelude.url = "github:darkmatter/prelude";
+inputs.prelude.url = "github:darkmatter/prelude";
+```
 
-  outputs = { prelude, flake-parts, ... }@inputs:
-    flake-parts.lib.mkFlake { inherit inputs; } {
-      imports = [ prelude.flakeModules.default ./prelude.nix ];
-      systems = [ "x86_64-linux" "aarch64-darwin" ];
+**With flake-parts**, import the module and the sidecar:
 
-      perSystem = { pkgs, config, ... }: {
-        devShells.default = pkgs.mkShell {
-          packages = [ config.packages.prelude-shell ];
-        };
+```nix
+outputs = { prelude, flake-parts, ... }@inputs:
+  flake-parts.lib.mkFlake { inherit inputs; } {
+    imports = [ prelude.flakeModules.default ./prelude.nix ];
+    systems = [ "x86_64-linux" "aarch64-darwin" ];
+
+    perSystem = { pkgs, config, ... }: {
+      devShells.default = pkgs.mkShell {
+        packages = [ config.packages.prelude-shell ];
       };
     };
+  };
+```
+
+**Without flake-parts** ([blueprint](https://github.com/numtide/blueprint), a plain `outputs` function), evaluate the sidecar with `prelude.lib.evalModule pkgs`:
+
+```nix
+# blueprint: devshell.nix
+{ pkgs, inputs, ... }:
+let
+  prelude = inputs.prelude.lib.evalModule pkgs ./prelude.nix;
+in
+pkgs.mkShell {
+  packages = [ prelude.packages.prelude-shell ];
 }
 ```
 
-`packages.prelude-shell` bundles every enabled component and activates via its setup-hook. For direnv, the wizard writes a matching `.envrc`.
+The module receives `pkgs`, so package-backed commands go straight into `prelude.commands`; pass anything else it takes (`self`, `inputs`) through `_module.args`. A complete plain flake: [`examples/without-flake-parts/`](examples/without-flake-parts/).
+
+A custom `shellHook` activates with `eval "$(prelude-preflight)"`.
 
 Full consumer walkthrough: [Your own repo](docs/your-own-repo.md). Command keys and grouping: [command conventions](docs/guides/command-conventions.md). Options: [reference](docs/reference/options.md).
 
