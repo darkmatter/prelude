@@ -90,12 +90,13 @@ in {
   (
     builtins.attrNames config.apps
     == [
+      "docs"
       "examples"
       "prelude"
       "previews"
     ]
   )
-  "Prelude's root app surface must contain only prelude plus the repository-only examples and previews apps";
+  "Prelude's root app surface must contain only prelude plus the repository-only docs, examples and previews apps";
   assert lib.assertMsg (
     lib.getExe config.packages.default == lib.getExe config.packages.prelude
   ) "packages.default must run Prelude so `nix run <flake> -- <command>` needs no app alias";
@@ -154,6 +155,25 @@ in {
   consumer-template = evalConsumerShell ../templates/default/flake.nix;
   consumer-reference = evalConsumerShell ../examples/reference/flake.nix;
   consumer-without-flake-parts = evalConsumerShell ../examples/without-flake-parts/flake.nix;
+  # The `docs` app's view of a repository with no Prelude configuration: the
+  # reference example's README and docs/, through Prelude's defaults.
+  docs-app-fallback = let
+    viewer = import ./docs-fallback.nix {
+      root = toString ../examples/reference;
+      prelude = localFlake;
+      inherit pkgs;
+    };
+  in
+    pkgs.runCommand "docs-app-fallback" {} ''
+      export HOME="$TMPDIR"
+      ${lib.getExe viewer} 1 > page.txt
+      grep -q "complete, copyable consumer flake" page.txt
+      ${lib.getExe viewer} 2 > second.txt
+      test -s second.txt
+      touch "$out"
+    '';
+  # The app's script itself: writeShellApplication runs shellcheck on build.
+  docs-app = import ./docs-app.nix {inherit pkgs inputs localFlake;};
   # lib.evalModule and flakeModules.default build through one packages.nix, so
   # the same configuration must give the same derivations either way.
   eval-module-matches-flake-module = let

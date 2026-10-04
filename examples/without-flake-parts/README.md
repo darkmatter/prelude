@@ -34,6 +34,10 @@ prelude.lib.evalModule pkgs {
 }
 ```
 
+The flake also exposes the packages as `legacyPackages`, so
+`nix run github:darkmatter/prelude#docs` run in this repository opens these docs
+with this configuration, and `nix run .#prelude-docs` works too.
+
 From the Prelude repository, evaluate this example against the local checkout:
 
 ```sh
