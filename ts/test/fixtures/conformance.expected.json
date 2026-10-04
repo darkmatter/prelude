@@ -7,6 +7,56 @@
         {
           "tasks": [
             {
+              "args": [],
+              "children": [
+                {
+                  "args": [],
+                  "command": "x db reset",
+                  "description": "drop and reseed",
+                  "details": "",
+                  "examples": [],
+                  "key": "",
+                  "label": "reset",
+                  "name": "db reset",
+                  "run": "bun run reset",
+                  "usage": ""
+                }
+              ],
+              "command": "x db",
+              "description": "1 subcommand",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "db",
+              "name": "db",
+              "run": "",
+              "usage": ""
+            },
+            {
+              "args": [],
+              "command": "x db:migrate",
+              "description": "apply migrations",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "db:migrate",
+              "name": "db:migrate",
+              "run": "drizzle-kit migrate",
+              "usage": ""
+            },
+            {
+              "args": [],
+              "command": "x db:seed",
+              "description": "load sample rows",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "db:seed",
+              "name": "db:seed",
+              "run": "bun run seed",
+              "usage": ""
+            },
+            {
               "args": [
                 {
                   "boolean": false,
@@ -75,50 +125,47 @@
               "name": "test",
               "run": "bun test",
               "usage": ""
+            },
+            {
+              "args": [],
+              "command": "x test:unit:watch",
+              "description": "watch unit tests",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "test:unit:watch",
+              "name": "test:unit:watch",
+              "run": "bun test --watch",
+              "usage": ""
+            },
+            {
+              "args": [],
+              "children": [
+                {
+                  "args": [],
+                  "command": "x ui build:watch",
+                  "description": "rebuild the UI on change",
+                  "details": "",
+                  "examples": [],
+                  "key": "",
+                  "label": "build:watch",
+                  "name": "ui build:watch",
+                  "run": "vite build --watch",
+                  "usage": ""
+                }
+              ],
+              "command": "x ui",
+              "description": "1 subcommand",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "ui",
+              "name": "ui",
+              "run": "",
+              "usage": ""
             }
           ],
           "title": ""
-        },
-        {
-          "tasks": [
-            {
-              "args": [],
-              "command": "x db:migrate",
-              "description": "apply migrations",
-              "details": "",
-              "examples": [],
-              "key": "",
-              "label": "migrate",
-              "name": "db:migrate",
-              "run": "drizzle-kit migrate",
-              "usage": ""
-            },
-            {
-              "args": [],
-              "command": "x db/reset",
-              "description": "drop and reseed",
-              "details": "",
-              "examples": [],
-              "key": "",
-              "label": "reset",
-              "name": "db/reset",
-              "run": "bun run reset",
-              "usage": ""
-            },
-            {
-              "args": [],
-              "command": "x db:seed",
-              "description": "load sample rows",
-              "details": "",
-              "examples": [],
-              "key": "",
-              "label": "seed",
-              "name": "db:seed",
-              "run": "bun run seed",
-              "usage": ""
-            }
-          ],
-          "title": "db"
         },
         {
           "tasks": [
@@ -136,40 +183,6 @@
             }
           ],
           "title": "quality"
-        },
-        {
-          "tasks": [
-            {
-              "args": [],
-              "command": "x test:unit:watch",
-              "description": "watch unit tests",
-              "details": "",
-              "examples": [],
-              "key": "",
-              "label": "unit:watch",
-              "name": "test:unit:watch",
-              "run": "bun test --watch",
-              "usage": ""
-            }
-          ],
-          "title": "test"
-        },
-        {
-          "tasks": [
-            {
-              "args": [],
-              "command": "x ui/build:watch",
-              "description": "rebuild the UI on change",
-              "details": "",
-              "examples": [],
-              "key": "",
-              "label": "build:watch",
-              "name": "ui/build:watch",
-              "run": "vite build --watch",
-              "usage": ""
-            }
-          ],
-          "title": "ui"
         }
       ],
       "height": 9,
@@ -246,6 +259,257 @@
       },
       "maxWidth": 80,
       "motdCommands": [],
+      "palette": {
+        "accent": "#f2cdcd",
+        "accent2": "#CC99FF",
+        "accentBorder": "#3e4441",
+        "bg": "#0c0c13",
+        "border": "#1d1d2f",
+        "dim": "#4a5085",
+        "error": "#ee848e",
+        "fg": "#979db5",
+        "info": "#89b4fa",
+        "muted": "#6a6c85",
+        "secondary": "#24243f",
+        "selectionFg": "#0c0c13",
+        "success": "#b7ce99",
+        "surface": "#161623",
+        "warning": "#f2c17d"
+      },
+      "placeholder": "type to filter commands…",
+      "project": "fixture",
+      "scripts": {
+        "enable": false,
+        "group": "scripts",
+        "packageJson": null
+      }
+    },
+    "subcommands": {
+      "colorProfile": "truecolor",
+      "execute": true,
+      "groups": [
+        {
+          "tasks": [
+            {
+              "args": [],
+              "children": [
+                {
+                  "args": [],
+                  "command": "cache stats",
+                  "description": "",
+                  "details": "",
+                  "examples": [],
+                  "key": "",
+                  "label": "stats",
+                  "name": "cache stats",
+                  "run": "du -sh /nix/store",
+                  "usage": ""
+                }
+              ],
+              "command": "cache",
+              "description": "collect garbage",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "cache",
+              "name": "cache",
+              "run": "nix-store --gc",
+              "usage": ""
+            },
+            {
+              "args": [],
+              "children": [
+                {
+                  "args": [],
+                  "children": [
+                    {
+                      "args": [],
+                      "command": "x ops deploy api",
+                      "description": "",
+                      "details": "",
+                      "examples": [],
+                      "key": "a",
+                      "label": "api",
+                      "name": "ops deploy api",
+                      "run": "fly deploy",
+                      "usage": ""
+                    },
+                    {
+                      "args": [],
+                      "command": "x ops deploy web",
+                      "description": "",
+                      "details": "",
+                      "examples": [],
+                      "key": "",
+                      "label": "web",
+                      "name": "ops deploy web",
+                      "run": "vercel deploy",
+                      "usage": ""
+                    }
+                  ],
+                  "command": "x ops deploy",
+                  "description": "2 subcommands",
+                  "details": "",
+                  "examples": [],
+                  "key": "",
+                  "label": "deploy",
+                  "name": "ops deploy",
+                  "run": "",
+                  "usage": ""
+                }
+              ],
+              "command": "x ops",
+              "description": "1 subcommand",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "ops",
+              "name": "ops",
+              "run": "",
+              "usage": ""
+            }
+          ],
+          "title": ""
+        },
+        {
+          "tasks": [
+            {
+              "args": [],
+              "children": [
+                {
+                  "args": [],
+                  "command": "db migrate",
+                  "description": "apply migrations",
+                  "details": "",
+                  "examples": [],
+                  "key": "",
+                  "label": "migrate",
+                  "name": "db migrate",
+                  "run": "drizzle-kit migrate",
+                  "usage": ""
+                },
+                {
+                  "args": [],
+                  "children": [
+                    {
+                      "args": [],
+                      "command": "db seed users",
+                      "description": "",
+                      "details": "",
+                      "examples": [],
+                      "key": "",
+                      "label": "users",
+                      "name": "db seed users",
+                      "run": "bun run seed users",
+                      "usage": ""
+                    }
+                  ],
+                  "command": "db seed",
+                  "description": "load sample rows",
+                  "details": "",
+                  "examples": [],
+                  "key": "",
+                  "label": "seed",
+                  "name": "db seed",
+                  "run": "bun run seed",
+                  "usage": ""
+                }
+              ],
+              "command": "db",
+              "description": "database tasks",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "db",
+              "name": "db",
+              "run": "",
+              "usage": ""
+            },
+            {
+              "args": [],
+              "children": [
+                {
+                  "args": [],
+                  "command": "tools fmt",
+                  "description": "",
+                  "details": "",
+                  "examples": [],
+                  "key": "",
+                  "label": "fmt",
+                  "name": "tools fmt",
+                  "run": "nix fmt",
+                  "usage": ""
+                }
+              ],
+              "command": "tools",
+              "description": "1 subcommand",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "tools",
+              "name": "tools",
+              "run": "",
+              "usage": ""
+            }
+          ],
+          "title": "data"
+        },
+        {
+          "tasks": [
+            {
+              "args": [],
+              "children": [
+                {
+                  "args": [],
+                  "command": "x go:test race",
+                  "description": "",
+                  "details": "",
+                  "examples": [],
+                  "key": "",
+                  "label": "race",
+                  "name": "go:test race",
+                  "run": "go test -race ./...",
+                  "usage": ""
+                }
+              ],
+              "command": "x go:test",
+              "description": "",
+              "details": "",
+              "examples": [],
+              "key": "",
+              "label": "go:test",
+              "name": "go:test",
+              "run": "go test ./...",
+              "usage": ""
+            }
+          ],
+          "title": "go"
+        }
+      ],
+      "height": 16,
+      "just": {
+        "enable": false,
+        "group": "just",
+        "justfile": null
+      },
+      "maxWidth": 80,
+      "motdCommands": [
+        {
+          "command": "db seed users",
+          "description": "",
+          "name": "db seed users"
+        },
+        {
+          "command": "db migrate",
+          "description": "apply migrations",
+          "name": "db migrate"
+        },
+        {
+          "command": "tools",
+          "description": "1 subcommand",
+          "name": "tools"
+        }
+      ],
       "palette": {
         "accent": "#f2cdcd",
         "accent2": "#CC99FF",
@@ -540,6 +804,99 @@
       "titleAlign": "left",
       "verticalAlign": "top",
       "width": 100
+    },
+    "subcommands": {
+      "align": "center",
+      "background": "",
+      "backgroundBlend": 0,
+      "backgroundBlendSet": false,
+      "backgroundRelative": 0,
+      "border": false,
+      "clearScreen": true,
+      "colorProfile": "truecolor",
+      "commands": [
+        {
+          "command": "tools",
+          "description": "1 subcommand"
+        },
+        {
+          "command": "db migrate",
+          "description": "apply migrations"
+        },
+        {
+          "command": "x go test",
+          "description": ""
+        }
+      ],
+      "description": {
+        "background": "",
+        "backgroundRelative": 0,
+        "bold": false,
+        "faint": false,
+        "foreground": "#979db5",
+        "italic": false,
+        "text": "",
+        "tips": []
+      },
+      "env": [],
+      "gettingStarted": {
+        "commandsLabel": "commands",
+        "examplesLabel": "examples",
+        "heading": "Getting Started"
+      },
+      "header": {
+        "background": "",
+        "backgroundRaised": false,
+        "backgroundRelative": 0,
+        "status": [],
+        "statusHintLayout": "inline",
+        "statusHintLinks": [],
+        "subtitle": null,
+        "tagline": "",
+        "taglineAlign": "left",
+        "taglineLayout": "stack",
+        "titleStyle": "spine"
+      },
+      "links": [],
+      "margin": {
+        "bottom": 2,
+        "left": 4,
+        "minHeight": 40,
+        "right": 4,
+        "top": 2
+      },
+      "maxWidth": 80,
+      "padding": {
+        "bottom": 4,
+        "left": 6,
+        "minHeight": 0,
+        "right": 6,
+        "top": 4
+      },
+      "palette": {
+        "accent": "#f2cdcd",
+        "accent2": "#CC99FF",
+        "accentBorder": "#3e4441",
+        "bg": "#0c0c13",
+        "border": "#1d1d2f",
+        "dim": "#4a5085",
+        "error": "#ee848e",
+        "fg": "#979db5",
+        "info": "#89b4fa",
+        "muted": "#6a6c85",
+        "secondary": "#24243f",
+        "selectionFg": "#0c0c13",
+        "success": "#b7ce99",
+        "surface": "#161623",
+        "warning": "#f2c17d"
+      },
+      "project": "fixture",
+      "recipes": [],
+      "shortcuts": [],
+      "title": "",
+      "titleAlign": "center",
+      "verticalAlign": "center",
+      "width": 0
     }
   }
 }

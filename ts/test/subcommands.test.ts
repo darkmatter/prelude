@@ -37,8 +37,8 @@ test("parents keep children out of the root menu and dispatch both route forms",
   });
   const roots = menu.config.groups.flatMap((group) => group.tasks);
   expect(roots.map((task) => task.name)).toEqual(["hl"]);
-  expect(roots[0]!.children?.map((task) => [task.name, task.label])).toEqual([["hl/grid", "grid"]]);
-  expect(menu.config.motdCommands[0]?.command).toBe("acme hl/grid");
+  expect(roots[0]!.children?.map((task) => [task.name, task.label])).toEqual([["hl grid", "grid"]]);
+  expect(menu.config.motdCommands[0]?.command).toBe("acme hl grid");
   const config = "a trader's $(echo literal) config.ts";
   expect(await menu.dispatch(["hl", "grid", "--config", config])).toBe(7);
   expect(await menu.dispatch(["hl/grid", "--once"])).toBe(7);
@@ -137,7 +137,8 @@ test.skipIf(!process.env.PRELUDE_LIB && platformLibrary() === undefined)(
       });
 
       const text = menu.list(100);
-      for (const key of Object.keys(scripts)) {
+      // `t/s` is the route `t s` (a `/` nests a script name), so it is hidden too.
+      for (const key of [...Object.keys(scripts), "t/s"]) {
         expect(text).toContain(`${key}: package.json script hidden by declared command tools`);
       }
       expect(text).not.toContain("exit 19");
@@ -146,9 +147,7 @@ test.skipIf(!process.env.PRELUDE_LIB && platformLibrary() === undefined)(
         expect(await menu.dispatch(route)).toBe(7);
       }
       expect(calls).toEqual(routes.map(() => "tools/status"));
-      for (const key of ["s", "t/s"]) {
-        expect(menu.select([key])).toMatchObject({ key, source: "scripts" });
-      }
+      expect(menu.select(["s"])).toMatchObject({ key: "s", source: "scripts" });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

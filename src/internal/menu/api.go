@@ -40,28 +40,24 @@ func ParseConfig(raw []byte) (*Config, error) {
 
 // Select resolves args exactly like `x` and opens the picker only where input
 // is still needed: the root list for no args, argument entry for a task that
-// declares arguments but received none, or a module's subcommand picker. It
-// returns nil when the user leaves the picker without choosing.
+// declares arguments but received none, or a container's subcommand picker.
+// It returns nil when the user leaves the picker without choosing.
 func Select(cfg *Config, args []string) (*Selection, error) {
 	return selectWithStyles(cfg, newStyles(cfg, false), args)
 }
 
 func selectWithStyles(cfg *Config, st styles, args []string) (*Selection, error) {
 	if len(args) == 0 {
-		return runPicker(cfg, newPicker(cfg, st, nil, nil))
+		return runPicker(cfg, newPicker(cfg, st, invocationDecision{}))
 	}
 	decision, err := resolveXInvocation(cfg, args)
 	if err != nil {
 		return nil, err
 	}
-	switch decision.kind {
-	case collectArgumentsInvocation:
-		return runPicker(cfg, newPicker(cfg, st, &decision.task, nil))
-	case collectSubcommandInvocation:
-		return runPicker(cfg, newPicker(cfg, st, nil, &decision.task))
-	default:
+	if decision.kind == commandInvocation {
 		return decision.selection(), nil
 	}
+	return runPicker(cfg, newPicker(cfg, st, decision))
 }
 
 // List writes the non-interactive command table (`x --list`) at width into w;

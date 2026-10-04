@@ -24,8 +24,8 @@ Bootstrap from outside: `nix run github:darkmatter/prelude -- wizard` writes a `
 
 ## Command catalogue rules
 
-- The catalogue key **is** the public identity: globally unique, callable as `x <full-key>`. The first colon only infers the menu group (`go:test` → group `go`, shown as `test`); an explicit `group` field overrides placement without renaming.
-- `x <key>` with the complete catalogue key is the guaranteed public form for every command. Prelude generates one `x` dispatcher, not per-command executables.
+- The catalogue key **is** the public identity: globally unique, callable as `x <words>`. A space or `/` makes a subcommand (`"db migrate"` → `x db migrate`, one `db` row in the menu that opens it); `:` is an ordinary name character (`x go:test`). Groups come only from a command's `group` field (or a just recipe's `[group()]`).
+- `x <words>` is the guaranteed public form for every command. Besides the `x` dispatcher, only declared top-level commands without `:` get thin PATH wrappers around `x` (so `db migrate` runs bare under a declared `db`); a parent that only its subcommands declare stays off PATH.
 - **Import; do not export.** Existing `package.json` scripts, Justfile recipes, and flake apps stay authoritative. `prelude.lib.fromPkg pkgs.foo { … }` adapts an existing package (carrying its runtime closure); `prelude.menu.just.enable = true` imports public Justfile recipes at runtime (explicit Nix entries win name clashes). Imports are one-way — never write catalogue entries back to those files.
 - **Canonical commands stay canonical.** Nix builds the environment; `x` only discovers and dispatches. The owning tool (`bun`, `just`, `go`, `nix run …`) executes the workflow. Do not translate a project's workflows into new prelude commands when they already have an owner.
 

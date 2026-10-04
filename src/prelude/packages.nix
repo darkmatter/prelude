@@ -145,6 +145,10 @@
   portalPkg = mkPortal deps (generatorConfig cfg.portal);
 
   commandEntries = plib.normalizeCommandEntries commands;
+  # The catalogue tree's top-level commands, including parents only their
+  # subcommands declare (`db` for `"db migrate"`), and every node below them.
+  commandNodes = plib.commandNodes commands;
+  allCommandNodes = plib.flattenNodes commandNodes;
   # Resolve only after root and per-system command entries have merged.
   # A local server is a canonical `x` target, so its copyable start hint
   # must reuse the catalogue's shell-escaped dispatcher invocation.
@@ -158,10 +162,10 @@
     in
       assert lib.assertMsg (
         entry != null
-      ) "prelude.prompt.localServer.command must name a canonical prelude.commands key";
+      ) "prelude.prompt.localServer.command must name a prelude.commands command by its words (\"db migrate\")";
         configured // {start = entry.xInvocation;};
   commandNames = map (entry: entry.name) commandEntries;
-  selectedMotdCommands = plib.selectCommands commandEntries;
+  selectedMotdCommands = plib.selectCommands allCommandNodes;
   commandRuntimePackages = lib.unique (
     lib.concatMap (entry: entry.raw.runtimePackages) commandEntries
   );
@@ -173,10 +177,11 @@
   # invocation share one execution contract. Bare `menu` remains a
   # picker-only compatibility wrapper outside the catalogue.
   needsWrapper = entry: builtins.head (lib.splitString " " entry.run) != entry.name;
-  # Grouped entries (`go:test`, `go/test`) are catalogue identity only.
-  # Never turn them into shell executables: the complete key stays public
-  # through x while its first `:` or `/` derives menu presentation.
-  wrappedCommandEntries = lib.filter (entry: !entry.grouped && needsWrapper entry) commandEntries;
+  # Wrappers belong to declared top-level commands, parents included, so a
+  # declared `db` lets `db migrate` run bare. A root containing `:`
+  # (`go:test`) and a parent only its subcommands declare (`go` for
+  # `"go test"`) stay reachable through `x`, so neither shadows a real tool.
+  wrappedCommandEntries = lib.filter (entry: entry.onPath && needsWrapper entry) commandNodes;
   commandWrappers = let
     wrapped = wrappedCommandEntries;
     xBin = lib.getExe' menuBin "x";
@@ -190,7 +195,7 @@
         ]
     )
     wrapped)
-    "prelude: ungrouped commands named \"menu\" or \"x\" cannot receive wrappers because Prelude owns those entrypoints";
+    "prelude: commands named \"menu\" or \"x\" cannot receive wrappers because Prelude owns those entrypoints";
       map (
         entry:
         # writeTextFile rather than writeShellApplication: public command
@@ -476,7 +481,9 @@
       inherit (backdropPalette) shadow;
       projectName = cfg.project;
       navigation = internalShortcuts;
-      commandEntries = commandEntries;
+      # Parents only their subcommands declare are shell commands too, so
+      # completion and the status row see the whole tree.
+      commandEntries = allCommandNodes;
       # `just <TAB>` uses just's own completion when recipes are imported.
       justImport = cfg.menu.just.enable;
       # `x <TAB>` offers the entries the menu imports at runtime, read

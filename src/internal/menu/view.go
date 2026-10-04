@@ -127,9 +127,9 @@ func (m model) invocationPreview() string {
 
 // pendingArgsHint reports whether the last-row preview should append a dim
 // ellipsis. In list mode, a task with Args advertises that Enter collects
-// arguments rather than running the command verbatim, and a task with
-// subcommand children advertises that Enter opens the subcommand picker — the
-// ellipsis is the same affordance the old in-panel ArgsView preview used. In
+// arguments rather than running the command verbatim, and a container
+// advertises that Enter opens the subcommand picker — the ellipsis is the
+// same affordance the old in-panel ArgsView preview used. In
 // arg mode, an empty argument line means the assembled command is still the
 // bare Run string, so the ellipsis marks the pending argument.
 func (m model) pendingArgsHint() bool {
@@ -141,7 +141,7 @@ func (m model) pendingArgsHint() bool {
 			return false
 		}
 		task := m.flat[m.matches[m.sel]]
-		return len(task.Args) > 0 || len(task.Children) > 0
+		return len(task.Args) > 0 || task.isContainer()
 	}
 }
 

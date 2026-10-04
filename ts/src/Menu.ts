@@ -3,8 +3,18 @@ import { basename } from "node:path";
 import * as Args from "./Args.ts";
 import type * as Command from "./Command.ts";
 import * as Palette from "./Palette.ts";
-import { catalogue, children, gettingStarted, type Entry } from "./internal/catalogue.ts";
-import { mount } from "./internal/command-tree.ts";
+import {
+  catalogue,
+  describe,
+  flatten,
+  gettingStarted,
+  invocation,
+  isContainer,
+  isDeclared,
+  type Declared,
+  type Group,
+  type Node,
+} from "./internal/catalogue.ts";
 import { call } from "./internal/ffi.ts";
 import { defaults } from "./internal/generated.ts";
 import { resolveColorProfile } from "./internal/palette.ts";
@@ -15,7 +25,11 @@ export interface Options extends Palette.Options {
   project?: string;
   /** How people run this app from a shell (`acme`). Default: derived from process.argv. */
   dispatcher?: string;
-  /** Commands keyed by their public name; the first `:` or `/` groups them (`db:migrate`, `db/migrate`). */
+  /**
+   * Commands keyed by their public name. A space or `/` makes a subcommand:
+   * `db migrate` (or `db/migrate`) is `migrate` under `db`, run as
+   * `<dispatcher> db migrate`. Groups come only from each command's `group`.
+   */
   commands: Readonly<Record<string, Command.Any>>;
   /** Preferred group order; unlisted groups follow alphabetically. */
   groupOrder?: readonly string[];
@@ -49,6 +63,7 @@ export interface Task {
   details: string;
   examples: string[];
   args: TaskArg[];
+  /** Subcommands, present only on a task that has some. */
   children?: Task[];
 }
 
@@ -73,7 +88,10 @@ export type Source = "declared" | "just" | "scripts";
 
 /** What the picker resolved. */
 export interface Selection {
-  /** The chosen command's key. */
+  /**
+   * The chosen command's name. A declared command's is its key's words
+   * joined by spaces (`db migrate` for `db/migrate`).
+   */
   readonly key: string;
   /** Argument text entered for it; "" when none. */
   readonly line: string;
@@ -111,8 +129,7 @@ export interface Menu {
 }
 
 /** Builds the menu config the way src/prelude/menu.nix does, from TypeScript commands. */
-function buildConfig(options: Options, dispatcher: string): Config {
-  const groups = catalogue(options.commands, options.groupOrder);
+function buildConfig(options: Options, dispatcher: string, groups: readonly Group[]): Config {
   const just = {
     enable: options.just?.enable ?? defaults.menu.just.enable,
     justfile: options.just?.justfile ?? defaults.menu.just.justfile,
@@ -140,11 +157,11 @@ function buildConfig(options: Options, dispatcher: string): Config {
     execute: true,
     colorProfile: resolveColorProfile(options.colorProfile),
     palette: Palette.resolve(options.theme, options.palette),
-    groups: groups.map((group) => ({ title: group.title, tasks: group.entries.map((entry) => task(entry, dispatcher)) })),
-    motdCommands: gettingStarted(groups).map((entry) => ({
-      name: entry.key,
-      command: `${dispatcher} ${entry.key}`,
-      description: entry.command.description ?? "",
+    groups: groups.map((group) => ({ title: group.title, tasks: group.nodes.map((node) => task(node, dispatcher)) })),
+    motdCommands: gettingStarted(groups).map((node) => ({
+      name: node.name,
+      command: invocation(node, dispatcher),
+      description: describe(node),
     })),
     just,
     scripts,
@@ -152,24 +169,39 @@ function buildConfig(options: Options, dispatcher: string): Config {
   };
 }
 
-function task(entry: Entry, dispatcher: string): Task {
-  const { key, label, command } = entry;
-  const invocation = `${dispatcher} ${key}`;
+function task(node: Node, dispatcher: string): Task {
+  const { command, children } = node;
+  const dispatched = invocation(node, dispatcher);
   return {
-    name: key,
-    label,
-    // A function command has no shell text; its preview shows how to run it
-    // from a shell instead.
-    run: command.exec ?? invocation,
-    command: invocation,
-    description: command.description ?? "",
-    key: command.shortcut ?? "",
-    usage: command.usage ?? "",
-    details: command.details ?? "",
-    examples: [...(command.examples ?? [])],
-    args: command.args.map(taskArg),
-    ...(command.children === undefined ? {} : { children: children(entry).map((child) => task(child, dispatcher)) }),
+    name: node.name,
+    label: node.label,
+    // A container only opens its subcommands. A function command has no
+    // shell text; its preview shows how to run it from a shell instead.
+    run: isContainer(node) ? "" : (command?.exec ?? dispatched),
+    command: dispatched,
+    description: describe(node),
+    key: command?.shortcut ?? "",
+    usage: command?.usage ?? "",
+    details: command?.details ?? "",
+    examples: [...(command?.examples ?? [])],
+    args: (command?.args ?? []).map(taskArg),
+    ...(children.length > 0 ? { children: children.map((child) => task(child, dispatcher)) } : {}),
   };
+}
+
+type Resolved = { node: Node; words: readonly string[] };
+
+/**
+ * The subcommand words lead to below node, one word per level, and the words
+ * left over. A word names a subcommand by its label, or by its shortcut,
+ * which applies among its siblings.
+ */
+function descend(node: Node, words: readonly string[]): Resolved {
+  const [word] = words;
+  const child =
+    node.children.find((candidate) => candidate.label === word) ??
+    node.children.find((candidate) => word !== undefined && candidate.command?.shortcut === word);
+  return child === undefined ? { node, words } : descend(child, words.slice(1));
 }
 
 function taskArg(spec: Args.Spec): TaskArg {
@@ -186,11 +218,20 @@ function taskArg(spec: Args.Spec): TaskArg {
 /** A command menu over TypeScript commands, drawn by prelude's Go menu. */
 export function make(options: Options): Menu {
   const dispatcher = options.dispatcher ?? defaultDispatcher();
-  const config = buildConfig(options, dispatcher);
-  const { mounted, resolve } = mount(options.commands);
+  const groups = catalogue(options.commands, options.groupOrder);
+  const config = buildConfig(options, dispatcher, groups);
   const { palette } = config;
+  const roots = groups.flatMap((group) => group.nodes);
+  const declared = new Map(flatten(roots).filter(isDeclared).map((node) => [node.name, node]));
+  const byKey = new Map([...declared.values()].map((node) => [node.key, node]));
+  // A one-word route (`db/migrate`) names a node by its full path.
+  const routes = new Map(flatten(roots).map((node) => [node.path.join("/"), node]));
 
   const select = (args: readonly string[] = []): Selection | null => {
+    // Go resolves names; shortcuts below the top level and one-word routes
+    // are resolved here first, into the words they stand for.
+    const found = resolve(args);
+    const words = found === undefined ? args : [...found.node.path, ...found.words];
     const chosen = call<{
       name: string;
       line: string;
@@ -198,10 +239,12 @@ export function make(options: Options): Menu {
       source: Source;
       dir?: string;
       pathPrefix?: string[];
-    } | null>("prelude_menu_select", { config, args: resolve(args).native });
+    } | null>("prelude_menu_select", { config, args: words });
+    // A declared selection reports the key its command is mounted under.
+    const key = chosen?.source === "declared" ? (declared.get(chosen.name)?.key ?? chosen.name) : chosen?.name;
     return (
       chosen && {
-        key: chosen.name,
+        key: key!,
         line: chosen.line,
         shell: chosen.command,
         source: chosen.source,
@@ -213,7 +256,19 @@ export function make(options: Options): Menu {
 
   const list = (width = process.stdout.columns ?? 80): string => call<string>("prelude_menu_list", { config, width });
 
-  const invoke = (key: string, command: Command.Any, argv: readonly string[]) => {
+  // Words resolved like `x`: a top-level command by name, else by shortcut,
+  // then one subcommand per word while the next word names one. The words
+  // left over are the command's arguments.
+  const resolve = (argv: readonly string[]): Resolved | undefined => {
+    const [first, ...words] = argv;
+    if (first === undefined) return undefined;
+    const route = routes.get(first);
+    if (route !== undefined && first.includes("/")) return { node: route, words };
+    const root = roots.find((node) => node.name === first) ?? roots.find((node) => node.command?.shortcut === first);
+    return root && descend(root, words);
+  };
+
+  const invoke = ({ key, command }: Declared, argv: readonly string[]) => {
     // Parse before anything runs so a typo never half-starts a command. The
     // values match the command's own declarations, which Command.Any erases.
     const args = Args.parse(command.args, argv) as never;
@@ -225,16 +280,18 @@ export function make(options: Options): Menu {
   // Only a declared selection can name one of this app's functions; an
   // import that shares a key still runs its own shell text.
   const prepareSelection = (selection: Selection): (() => Promise<number>) => {
-    const command = selection.source === "declared" ? mounted.get(selection.key) : undefined;
-    if (command?.children !== undefined) throw new Args.ParseError(`select a subcommand of ${selection.key}`);
-    if (command?.run === undefined) {
+    const node =
+      selection.source === "declared"
+        ? (byKey.get(selection.key) ?? declared.get(selection.key))
+        : undefined;
+    if (node?.command.run === undefined) {
       return () => {
         announce(palette, selection.shell);
         return runShell(selection.shell, selection);
       };
     }
     const line = selection.line === "" ? "" : ` ${selection.line}`;
-    const run = invoke(selection.key, command, Args.split(selection.line));
+    const run = invoke(node, Args.split(selection.line));
     return () => {
       announce(palette, `${dispatcher} ${selection.key}${line}`);
       return run();
@@ -242,12 +299,20 @@ export function make(options: Options): Menu {
   };
 
   const prepare = (argv: readonly string[]): (() => Promise<number>) => {
-    const { key, command, words } = resolve(argv);
+    const found = resolve(argv);
+    // A word left over below a container names no subcommand of it.
+    if (found !== undefined && isContainer(found.node) && found.words.length > 0) {
+      throw new Args.ParseError(`unknown subcommand "${found.words[0]}" of ${found.node.name}`);
+    }
     // Function commands parse their own words, so quoting survives intact and
     // `--` ends option parsing; with none given, argument entry in the picker
-    // collects them.
-    if (key !== undefined && command?.run !== undefined && (words.length > 0 || command.args.length === 0)) {
-      return invoke(key, command, words);
+    // collects them. Everything else, a container's subcommand picker
+    // included, Go resolves.
+    if (found !== undefined && isDeclared(found.node)) {
+      const { node, words } = found;
+      if (node.command.run !== undefined && (words.length > 0 || node.command.args.length === 0)) {
+        return invoke(node, words);
+      }
     }
     const selection = select(argv);
     return selection === null ? async () => 0 : prepareSelection(selection);

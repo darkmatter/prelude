@@ -27,6 +27,15 @@ func (m *model) filter() {
 		for _, rank := range list.UnsortedFilter(q, targets) {
 			m.matches = append(m.matches, rank.Index)
 		}
+		// The order stays the catalogue's, so a command typed out in full is
+		// selected wherever it lists: `docs` then Enter runs docs, not a
+		// `record-docs` listed above it.
+		for i, index := range m.matches {
+			if t := m.flat[index]; strings.EqualFold(t.displayName(), q) || strings.EqualFold(t.Name, q) {
+				m.sel = i
+				break
+			}
+		}
 	}
 	if m.sel >= len(m.matches) {
 		m.sel = max(0, len(m.matches)-1)
@@ -44,19 +53,41 @@ func (m *model) enterArgMode(t Task) {
 func (m *model) exitArgMode() {
 	m.mode = modeList
 	m.args = m.args.ExitArg()
-	m.promptCtx = "~/" + m.cfg.Project
+	m.promptCtx = m.listPromptCtx()
 	m.promptPlaceholder = m.cfg.Placeholder
 	m.prompt = m.prompt.Reset().WithSize(m.layout.inner, m.promptCtx)
 	m.filter()
 	m.syncList()
 }
 
-// enterSubMode swaps the list to one parent task's subcommands. The root list
-// state is snapshotted so esc returns to the same filtered position.
+// sub returns the parent whose subcommands the list shows, nil at the root.
+func (m model) sub() *Task {
+	if len(m.pickers) == 0 {
+		return nil
+	}
+	return &m.pickers[len(m.pickers)-1].parent
+}
+
+// listPromptCtx is the prompt context of the list on screen: the open
+// picker's parent, else the project.
+func (m model) listPromptCtx() string {
+	if sub := m.sub(); sub != nil {
+		return sub.displayName()
+	}
+	return "~/" + m.cfg.Project
+}
+
+// enterSubMode swaps the list to one parent task's subcommands, pushing a
+// frame that snapshots the current list so leaving returns to the same
+// filtered position. Pickers nest: a child with its own children opens
+// another frame on top.
 func (m *model) enterSubMode(task Task) {
 	matches := make([]int, len(m.matches))
 	copy(matches, m.matches)
-	m.saved = &listFrame{
+	// The full slice expression copies on push, so an earlier model value
+	// never sees a frame pushed after it.
+	m.pickers = append(m.pickers[:len(m.pickers):len(m.pickers)], listFrame{
+		parent:            task,
 		flat:              m.flat,
 		matches:           matches,
 		sel:               m.sel,
@@ -64,9 +95,10 @@ func (m *model) enterSubMode(task Task) {
 		promptValue:       m.prompt.Value(),
 		promptCtx:         m.promptCtx,
 		promptPlaceholder: m.promptPlaceholder,
-	}
-	m.sub = &task
-	m.flat = task.Children
+	})
+	// A task can arrive straight from the Config (`x <parent>`), so its
+	// children may not carry filter haystacks yet.
+	m.flat = searchable(task.Children)
 	m.matches = nil
 	m.sel = 0
 	m.expanded = false
@@ -77,14 +109,13 @@ func (m *model) enterSubMode(task Task) {
 	m.syncList()
 }
 
-// exitSubMode restores the snapshotted root list and drops the submenu state.
+// exitSubMode closes the innermost picker and restores the list it replaced.
 func (m *model) exitSubMode() {
-	if m.saved == nil {
+	if len(m.pickers) == 0 {
 		return
 	}
-	saved := *m.saved
-	m.saved = nil
-	m.sub = nil
+	saved := m.pickers[len(m.pickers)-1]
+	m.pickers = m.pickers[:len(m.pickers)-1]
 	m.flat = saved.flat
 	m.matches = saved.matches
 	m.sel = saved.sel
@@ -93,6 +124,17 @@ func (m *model) exitSubMode() {
 	m.promptPlaceholder = saved.promptPlaceholder
 	m.prompt = m.prompt.Reset().WithValue(saved.promptValue).WithCursorEnd().WithSize(m.layout.inner, m.promptCtx)
 	m.syncList()
+}
+
+// focus selects the listed task named name, when the filter shows it.
+func (m *model) focus(name string) {
+	for position, index := range m.matches {
+		if m.flat[index].Name == name {
+			m.sel = position
+			m.syncList()
+			return
+		}
+	}
 }
 
 func (m *model) appendChip(c chip) {

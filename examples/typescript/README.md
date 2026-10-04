@@ -20,14 +20,15 @@ Inside `nix develop`, which sets `PRELUDE_LIB` to the Go library:
 ```sh
 ./examples/typescript/main.ts                      # pick a command
 ./examples/typescript/main.ts dev --port 8080      # run one directly
-./examples/typescript/main.ts db/migrate --dry-run
+./examples/typescript/main.ts db migrate --dry-run
 ./examples/typescript/main.ts motd                 # built in: the banner
 ./examples/typescript/main.ts docs                 # built in: the docs viewer
 ./examples/typescript/main.ts --list
 ```
 
-The `/` in `db/migrate` puts `migrate` under a `db` group in the menu; the
-whole key is still the name you type. The `build` and `clean` scripts in
+The `/` in `db/migrate` makes `migrate` a subcommand of `db`: you type
+`db migrate`, and the menu shows one `db` row that opens `migrate` and `seed`.
+The `build` and `clean` scripts in
 `package.json` show up under `scripts`. Each runs exactly as written, from
 this folder, wherever you start the app.
 

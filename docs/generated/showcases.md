@@ -59,15 +59,15 @@ prelude = {
       exec = "nix run .#examples";
       motd = 3;
     };
-    "demos:defaults" = {
+    "demos defaults" = {
       description = "preview MOTD from stock setup wizard presets";
       exec = "nix run .#example-default";
     };
-    "demos:themes" = {
+    "demos themes" = {
       description = "render a mini motd per theme";
       exec = "nix run .#example-themes";
     };
-    "demos:titles" = {
+    "demos titles" = {
       description = "inspect rendered titles";
       exec = "prelude-title-previews prelude";
     };
@@ -90,10 +90,12 @@ prelude = {
     "go:test" = {
       description = "run the Go unit tests";
       exec = "go test -C src ./...";
+      group = "go";
     };
     "go:vet" = {
       description = "run Go static analysis";
       exec = "go vet -C src ./...";
+      group = "go";
     };
     motd = {
       description = "reprint the welcome banner";
@@ -124,6 +126,7 @@ prelude = {
         "x prelude:previews titles-command-renders examples-render"
       ];
       exec = "prelude-previews";
+      group = "prelude";
       usage = "x prelude:previews [check ...]";
     };
     "prelude:wizard" = {
@@ -149,6 +152,7 @@ prelude = {
         "x prelude:wizard --output .work/prelude.nix"
       ];
       exec = "nix run . -- wizard";
+      group = "prelude";
       motd = 0;
       usage = "x prelude:wizard [--output path] [--recipe path]";
     };
@@ -173,6 +177,7 @@ prelude = {
         "x spike:ghostty --starship"
       ];
       exec = "nix run path:.#ghostty-spike --";
+      group = "spike";
       usage = "x spike:ghostty [--starship]";
     };
     sync-docs = {
@@ -182,14 +187,17 @@ prelude = {
     "ts:sync" = {
       description = "regenerate the TypeScript API's themes, defaults, and fixtures";
       exec = "ts-sync";
+      group = "ts";
     };
     "ts:test" = {
       description = "run the TypeScript API tests";
       exec = "bun --cwd ts test";
+      group = "ts";
     };
     "ts:typecheck" = {
       description = "type-check the TypeScript API, including its type tests";
       exec = "bun --cwd=ts install --frozen-lockfile && bun --cwd=ts run typecheck";
+      group = "ts";
     };
     x = {
       description = "open the interactive command menu";
@@ -364,15 +372,15 @@ prelude = {
       exec = "nix run .#examples";
       motd = 3;
     };
-    "demos:defaults" = {
+    "demos defaults" = {
       description = "preview MOTD from stock setup wizard presets";
       exec = "nix run .#example-default";
     };
-    "demos:themes" = {
+    "demos themes" = {
       description = "render a mini motd per theme";
       exec = "nix run .#example-themes";
     };
-    "demos:titles" = {
+    "demos titles" = {
       description = "inspect rendered titles";
       exec = "prelude-title-previews prelude";
     };
@@ -395,10 +403,12 @@ prelude = {
     "go:test" = {
       description = "run the Go unit tests";
       exec = "go test -C src ./...";
+      group = "go";
     };
     "go:vet" = {
       description = "run Go static analysis";
       exec = "go vet -C src ./...";
+      group = "go";
     };
     motd = {
       description = "reprint the welcome banner";
@@ -429,6 +439,7 @@ prelude = {
         "x prelude:previews titles-command-renders examples-render"
       ];
       exec = "prelude-previews";
+      group = "prelude";
       usage = "x prelude:previews [check ...]";
     };
     "prelude:wizard" = {
@@ -454,6 +465,7 @@ prelude = {
         "x prelude:wizard --output .work/prelude.nix"
       ];
       exec = "nix run . -- wizard";
+      group = "prelude";
       motd = 0;
       usage = "x prelude:wizard [--output path] [--recipe path]";
     };
@@ -478,6 +490,7 @@ prelude = {
         "x spike:ghostty --starship"
       ];
       exec = "nix run path:.#ghostty-spike --";
+      group = "spike";
       usage = "x spike:ghostty [--starship]";
     };
     sync-docs = {
@@ -487,14 +500,17 @@ prelude = {
     "ts:sync" = {
       description = "regenerate the TypeScript API's themes, defaults, and fixtures";
       exec = "ts-sync";
+      group = "ts";
     };
     "ts:test" = {
       description = "run the TypeScript API tests";
       exec = "bun --cwd ts test";
+      group = "ts";
     };
     "ts:typecheck" = {
       description = "type-check the TypeScript API, including its type tests";
       exec = "bun --cwd=ts install --frozen-lockfile && bun --cwd=ts run typecheck";
+      group = "ts";
     };
     x = {
       description = "open the interactive command menu";

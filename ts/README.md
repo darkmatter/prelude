@@ -69,8 +69,8 @@ Surfaces are built with `make`, and a module's main type shares its name
 
 - **Behavior:** `run` is a function called in this process with the parsed
   arguments; a returned number becomes the exit status. `exec` is shell text
-  run with bash, with any argument text appended as typed. A command has
-  exactly one of them.
+  run with bash, with any argument text appended as typed. A command has at
+  most one of them, and one with neither only holds subcommands.
 - **Arguments:** `--port` is an option, `--open` with `boolean: true` a flag,
   and `<target>` a positional. Values arrive under camelCase names
   (`--dry-run` → `args.dryRun`), typed from the declaration: `type: "number"`
@@ -82,15 +82,23 @@ Surfaces are built with `make`, and a module's main type shares its name
   MOTD's Getting Started list.
 
 A command has no name of its own. Its key comes from where it is mounted
-(`commands: { "db:migrate": migrate }`), so modules export commands without
-claiming public names. As in the devshell, the first `:` or `/` picks the
-menu group (`db:migrate` and `db/migrate` → group `db`, label `migrate`),
-`group` overrides it, and a key with neither lists at the top of the menu,
-without a heading.
+(`commands: { "db migrate": migrate }`), so modules export commands without
+claiming public names. As in the devshell, a space or `/` in a key makes a
+subcommand: `db migrate` and `db/migrate` are both `migrate` under `db`, run
+as `./main.ts db migrate`, and keys nest deeper (`db seed users`). The menu
+shows `db` as one row that opens its subcommands. Mount a command at `db` too
+to describe it or give it a group: with `run` or `exec` it also runs itself,
+and with neither (`Command.make({ group: "data" })`) it only opens them. `:`
+is an ordinary name character.
+
+Keys are never parsed for a group. A command lists under its `group`, or at
+the top of the menu, without a heading, when it has none. Only a top-level
+command takes a group; a subcommand lists under its parent.
 
 ### Subcommands
 
-Use `children` to put commands behind one parent row in the picker:
+`children` is shorthand for keys below a parent: each child mounts at
+`<key>/<name>`, so this is the same menu as mounting the child at `hl/grid`:
 
 ```ts
 const menu = Menu.make({
@@ -109,17 +117,19 @@ const menu = Menu.make({
 await menu.dispatch();
 ```
 
-Selecting `hl` opens its submenu; Escape returns to the parent list. Both
-`./main.ts hl grid --config other.ts` and `./main.ts hl/grid --config other.ts`
-run the child. Its `RunContext.key` is `hl/grid`; arguments retain their
-original words when dispatched to a function. Parent and child shortcuts work
-within their respective scopes. `--list` includes indented children.
+Selecting `hl` opens its subcommands; Escape returns to the parent list.
+`./main.ts hl grid --config other.ts` runs the child, as does the one-word
+route `./main.ts hl/grid`, which names any declared path. Its
+`RunContext.key` is `hl/grid`, the key it is mounted under, and a function
+receives its arguments' original words. A shortcut applies among its
+siblings: with `shortcut: "h"` on `hl` and `"g"` on `grid`, `./main.ts h g`
+runs it. `--list` shows children indented under their parent.
 
-A parent uses `children` instead of `run` or `exec`, has no arguments, and must
-contain at least one leaf command. The native picker currently supports one
-submenu level. Child keys are relative to the parent; `group` on a child does
-not move it into the top-level list. `/` and `:` in an ordinary command key
-still provide visual grouping only.
+A parent with `children` has no `run`, `exec` or arguments, and holds at
+least one command that is not itself a parent; for deeper trees, use keys
+(`db seed users`). A child lists under its parent, so its own `group` does
+not apply. Mounting a child's key directly as well (`hl/grid` beside `hl`'s
+`grid`) is an error.
 
 ## Surfaces
 

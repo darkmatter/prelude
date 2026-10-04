@@ -1,8 +1,9 @@
 #!/usr/bin/env bun
-// The app. Each command is mounted under the name people type, and a `/` (or
-// a `:`) groups it in the menu (`db/migrate` goes under "db"). The scripts in
-// package.json join the menu too, and configuring a MOTD and docs adds the
-// built-in `motd` and `docs` commands.
+// The app. Each command is mounted under the words people type: a `/` (or a
+// space) makes a subcommand, so `db/migrate` runs as `db migrate` and the
+// menu shows one `db` row that opens it. The scripts in package.json join the
+// menu too, and configuring a MOTD and docs adds the built-in `motd` and
+// `docs` commands.
 //
 //   ./main.ts                   pick a command
 //   ./main.ts dev --port 8080   run one directly

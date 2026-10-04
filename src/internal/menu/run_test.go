@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -117,9 +118,10 @@ func TestEnterOnArgTaskStaysInMenu(t *testing.T) {
 
 func TestEnterOnModuleParentOpensSubmenu(t *testing.T) {
 	cfg := testMenuConfig(Task{
-		Name:  "e2e",
-		Label: "e2e",
-		Run:   "just e2e",
+		Name:       "e2e",
+		Label:      "e2e",
+		Run:        "just e2e",
+		justModule: true,
 		Children: []Task{
 			{Name: "e2e::coder", Label: "coder", Run: "just e2e::coder"},
 		},
@@ -137,8 +139,8 @@ func TestEnterOnModuleParentOpensSubmenu(t *testing.T) {
 	if got.chosen != nil {
 		t.Fatal("enter on a module parent must not mark a command for finish")
 	}
-	if got.sub == nil || got.sub.Name != "e2e" {
-		t.Fatalf("sub = %#v, want the e2e parent", got.sub)
+	if got.sub() == nil || got.sub().Name != "e2e" {
+		t.Fatalf("sub = %#v, want the e2e parent", got.sub())
 	}
 	if len(got.flat) != 1 || got.flat[0].Name != "e2e::coder" {
 		t.Fatalf("submenu list = %#v", got.flat)
@@ -150,9 +152,10 @@ func TestEnterOnModuleParentOpensSubmenu(t *testing.T) {
 
 func TestEscFromSubmenuRestoresRootList(t *testing.T) {
 	cfg := testMenuConfig(Task{
-		Name:  "e2e",
-		Label: "e2e",
-		Run:   "just e2e",
+		Name:       "e2e",
+		Label:      "e2e",
+		Run:        "just e2e",
+		justModule: true,
 		Children: []Task{
 			{Name: "e2e::coder", Label: "coder", Run: "just e2e::coder"},
 		},
@@ -168,7 +171,7 @@ func TestEscFromSubmenuRestoresRootList(t *testing.T) {
 	if cmd != nil {
 		t.Fatal("esc from a submenu must not quit the menu")
 	}
-	if got.sub != nil {
+	if got.sub() != nil {
 		t.Fatal("esc must close the submenu")
 	}
 	if len(got.flat) != 1 || got.flat[0].Name != "e2e" {
@@ -184,9 +187,10 @@ func TestEscFromSubmenuRestoresRootList(t *testing.T) {
 
 func TestEnterOnSubmenuChildOpensArgMode(t *testing.T) {
 	cfg := testMenuConfig(Task{
-		Name:  "e2e",
-		Label: "e2e",
-		Run:   "just e2e",
+		Name:       "e2e",
+		Label:      "e2e",
+		Run:        "just e2e",
+		justModule: true,
 		Children: []Task{{
 			Name:  "e2e::coder",
 			Label: "coder",
@@ -238,5 +242,134 @@ func TestStandaloneCommandRunsWhereTheSelectionSays(t *testing.T) {
 	}
 	if string(out) != "hi from "+dir+"\n" {
 		t.Fatalf("output = %q, want greet run from %s", out, dir)
+	}
+}
+
+// press sends one key to m and returns the next model and command.
+func press(t *testing.T, m model, key tea.KeyPressMsg) (model, tea.Cmd) {
+	t.Helper()
+	next, cmd := m.Update(key)
+	got, ok := next.(model)
+	if !ok {
+		t.Fatalf("Update returned %T, want model", next)
+	}
+	return got, cmd
+}
+
+// pickerPath names the parents of the open pickers, outermost first.
+func pickerPath(m model) []string {
+	path := make([]string, len(m.pickers))
+	for index, frame := range m.pickers {
+		path[index] = frame.parent.Name
+	}
+	return path
+}
+
+func selectedName(m model) string {
+	return m.flat[m.matches[m.sel]].Name
+}
+
+func TestNestedPickersPushAndPopOneLevel(t *testing.T) {
+	cfg := testMenuConfig(subcommandTestTasks()...)
+	m := newModel(cfg, newStyles(cfg, false), nil)
+
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter}) // db
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyDown})  // seed
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter}) // into seed
+	if path := pickerPath(m); !slices.Equal(path, []string{"db", "db seed"}) {
+		t.Fatalf("pickers = %v, want db then db seed", path)
+	}
+	if !slices.Equal(taskNames(m.flat), []string{"db seed orders", "db seed users"}) || m.promptCtx != "seed" {
+		t.Fatalf("seed picker lists %v under %q", taskNames(m.flat), m.promptCtx)
+	}
+
+	// Backspace on an empty query closes one level, back on the row it left.
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyBackspace})
+	if path := pickerPath(m); !slices.Equal(path, []string{"db"}) || selectedName(m) != "db seed" || m.promptCtx != "db" {
+		t.Fatalf("after backspace: pickers %v, selected %q, context %q", path, selectedName(m), m.promptCtx)
+	}
+
+	// The right arrow opens a container's subcommands as Enter does.
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyRight})
+	if path := pickerPath(m); !slices.Equal(path, []string{"db", "db seed"}) {
+		t.Fatalf("right on seed: pickers = %v", path)
+	}
+
+	// Esc clears a query first, then closes one level at a time, then quits.
+	m.prompt = m.prompt.WithValue("ord")
+	m.filter()
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEsc})
+	if m.prompt.Value() != "" || len(m.pickers) != 2 {
+		t.Fatalf("esc with a query: query %q, pickers %v", m.prompt.Value(), pickerPath(m))
+	}
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEsc})
+	m, cmd := press(t, m, tea.KeyPressMsg{Code: tea.KeyEsc})
+	if len(m.pickers) != 0 || cmd != nil || m.promptCtx != "~/test" || selectedName(m) != "db" {
+		t.Fatalf("esc twice: pickers %v, context %q, selected %q", pickerPath(m), m.promptCtx, selectedName(m))
+	}
+	if _, cmd = press(t, m, tea.KeyPressMsg{Code: tea.KeyEsc}); cmd == nil {
+		t.Fatal("esc at the root must quit")
+	}
+}
+
+func TestRunnableParentRunsOnEnterAndOpensOnRight(t *testing.T) {
+	cfg := testMenuConfig(subcommandTestTasks()...)
+	m := newModel(cfg, newStyles(cfg, false), nil)
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyDown}) // deploy
+
+	ran, cmd := press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	if ran.chosen == nil || ran.chosen.Command != "deploy.sh" || cmd == nil {
+		t.Fatalf("enter on a runnable parent chose %+v, want it run", ran.chosen)
+	}
+
+	// Mid-query the right arrow moves the cursor; at the end it opens.
+	m.prompt = m.prompt.WithValue("deploy")
+	m.filter()
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyLeft})
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyRight})
+	if len(m.pickers) != 0 {
+		t.Fatalf("right mid-query opened %v", pickerPath(m))
+	}
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyRight})
+	if path := pickerPath(m); !slices.Equal(path, []string{"deploy"}) || !slices.Equal(taskNames(m.flat), []string{"deploy staging"}) {
+		t.Fatalf("right on deploy: pickers %v listing %v", path, taskNames(m.flat))
+	}
+
+	// A leaf has nothing to open.
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyRight})
+	if len(m.pickers) != 1 {
+		t.Fatalf("right on a leaf changed pickers to %v", pickerPath(m))
+	}
+}
+
+func TestPickerOpensUnderTheDispatchedParents(t *testing.T) {
+	cfg := testMenuConfig(subcommandTestTasks()...)
+	st := newStyles(cfg, false)
+
+	decision, err := resolveXInvocation(cfg, []string{"db", "seed"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := newPicker(cfg, st, decision)
+	if path := pickerPath(m); !slices.Equal(path, []string{"db", "db seed"}) {
+		t.Fatalf("x db seed opened pickers %v", path)
+	}
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyBackspace})
+	if selectedName(m) != "db seed" || m.promptCtx != "db" {
+		t.Fatalf("backspace from x db seed: selected %q under %q", selectedName(m), m.promptCtx)
+	}
+
+	// Leaving argument entry returns to the picker the task was listed in.
+	decision, err = resolveXInvocation(cfg, []string{"db", "seed", "users"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m = newPicker(cfg, st, decision)
+	if m.mode != modeArgs || m.args.Task().Name != "db seed users" {
+		t.Fatalf("x db seed users: mode %d task %#v", m.mode, m.args.Task())
+	}
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEsc})
+	if m.mode != modeList || m.promptCtx != "seed" || selectedName(m) != "db seed users" {
+		t.Fatalf("esc from arguments: mode %d, context %q, selected %q", m.mode, m.promptCtx, selectedName(m))
 	}
 }

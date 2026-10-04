@@ -37,7 +37,10 @@ function withoutIntendedDifferences(config: unknown): Json {
   const copy = structuredClone(config) as { [key: string]: Json };
   delete copy.dispatcher;
   const dropCommand = (rows: Json | undefined) => {
-    for (const row of (rows ?? []) as { command?: Json }[]) delete row.command;
+    for (const row of (rows ?? []) as { command?: Json; children?: Json }[]) {
+      delete row.command;
+      dropCommand(row.children);
+    }
   };
   for (const group of (copy.groups ?? []) as { tasks: Json }[]) dropCommand(group.tasks);
   dropCommand(copy.motdCommands);
@@ -69,9 +72,10 @@ for (const [name, { commands: nix, ...options }] of Object.entries(fixtures.motd
   });
 }
 
-test("the TypeScript invocation form is the dispatcher plus the key", () => {
+test("the TypeScript invocation form is the dispatcher plus the command's words", () => {
   const { config } = Menu.make({ commands: commands(fixtures.menu.catalogue!.commands), dispatcher: "acme" });
   const tasks = config.groups.flatMap((group) => group.tasks);
   expect(tasks.find((task) => task.name === "db:migrate")?.command).toBe("acme db:migrate");
+  expect(tasks.find((task) => task.name === "db")?.children?.[0]?.command).toBe("acme db reset");
   expect(config.motdCommands.map((row) => row.command)).toEqual(["acme dev", "acme test"]);
 });

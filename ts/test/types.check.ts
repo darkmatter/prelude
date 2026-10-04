@@ -31,6 +31,9 @@ Command.make({
 // @ts-expect-error a command runs a function or shell text, not both.
 Command.make({ exec: "eslint .", run: () => {} });
 
+// With neither, it is a parent that only holds subcommands.
+Menu.make({ commands: { db: Command.make({ group: "data" }), "db migrate": Command.make({ exec: "drizzle-kit migrate" }) } });
+
 // Commands with different argument lists share one commands record.
 Menu.make({ commands: { dev: preludeCommand, lint: Command.make({ exec: "eslint ." }) } });
 

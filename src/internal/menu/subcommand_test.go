@@ -71,3 +71,41 @@ func TestPrintListIndentsModuleChildren(t *testing.T) {
 		t.Fatalf("child row indent = %d, want deeper than parent indent %d", childIndent, parentIndent)
 	}
 }
+
+func TestFlattenSearchesNestedSubcommandsThroughEachParent(t *testing.T) {
+	cfg := testMenuConfig(subcommandTestTasks()...)
+	m := newModel(cfg, newStyles(cfg, false), nil)
+	m.prompt = m.prompt.WithValue("orders")
+	m.filter()
+	if len(m.matches) != 1 || selectedName(m) != "db" {
+		t.Fatalf("root matches = %v, want the db row", m.matches)
+	}
+
+	// The picker's rows come straight from the Config; they search too.
+	m.enterSubMode(m.flat[m.matches[0]])
+	m.prompt = m.prompt.WithValue("orders")
+	m.filter()
+	if len(m.matches) != 1 || selectedName(m) != "db seed" {
+		t.Fatalf("db picker matches = %v, want the seed row", m.matches)
+	}
+}
+
+func TestPrintListIndentsEveryDepth(t *testing.T) {
+	cfg := testMenuConfig(subcommandTestTasks()...)
+
+	var out strings.Builder
+	printListTo(&out, nil, cfg, newStyles(cfg, false))
+	rendered := ansi.Strip(out.String())
+
+	indents := []int{
+		rowIndent(rendered, "db 2 subcommands"),
+		rowIndent(rendered, "seed 2 subcommands"),
+		rowIndent(rendered, "orders "),
+	}
+	if indents[0] < 0 || indents[0] >= indents[1] || indents[1] >= indents[2] {
+		t.Fatalf("rows should indent one level per depth, got %v:\n%s", indents, rendered)
+	}
+	if rowIndent(rendered, "migrate ") != indents[1] || rowIndent(rendered, "staging ") != indents[1] {
+		t.Fatalf("siblings should share an indent:\n%s", rendered)
+	}
+}

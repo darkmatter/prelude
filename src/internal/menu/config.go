@@ -78,11 +78,11 @@ type Task struct {
 	Details     string   `json:"details"`
 	Examples    []string `json:"examples"`
 	Args        []Arg    `json:"args"`
-	// Children are the task's subcommands. A just module imports as one menu
-	// row and its recipes stay behind it: selecting the row (or `x <name>`)
-	// opens a subcommand picker. Children never appear in the root list and
-	// keep their complete key (`module::recipe`) for Just execution.
-	Children []Task `json:"children"`
+	// Children are the task's subcommands, nested to any depth. They never
+	// appear in the root list: a task with children is one row that opens a
+	// subcommand picker over them, and `x` reaches each one by its label, one
+	// word per level (`x db seed users`). Leaves carry no children.
+	Children []Task `json:"children,omitempty"`
 	// Source is where the task came from; "" means declared, in Nix or by a
 	// host. Imports set it.
 	Source string `json:"source,omitempty"`
@@ -93,8 +93,12 @@ type Task struct {
 
 	group    string        // owning group title
 	haystack string        // precomputed lowercase filter target
-	justPath []string      // public argv route for an imported module recipe
+	justPath []string      // public argv route for an explicitly grouped module recipe
 	hides    []hiddenEntry // imports this task hid by claiming their key first
+	// justModule marks a just module container built by the just import. Its
+	// Run is just's dispatch form for the module, so words the menu does not
+	// know pass through for just to resolve instead of being rejected.
+	justModule bool
 }
 
 func (t Task) displayName() string {
@@ -102,6 +106,24 @@ func (t Task) displayName() string {
 		return t.Label
 	}
 	return t.Name
+}
+
+// isContainer reports whether choosing t opens its subcommand picker instead
+// of running it: a task with children and nothing of its own to run, or a just
+// module. A task with children and its own Run is a runnable parent, which
+// runs like a leaf and opens its children only on request.
+func (t Task) isContainer() bool {
+	return len(t.Children) > 0 && (t.Run == "" || t.justModule)
+}
+
+// subcommandsDescription describes an imported container by how many
+// subcommands it opens, as the Nix catalogue describes one declared without
+// a description.
+func subcommandsDescription(count int) string {
+	if count == 1 {
+		return "1 subcommand"
+	}
+	return fmt.Sprintf("%d subcommands", count)
 }
 
 type Arg struct {
@@ -131,35 +153,43 @@ func (c *Config) applyDefaults() {
 	}
 }
 
-// taskHaystack is the lowercase filter target for one task. flatten computes
-// it for top-level tasks; the just import precomputes it for subcommand
-// children, which enter filtering through the submenu's flat list.
+// taskHaystack is the lowercase filter target for one task alone.
 func taskHaystack(t Task) string {
 	return strings.ToLower(
 		t.Name + " " + t.displayName() + " " + t.Usage + " " + t.Description + " " + t.group,
 	)
 }
 
+// searchable returns a copy of tasks with filter haystacks attached at every
+// depth. A task's haystack folds in all of its descendants', so a query for a
+// nested subcommand still surfaces the row that leads to it.
+func searchable(tasks []Task) []Task {
+	if len(tasks) == 0 {
+		return nil
+	}
+	out := make([]Task, len(tasks))
+	for index, task := range tasks {
+		task.Children = searchable(task.Children)
+		task.haystack = taskHaystack(task)
+		for _, child := range task.Children {
+			task.haystack += " " + child.haystack
+		}
+		out[index] = task
+	}
+	return out
+}
+
 // flatten returns every top-level task in group order with search metadata
-// attached. Subcommand children stay out of the root list, but their names
-// and descriptions are folded into the parent's haystack so a query like
-// "desktop" still surfaces the module row that owns them.
+// attached. Subcommands stay out of the root list behind their parent row.
 func (c *Config) flatten() []Task {
 	var flat []Task
 	for _, g := range c.Groups {
-		for _, t := range g.Tasks {
-			t.group = g.Title
-			t.haystack = taskHaystack(t)
-			for index := range t.Children {
-				child := t.Children[index]
-				if child.haystack == "" {
-					child.haystack = taskHaystack(child)
-					t.Children[index] = child
-				}
-				t.haystack += " " + child.haystack
-			}
-			flat = append(flat, t)
+		tasks := make([]Task, len(g.Tasks))
+		for index, task := range g.Tasks {
+			task.group = g.Title
+			tasks[index] = task
 		}
+		flat = append(flat, searchable(tasks)...)
 	}
 	return flat
 }

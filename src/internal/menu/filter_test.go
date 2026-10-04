@@ -89,3 +89,20 @@ func TestFilterNoMatchClampsSelection(t *testing.T) {
 		t.Fatalf("sel = %d, want 0 when empty", m.sel)
 	}
 }
+
+func TestFilterSelectsCommandTypedInFull(t *testing.T) {
+	cfg := testMenuConfig(
+		Task{Name: "record-docs", Description: "record showcases"},
+		Task{Name: "sync-docs", Description: "regenerate docs"},
+		Task{Name: "docs", Description: "browse project documentation"},
+	)
+	m := newModel(cfg, newStyles(cfg, false), nil)
+	m.prompt = m.prompt.WithValue("docs")
+	m.filter()
+	if len(m.matches) != 3 {
+		t.Fatalf("matches = %d, want all three, in catalogue order", len(m.matches))
+	}
+	if got := m.flat[m.matches[m.sel]].Name; got != "docs" {
+		t.Fatalf("selected %q, want the command typed in full", got)
+	}
+}

@@ -15,7 +15,7 @@ func TestListNotesImportsHiddenByDeclaredCommands(t *testing.T) {
 	)
 	mergeTasks(cfg, []Task{
 		{Name: "test", Run: "just test", Source: sourceJust, group: "just"},
-		{Name: "db", Run: "just db", Source: sourceJust, Children: []Task{{Name: "db::migrate"}}, group: "just"},
+		{Name: "db", Run: "just db", Source: sourceJust, Children: []Task{{Name: "db::migrate"}}, group: "just", justModule: true},
 		{Name: "build", Run: "just build", Source: sourceJust, group: "just"},
 	})
 
@@ -51,7 +51,8 @@ func TestDeclaredChildRoutesHideImports(t *testing.T) {
 	cfg = parseTestConfig(t, cfg)
 
 	lines := listLines(cfg)
-	for _, key := range []string{"tools/status", "tools status", "t status", "tools s", "t s"} {
+	// `t/s` is the route `t s` (a `/` nests a script name), so it is hidden too.
+	for _, key := range []string{"tools/status", "tools status", "t status", "tools s", "t s", "t/s"} {
 		note := key + ": package.json script hidden by declared command tools"
 		if !slices.Contains(lines, note) {
 			t.Fatalf("--list should say %q:\n%s", note, strings.Join(lines, "\n"))
@@ -69,7 +70,7 @@ func TestDeclaredChildRoutesHideImports(t *testing.T) {
 			t.Fatalf("Select(%s status) = %+v, want the declared child", parent, got)
 		}
 	}
-	for key, command := range map[string]string{"s": "exit 3", "t/s": "exit 4"} {
+	for key, command := range map[string]string{"s": "exit 3"} {
 		got, err := Select(cfg, []string{key})
 		if err != nil {
 			t.Fatalf("Select(%s): %v", key, err)
@@ -97,22 +98,41 @@ func TestWriteImportsListsTheImportsXDispatches(t *testing.T) {
 	cfg := testMenuConfig(Task{Name: "dev", Run: "bun run dev"})
 	mergeTasks(cfg, []Task{
 		{Name: "build", Description: "build it\nall", Source: sourceJust, group: "just"},
-		{Name: "db", Description: "1 subcommand", Source: sourceJust, Children: []Task{{Name: "db::migrate"}}, group: "just"},
-		{Name: "db::reset", Source: sourceJust, group: "ops", justPath: []string{"db", "reset"}},
+		{Name: "e2e", Description: "2 subcommands", Source: sourceJust, group: "just", justModule: true, Children: []Task{
+			{Name: "e2e::coder", Label: "coder", Description: "run coder e2e", Source: sourceJust},
+			{Name: "e2e::sub", Label: "sub", Description: "1 subcommand", Source: sourceJust, justModule: true, Children: []Task{
+				{Name: "e2e::sub::x", Label: "x", Description: "deep", Source: sourceJust},
+			}},
+		}},
+		{Name: "e2e::smoke", Label: "smoke", Description: "smoke it", Source: sourceJust, group: "ops", justPath: []string{"e2e", "smoke"}},
 		{Name: "dev", Source: sourceJust, group: "just"},
 	})
 	mergeTasks(cfg, []Task{
 		{Name: "lint", Description: "eslint .", Source: sourceScripts, group: "scripts"},
 		{Name: "lint fix", Description: "eslint --fix .", Source: sourceScripts, group: "scripts"},
-		{Name: "web/dev", Description: "vite", Source: sourceScripts, group: "web"},
+		{Name: "db", Label: "db", Description: "1 subcommand", Source: sourceScripts, group: "scripts", Children: []Task{
+			{Name: "db/migrate", Label: "migrate", Description: "migrate up", Source: sourceScripts},
+		}},
 	})
 
 	var out strings.Builder
 	writeImports(&out, cfg)
+	// Every imported node prints its route of public words, at every depth.
 	// Declared and hidden tasks are already complete, a grouped module recipe
-	// is reached through its module, and a key that needs quoting cannot be
-	// inserted as one word.
-	if want := "build\tbuild it all\ndb\t1 subcommand\nlint\teslint .\nweb/dev\tvite\n"; out.String() != want {
+	// is reached through its module's words, and a word that needs quoting
+	// cannot be inserted as one.
+	want := strings.Join([]string{
+		"build\tbuild it all",
+		"e2e\t2 subcommands",
+		"e2e coder\trun coder e2e",
+		"e2e sub\t1 subcommand",
+		"e2e sub x\tdeep",
+		"e2e smoke\tsmoke it",
+		"db\t1 subcommand",
+		"db migrate\tmigrate up",
+		"lint\teslint .",
+	}, "\n") + "\n"
+	if out.String() != want {
 		t.Fatalf("writeImports = %q, want %q", out.String(), want)
 	}
 }

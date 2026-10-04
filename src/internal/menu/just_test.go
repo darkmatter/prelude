@@ -3,6 +3,7 @@ package menu
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -80,7 +81,7 @@ func TestParseJustDumpProjectsPublicRecipes(t *testing.T) {
 	if database == nil {
 		t.Fatal("module parent was not imported")
 	}
-	if database.Label != "database" || database.Run != "just database" || database.group != "just" {
+	if database.Label != "database" || database.Run != "just database" || database.group != "just" || !database.justModule {
 		t.Fatalf("module parent = %#v", *database)
 	}
 	if database.Usage != "just database <subcommand>" {
@@ -101,9 +102,6 @@ func TestParseJustDumpProjectsPublicRecipes(t *testing.T) {
 	}
 	if migrate.group != "" || migrate.Description != "run migrations" {
 		t.Fatalf("module child placement = %#v", migrate)
-	}
-	if migrate.haystack == "" {
-		t.Fatal("module child must carry a precomputed filter haystack")
 	}
 }
 
@@ -249,7 +247,7 @@ func TestParseJustDumpGroupAttributeOverridesModuleNamepath(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The explicit group keeps the recipe top-level, so the module contributes
-	// no submenu parent at all.
+	// no container at all.
 	if len(tasks) != 1 {
 		t.Fatalf("got %d tasks, want 1 (grouped escape only, no parent)", len(tasks))
 	}
@@ -381,12 +379,14 @@ func TestParseJustDumpSkipsPrivateAliases(t *testing.T) {
 	}
 }
 
-func TestParseJustDumpNestsDeepModuleRecipes(t *testing.T) {
+func TestParseJustDumpNestsSubmodulesAsContainers(t *testing.T) {
 	data := []byte(`{
 		"recipes": {},
 		"modules": {
 			"e2e": {
-				"recipes": {},
+				"recipes": {
+					"coder": {"doc": "run coder e2e", "name": "coder", "namepath": "e2e::coder", "private": false}
+				},
 				"modules": {
 					"desktop": {
 						"recipes": {
@@ -395,9 +395,20 @@ func TestParseJustDumpNestsDeepModuleRecipes(t *testing.T) {
 								"name": "smoke",
 								"namepath": "e2e::desktop::smoke",
 								"private": false
+							},
+							"nightly": {
+								"attributes": [{"group": "ci"}],
+								"name": "nightly",
+								"namepath": "e2e::desktop::nightly",
+								"private": false
 							}
 						},
-						"modules": {}
+						"aliases": {"s": {"name": "s", "target": "smoke"}},
+						"modules": {
+							"hidden": {
+								"recipes": {"_setup": {"name": "_setup", "namepath": "e2e::desktop::hidden::_setup", "private": true}}
+							}
+						}
 					}
 				}
 			}
@@ -408,16 +419,54 @@ func TestParseJustDumpNestsDeepModuleRecipes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tasks) != 1 {
-		t.Fatalf("got %d tasks, want the single e2e parent", len(tasks))
+	// The grouped recipe stays top-level; a module with no public recipe adds
+	// no container.
+	if names := taskNames(tasks); !slices.Equal(names, []string{"e2e", "e2e::desktop::nightly"}) {
+		t.Fatalf("top-level tasks = %v", names)
 	}
-	parent := tasks[0]
-	if parent.Name != "e2e" || len(parent.Children) != 1 {
-		t.Fatalf("parent = %#v", parent)
+	nightly := findTask(tasks, "e2e::desktop::nightly")
+	if nightly.group != "ci" || !slices.Equal(nightly.justPath, []string{"e2e", "desktop", "nightly"}) {
+		t.Fatalf("grouped recipe = %#v", *nightly)
 	}
-	child := parent.Children[0]
-	if child.Name != "e2e::desktop::smoke" || child.Label != "desktop::smoke" || child.Run != "just e2e::desktop::smoke" {
-		t.Fatalf("nested child = %#v", child)
+
+	e2e := findTask(tasks, "e2e")
+	if !slices.Equal(taskNames(e2e.Children), []string{"e2e::coder", "e2e::desktop"}) {
+		t.Fatalf("e2e children = %v", taskNames(e2e.Children))
+	}
+	desktop := e2e.Children[1]
+	if desktop.Label != "desktop" || desktop.Run != "just e2e desktop" || !desktop.justModule ||
+		desktop.group != "" || desktop.Description != "2 subcommands" {
+		t.Fatalf("submodule container = %#v", desktop)
+	}
+	if !slices.Equal(taskNames(desktop.Children), []string{"e2e::desktop::s", "e2e::desktop::smoke"}) {
+		t.Fatalf("desktop children = %v", taskNames(desktop.Children))
+	}
+	smoke := desktop.Children[1]
+	if smoke.Label != "smoke" || smoke.Run != "just e2e::desktop::smoke" || len(smoke.justPath) != 0 {
+		t.Fatalf("nested recipe = %#v", smoke)
+	}
+
+	cfg := testMenuConfig()
+	mergeTasks(cfg, tasks)
+	for _, tc := range []struct {
+		args    []string
+		kind    invocationKind
+		command string
+	}{
+		{args: []string{"e2e", "desktop", "smoke", "--headed"}, kind: commandInvocation, command: "just e2e::desktop::smoke --headed"},
+		{args: []string{"e2e", "desktop", "s"}, kind: commandInvocation, command: "just e2e::desktop::s"},
+		// A just module hands words the menu does not know to just.
+		{args: []string{"e2e", "desktop", "unknown", "flag"}, kind: commandInvocation, command: "just e2e desktop unknown flag"},
+		{args: []string{"e2e", "desktop", "nightly"}, kind: commandInvocation, command: "just e2e::desktop::nightly"},
+		{args: []string{"e2e", "desktop"}, kind: collectSubcommandInvocation},
+	} {
+		decision, err := resolveXInvocation(cfg, tc.args)
+		if err != nil {
+			t.Fatalf("x %v: %v", tc.args, err)
+		}
+		if decision.kind != tc.kind || decision.command != tc.command {
+			t.Fatalf("x %v = kind %d command %q, want kind %d command %q", tc.args, decision.kind, decision.command, tc.kind, tc.command)
+		}
 	}
 }
 

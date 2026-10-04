@@ -49,13 +49,7 @@ func writeList(w io.Writer, cfg *Config, st styles, width int) {
 			fmt.Fprintln(w, st.muted.Render(ui.LetterSpace(g.Title)))
 		}
 		for _, t := range g.Tasks {
-			fmt.Fprintln(w, listRow(st, t, width, 0))
-			// Subcommand children print one level indented under their module
-			// row so the table stays a complete catalogue reference; the
-			// interactive picker keeps them behind the submenu instead.
-			for _, child := range t.Children {
-				fmt.Fprintln(w, listRow(st, child, width, 1))
-			}
+			writeListTask(w, st, t, width, 0)
 		}
 	}
 	for _, note := range hiddenNotes(cfg) {
@@ -68,9 +62,19 @@ func writeList(w io.Writer, cfg *Config, st styles, width int) {
 	fmt.Fprintln(w, st.dim.Render("run "+cfg.dispatcher()+" to pick a task interactively"))
 }
 
+// writeListTask prints t and then its subcommands, each one level further
+// indented, so the table stays a complete catalogue reference; the
+// interactive picker keeps them behind their parent's row instead.
+func writeListTask(w io.Writer, st styles, t Task, width int, depth int) {
+	fmt.Fprintln(w, listRow(st, t, width, depth))
+	for _, child := range t.Children {
+		writeListTask(w, st, child, width, depth+1)
+	}
+}
+
 // listRow paints one non-interactive task line in the same language as the
 // picker: optional key rail, bold name, muted description, optional right hint.
-// depth indents subcommand children one level under their module row.
+// depth indents a subcommand one level per parent above it.
 func listRow(st styles, t Task, width int, depth int) string {
 	keyLabel := ""
 	if t.Key != "" {

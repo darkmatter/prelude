@@ -3,6 +3,7 @@ package wizard
 import (
 	"fmt"
 	"image/color"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/textarea"
@@ -525,7 +526,7 @@ func (m wizardModel) commitCommandField() (tea.Model, tea.Cmd) {
 	switch m.commandPhase {
 	case commandName:
 		if !commandKeyPattern.MatchString(value) {
-			m.err = "command name must use [A-Za-z0-9_.:/-] with no empty segments around : or /"
+			m.err = "command name must be words of [A-Za-z0-9_.:-] separated by one space or /"
 			return m, nil
 		}
 		// `menu` and `x` are Prelude-owned entrypoints; a custom exec would
@@ -534,9 +535,10 @@ func (m wizardModel) commitCommandField() (tea.Model, tea.Cmd) {
 			m.err = fmt.Sprintf("command name %q is reserved by prelude", value)
 			return m, nil
 		}
+		// `db/migrate` and `db migrate` name the same command.
 		for _, existing := range m.commands {
-			if existing.Name == value {
-				m.err = fmt.Sprintf("command %q already exists", value)
+			if slices.Equal(commandWords(existing.Name), commandWords(value)) {
+				m.err = fmt.Sprintf("command %q already exists", existing.Name)
 				return m, nil
 			}
 		}

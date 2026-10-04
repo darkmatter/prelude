@@ -90,7 +90,7 @@ func Run() {
 
 	case *xMode:
 		// Bare `x` opens the same picker as bare `menu`.
-		runTUI(cfg, st, nil, nil)
+		runTUI(cfg, st, invocationDecision{})
 
 	case len(args) > 0:
 		// `menu` only opens the interactive picker. Execution and listing
@@ -101,7 +101,7 @@ func Run() {
 		os.Exit(1)
 
 	default:
-		runTUI(cfg, st, nil, nil)
+		runTUI(cfg, st, invocationDecision{})
 	}
 }
 
@@ -116,26 +116,35 @@ func finishDecision(cfg *Config, st styles, command string, decision invocationD
 		fmt.Fprintln(w, st.errText.Render(command+": "+err.Error()))
 		os.Exit(1)
 	}
-	switch decision.kind {
-	case commandInvocation:
+	if decision.kind == commandInvocation {
 		finish(cfg, st, decision.selection())
-	case collectArgumentsInvocation:
-		runTUI(cfg, st, &decision.task, nil)
-	case collectSubcommandInvocation:
-		runTUI(cfg, st, nil, &decision.task)
+		return
 	}
+	runTUI(cfg, st, decision)
 }
 
-func runTUI(cfg *Config, st styles, argTask *Task, subTask *Task) {
-	runProgram(cfg, st, newPicker(cfg, st, argTask, subTask))
+func runTUI(cfg *Config, st styles, decision invocationDecision) {
+	runProgram(cfg, st, newPicker(cfg, st, decision))
 }
 
 // newPicker opens the TUI where a decision still needs input: argument entry
-// for argTask, the subcommand picker for subTask, else the root list.
-func newPicker(cfg *Config, st styles, argTask *Task, subTask *Task) model {
-	m := newModel(cfg, st, argTask)
-	if subTask != nil {
-		m.enterSubMode(*subTask)
+// or the subcommand picker for its task, under the pickers of the parents
+// dispatch descended through, so leaving steps back up the same path. Any
+// other decision opens the root list.
+func newPicker(cfg *Config, st styles, decision invocationDecision) model {
+	m := newModel(cfg, st, nil)
+	if decision.kind != collectArgumentsInvocation && decision.kind != collectSubcommandInvocation {
+		return m
+	}
+	for _, parent := range decision.trail {
+		m.focus(parent.Name)
+		m.enterSubMode(parent)
+	}
+	m.focus(decision.task.Name)
+	if decision.kind == collectArgumentsInvocation {
+		m.enterArgMode(decision.task)
+	} else {
+		m.enterSubMode(decision.task)
 	}
 	return m
 }
@@ -143,11 +152,11 @@ func newPicker(cfg *Config, st styles, argTask *Task, subTask *Task) model {
 // usage prints a short command synopsis to stderr and exits 0 without
 // entering the TUI.
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: menu [--config path] [--embedded] [--select-output PATH [<command-key> [args…]]]")
-	fmt.Fprintln(os.Stderr, "       x [--config path] [--embedded] [--select-output PATH] [--list | --imports | <command-key> [args…]]")
+	fmt.Fprintln(os.Stderr, "usage: menu [--config path] [--embedded] [--select-output PATH [<command> [subcommand…] [args…]]]")
+	fmt.Fprintln(os.Stderr, "       x [--config path] [--embedded] [--select-output PATH] [--list | --imports | <command> [subcommand…] [args…]]")
 	fmt.Fprintln(os.Stderr, "--embedded: render without canvas backgrounds; preserve menu panel backgrounds")
 	fmt.Fprintln(os.Stderr, "--select-output PATH: never execute; write complete shell source (0600), or empty on cancellation")
-	fmt.Fprintln(os.Stderr, "                      accepts x command keys/args; incompatible with --list and --imports")
+	fmt.Fprintln(os.Stderr, "                      accepts x commands/args; incompatible with --list and --imports")
 	fmt.Fprintln(os.Stderr, "shortcuts: motd|?  x|m  docs|d")
 	os.Exit(0)
 }

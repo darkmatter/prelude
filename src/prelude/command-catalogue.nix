@@ -1,22 +1,32 @@
 # Command catalogue domain module.
 #
-# Owns identity, normalization, grouping, selection, and surface projections
-# for `prelude.commands`. Generators (menu.nix, motd.nix, module.nix) consume
-# the domain and its projections rather than re-implementing catalogue rules.
+# Owns identity, normalization, the subcommand tree, grouping, selection, and
+# surface projections for `prelude.commands`. Generators (menu.nix, motd.nix,
+# packages.nix) consume the domain and its projections rather than
+# re-implementing catalogue rules. ts/src/internal/catalogue.ts ports these
+# rules; the conformance fixture holds the two to the same output.
 #
-# Domain entry shape (after normalizeCommandEntries):
-#   { name, group, label, grouped, run, invocation, xInvocation,
-#     description, key, usage, details, examples, args, raw }
+# A key is words separated by one space or `/`: `"db migrate"` and
+# `"db/migrate"` both name `migrate` under `db`, run as `x db migrate`. `:` is
+# an ordinary name character. Groups are never parsed from keys: a command's
+# group is its explicit `group`, else "" (listed above every heading).
 #
-# `group` is either the explicit override from `command.group` or the default
-# inferred from the key's first `:` or `/`; "" means no group, listed without
-# a heading. `grouped` tracks whether the key has a separator (PATH-wrapper vs
-# x-only dispatch) and is independent of `group`.
+# Entry shape (after normalizeCommandEntries):
+#   { sourceName, path, name, label, group, root, direct, synthesized, exec,
+#     run, invocation, xInvocation, description, key, usage, details,
+#     examples, args, builtinSurface, raw }
+#
+# Node shape (commandNodes): an entry, or a synthesized one for a path only
+# its subcommands declare, plus { children, container, onPath, command }. A
+# container has children and no `exec` of its own: it only opens them
+# (run = ""). A top-level command is on PATH when it is declared and its name
+# has no `:`; its whole subtree then runs bare (`db migrate`), else through
+# `x`. Synthesized parents stay off PATH, so `"go test"` cannot shadow `go`.
 #
 # Projections:
-#   projectMenuGroups  → menu TUI JSON groups/tasks
+#   projectMenuGroups  → menu TUI JSON groups/tasks (children nested)
 #   projectMotdRows    → MOTD Getting Started { command, description }
-#   projectMotdCatalog → flat catalogue used by motd.nix before row projection
+#   projectMotdCatalog → every node, flattened, before row projection
 {lib}: let
   normalizeArg = a: {
     token = a.token;
@@ -27,51 +37,40 @@
     default = a.default or null;
   };
 
-  # Stable identity derived from the public command key. The first `:` or `/`
-  # is presentation-only (menu group + label): `go:test` and `go/test` both
-  # show `test` under `go`, while the complete key remains the callable `x`
-  # name. Later separators of either kind stay in the label. A flat key has no
-  # group (""), so the menu lists it above every heading. When `explicitGroup`
-  # is non-null it overrides the inferred group, letting callers place a flat
-  # key under a named group without prefixing it, or a grouped key in none.
-  commandIdentity = sourceName: explicitGroup: let
-    # [group label] around the first separator, or null for a flat key.
-    parts = builtins.match "([^:/]*)[:/](.*)" sourceName;
-    grouped = parts != null;
-    builtin = lib.elem sourceName [
-      "x"
-      "docs"
-    ];
-    inferredGroup =
-      if builtin
-      then "prelude"
-      else if grouped
-      then builtins.elemAt parts 0
-      else "";
+  keyPattern = "[A-Za-z0-9:_.-]+([ /][A-Za-z0-9:_.-]+)*";
+
+  # A key's words: one space or `/` separates a subcommand from its parent.
+  keyPath = sourceName:
+    assert lib.assertMsg (
+      builtins.match keyPattern sourceName != null
+    ) "prelude: command key \"${sourceName}\" must be words of letters, digits, : _ . - separated by a single space or /";
+      lib.splitString " " (lib.replaceStrings ["/"] [" "] sourceName);
+
+  # `x <words>`, each word shell-quoted only when it needs it.
+  xInvocationOf = path: "x ${lib.concatMapStringsSep " " lib.escapeShellArg path}";
+
+  # Identity from the public key. `direct` says the root's name may be a PATH
+  # command: roots containing `:` are reachable only through `x`.
+  identityOf = sourceName: explicitGroup: path: let
+    name = lib.concatStringsSep " " path;
+    root = builtins.head path;
+    subcommand = lib.length path > 1;
     group =
       if explicitGroup != null
       then explicitGroup
-      else inferredGroup;
-    label =
-      if grouped
-      then builtins.elemAt parts 1
-      else sourceName;
+      else if !subcommand && lib.elem name ["x" "docs"]
+      then "prelude"
+      else "";
+    direct = !lib.hasInfix ":" root;
   in
-    assert lib.assertMsg (
-      builtins.match "[^ \t]+" sourceName != null
-    ) "prelude: command key must be non-empty and contain no whitespace";
-    # A separator needs a name on each side, unless an explicit group replaces
-    # the one before it.
-    assert lib.assertMsg (
-      label != "" && (!grouped || explicitGroup != null || builtins.elemAt parts 0 != "")
-    ) "prelude: command key must have non-empty segments around its first `:` or `/`"; {
-      inherit
-        sourceName
-        group
-        label
-        grouped
-        ;
+    assert lib.assertMsg (!(subcommand && explicitGroup != null)) "prelude: \"${name}\" is a subcommand of \"${root}\"; set group on \"${root}\" instead"; {
+      inherit sourceName path name root group direct;
+      label = lib.last path;
+      xInvocation = xInvocationOf path;
+      synthesized = false;
     };
+
+  commandIdentity = sourceName: explicitGroup: identityOf sourceName explicitGroup (keyPath sourceName);
 
   # Built-in Prelude entrypoints that have their own store-path binaries.
   # Commands named x/docs/motd with no explicit exec, or with an exec equal
@@ -92,9 +91,7 @@
   in
     identity
     // {
-      # The key is both stable identity and public x command. The first `:` or
-      # `/` derives presentation only; it remains part of the key (`x go:test`).
-      name = sourceName;
+      inherit exec;
       # The Go menu still calls executable shell text `run` at its JSON boundary.
       run =
         if exec == null
@@ -115,11 +112,11 @@
       details = command.details or null;
       examples = command.examples or [];
       args = map normalizeArg (command.args or []);
-      builtinSurface = builtinSurface sourceName exec;
+      builtinSurface = builtinSurface identity.name exec;
     };
 
   normalizeCommandEntries = commands: let
-    baseEntries = map (
+    entries = map (
       {
         name,
         value,
@@ -129,20 +126,115 @@
           raw = value;
         }
     ) (lib.mapAttrsToList lib.nameValuePair commands);
-    invocations = map (entry: entry.invocation) baseEntries;
+    # `db/migrate` and `db migrate` are one command; declaring both is a typo.
+    sameName = lib.filter (group: lib.length group > 1) (
+      lib.attrValues (lib.groupBy (entry: entry.name) entries)
+    );
+  in
+    assert lib.assertMsg (sameName == []) (
+      "prelude: these keys name the same command: "
+      + lib.concatMapStringsSep "; " (group: lib.concatMapStringsSep ", " (entry: "\"${entry.sourceName}\"") group) sameName
+    ); entries;
+
+  # Every runnable command keeps one canonical invocation. Containers run
+  # nothing, so two exec-less parents (`db`, `api db`) never clash.
+  checkInvocations = nodes: let
+    invocations = map (node: node.invocation) (lib.filter (node: !node.container && !node.synthesized) nodes);
     duplicates = lib.filter (
       invocation: lib.count (candidate: candidate == invocation) invocations > 1
     ) (lib.unique invocations);
-    withDispatch = entry: entry // {xInvocation = "x ${lib.escapeShellArg entry.name}";};
   in
-    assert lib.assertMsg (
+    lib.assertMsg (
       duplicates == []
     ) "prelude: duplicate canonical command invocation(s): ${lib.concatStringsSep ", " duplicates}";
-      map withDispatch baseEntries;
+
+  # A node for a path only subcommands declare: the parent the menu needs to
+  # show them under, with no behavior of its own.
+  synthesizedNode = path:
+    identityOf (lib.concatStringsSep " " path) null path
+    // {
+      synthesized = true;
+      exec = null;
+      run = "";
+      invocation = "";
+      description = "";
+      key = null;
+      usage = null;
+      details = null;
+      examples = [];
+      args = [];
+      builtinSurface = null;
+      raw = {};
+    };
+
+  byLabel = a: b:
+    if a.label != b.label
+    then a.label < b.label
+    else a.name < b.name;
+
+  # The nodes one level below a shared path, at word `depth`: the declared
+  # command for each next word, or a synthesized parent, with its own
+  # subcommands below it.
+  buildNodes = depth: entries: let
+    word = entry: builtins.elemAt entry.path depth;
+    node = segment: let
+      members = lib.filter (entry: word entry == segment) entries;
+      declared = lib.findFirst (entry: lib.length entry.path == depth + 1) null members;
+      children = buildNodes (depth + 1) (lib.filter (entry: lib.length entry.path > depth + 1) members);
+      base =
+        if declared != null
+        then declared
+        else synthesizedNode (lib.take (depth + 1) (builtins.head members).path);
+      count = lib.length children;
+      container = children != [] && base.exec == null;
+    in
+      base
+      // {
+        inherit children container;
+        run =
+          if container
+          then ""
+          else base.run;
+        description =
+          if container && base.description == ""
+          then
+            (
+              if count == 1
+              then "1 subcommand"
+              else "${toString count} subcommands"
+            )
+          else base.description;
+      };
+  in
+    lib.sort byLabel (map node (lib.unique (map word entries)));
+
+  # Every node below a top-level command runs the way that command does:
+  # bare words when it is on PATH, else through `x`.
+  withPlacement = onPath: node:
+    node
+    // {
+      inherit onPath;
+      command =
+        if onPath
+        then node.name
+        else node.xInvocation;
+      children = map (withPlacement onPath) node.children;
+    };
+
+  # The top-level nodes of the catalogue tree.
+  commandNodes = commands: let
+    nodes = map (node: withPlacement (node.direct && !node.synthesized) node) (
+      buildNodes 0 (normalizeCommandEntries commands)
+    );
+  in
+    assert checkInvocations (flattenNodes nodes); nodes;
+
+  # Every node, parents before their subcommands.
+  flattenNodes = nodes: lib.concatMap (node: [node] ++ flattenNodes node.children) nodes;
 
   normalizeCommandGroups = groupOrder: commands: let
-    entries = normalizeCommandEntries commands;
-    availableGroups = lib.unique (map (entry: entry.group) entries);
+    nodes = commandNodes commands;
+    availableGroups = lib.unique (map (node: node.group) nodes);
     # Commands without a group have no heading, so they list above every
     # group; placed lower, they would read as part of the group above them.
     ungrouped = lib.optional (lib.elem "" availableGroups) "";
@@ -153,27 +245,24 @@
       lib.filter (group: !lib.elem group preferredGroups) named
     );
     groupNames = ungrouped ++ preferredGroups ++ remainingGroups;
-    commandsInGroup = group: lib.sort (a: b: a.label < b.label) (lib.filter (entry: entry.group == group) entries);
   in
     assert lib.assertMsg (
       lib.unique groupOrder == groupOrder
     ) "prelude: sort.groups must not contain duplicates";
       map (group: {
         title = group;
-        tasks = commandsInGroup group;
+        tasks = lib.filter (node: node.group == group) nodes;
       })
       groupNames;
 
+  # Top-level nodes in group order.
   flatCommands = groups: lib.concatMap (group: group.tasks) groups;
 
   # Select commands for the MOTD Getting Started list.
-  # - Commands with `motd` set appear at that sort order.
+  # - Commands with `motd` set appear at that sort order, at any depth.
   # - `x` is always included when present (opens the command palette).
-  # - Ungrouped commands render bare: each one is on PATH (generated wrapper
-  #   or first-class entrypoint), so the row matches what the user types. The
-  #   `x` dispatcher remains the fallback when another command shadows them.
-  # - Grouped commands (`go:test`) have no PATH entry — the complete key is
-  #   only callable through `x`, so those rows keep the `x` dispatch form.
+  # - Each row is the command's user-runnable form: bare words when its root
+  #   is on PATH (`db migrate`), else the `x` dispatch form.
   # Returns `{ name, command, description }` rows in display order.
   selectCommands = commands: let
     isPalette = entry: entry.name == "x";
@@ -200,14 +289,7 @@
       motdEntries;
   in
     map (entry: {
-      name = entry.name;
-      # Ungrouped commands run bare from PATH; grouped keys only run
-      # through the `x` dispatcher, so they keep the dispatch form.
-      command =
-        if entry.grouped
-        then entry.xInvocation
-        else entry.name;
-      description = entry.description;
+      inherit (entry) name command description;
     })
     sorted;
 
@@ -219,35 +301,35 @@
     else v;
 
   # Menu TUI JSON boundary: groups of tasks with the fields Go menu.Config
-  # expects. Keeps catalogue metadata (usage/details/examples/args/key) intact.
-  # `command` is the user-runnable form: ungrouped entries are PATH commands,
-  # while grouped catalogue identities dispatch through `x`. Consumers
-  # such as the shell status host must use this rather than reconstructing
-  # invocation rules from a display label.
+  # expects. Keeps catalogue metadata (usage/details/examples/args/key) intact;
+  # `children` appears only on nodes that have subcommands. `command` is the
+  # user-runnable form; consumers such as the shell status host must use it
+  # rather than reconstructing invocation rules from a display label.
+  projectTask = t:
+    {
+      name = t.name;
+      label = t.label;
+      run = t.run;
+      command = t.command;
+      description = t.description;
+      key = orEmpty t.key;
+      usage = orEmpty t.usage;
+      details = orEmpty t.details;
+      examples = t.examples;
+      args = t.args;
+    }
+    // lib.optionalAttrs (t.children != []) {
+      children = map projectTask t.children;
+    };
+
   projectMenuGroups = groupOrder: commands:
     map (group: {
       title = group.title;
-      tasks =
-        map (t: {
-          name = t.name;
-          label = t.label;
-          run = t.run;
-          command =
-            if t.grouped
-            then t.xInvocation
-            else t.name;
-          description = t.description;
-          key = orEmpty t.key;
-          usage = orEmpty t.usage;
-          details = orEmpty t.details;
-          examples = t.examples;
-          args = t.args;
-        })
-        group.tasks;
+      tasks = map projectTask group.tasks;
     }) (normalizeCommandGroups groupOrder commands);
 
-  # Flat catalogue (normalized entries) used by motd.nix before row reduction.
-  projectMotdCatalog = groupOrder: commands: flatCommands (normalizeCommandGroups groupOrder commands);
+  # Every node (subcommands included) used by motd.nix before row reduction.
+  projectMotdCatalog = groupOrder: commands: flattenNodes (flatCommands (normalizeCommandGroups groupOrder commands));
 
   # Reduced MOTD rows: only what the Go MOTD renderer paints.
   projectMotdRows = groupOrder: commands:
@@ -260,6 +342,8 @@ in {
     commandIdentity
     normalizeCommand
     normalizeCommandEntries
+    commandNodes
+    flattenNodes
     normalizeCommandGroups
     flatCommands
     selectCommands
