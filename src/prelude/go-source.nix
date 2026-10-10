@@ -19,9 +19,12 @@ in
       ../go.mod
       ../go.sum
       (fs.intersection (fs.fileFilter isGoInput ../.) (fs.unions [
-        # A separate Go module with its own go.mod; the main module never
-        # builds it.
-        (fs.difference ../cmd ../cmd/prelude-shell-vt-host)
+        # Separate native Go modules with their own go.mod; the main module
+        # never builds them.
+        (fs.difference ../cmd (fs.unions [
+          ../cmd/prelude-shell-vt-host
+          ../cmd/prelude-workspace
+        ]))
         ../internal
         ../pkg
       ]))

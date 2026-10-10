@@ -112,7 +112,7 @@ func (h *host) noteShellInput(data []byte, quoted bool) {
 	}
 }
 
-// A single waiting selection is enough for this spike. Never send the private
+// A single waiting selection is enough for the workspace. Never send the private
 // readline key while a foreground program or secondary PS2 prompt owns input.
 func (h *host) dispatchMenuCommand() {
 	if h.pendingCommand == "" || !h.prompt.ready || h.shellAcceptPending || h.restoreInput || h.child == nil {

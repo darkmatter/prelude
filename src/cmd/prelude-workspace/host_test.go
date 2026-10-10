@@ -337,8 +337,8 @@ func TestHostRealBashReadlineAndSemanticLifecycle(t *testing.T) {
 	spikeKey(h, 'c', tea.ModCtrl)
 	awaitSpike(t, h, "cancelled readline input", func() bool { return h.prompt.ready && spikeInput(h) == "" })
 	spikeShellStatus(t, h, 130)
-	h.Update(tea.PasteMsg{Content: "printf 'spike $ literal'"})
-	awaitSpike(t, h, "prompt text inside actual input", func() bool { return spikeInput(h) == "printf 'spike $ literal'" })
+	h.Update(tea.PasteMsg{Content: "printf 'prelude $ literal'"})
+	awaitSpike(t, h, "prompt text inside actual input", func() bool { return spikeInput(h) == "printf 'prelude $ literal'" })
 }
 
 func TestHostRestoresBlinkingCursorWhenBashRegainsInput(t *testing.T) {

@@ -1,4 +1,4 @@
-# Repository-only experiment: neither the native library nor the spike enters
+# Explicitly launched Bash workspace: neither it nor its native library enters
 # a consumer's closure or the default devshell. Nixpkgs' lock pins the C API.
 {
   pkgs,
@@ -46,10 +46,10 @@
     config.packages.prelude-motd
   ];
   native = pkgs.buildGo126Module {
-    pname = "prelude-ghostty-spike";
+    pname = "prelude-workspace";
     version = "0.1.0";
     src = lib.fileset.toSource {
-      root = ../prototypes/ghostty;
+      root = ../cmd/prelude-workspace;
       fileset =
         lib.fileset.fileFilter (
           file:
@@ -61,7 +61,7 @@
               "go.sum"
             ]
         )
-        ../prototypes/ghostty;
+        ../cmd/prelude-workspace;
     };
     vendorHash = "sha256-dRR8YIxXmK6wT9S1R9uL2aW6Q3yb3t7SMLe/x/LrM/U=";
     nativeBuildInputs = [pkgs.pkg-config];
@@ -77,14 +77,14 @@
     };
     doCheck = true;
     checkFlags = ["-count=1"];
-    meta.mainProgram = "prelude-ghostty-spike";
+    meta.mainProgram = "prelude-workspace";
   };
   package = pkgs.symlinkJoin {
-    name = "prelude-ghostty-spike";
+    name = "prelude-workspace";
     paths = [native];
     nativeBuildInputs = [pkgs.makeWrapper];
     postBuild = ''
-      wrapProgram "$out/bin/prelude-ghostty-spike" \
+      wrapProgram "$out/bin/prelude-workspace" \
         --prefix PATH : ${lib.makeBinPath (runtime ++ surfaces)} \
         --run ${lib.escapeShellArg promptInit} \
         --set-default PRELUDE_COMPLETION_INIT ${completionInit} \
@@ -92,8 +92,8 @@
     '';
     passthru = {inherit promptConfig promptInit;};
     meta = {
-      description = "libghostty-vt shell spike with Prelude leader chords and movable surface panes";
-      mainProgram = "prelude-ghostty-spike";
+      description = "Bash workspace with Prelude keyboard chords and movable menu and docs panes";
+      mainProgram = "prelude-workspace";
     };
   };
 in {

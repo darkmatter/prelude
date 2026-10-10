@@ -96,18 +96,18 @@ func leaderSmokeBody(f smokeFrame, body image.Rectangle) string {
 }
 
 func TestGhosttyLeaderBinarySmoke(t *testing.T) {
-	binary := filepath.Join(t.TempDir(), "ghostty-spike")
+	binary := filepath.Join(t.TempDir(), "prelude-workspace")
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	if output, err := exec.CommandContext(ctx, "go", "build", "-o", binary, ".").CombinedOutput(); err != nil {
-		t.Fatalf("build real Ghostty binary: %v (context: %v)\n%s", err, ctx.Err(), output)
+		t.Fatalf("build prelude-workspace binary: %v (context: %v)\n%s", err, ctx.Err(), output)
 	}
 
 	t.Run("ConfiguredSurfacesAndMenuSelection", func(t *testing.T) {
 		for _, command := range []string{"x", "docs", "motd"} {
 			path, err := exec.LookPath(command)
 			if err != nil {
-				t.Fatalf("configured %s wrapper missing: %v; run in nix develop path:/home/cm/git/darkmatter/prelude#ghostty-spike (configured first-paint coverage is required)", command, err)
+				t.Fatalf("configured %s wrapper missing: %v; run in nix develop path:.#workspace (configured first-paint coverage is required)", command, err)
 			}
 			t.Logf("configured %s: %s", command, path)
 		}
@@ -120,13 +120,13 @@ func TestGhosttyLeaderBinarySmoke(t *testing.T) {
 		s.await("actual configured startup MOTD before first prompt", func(f smokeFrame) bool {
 			text := strings.Join(f.rows, "\n")
 			return strings.Contains(text, motdIdentity) && strings.Contains(text, "Prelude's own devshell") &&
-				!strings.Contains(text, "MOTD_SHELL:") && f.hasInput("spike $", "") && f.footer() == smokeBaseFooter
+				!strings.Contains(text, "MOTD_SHELL:") && f.hasInput("prelude $", "") && f.footer() == smokeBaseFooter
 		})
 		s.resize(120, 42)
-		s.await("larger outer terminal", func(f smokeFrame) bool { return f.cols == 120 && len(f.rows) == 42 && f.hasLine("spike $") })
+		s.await("larger outer terminal", func(f smokeFrame) bool { return f.cols == 120 && len(f.rows) == 42 && f.hasLine("prelude $") })
 		s.send("echo native-main")
 		s.await("parked Bash input", func(f smokeFrame) bool {
-			return f.hasInput("spike $", "echo native-main") && f.footer() == smokeBaseFooter
+			return f.hasInput("prelude $", "echo native-main") && f.footer() == smokeBaseFooter
 		})
 		body := image.Rect(12, 5, 108, 35) // Full borderless 96x30 panel inside 120x42.
 		const shellFooter = smokeBaseFooter
@@ -161,14 +161,16 @@ func TestGhosttyLeaderBinarySmoke(t *testing.T) {
 		})
 		s.send("q")
 		s.await("exiting selected docs restores parked input in the main Bash", func(f smokeFrame) bool {
-			return f.footer() == shellFooter && f.hasInput("spike $", "echo native-main")
+			return f.footer() == shellFooter && f.hasInput("prelude $", "echo native-main")
 		})
 		s.send("\x10x")
 		paint("reopened configured picker is usable after selected docs exits", "menu", "focus:pane | running", menuIdentity, "docs")
 		s.send("docs")
 		paint("reopened picker filters again", "menu", "focus:pane | running", "browse project documentation")
 		s.send("\x10c")
-		s.await("close reopened picker leaves parked input intact", func(f smokeFrame) bool { return f.hasInput("spike $", "echo native-main") && f.footer() == shellFooter })
+		s.await("close reopened picker leaves parked input intact", func(f smokeFrame) bool {
+			return f.hasInput("prelude $", "echo native-main") && f.footer() == shellFooter
+		})
 		s.send("\x1bd")
 		paint("configured docs shortcut first paint", "docs", "focus:pane | running", "PAGES", "DOCS")
 		docsImage := leaderSmokeBody(s.frame(), body)
@@ -182,7 +184,7 @@ func TestGhosttyLeaderBinarySmoke(t *testing.T) {
 		})
 		s.send("\r")
 		s.await("main shell executes while configured docs stay hidden", func(f smokeFrame) bool {
-			return f.hasLine("native-main") && f.hasInput("spike $", "") && f.hasPaneFooter("docs hidden | running")
+			return f.hasLine("native-main") && f.hasInput("prelude $", "") && f.hasPaneFooter("docs hidden | running")
 		})
 		s.send("\x10d")
 		paint("same d chord restores configured docs and focus", "docs", "focus:pane | running", "PAGES", "DOCS")
@@ -190,7 +192,7 @@ func TestGhosttyLeaderBinarySmoke(t *testing.T) {
 			t.Fatalf("configured docs changed across hide/show: before=%q after=%q", docsImage, got)
 		}
 		s.send("\x10c")
-		s.await("close configured docs restores base footer", func(f smokeFrame) bool { return f.hasInput("spike $", "") && f.footer() == shellFooter })
+		s.await("close configured docs restores base footer", func(f smokeFrame) bool { return f.hasInput("prelude $", "") && f.footer() == shellFooter })
 		s.send("\x0c")
 		s.await("clear startup banner before manual configured MOTD", func(f smokeFrame) bool {
 			return f.footer() == shellFooter && !strings.Contains(strings.Join(f.rows, "\n"), motdIdentity)
@@ -206,20 +208,20 @@ func TestGhosttyLeaderBinarySmoke(t *testing.T) {
 	t.Run("LeaderRoutingPlacementAndLifecycle", func(t *testing.T) {
 		leaderSmokeTools(t)
 		s := startSmokeOuterPTY(t, binary)
-		s.await("fixture shell ready", func(f smokeFrame) bool { return f.hasInput("spike $", "") && f.footer() == smokeBaseFooter })
+		s.await("fixture shell ready", func(f smokeFrame) bool { return f.hasInput("prelude $", "") && f.footer() == smokeBaseFooter })
 		// Seed history so leaking the prefix into readline would recall a command.
 		s.send("echo leader-history\r")
 		s.await("Bash history seeded", func(f smokeFrame) bool {
-			return f.hasLine("leader-history") && f.hasInput("spike $", "") && f.footer() == smokeBaseFooter
+			return f.hasLine("leader-history") && f.hasInput("prelude $", "") && f.footer() == smokeBaseFooter
 		})
 		shellInput := "echo xmd?vc"
 		s.send(shellInput)
-		s.await("unprefixed shortcuts belong to Bash", func(f smokeFrame) bool { return f.hasInput("spike $", shellInput) && f.footer() == smokeBaseFooter })
+		s.await("unprefixed shortcuts belong to Bash", func(f smokeFrame) bool { return f.hasInput("prelude $", shellInput) && f.footer() == smokeBaseFooter })
 		s.send("\x10")
 		leader := s.await("Ctrl+P unlocks one command with MOTD/menu/docs hints", func(f smokeFrame) bool { return f.hasFooter(smokeLeaderKeys, "") })
 		assertSmokeFooterTheme(t, leader, smokeLeaderKeys, "")
 		s.send("\x1b")
-		s.await("Escape cancels only the prefix", func(f smokeFrame) bool { return f.hasInput("spike $", shellInput) && f.footer() == smokeBaseFooter })
+		s.await("Escape cancels only the prefix", func(f smokeFrame) bool { return f.hasInput("prelude $", shellInput) && f.footer() == smokeBaseFooter })
 		s.send("\x10x")
 		body := image.Rect(9, 2, 81, 21) // 90x24: full floating Body is 72x19.
 		first := s.await("raw menu child first paint", func(f smokeFrame) bool { return strings.Contains(leaderSmokeBody(f, body), "LEADER_MENU:") })
@@ -243,7 +245,7 @@ func TestGhosttyLeaderBinarySmoke(t *testing.T) {
 			// stayed with the intended child, then restore the same PID and focus.
 			s.send("\x10t")
 			s.await(what+" preserves parked Bash input", func(f smokeFrame) bool {
-				return f.hasInput("spike $", shellInput) && f.hasPaneFooter("menu hidden | running")
+				return f.hasInput("prelude $", shellInput) && f.hasPaneFooter("menu hidden | running")
 			})
 			s.send("\x10t")
 			if focus == "shell" {
@@ -284,13 +286,13 @@ func TestGhosttyLeaderBinarySmoke(t *testing.T) {
 		pane("outer bracketed paste reaches bracketed-paste child", "pane")
 		s.send("\x10t")
 		s.await("Ctrl+P t hides native pane without stopping its PID", func(f smokeFrame) bool {
-			return f.hasInput("spike $", shellInput) && f.hasPaneFooter("menu hidden | running") &&
+			return f.hasInput("prelude $", shellInput) && f.hasPaneFooter("menu hidden | running") &&
 				!strings.Contains(leaderSmokeBody(f, body), identity) && syscall.Kill(menuPID, 0) == nil
 		})
 		s.send("-g")
 		shellInput += "-g"
 		s.await("hidden pane returns raw input to Bash", func(f smokeFrame) bool {
-			return f.hasInput("spike $", shellInput) && f.hasPaneFooter("menu hidden | running")
+			return f.hasInput("prelude $", shellInput) && f.hasPaneFooter("menu hidden | running")
 		})
 		s.send("\x10t")
 		pane("Ctrl+P t restores the same PID, raw input state, and focus", "pane")
@@ -348,12 +350,12 @@ func TestGhosttyLeaderBinarySmoke(t *testing.T) {
 		})
 		s.send("\x10t")
 		s.await("finished docs hides without restart", func(f smokeFrame) bool {
-			return f.hasInput("spike $", shellInput) && f.hasPaneFooter("docs hidden | exited:7")
+			return f.hasInput("prelude $", shellInput) && f.hasPaneFooter("docs hidden | exited:7")
 		})
 		s.send("-e")
 		shellInput += "-e"
 		s.await("Bash remains editable with a hidden final image", func(f smokeFrame) bool {
-			return f.hasInput("spike $", shellInput) && f.hasPaneFooter("docs hidden | exited:7")
+			return f.hasInput("prelude $", shellInput) && f.hasPaneFooter("docs hidden | exited:7")
 		})
 		s.send("\x10t")
 		s.await("show restores final docs image without focus or restart", func(f smokeFrame) bool {
@@ -371,17 +373,17 @@ func TestGhosttyLeaderBinarySmoke(t *testing.T) {
 		assertSmokeFooterTheme(t, notice, smokePaneKeys, smokeUnknownChordStatus("docs | floating | focus:pane | running"))
 		s.send("\x10c\r")
 		s.await("closed panes leave original shell input executable", func(f smokeFrame) bool {
-			return f.hasLine(strings.TrimPrefix(shellInput, "echo ")) && f.hasInput("spike $", "") && f.footer() == smokeBaseFooter
+			return f.hasLine(strings.TrimPrefix(shellInput, "echo ")) && f.hasInput("prelude $", "") && f.footer() == smokeBaseFooter
 		})
 		s.send("\x1bx")
 		s.await("live pane reopened", func(f smokeFrame) bool { return strings.Contains(leaderSmokeBody(f, body), "LEADER_MENU:") })
 		s.send("\x10cecho leader-alive\r")
 		s.await("closing a live child is safe for Bash", func(f smokeFrame) bool {
-			return f.hasLine("leader-alive") && f.hasInput("spike $", "") && f.footer() == smokeBaseFooter
+			return f.hasLine("leader-alive") && f.hasInput("prelude $", "") && f.footer() == smokeBaseFooter
 		})
 		s.send("echo failed-safe")
 		s.await("parked input before failing menu", func(f smokeFrame) bool {
-			return f.hasInput("spike $", "echo failed-safe") && f.footer() == smokeBaseFooter
+			return f.hasInput("prelude $", "echo failed-safe") && f.footer() == smokeBaseFooter
 		})
 		s.send("\x10x")
 		s.await("menu reopened for failed selection", func(f smokeFrame) bool { return f.panel("menu") })
@@ -391,7 +393,7 @@ func TestGhosttyLeaderBinarySmoke(t *testing.T) {
 		})
 		s.send("\x10c\r")
 		s.await("Bash remains usable after the failed selection", func(f smokeFrame) bool {
-			return f.hasLine("failed-safe") && f.hasInput("spike $", "") && f.footer() == smokeBaseFooter
+			return f.hasLine("failed-safe") && f.hasInput("prelude $", "") && f.footer() == smokeBaseFooter
 		})
 		s.traceMu.Lock()
 		failedSourceRan := strings.Contains(string(s.output), "FAILED_MENU_SOURCE_RAN")

@@ -8,7 +8,7 @@
   previews,
   skill,
   typescript,
-  ghosttySpike,
+  workspace,
   ...
 }:
 {
@@ -18,6 +18,6 @@
   docs-sync = docsAutomation.sync;
   inherit (typescript) libprelude;
   ts-sync = typescript.sync;
-  ghostty-spike = ghosttySpike.package;
+  prelude-workspace = workspace.package;
 }
 // demos.examplePackages

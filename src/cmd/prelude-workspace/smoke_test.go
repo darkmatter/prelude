@@ -727,44 +727,46 @@ func (s *smokeOuterPTY) close() {
 
 func TestGhosttyBinarySmoke(t *testing.T) {
 	// Build once, lazily when this smoke is selected; both scenarios share it.
-	binary := filepath.Join(t.TempDir(), "ghostty-spike")
+	binary := filepath.Join(t.TempDir(), "prelude-workspace")
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	build := exec.CommandContext(ctx, "go", "build", "-o", binary, ".")
 	if output, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build real Ghostty binary: %v (context: %v)\n%s", err, ctx.Err(), output)
+		t.Fatalf("build prelude-workspace binary: %v (context: %v)\n%s", err, ctx.Err(), output)
 	}
 
 	t.Run("ReadlineAndRetainedFloatingPane", func(t *testing.T) {
 		leaderSmokeTools(t)
 		s := startSmokeOuterPTY(t, binary)
 		first := s.await("initial shell and footer", func(f smokeFrame) bool {
-			return f.alt && f.footer() == smokeBaseFooter && f.hasInput("spike $", "")
+			return f.alt && f.footer() == smokeBaseFooter && f.hasInput("prelude $", "")
 		})
 		assertSmokeFooterTheme(t, first, smokeNavigationKeys, "")
 		s.send("echo typed-XY")
 		s.await("typed command in readline", func(f smokeFrame) bool {
-			return f.hasInput("spike $", "echo typed-XY") && f.footer() == smokeBaseFooter
+			return f.hasInput("prelude $", "echo typed-XY") && f.footer() == smokeBaseFooter
 		})
 		s.send("\x7f\x7fok")
 		s.await("backspace edits in readline", func(f smokeFrame) bool {
-			return f.hasInput("spike $", "echo typed-ok") && f.footer() == smokeBaseFooter
+			return f.hasInput("prelude $", "echo typed-ok") && f.footer() == smokeBaseFooter
 		})
 		s.send("\x01" + strings.Repeat("\x1b[C", 5) + "\x1b[3~")
-		s.await("middle deletion preserving suffix", func(f smokeFrame) bool { return f.hasInput("spike $", "echo yped-ok") && f.footer() == smokeBaseFooter })
+		s.await("middle deletion preserving suffix", func(f smokeFrame) bool {
+			return f.hasInput("prelude $", "echo yped-ok") && f.footer() == smokeBaseFooter
+		})
 		s.send("t\r")
 		s.await("executed edited command", func(f smokeFrame) bool {
-			return f.hasLine("typed-ok") && f.hasInput("spike $", "") && f.footer() == smokeBaseFooter
+			return f.hasLine("typed-ok") && f.hasInput("prelude $", "") && f.footer() == smokeBaseFooter
 		})
 		s.send("\x1b[A")
 		s.await("readline history", func(f smokeFrame) bool {
-			return f.hasInput("spike $", "echo typed-ok") && f.footer() == smokeBaseFooter
+			return f.hasInput("prelude $", "echo typed-ok") && f.footer() == smokeBaseFooter
 		})
 		s.send("\x15")
-		s.await("cleared recalled input", func(f smokeFrame) bool { return f.hasInput("spike $", "") && f.footer() == smokeBaseFooter })
+		s.await("cleared recalled input", func(f smokeFrame) bool { return f.hasInput("prelude $", "") && f.footer() == smokeBaseFooter })
 		s.send("smoke_paint\r")
 		before := s.await("composed Unicode and panel underlay", func(f smokeFrame) bool {
-			return f.rows[2] == "VISIBLE:界é🙂END" && strings.Contains(f.rows[11], "UNDERLAY-CONTENT") && f.hasInput("spike $", "") && f.footer() == smokeBaseFooter
+			return f.rows[2] == "VISIBLE:界é🙂END" && strings.Contains(f.rows[11], "UNDERLAY-CONTENT") && f.hasInput("prelude $", "") && f.footer() == smokeBaseFooter
 		})
 		// x/vt itself drops decomposed accents while parsing. Assert against
 		// the real emitted bytes so that limitation cannot mask a host regression.
@@ -808,7 +810,7 @@ func TestGhosttyBinarySmoke(t *testing.T) {
 		})
 		s.send("echo panel-live\r")
 		s.await("Bash remains usable while pane is hidden", func(f smokeFrame) bool {
-			return f.hasLine("panel-live") && f.hasInput("spike $", "") && f.hasPaneFooter("menu hidden | running")
+			return f.hasLine("panel-live") && f.hasInput("prelude $", "") && f.hasPaneFooter("menu hidden | running")
 		})
 		s.send("\x10tz")
 		s.await("show refocuses the same PID with retained navigation state", func(f smokeFrame) bool {
@@ -818,11 +820,11 @@ func TestGhosttyBinarySmoke(t *testing.T) {
 		s.send("\x10t")
 		s.await("hide reveals current shell output, not a saved underlay", func(f smokeFrame) bool {
 			return !f.panel("menu") && f.rows[11] == before.rows[11] && f.rows[2] == before.rows[2] && f.hasLine("panel-live") &&
-				f.hasInput("spike $", "") && f.hasPaneFooter("menu hidden | running")
+				f.hasInput("prelude $", "") && f.hasPaneFooter("menu hidden | running")
 		})
 		s.send("\x10c")
 		s.await("explicit close destroys the hidden pane and restores the base footer", func(f smokeFrame) bool {
-			return f.footer() == smokeBaseFooter && f.hasInput("spike $", "") && errors.Is(syscall.Kill(pid, 0), syscall.ESRCH)
+			return f.footer() == smokeBaseFooter && f.hasInput("prelude $", "") && errors.Is(syscall.Kill(pid, 0), syscall.ESRCH)
 		})
 		s.send("exit 0\r")
 		s.expectExit(0)
@@ -831,10 +833,10 @@ func TestGhosttyBinarySmoke(t *testing.T) {
 	t.Run("ChildScreenIsolationResizeAndExitStatus", func(t *testing.T) {
 		leaderSmokeTools(t)
 		s := startSmokeOuterPTY(t, binary)
-		s.await("initial prompt and footer", func(f smokeFrame) bool { return f.hasInput("spike $", "") && f.footer() == smokeBaseFooter })
+		s.await("initial prompt and footer", func(f smokeFrame) bool { return f.hasInput("prelude $", "") && f.footer() == smokeBaseFooter })
 		s.send("smoke_paint\r")
 		s.await("original primary screen", func(f smokeFrame) bool {
-			return f.rows[2] == "VISIBLE:界é🙂END" && f.hasInput("spike $", "") && f.footer() == smokeBaseFooter
+			return f.rows[2] == "VISIBLE:界é🙂END" && f.hasInput("prelude $", "") && f.footer() == smokeBaseFooter
 		})
 		s.send("\x10x\x10\t")
 		s.await("visible menu leaves Bash focusable before destructive output", func(f smokeFrame) bool {
@@ -876,15 +878,15 @@ func TestGhosttyBinarySmoke(t *testing.T) {
 		})
 		s.send("\x10t\x10\treturn\r")
 		s.await("child leaves alternate screen with menu still visible", func(f smokeFrame) bool {
-			return f.rows[0] == "PRIMARY-RESTORED" && f.hasInput("spike $", "") && f.panel("menu") && f.hasPaneFooter("menu | floating | focus:shell | running")
+			return f.rows[0] == "PRIMARY-RESTORED" && f.hasInput("prelude $", "") && f.panel("menu") && f.hasPaneFooter("menu | floating | focus:shell | running")
 		})
 		s.send("\x10t")
 		s.await("hide reveals restored primary screen without stale alternate output", func(f smokeFrame) bool {
 			return !f.panel("menu") && f.rows[0] == "PRIMARY-RESTORED" && f.rows[2] == "VISIBLE:界é🙂END" &&
-				strings.Contains(f.rows[11], "PRIMARY-UNDERLAY") && f.rows[4] == "" && f.hasInput("spike $", "") && f.hasPaneFooter("menu hidden | running")
+				strings.Contains(f.rows[11], "PRIMARY-UNDERLAY") && f.rows[4] == "" && f.hasInput("prelude $", "") && f.hasPaneFooter("menu hidden | running")
 		})
 		s.send("\x10c")
-		s.await("close restores base footer on primary screen", func(f smokeFrame) bool { return f.hasInput("spike $", "") && f.footer() == smokeBaseFooter })
+		s.await("close restores base footer on primary screen", func(f smokeFrame) bool { return f.hasInput("prelude $", "") && f.footer() == smokeBaseFooter })
 		s.send("exit 37\r")
 		s.expectExit(37)
 	})

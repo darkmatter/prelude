@@ -13,10 +13,10 @@ func TestPromptSemanticLifecycleAcrossSplitControlStrings(t *testing.T) {
 	var parser promptParser
 	var state promptState
 	frame := spikeFrame(40, 2)
-	for i, char := range spikePrompt {
+	for i, char := range workspacePrompt {
 		frame.Cells[i] = uv.Cell{Content: string(char), Width: 1}
 	}
-	frame.CursorX = len(spikePrompt)
+	frame.CursorX = len(workspacePrompt)
 	stream := "\x1bPignored \x1b]133;C\a\x1b\\" +
 		"\x1b]0;not a shell hook\a\x1b]133;A\a\x1b]133;B\x1b\\"
 	var kinds string
@@ -28,11 +28,11 @@ func TestPromptSemanticLifecycleAcrossSplitControlStrings(t *testing.T) {
 		}
 	}
 	for i, char := range "echo hello" {
-		frame.Cells[len(spikePrompt)+i] = uv.Cell{Content: string(char), Width: 1}
+		frame.Cells[len(workspacePrompt)+i] = uv.Cell{Content: string(char), Width: 1}
 	}
-	frame.CursorX = len(spikePrompt + "echo hello")
+	frame.CursorX = len(workspacePrompt + "echo hello")
 	state.observe(frame)
-	if kinds != "AB" || state.phase != "prompt" || !state.ready || state.anchor != len(spikePrompt) ||
+	if kinds != "AB" || state.phase != "prompt" || !state.ready || state.anchor != len(workspacePrompt) ||
 		state.anchorCols != frame.Cols || !state.promptAt(frame, state.anchor) {
 		t.Fatalf("hooks=%q phase=%q ready=%t anchor=%d cols=%d", kinds, state.phase, state.ready, state.anchor, state.anchorCols)
 	}
@@ -55,10 +55,10 @@ func TestPromptSemanticLifecycleAcrossSplitControlStrings(t *testing.T) {
 	if state.ready || state.anchor >= 0 {
 		t.Fatal("A must invalidate the previous editable boundary until B")
 	}
-	for i, char := range spikePrompt {
+	for i, char := range workspacePrompt {
 		frame.Cells[frame.Cols+i] = uv.Cell{Content: string(char), Width: 1}
 	}
-	frame.CursorX = len(spikePrompt)
+	frame.CursorX = len(workspacePrompt)
 	state.mark(promptMarker{kind: 'B'}, frame)
 	if !state.ready || state.anchor != frame.CursorY*frame.Cols+frame.CursorX {
 		t.Fatal("B did not establish the new semantic boundary")
@@ -87,24 +87,24 @@ func TestPromptParserStatusPayload(t *testing.T) {
 }
 
 func TestPromptAnchorSurvivesWrappedGraphemesAndSuffix(t *testing.T) {
-	frame := spikeFrame(12, 3)
-	for i, char := range spikePrompt + "ab" {
+	frame := spikeFrame(14, 3)
+	for i, char := range workspacePrompt + "ab" {
 		frame.Cells[i] = uv.Cell{Content: string(char), Width: 1}
 	}
-	frame.Cells[10] = uv.Cell{Content: "界", Width: 2}
-	frame.Cells[11] = uv.Cell{}
-	frame.Cells[12] = uv.Cell{Content: "e\u0301", Width: 1}
-	frame.Cells[13] = uv.Cell{Content: "x", Width: 1}
-	frame.CursorX = len(spikePrompt)
+	frame.Cells[12] = uv.Cell{Content: "界", Width: 2}
+	frame.Cells[13] = uv.Cell{}
+	frame.Cells[14] = uv.Cell{Content: "e\u0301", Width: 1}
+	frame.Cells[15] = uv.Cell{Content: "x", Width: 1}
+	frame.CursorX = len(workspacePrompt)
 	var state promptState
 	state.mark(promptMarker{kind: 'B'}, frame)
 	fingerprint := append([]promptCell(nil), state.fingerprint...)
-	for _, cursor := range [][2]int{{9, 0}, {3, 1}} {
+	for _, cursor := range [][2]int{{11, 0}, {3, 1}} {
 		frame.CursorX, frame.CursorY = cursor[0], cursor[1]
 		before := frame
 		before.Cells = append([]uv.Cell(nil), frame.Cells...)
 		state.observe(frame)
-		if state.anchor != len(spikePrompt) || !state.promptAt(frame, state.anchor) ||
+		if state.anchor != len(workspacePrompt) || !state.promptAt(frame, state.anchor) ||
 			!reflect.DeepEqual(state.fingerprint, fingerprint) || !reflect.DeepEqual(frame, before) {
 			t.Fatalf("middle edit or wrapped suffix changed the prompt boundary, fingerprint, or native cells: anchor=%d", state.anchor)
 		}
@@ -194,7 +194,7 @@ func TestPromptSemanticBoundaryForColoredMultilineWidePrompt(t *testing.T) {
 
 func TestPromptUnknownAnchorSuppressesCompletion(t *testing.T) {
 	engine := ghosttyTestTerminal(t, 80, 7)
-	ghosttyWrite(t, engine, spikePrompt+"x go:")
+	ghosttyWrite(t, engine, workspacePrompt+"x go:")
 	h := &host{cols: 80, rows: 8, terminal: engine, frame: ghosttySnapshot(t, engine), terminalFocused: true}
 	h.prompt.mark(promptMarker{kind: 'B'}, terminalFrame{})
 	h.prompt.observe(h.frame)
@@ -213,7 +213,7 @@ func TestPromptUnknownAnchorSuppressesCompletion(t *testing.T) {
 	view := h.View()
 	rows := strings.Split(ansi.Strip(view.Content), "\n")
 	if h.prompt.anchor >= 0 || h.completion != nil || !layout.Completion.Empty() || layout.ShellScroll != 0 || layout.FooterY != h.rows-1 ||
-		len(rows) != h.rows || strings.TrimSpace(rows[0]) != spikePrompt+"x go:" ||
+		len(rows) != h.rows || strings.TrimSpace(rows[0]) != workspacePrompt+"x go:" ||
 		strings.Contains(ansi.Strip(view.Content), completionHint) || strings.TrimRight(rows[layout.FooterY], " ") != baseFooter ||
 		view.Cursor == nil || view.Cursor.X != h.frame.CursorX || view.Cursor.Y != h.frame.CursorY {
 		t.Fatalf("unknown semantic boundary must not infer an anchor from prompt-like text or project a chooser: anchor=%d layout=%+v\n%s", h.prompt.anchor, layout, ansi.Strip(view.Content))
@@ -234,7 +234,7 @@ func TestPromptSparseClippedAndRightEdgeBoundariesStayUnknown(t *testing.T) {
 		resize int
 	}{
 		{"bounded tail", 400, strings.Repeat("x", 300), 399},
-		{"ambiguous pending wrap", 8, spikePrompt, 0},
+		{"ambiguous pending wrap", len(workspacePrompt), workspacePrompt, 0},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			engine, err := newTerminal(test.cols, 3)

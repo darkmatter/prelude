@@ -11,7 +11,7 @@ import (
 
 // The fixed prompt remains the default; neither prompt mode uses it as an
 // input anchor. OSC133 B supplies the editable-input boundary.
-const spikePrompt = "spike $ "
+const workspacePrompt = "prelude $ "
 
 // No user rc, inputrc, or persistent history. In particular, do not unset or
 // assign readonly Bash environment variables such as SHELLOPTS or BASHOPTS.
@@ -38,20 +38,20 @@ builtin bind 'set enable-bracketed-paste on'
 # Entry output belongs to the main shell, before either prompt mode's hooks.
 # A failed banner must not prevent the user from getting an interactive prompt.
 if ! command motd; then
-    builtin printf '%s\n' 'ghostty spike: startup motd failed; continuing with the shell' >&2
+    builtin printf '%s\n' 'prelude-workspace: startup motd failed; continuing with the shell' >&2
 fi
 # Load only catalogue completion: full activation would also install ble.sh,
 # change the prompt/status row, and print another MOTD.
 if [[ -n ${PRELUDE_COMPLETION_INIT-} ]]; then
     if ! builtin source "$PRELUDE_COMPLETION_INIT"; then
-        builtin printf '%s\n' 'ghostty spike: completion init failed; continuing with the shell' >&2
+        builtin printf '%s\n' 'prelude-workspace: completion init failed; continuing with the shell' >&2
     fi
 fi
 ` + bashSelectionRC + bashCompletionRC
 
 // The fixed prompt's DEBUG guard emits C once per submitted command line, not
 // once per simple command/pipeline stage. Starship uses its own PS0 instead.
-const bashRC = bashCommonRC + `PS1='\[\e[5 q\e]133;A\a\]spike $ \[\e]133;B\a\]'
+const bashRC = bashCommonRC + `PS1='\[\e[5 q\e]133;A\a\]prelude $ \[\e]133;B\a\]'
 __prelude_ghostty_at_prompt=0
 __prelude_ghostty_seen_prompt=0
 __prelude_ghostty_prompt() {

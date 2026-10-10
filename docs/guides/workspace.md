@@ -1,38 +1,45 @@
-# libghostty-vt spike
+# Prelude workspace
 
 A real interactive Bash and movable Prelude docs/menu window rendered
 inside the current terminal through libghostty-vt's C API and Prelude's existing
-Bubble Tea/Ultraviolet stack. This is a repository-only experiment, not a
-replacement for shell activation.
-The spike pins upstream Ultraviolet fixes for decomposed combining characters
-and wide-cell repainting when moving or resizing panes. Normal Prelude surfaces
-keep their existing dependencies.
+Bubble Tea/Ultraviolet stack. The `prelude-workspace` CLI is opt-in, not a
+replacement for shell activation. There is no consumer `workspace.enable`
+integration or automatic launch; normal Prelude activation, the default shell,
+and consumer native closures are unchanged.
+
+The workspace uses a separate Go module at
+[`src/cmd/prelude-workspace/go.mod`](../../src/cmd/prelude-workspace/go.mod)
+so its native renderer dependency pin stays intentionally isolated. It pins
+upstream Ultraviolet fixes for decomposed combining characters and wide-cell
+repainting when moving or resizing panes. Normal Prelude surfaces keep their
+existing dependencies.
 
 ## Run
 
-From the repository root (the `path:` form also includes unstaged new files):
+From the repository root, run the `prelude-workspace` package (the `path:` form
+also includes unstaged new files):
 
 ```sh
-nix run path:.#ghostty-spike
+nix run path:.#prelude-workspace
 ```
 
-To spike the real Starship prompt instead of the fixed `spike $ ` prompt:
+To opt into the real Starship prompt instead of the fixed `prelude $ ` prompt:
 
 ```sh
-nix run path:.#ghostty-spike -- --starship
+nix run path:.#prelude-workspace -- --starship
 ```
 
 The launcher supplies Starship and derives its prompt from Prelude's evaluated
 theme and settings. Its original bracketed right-side keymap reads
 **Alt + [m] motd · [x] menu · [d] docs**. These are direct Alt shortcuts, not a
 prefix sequence. An inherited normal Prelude
-config selects this spike preset; an explicit custom `STARSHIP_CONFIG` is preserved.
+config selects this workspace preset; an explicit custom `STARSHIP_CONFIG` is preserved.
 Normal Prelude activation and its `?`/`x`/`d` shortcuts are unchanged.
 
 After reloading the normal devshell, the catalogue also offers:
 
 ```sh
-x spike:ghostty
+x prelude:workspace
 ```
 
 ## Controls
@@ -75,7 +82,7 @@ quotes the next key, bypassing all host bindings, including layout switching.
 
 The window starts hidden, with **floating** as its default placement. Hiding
 returns focus to Bash; showing a live window focuses it. `exit` or **Ctrl+D**
-at the main Bash prompt leaves the spike; typing Ctrl+C does not quit the host.
+at the main Bash prompt leaves the workspace; typing Ctrl+C does not quit the host.
 External SIGHUP, SIGTERM, and SIGINT request orderly shutdown with exit codes
 129, 143, and 130 respectively: Bubble Tea restores the outer terminal before
 existing child/native cleanup removes the private files. During synchronous
@@ -166,7 +173,7 @@ are removed. Bash still owns Readline edits, history, and command status.
 `clear` cannot erase the host's hints row.
 
 The footer and completion use the menu's resolved palette from
-`PRELUDE_MENU_CONFIG`, supplied by the launcher and spike devshell. Keycaps use
+`PRELUDE_MENU_CONFIG`, supplied by the launcher and workspace devshell. Keycaps use
 bold `accent2` on `bg`, labels use `muted`, selection uses `accent`, and running
 pane status, notices, and failures use `success`/`warning`/`error`. Only the
 keycaps paint a background; the canvas and completion candidates remain transparent. Theme and palette overrides in `prelude.nix` therefore apply to
@@ -181,7 +188,7 @@ pane should preserve both children and their input state.
 
 ## Catalogue completion
 
-The launcher and spike devshell supply `PRELUDE_COMPLETION_INIT`, a generated
+The launcher and workspace devshell supply `PRELUDE_COMPLETION_INIT`, a generated
 completion-only Bash init. The private rc sources it automatically before the
 first prompt in both prompt modes. It loads the canonical command catalogue and
 existing completion functions, registering declared argument candidates, direct
@@ -221,12 +228,12 @@ unchanged. A missing or failing init prints a warning but leaves the shell usabl
 An unset or empty `PRELUDE_COMPLETION_INIT` skips catalogue initialization; the
 launcher respects an explicit override.
 
-The spike's chooser handles full colon-containing key prefixes, including
-`x go:t<Tab>`. Outside the spike, the completion-only init still provides ordinary
+The workspace's chooser handles full colon-containing key prefixes, including
+`x go:t<Tab>`. Outside the workspace, the completion-only init still provides ordinary
 Readline completion; its existing colon-tokenization limitation is unchanged.
 The chooser opens on Tab, not automatically on every typed character.
 
-## Starship spike
+## Starship (opt-in)
 
 `--starship` loads the installed full Bash integration, not a simulated prompt.
 Bash still owns readline, history, completion, signals, and job control; ble.sh
@@ -239,7 +246,7 @@ are preserved. Completion anchors input at OSC133 B, then relocates that boundar
 using a bounded rendered prompt-tail fingerprint—not the literal prompt text or
 a second input buffer. Only the boundary and prompt height are retained; the host
 no longer reconstructs editable input or mirrors Bash's exit status in a footer.
-Color and multiline prompts can therefore be used without hardcoding `spike $ `.
+Color and multiline prompts can therefore be used without hardcoding `prelude $ `.
 
 The isolated Ultraviolet pin is `b2b0f8d1567b`: wide/drift-prone rows repaint
 from a known cursor position instead of resuming a diff inside a wide glyph's
@@ -259,23 +266,26 @@ rewrite are intentionally not reproduced here.
 The root `flake.lock` pins Nixpkgs' `libghostty-vt` C API (currently
 `0.1.0-unstable-2026-05-03`). No Ghostty GUI, Raylib, or new flake input is
 needed. Native dependencies stay out of the default devshell and consumer
-closures; only an explicit spike build or check builds them.
+closures; workspace builds and checks require them.
 
 ```sh
-nix develop path:.#ghostty-spike
+nix develop path:.#workspace
 # In that shell, from the repository root:
-go test -C prototypes/ghostty -race -count=1 ./...
-go vet -C prototypes/ghostty ./...
-nix build path:.#checks.x86_64-linux.ghostty-spike
+go test -C src/cmd/prelude-workspace -race -count=1 ./...
+go vet -C src/cmd/prelude-workspace ./...
+nix build path:.#checks.x86_64-linux.prelude-workspace
+nix build path:.#checks.x86_64-linux.workspace-prompt
 ```
 
-Use the corresponding system name for the targeted Nix check. The full
-repository gate, `x check path:.`, includes it on the current system.
+Use the corresponding system name for the targeted Nix checks. The full
+repository gate, `x check path:.`, includes them on the current system. Run checks
+on the system you intend to use; these entrypoints do not imply all-platform
+verification.
 
 ## Intentional limits
 
 - This starts an isolated Bash with a private rc, no user rc/inputrc and no
-  persistent history file. The fixed `spike $ ` prompt is the default;
+  persistent history file. The fixed `prelude $ ` prompt is the default;
   `--starship` opts into real Starship. It inherits devshell tools and environment
   but isolates inherited shell-hook framework state. OSC133 hooks supply prompt
   lifecycle; this is not arbitrary-shell integration. Surface wrappers inherit
@@ -316,21 +326,23 @@ repository gate, `x check path:.`, includes it on the current system.
 
 ## Code map
 
-- `main.go`: CLI and outer-terminal lifecycle.
-- `host.go`: UI-loop state, prompt tracking, and tagged pane events.
-- `chords.go`: leader, focus, surface switching, and local mouse coordinates.
-- `layout.go` / `render.go`: pure geometry and shell/pane/footer composition.
-- `pane.go` / `process.go`: surface wrappers and shared bounded PTY lifecycle.
-- `prompt.go`: private Bash rc (entry MOTD and prompt hooks), OSC133 parsing,
+- [`src/prelude/workspace.nix`](../../src/prelude/workspace.nix): package,
+  launcher, native dependencies, workspace devshell, and checks.
+- [`main.go`](../../src/cmd/prelude-workspace/main.go): CLI and outer-terminal lifecycle.
+- [`host.go`](../../src/cmd/prelude-workspace/host.go): UI-loop state, prompt tracking, and tagged pane events.
+- [`chords.go`](../../src/cmd/prelude-workspace/chords.go): leader, focus, surface switching, and local mouse coordinates.
+- [`layout.go`](../../src/cmd/prelude-workspace/layout.go) / [`render.go`](../../src/cmd/prelude-workspace/render.go): pure geometry and shell/pane/footer composition.
+- [`pane.go`](../../src/cmd/prelude-workspace/pane.go) / [`process.go`](../../src/cmd/prelude-workspace/process.go): surface wrappers and shared bounded PTY lifecycle.
+- [`prompt.go`](../../src/cmd/prelude-workspace/prompt.go): private Bash rc (entry MOTD and prompt hooks), OSC133 parsing,
   and visible-input observation.
-- `selection.go`: picker-result handoff, primary-prompt queueing, and private
+- [`selection.go`](../../src/cmd/prelude-workspace/selection.go): picker-result handoff, primary-prompt queueing, and private
   readline bindings that preserve parked input.
-- `completion.go` / `completion_bash.go`: host completion choices and the private
-  snapshot/edit transport; `render.go` draws the chooser, not the child terminal.
-- `terminal.go` / `bridge.c` / `bridge.h`: native engine and Go-owned snapshots.
+- [`completion.go`](../../src/cmd/prelude-workspace/completion.go) / [`completion_bash.go`](../../src/cmd/prelude-workspace/completion_bash.go): host completion choices and the private
+  snapshot/edit transport; [`render.go`](../../src/cmd/prelude-workspace/render.go) draws the chooser, not the child terminal.
+- [`terminal.go`](../../src/cmd/prelude-workspace/terminal.go) / [`bridge.c`](../../src/cmd/prelude-workspace/bridge.c) / [`bridge.h`](../../src/cmd/prelude-workspace/bridge.h): native engine and Go-owned snapshots.
 
 The C bridge owns native buffers and callbacks; the host event loop exclusively
 owns both engines. PTY reader/waiter goroutines never access terminal state.
 Native render snapshots are rebuilt to avoid a combining-mark cache bug in the
-pinned library. Run editors/language servers in the spike devshell when working
+pinned library. Run editors/language servers in the workspace devshell when working
 on its cgo sources; the default devshell intentionally omits native headers.

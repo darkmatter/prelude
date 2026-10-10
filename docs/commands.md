@@ -17,7 +17,7 @@ Prelude supplies these whenever the components are enabled:
 For catalogue-only Bash completion, source `"$PRELUDE_COMPLETION_INIT"` after
 loading the devshell environment. This registers command and argument completion
 without loading ble.sh, initializing Starship, printing MOTD, or changing the
-status row. The Ghostty spike does this automatically; normal activation is
+status row. The Prelude workspace does this automatically; normal activation is
 unchanged.
 
 Project commands declared in `nix/internal/prelude.nix`:
@@ -28,7 +28,7 @@ Project commands declared in `nix/internal/prelude.nix`:
 - **`x fmt`** — `treefmt` (alejandra for Nix, gofmt/goimports for Go) over the repository.
 - **`x build <target>`** — `nix build` with flake-output suggestions.
 - **`x prelude:previews`** — build the render checks and display their output.
-- **`x spike:ghostty`** — launch the isolated libghostty-vt shell experiment:
+- **`x prelude:workspace`** — explicitly launch the opt-in libghostty-vt workspace:
   a single themed hints footer and borderless, floating-by-default docs/menu
   window, with no host-imposed backdrop. Menu panes use `x --embedded` automatically.
   Alt+M reprints MOTD in the main shell, Alt+X toggles the menu, and Alt+D toggles
@@ -51,8 +51,8 @@ Project commands declared in `nix/internal/prelude.nix`:
   in all prompt modes; completion keys still use that one protected bottom row. Completion is rendering-only: it preserves
   Bash's PTY size and the full visible Starship prompt, shifting the displayed
   viewport only when space below the prompt is insufficient. For the real Starship prompt, run
-  `nix run path:.#ghostty-spike -- --starship`; the fixed prompt stays the default.
-  See [`prototypes/ghostty/README.md`](../prototypes/ghostty/README.md).
+  `nix run path:.#prelude-workspace -- --starship`; the fixed `prelude $ ` prompt stays the default.
+  See the [workspace guide](guides/workspace.md).
 - **`x sync-docs`** / **`x record-docs`** — documentation workflows.
 - **`x demos`** tours every feature demo; its subcommands (`x demos themes`,
   `x demos titles`, `x demos defaults`) dispatch to the canonical

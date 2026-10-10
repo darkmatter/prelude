@@ -65,6 +65,16 @@ prelude.docs.pages = [
 
 Each Markdown file is one page. Digits jump, `Tab` steps, `j`/`k` scroll, `q` quits.
 
+### Workspace
+
+For an opt-in managed Bash with a movable docs/menu pane, launch explicitly from this repository:
+
+```sh
+nix run path:.#prelude-workspace
+```
+
+The catalogue also offers `x prelude:workspace`. Normal shell activation and consumer native closures are unchanged. See the [workspace guide](docs/guides/workspace.md) for controls, the opt-in `--starship` prompt, and limitations.
+
 ### TypeScript
 
 Bun apps get the same picker, MOTD, and docs viewer from TypeScript. Commands are functions declared next to the code they run, with typed arguments:

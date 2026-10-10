@@ -152,20 +152,20 @@ in {
       exec = "docs-record";
     };
 
-    commands."spike:ghostty" = {
-      description = "try the real-shell libghostty-vt experiment with Prelude keyboard chords, movable menu and docs panes, and an optional Starship prompt";
-      exec = "nix run path:.#ghostty-spike --";
-      group = "spike";
+    commands."prelude:workspace" = {
+      description = "launch a Bash workspace with Prelude keyboard chords, movable menu and docs panes, and an optional Starship prompt";
+      exec = "nix run path:.#prelude-workspace --";
+      group = "prelude";
       details = ''
         Open an isolated Bash with a movable Prelude menu or docs pane. Alt+X toggles the command menu; Ctrl+] cycles pane layouts so you can inspect description wrapping at different widths.
-        The fixed spike prompt is the default. Enable --starship to test the real themed prompt and its navigation keymap instead.
+        The fixed `prelude $` prompt is the default. Enable --starship to use the themed Prelude prompt and its navigation keymap instead.
       '';
-      usage = "x spike:ghostty [--starship]";
-      examples = ["x spike:ghostty --starship"];
+      usage = "x prelude:workspace [--starship]";
+      examples = ["x prelude:workspace --starship"];
       args = [
         {
           token = "--starship";
-          description = "Use the real themed Starship prompt instead of the fixed spike prompt, preserving its navigation keymap while the command menu and docs panes move between floating and split layouts.";
+          description = "Use the themed Prelude Starship prompt instead of the fixed `prelude $` prompt, preserving its navigation keymap while the command menu and docs panes move between floating and split layouts.";
           boolean = true;
         }
       ];

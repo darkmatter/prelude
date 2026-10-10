@@ -11,11 +11,11 @@ import (
 )
 
 func TestGhosttySignalBinarySmoke(t *testing.T) {
-	binary := filepath.Join(t.TempDir(), "ghostty-spike")
+	binary := filepath.Join(t.TempDir(), "prelude-workspace")
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	if output, err := exec.CommandContext(ctx, "go", "build", "-o", binary, ".").CombinedOutput(); err != nil {
-		t.Fatalf("build real Ghostty binary: %v (context: %v)\n%s", err, ctx.Err(), output)
+		t.Fatalf("build prelude-workspace binary: %v (context: %v)\n%s", err, ctx.Err(), output)
 	}
 
 	for _, signal := range []struct {
@@ -32,7 +32,7 @@ func TestGhosttySignalBinarySmoke(t *testing.T) {
 			t.Setenv("TMPDIR", privateDir)
 			s := startSmokeOuterPTY(t, binary)
 			s.await("initial shell and footer", func(f smokeFrame) bool {
-				return f.alt && f.footer() == smokeBaseFooter && f.hasInput("spike $", "")
+				return f.alt && f.footer() == smokeBaseFooter && f.hasInput("prelude $", "")
 			})
 			// A separate foreground Bash waits for input while the menu stays live.
 			s.send("bash --noprofile --norc -c 'echo SIGNAL_FOREGROUND_READY; read'\r")

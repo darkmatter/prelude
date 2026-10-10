@@ -49,11 +49,11 @@ func assertMotdCalls(t *testing.T, path string, want int) {
 }
 
 func TestGhosttyStartupMotdBinarySmoke(t *testing.T) {
-	binary := filepath.Join(t.TempDir(), "ghostty-spike")
+	binary := filepath.Join(t.TempDir(), "prelude-workspace")
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	if output, err := exec.CommandContext(ctx, "go", "build", "-o", binary, ".").CombinedOutput(); err != nil {
-		t.Fatalf("build real Ghostty binary: %v (context: %v)\n%s", err, ctx.Err(), output)
+		t.Fatalf("build prelude-workspace binary: %v (context: %v)\n%s", err, ctx.Err(), output)
 	}
 	config := filepath.Join(t.TempDir(), "starship.toml")
 	if err := os.WriteFile(config, []byte(smokeStarshipConfig), 0o600); err != nil {
@@ -66,7 +66,7 @@ func TestGhosttyStartupMotdBinarySmoke(t *testing.T) {
 		args   []string
 		prompt string
 	}{
-		{"Fixed", nil, strings.TrimSpace(spikePrompt)},
+		{"Fixed", nil, strings.TrimSpace(workspacePrompt)},
 		{"Starship", []string{"--starship"}, "界❯"},
 	} {
 		t.Run(mode.name, func(t *testing.T) {
@@ -284,7 +284,7 @@ builtin printf 'ALTM_MOTD:%%s\n' "$calls"`, log, ttyLog, log))
 					}
 					s := startSmokeOuterPTY(t, binary, mode.args...)
 					s.await("MOTD failure still yields a clean first prompt", func(f smokeFrame) bool {
-						return f.hasLine("ghostty spike: startup motd failed; continuing with the shell") && f.hasInput(mode.prompt, "") && f.footer() == smokeBaseFooter
+						return f.hasLine("prelude-workspace: startup motd failed; continuing with the shell") && f.hasInput(mode.prompt, "") && f.footer() == smokeBaseFooter
 					})
 					if failure == "Failure" {
 						assertMotdCalls(t, log, 1)

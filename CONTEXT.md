@@ -17,6 +17,9 @@ Interactive task picker and non-interactive dispatcher over the command catalogu
 **Docs**:
 Full-screen Markdown viewer over pages embedded at build time.
 
+**Workspace**:
+Explicitly launched Bash host (`prelude-workspace`) that renders the shell and a movable Menu or Docs pane through libghostty-vt. MOTD remains ordinary main-shell output; the workspace does not replace shell activation.
+
 **Command catalogue**:
 Project tasks declared in Nix (`prelude.commands`) or by a Host, projected into menu groups and MOTD next-steps, plus the ones the menu imports when it opens (Justfile recipes, package.json scripts), which appear only in the menu.
 _Avoid_: Task list (prefer catalogue for the Nix-side whole; menu still uses Task at its JSON boundary)

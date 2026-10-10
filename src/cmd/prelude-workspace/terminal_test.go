@@ -115,7 +115,7 @@ func TestGhosttyDefaultUnicodeSmokeFrame(t *testing.T) {
 func TestGhosttyStyledGraphemesAndOwnedSnapshots(t *testing.T) {
 	term := ghosttyTestTerminal(t, 12, 3)
 	// Joined emoji use the terminal's negotiated grapheme-cluster mode.
-	ghosttyWrite(t, term, "\x1b[?2027h\x1b]2;spike title\x1b\\A\x1b[1;2;3;4:3;5;7;8;9;38;2;12;34;56;48;2;65;43;21;58;2;7;8;9mé\x1b[0me\u0301界👩‍💻")
+	ghosttyWrite(t, term, "\x1b[?2027h\x1b]2;workspace title\x1b\\A\x1b[1;2;3;4:3;5;7;8;9;38;2;12;34;56;48;2;65;43;21;58;2;7;8;9mé\x1b[0me\u0301界👩‍💻")
 	frame := ghosttySnapshot(t, term)
 	want := []struct {
 		text  string
@@ -138,12 +138,12 @@ func TestGhosttyStyledGraphemesAndOwnedSnapshots(t *testing.T) {
 	if style.Attrs != attrs {
 		t.Fatalf("attributes = %#x, want %#x", style.Attrs, attrs)
 	}
-	if frame.Title != "spike title" {
+	if frame.Title != "workspace title" {
 		t.Fatalf("title = %q", frame.Title)
 	}
 	ghosttyWrite(t, term, "\x1b[2J\x1b[Hchanged\x1b]2;new title\x07")
 	_ = ghosttySnapshot(t, term)
-	if frame.Cells[1].Content != "é" || frame.Title != "spike title" {
+	if frame.Cells[1].Content != "é" || frame.Title != "workspace title" {
 		t.Fatal("a later write/snapshot mutated the owned snapshot")
 	}
 	ghosttyWrite(t, term, "\x1b[2J\x1b[H\x1b[48;2;1;2;3m\x1b[K")

@@ -17,7 +17,7 @@ import (
 
 func TestHostCompletionDelayedQueryCannotAcknowledgeApply(t *testing.T) {
 	if os.Getenv("PRELUDE_COMPLETION_INIT") == "" {
-		t.Fatal("real generated completion init is required; run in nix develop path:.#ghostty-spike")
+		t.Fatal("real generated completion init is required; run in nix develop path:.#workspace")
 	}
 	runLog := filepath.Join(t.TempDir(), "x.executions")
 	h := newSpikeTestHost(t, "GHOSTTY_COMPLETION_EXECUTION_LOG="+runLog,
@@ -91,7 +91,7 @@ func TestHostCompletionDelayedQueryCannotAcknowledgeApply(t *testing.T) {
 
 func TestHostCompletionOldFallbackDoesNotDisarmNewerTab(t *testing.T) {
 	if os.Getenv("PRELUDE_COMPLETION_INIT") == "" {
-		t.Fatal("real generated completion init is required; run in nix develop path:.#ghostty-spike")
+		t.Fatal("real generated completion init is required; run in nix develop path:.#workspace")
 	}
 	realX, err := exec.LookPath("x")
 	if err != nil {
@@ -172,7 +172,7 @@ func TestHostCompletionOldFallbackDoesNotDisarmNewerTab(t *testing.T) {
 
 func TestHostCompletionReflowInvisibleEnterRunsOriginalInput(t *testing.T) {
 	if os.Getenv("PRELUDE_COMPLETION_INIT") == "" {
-		t.Fatal("real generated completion init is required; run in nix develop path:.#ghostty-spike")
+		t.Fatal("real generated completion init is required; run in nix develop path:.#workspace")
 	}
 	runLog := filepath.Join(t.TempDir(), "x.args")
 	// Only execution is a probe; queries still use real x's imports and the
@@ -205,7 +205,7 @@ func TestHostCompletionReflowInvisibleEnterRunsOriginalInput(t *testing.T) {
 
 func TestHostCompletionFloatingPaneDoesNotCoverProjectedPrompt(t *testing.T) {
 	if os.Getenv("PRELUDE_COMPLETION_INIT") == "" {
-		t.Fatal("real generated completion init is required; run in nix develop path:.#ghostty-spike")
+		t.Fatal("real generated completion init is required; run in nix develop path:.#workspace")
 	}
 	bash, err := exec.LookPath("bash")
 	if err != nil {
@@ -241,7 +241,7 @@ func TestHostCompletionFloatingPaneDoesNotCoverProjectedPrompt(t *testing.T) {
 	view := h.View()
 	rows := strings.Split(ansi.Strip(view.Content), "\n")
 	if strings.Contains(ansi.Strip(view.Content), completionHint) || len(rows) != h.rows ||
-		strings.TrimSpace(rows[h.frame.Rows-1]) != strings.TrimSpace(spikePrompt+"x go:") ||
+		strings.TrimSpace(rows[h.frame.Rows-1]) != strings.TrimSpace(workspacePrompt+"x go:") ||
 		view.Cursor == nil || view.Cursor.Y != h.frame.CursorY || spikeFrameText(h.frame) != nativeText {
 		t.Fatalf("completion moved the prompt/input beneath floating docs\n%s", ansi.Strip(view.Content))
 	}
@@ -264,7 +264,7 @@ func TestHostCompletionFloatingPaneDoesNotCoverProjectedPrompt(t *testing.T) {
 
 func TestHostCompletionMouseFocusKeepsNativeGeometry(t *testing.T) {
 	if os.Getenv("PRELUDE_COMPLETION_INIT") == "" {
-		t.Fatal("real generated completion init is required; run in nix develop path:.#ghostty-spike")
+		t.Fatal("real generated completion init is required; run in nix develop path:.#workspace")
 	}
 	bash, err := exec.LookPath("bash")
 	if err != nil {

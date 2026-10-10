@@ -168,7 +168,7 @@ func assertCompletionOverlay(t *testing.T, h *host, baseline terminalFrame, inpu
 
 func TestHostCompletionOverlayKeepsNativeStarshipGeometry(t *testing.T) {
 	if os.Getenv("PRELUDE_COMPLETION_INIT") == "" {
-		t.Fatal("real generated completion init is required; run in nix develop path:.#ghostty-spike")
+		t.Fatal("real generated completion init is required; run in nix develop path:.#workspace")
 	}
 	for _, tc := range []struct {
 		name, prefix, suffix string

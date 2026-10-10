@@ -10,6 +10,7 @@ docs/.record-bin/
 /src/cmd/prompt-status/prompt-status
 /src/cmd/title/title
 /src/cmd/prelude-shell-vt-host/prelude-shell-vt-host
+/src/cmd/prelude-workspace/prelude-workspace
 /src/motd
 
 # TypeScript API (ts/): dependencies installed by `bun install`, the library
@@ -64,7 +65,3 @@ src/.tmp-motd-region-test/
 !.envrc
 .work/
 .ruff_cache/
-# Scratch prototypes stay local; the runnable Ghostty spike is versioned.
-/prototypes/*
-!/prototypes/ghostty/
-/prototypes/ghostty/prelude-ghostty-spike

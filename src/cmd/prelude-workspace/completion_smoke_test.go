@@ -14,11 +14,11 @@ import (
 // No manual source or copied completion implementation: the real binary must
 // load Nix's generated completion-only init before either kind of first prompt.
 func TestGhosttyCompletionInitBinarySmoke(t *testing.T) {
-	binary := filepath.Join(t.TempDir(), "ghostty-spike")
+	binary := filepath.Join(t.TempDir(), "prelude-workspace")
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	if output, err := exec.CommandContext(ctx, "go", "build", "-o", binary, ".").CombinedOutput(); err != nil {
-		t.Fatalf("build real Ghostty binary: %v (context: %v)\n%s", err, ctx.Err(), output)
+		t.Fatalf("build prelude-workspace binary: %v (context: %v)\n%s", err, ctx.Err(), output)
 	}
 
 	for _, mode := range []struct {
@@ -26,7 +26,7 @@ func TestGhosttyCompletionInitBinarySmoke(t *testing.T) {
 		args   []string
 		prompt string
 	}{
-		{"Fixed", nil, strings.TrimSpace(spikePrompt)},
+		{"Fixed", nil, strings.TrimSpace(workspacePrompt)},
 		{"Starship", []string{"--starship"}, "界❯"},
 	} {
 		t.Run(mode.name, func(t *testing.T) {
@@ -66,7 +66,7 @@ func TestGhosttyCompletionInitBinarySmoke(t *testing.T) {
 					case "GeneratedCatalogueAndHandoff", "InheritedNoclobber":
 						initPath = os.Getenv("PRELUDE_COMPLETION_INIT")
 						if initPath == "" {
-							t.Fatal("real PRELUDE_COMPLETION_INIT is required; run in nix develop path:.#ghostty-spike")
+							t.Fatal("real PRELUDE_COMPLETION_INIT is required; run in nix develop path:.#workspace")
 						}
 						if _, err := os.Stat(initPath); err != nil {
 							t.Fatal("generated completion-only init:", err)
@@ -96,7 +96,7 @@ func TestGhosttyCompletionInitBinarySmoke(t *testing.T) {
 						return f.hasLine("COMPLETION_STARTUP_MOTD") && f.hasInput(mode.prompt, "") && f.footer() == smokeBaseFooter
 					})
 					text := strings.ToLower(strings.Join(first.rows, "\n"))
-					warning := strings.Contains(text, "ghostty spike:") && strings.Contains(text, "completion")
+					warning := strings.Contains(text, "prelude-workspace:") && strings.Contains(text, "completion")
 					wantWarning := initMode == "Missing" || initMode == "Failing"
 					if warning != wantWarning || initMode == "Failing" && !first.hasLine("INIT_FAILURE_SEEN") {
 						t.Fatalf("completion init warning=%v, want %v; mode=%s\n%s", warning, wantWarning, initMode, s.diagnostics())

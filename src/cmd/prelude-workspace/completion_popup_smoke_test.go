@@ -289,7 +289,7 @@ func exerciseSmokeCompletionPopup(s *smokeOuterPTY, prompt string) {
 func TestGhosttyCompletionPopupOwnershipBinarySmoke(t *testing.T) {
 	initPath := os.Getenv("PRELUDE_COMPLETION_INIT")
 	if initPath == "" {
-		t.Fatal("real generated completion init is required; run in nix develop path:.#ghostty-spike")
+		t.Fatal("real generated completion init is required; run in nix develop path:.#workspace")
 	}
 	realX, err := exec.LookPath("x")
 	if err != nil {
@@ -303,17 +303,17 @@ func TestGhosttyCompletionPopupOwnershipBinarySmoke(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	binary := filepath.Join(t.TempDir(), "ghostty-spike")
+	binary := filepath.Join(t.TempDir(), "prelude-workspace")
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	if output, err := exec.CommandContext(ctx, "go", "build", "-o", binary, ".").CombinedOutput(); err != nil {
-		t.Fatalf("build real Ghostty binary: %v (context: %v)\n%s", err, ctx.Err(), output)
+		t.Fatalf("build prelude-workspace binary: %v (context: %v)\n%s", err, ctx.Err(), output)
 	}
 	for _, mode := range []struct {
 		name, prompt, ps2 string
 		args              []string
 	}{
-		{"Fixed", strings.TrimSpace(spikePrompt), "...", nil},
+		{"Fixed", strings.TrimSpace(workspacePrompt), "...", nil},
 		{"Starship", "界❯", "∙", []string{"--starship"}},
 	} {
 		t.Run(mode.name, func(t *testing.T) {

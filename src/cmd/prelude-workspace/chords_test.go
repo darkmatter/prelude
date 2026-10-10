@@ -747,8 +747,8 @@ func TestFrontendCompletionAlignsDescriptionsWithoutBackground(t *testing.T) {
 			Accent2: color.RGBA{140, 160, 180, 255},
 		},
 	}
-	h.frame.CursorX, h.frame.CursorY = len(spikePrompt)+1, 1
-	h.prompt = promptState{phase: "prompt", ready: true, anchor: 80 + len(spikePrompt), anchorCols: 80, promptRows: 1, promptRowsCols: 80}
+	h.frame.CursorX, h.frame.CursorY = len(workspacePrompt)+1, 1
+	h.prompt = promptState{phase: "prompt", ready: true, anchor: 80 + len(workspacePrompt), anchorCols: 80, promptRows: 1, promptRowsCols: 80}
 	h.completion = &completionState{
 		phase: completionPopup,
 		snapshot: completionSnapshot{candidates: []completionCandidate{
@@ -760,7 +760,7 @@ func TestFrontendCompletionAlignsDescriptionsWithoutBackground(t *testing.T) {
 	for i := range h.frame.Cells {
 		h.frame.Cells[i] = uv.Cell{Content: " ", Width: 1, Style: uv.Style{Bg: color.RGBA{100, 30, 40, 255}}}
 	}
-	for x, char := range spikePrompt + "x" {
+	for x, char := range workspacePrompt + "x" {
 		h.frame.Cells[h.frame.Cols+x].Content = string(char)
 	}
 	layout := h.layout()

@@ -11,13 +11,15 @@ invent synonyms.
 ## Layout
 
 | Path | Role |
-| ------------------------- | ------------------------------------------------------------------------- |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ |
 | `flake.nix` | Thin public flake: inputs, `flakeModules.default`, overlay, lib, template |
 | `prelude.nix` | Dogfood sidecar (same shape a consumer gets from the wizard) |
 | `nix/` | Flake output composition, render checks, Python PTY tests |
 | `nix/internal/` | This repo's MOTD/menu/docs identity, imported by `prelude.nix` |
 | `src/prelude/` | flake-parts module, `lib.evalModule`, the package builder both share, options, shell init, fonts |
 | `src/cmd/` | Go mains (`motd`, `menu`, `docs`, `title`, `prompt-status`, VT host, `libprelude`) |
+| `src/cmd/prelude-workspace/` | Opt-in Bash workspace; independent Go/C module using libghostty-vt |
+| `src/prelude/workspace.nix` | Workspace package and dedicated devshell builder |
 | `src/internal/` | Go surface implementations (MOTD, menu, docs, wizard) |
 | `src/pkg/` | Shared Go (palette, manual viewer, UI primitives) |
 | `docs/` | Viewer pages, guides, generated option/showcase markdown |
@@ -35,6 +37,7 @@ Work inside `nix develop` (or direnv). The catalogue is the public interface:
 
 ```sh
 x                 # interactive picker
+x prelude:workspace --starship  # explicit workspace with the themed prompt
 x go:test         # Go unit tests → go test -C src ./...
 x go:vet          # go vet -C src ./...
 x fmt             # format Nix sources
@@ -60,6 +63,9 @@ part of the name (`x go:test`), and groups come only from `group`.
 - **Catalogue:** `prelude.commands` is the Nix-side whole. Import Justfile /
   `package.json` / flake apps; do not write generated entries back to source.
   Existing tools own the canonical invocation (`go test`, `nix flake check`).
+- **Workspace:** explicitly launched, never from activation. Its independent
+  Go module keeps the native renderer pin and headers out of the main Go module
+  and default consumer closures. See [`docs/guides/workspace.md`](docs/guides/workspace.md).
 - **Activation:** `eval "$(prelude-preflight)"` is the only shellHook line.
   Wizard writes a sidecar `prelude.nix` and never overwrites `flake.nix`.
 - **TypeScript API:** `ts/` is a second author of the menu and MOTD Config
@@ -93,8 +99,11 @@ User-visible docs or screenshots: `x sync-docs`, and `x record-docs` when media
 is stale. Generated files under `docs/reference/` and `docs/generated/` are
 owned by those commands.
 
-Go tests sit next to the package they cover. Python PTY tests live in `nix/`
-and run only through flake checks.
+Go tests sit next to the package they cover. The workspace module is tested and
+vetted separately inside `nix develop .#workspace` with
+`go test -C src/cmd/prelude-workspace -race ./...` and
+`go vet -C src/cmd/prelude-workspace ./...`; the flake gate also builds its check.
+Python PTY tests live in `nix/` and run only through flake checks.
 
 ## Tracking
 

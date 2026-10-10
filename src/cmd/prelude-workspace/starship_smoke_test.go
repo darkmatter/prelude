@@ -91,14 +91,14 @@ func assertGeneratedPromptStyle(s *smokeOuterPTY, f smokeFrame) {
 func TestGhosttyStarshipBinarySmoke(t *testing.T) {
 	starship, err := exec.LookPath("starship")
 	if err != nil {
-		t.Fatal("real Starship is required; run in nix develop path:/home/cm/git/darkmatter/prelude#ghostty-spike:", err)
+		t.Fatal("real Starship is required; run in nix develop path:.#workspace:", err)
 	}
 	t.Logf("real Starship: %s", starship)
-	binary := filepath.Join(t.TempDir(), "ghostty-spike")
+	binary := filepath.Join(t.TempDir(), "prelude-workspace")
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	if output, err := exec.CommandContext(ctx, "go", "build", "-o", binary, ".").CombinedOutput(); err != nil {
-		t.Fatalf("build real Ghostty binary: %v (context: %v)\n%s", err, ctx.Err(), output)
+		t.Fatalf("build prelude-workspace binary: %v (context: %v)\n%s", err, ctx.Err(), output)
 	}
 
 	t.Run("RealPromptStatusReadlineAndParkedPanes", func(t *testing.T) {
@@ -336,7 +336,7 @@ func TestGhosttyStarshipBinarySmoke(t *testing.T) {
 		leaderSmokeTools(t)
 		config := os.Getenv("PRELUDE_GHOSTTY_TEST_STARSHIP_CONFIG")
 		if config == "" {
-			t.Fatal("generated Starship preset required; run in nix develop path:.#ghostty-spike")
+			t.Fatal("generated Starship preset required; run in nix develop path:.#workspace")
 		}
 		if _, err := os.Stat(config); err != nil {
 			t.Fatal("generated Prelude Starship config:", err)
@@ -404,7 +404,7 @@ func TestGhosttyStarshipBinarySmoke(t *testing.T) {
 	t.Run("LockedFooterEveryPromptMode", func(t *testing.T) {
 		config := os.Getenv("PRELUDE_GHOSTTY_TEST_STARSHIP_CONFIG")
 		if config == "" {
-			t.Fatal("generated Starship preset required; run in nix develop path:.#ghostty-spike")
+			t.Fatal("generated Starship preset required; run in nix develop path:.#workspace")
 		}
 		custom := filepath.Join(t.TempDir(), "custom-owner.toml")
 		if err := os.WriteFile(custom, []byte("add_newline = false\nformat = \"[CUSTOM-OWNER ? x d](bold green)\\n[custom❯](cyan) \"\n"), 0o600); err != nil {
@@ -416,7 +416,7 @@ func TestGhosttyStarshipBinarySmoke(t *testing.T) {
 		}{
 			{"GeneratedPreset", config, "╰─", []string{"--starship"}},
 			{"CustomOwner", custom, "custom❯", []string{"--starship"}},
-			{"FixedPrompt", config, "spike $", nil},
+			{"FixedPrompt", config, "prelude $", nil},
 		} {
 			t.Run(mode.name, func(t *testing.T) {
 				isolatedMotd(t)
@@ -454,8 +454,8 @@ func TestGhosttyStarshipBinarySmoke(t *testing.T) {
 		s.traceMu.Lock()
 		output := string(s.output)
 		s.traceMu.Unlock()
-		if !strings.Contains(output, "--starship needs Starship on PATH") || !strings.Contains(output, "#ghostty-spike") {
-			t.Fatalf("missing Starship did not explain how to start the spike: %q", output)
+		if !strings.Contains(output, "--starship needs Starship on PATH") || !strings.Contains(output, "nix develop path:.#workspace") {
+			t.Fatalf("missing Starship did not explain how to start the workspace: %q", output)
 		}
 	})
 }

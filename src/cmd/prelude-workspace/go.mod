@@ -1,4 +1,4 @@
-module prelude-ghostty-spike
+module prelude-workspace
 
 go 1.26
 

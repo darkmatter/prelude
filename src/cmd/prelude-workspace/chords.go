@@ -299,7 +299,7 @@ func (h *host) mouseInput(message tea.MouseMsg) tea.Cmd {
 	mouse := message.Mouse()
 	point, layout := image.Pt(mouse.X, mouse.Y), h.layout()
 	if point.In(h.completionArea(layout)) {
-		return nil // This spike's completion chooser is keyboard-only.
+		return nil // The completion chooser is keyboard-only.
 	}
 	_, clicked := message.(tea.MouseClickMsg)
 	if point.In(layout.Panel) {

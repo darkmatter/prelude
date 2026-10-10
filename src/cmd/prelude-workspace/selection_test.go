@@ -134,7 +134,7 @@ func TestHostMenuSelectionSubmissionRaces(t *testing.T) {
 			if name == "PromptEndBeforeCommandStartInOneBatch" {
 				// Replay a coalesced PTY batch: D permits a new command, but the
 				// later C invalidates B. No handoff may run between its markers.
-				h.Update(outputMsg{data: []byte("\x1b]133;D;0\a\x1b]133;A\aspike $ \x1b]133;B\a\x1b]133;C\a")})
+				h.Update(outputMsg{data: []byte("\x1b]133;D;0\a\x1b]133;A\aprelude $ \x1b]133;B\a\x1b]133;C\a")})
 			}
 			const userInput = "only-user-input"
 			for _, key := range userInput {

@@ -1699,10 +1699,10 @@ in {
     touch "$out"
   '';
 
-  ghostty-spike-prompt = let
-    spike = import ./ghostty-spike.nix {inherit pkgs lib config;};
-    mkSpike = preludeConfig:
-      import ./ghostty-spike.nix {
+  workspace-prompt = let
+    workspace = import ../src/prelude/workspace.nix {inherit pkgs lib config;};
+    mkWorkspace = preludeConfig:
+      import ../src/prelude/workspace.nix {
         inherit pkgs lib;
         config.packages =
           config.packages
@@ -1712,10 +1712,10 @@ in {
               // {prompt = {enable = true;} // (preludeConfig.prompt or {});};
           }).packages;
       };
-    customSource = pkgs.writeText "ghostty-custom-starship.toml" "format = 'custom'\n";
-    customFile = mkSpike {prompt.configFile = customSource;};
-    customFormat = mkSpike {prompt.settings.format = "custom";};
-    tweaked = mkSpike {
+    customSource = pkgs.writeText "workspace-custom-starship.toml" "format = 'custom'\n";
+    customFile = mkWorkspace {prompt.configFile = customSource;};
+    customFormat = mkWorkspace {prompt.settings.format = "custom";};
+    tweaked = mkWorkspace {
       theme = "paper";
       palette.accent = "#123456";
       prompt.settings = {
@@ -1724,20 +1724,20 @@ in {
       };
     };
     normal = config.packages.prelude-prompt;
-    variant = spike.package.promptConfig;
+    variant = workspace.package.promptConfig;
     # Exercise the actual wrapper without building native or surface binaries.
-    environmentProbe = pkgs.writeShellScriptBin "prelude-ghostty-spike" ''
+    environmentProbe = pkgs.writeShellScriptBin "prelude-workspace" ''
       printf '%s\n' "$STARSHIP_CONFIG"
     '';
     wrapper =
-      (import ./ghostty-spike.nix {
+      (import ../src/prelude/workspace.nix {
         inherit lib;
         pkgs = pkgs // {buildGo126Module = _: environmentProbe;};
         config.packages =
           config.packages
           // {
-            prelude-shell = config.packages.prelude-shell // {completionInit = pkgs.writeText "ghostty-probe-completion.bash" "";};
-            prelude-menu = environmentProbe // {menuConfig = pkgs.writeText "ghostty-probe-menu.json" "{}";};
+            prelude-shell = config.packages.prelude-shell // {completionInit = pkgs.writeText "workspace-probe-completion.bash" "";};
+            prelude-menu = environmentProbe // {menuConfig = pkgs.writeText "workspace-probe-menu.json" "{}";};
             prelude-docs = environmentProbe;
             prelude-motd = environmentProbe;
           };
@@ -1745,7 +1745,7 @@ in {
   in
     assert toString (config.packages.prelude-shell.promptPreset {}).live == toString normal;
     assert customFile.package.promptConfig == customSource;
-      pkgs.runCommand "ghostty-spike-prompt" {nativeBuildInputs = [pkgs.python3 pkgs.starship];} ''
+      pkgs.runCommand "workspace-prompt" {nativeBuildInputs = [pkgs.python3 pkgs.starship];} ''
         set -euo pipefail
         python3 - <<'PY'
         import tomllib
@@ -1755,7 +1755,7 @@ in {
             return tomllib.loads(Path(path).read_text())
 
         normal = load("${normal}")
-        spike = load("${variant}")
+        workspace = load("${variant}")
         keymap = (
             r"Alt + \[[m](bold fg:accent)\][─](fg:surface)motd"
             r"[──](fg:surface)\[[x](bold fg:accent)\][─](fg:surface)menu"
@@ -1766,14 +1766,14 @@ in {
             r"[──](fg:surface)\[[x](bold fg:accent)\][─](fg:surface)menu"
             r"[──](fg:surface)\[[d](bold fg:accent)\][─](fg:surface)docs"
         )
-        assert f"[{keymap}](fg:muted)" in spike["format"]
-        assert spike["format"].count("Alt +") == 1
-        assert "Ctrl+P" not in spike["format"]
+        assert f"[{keymap}](fg:muted)" in workspace["format"]
+        assert workspace["format"].count("Alt +") == 1
+        assert "Ctrl+P" not in workspace["format"]
         assert f"[{normal_keymap}](fg:muted)" in normal["format"]
         assert "Alt +" not in normal["format"]
         normal.pop("format")
-        spike.pop("format")
-        assert spike == normal, "The preset must change only the keymap"
+        workspace.pop("format")
+        assert workspace == normal, "The preset must change only the keymap"
         assert load("${customFormat.package.promptConfig}")["format"] == "custom"
         tweaked = load("${tweaked.package.promptConfig}")
         assert tweaked["add_newline"] is False
@@ -1815,12 +1815,12 @@ in {
         PY
         (
           export STARSHIP_CONFIG=${normal}
-          ${spike.shell.shellHook}
+          ${workspace.shell.shellHook}
           test "$STARSHIP_CONFIG" = ${variant}
         )
         (
           export STARSHIP_CONFIG=${customSource}
-          ${spike.package.promptInit}
+          ${workspace.package.promptInit}
           test "$STARSHIP_CONFIG" = ${customSource}
         )
         (

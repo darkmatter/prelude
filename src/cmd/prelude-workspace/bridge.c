@@ -69,7 +69,7 @@ static void title_changed(GhosttyTerminal terminal, void *userdata) {
 static GhosttyString version(GhosttyTerminal terminal, void *userdata) {
     (void)terminal;
     (void)userdata;
-    static const char name[] = "prelude-ghostty-spike";
+    static const char name[] = "prelude-workspace";
     return (GhosttyString){.ptr = (const uint8_t *)name, .len = sizeof(name) - 1};
 }
 

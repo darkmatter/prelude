@@ -166,7 +166,7 @@ func TestHostMotdForegroundSubmissionRaces(t *testing.T) {
 			awaitMotdHandoffFile(t, ready)
 			spikeKey(h, 'm', tea.ModAlt)
 			if name == "PromptEndBeforeCommandStartInOneBatch" {
-				h.Update(outputMsg{data: []byte("\x1b]133;D;0\a\x1b]133;A\aspike $ \x1b]133;B\a\x1b]133;C\a")})
+				h.Update(outputMsg{data: []byte("\x1b]133;D;0\a\x1b]133;A\aprelude $ \x1b]133;B\a\x1b]133;C\a")})
 			}
 			if h.pendingCommand != "command motd\n" {
 				t.Fatal("foreground MOTD request was dispatched instead of queued")

@@ -156,29 +156,29 @@ prelude = {
       motd = 0;
       usage = "x prelude:wizard [--output path] [--recipe path]";
     };
-    record-docs = {
-      description = "record stale VHS showcases and sync docs";
-      exec = "docs-record";
-    };
-    "spike:ghostty" = {
+    "prelude:workspace" = {
       args = [
         {
           boolean = true;
-          description = "Use the real themed Starship prompt instead of the fixed spike prompt, preserving its navigation keymap while the command menu and docs panes move between floating and split layouts.";
+          description = "Use the themed Prelude Starship prompt instead of the fixed `prelude $` prompt, preserving its navigation keymap while the command menu and docs panes move between floating and split layouts.";
           token = "--starship";
         }
       ];
-      description = "try the real-shell libghostty-vt experiment with Prelude keyboard chords, movable menu and docs panes, and an optional Starship prompt";
+      description = "launch a Bash workspace with Prelude keyboard chords, movable menu and docs panes, and an optional Starship prompt";
       details = ''
         Open an isolated Bash with a movable Prelude menu or docs pane. Alt+X toggles the command menu; Ctrl+] cycles pane layouts so you can inspect description wrapping at different widths.
-        The fixed spike prompt is the default. Enable --starship to test the real themed prompt and its navigation keymap instead.
+        The fixed `prelude $` prompt is the default. Enable --starship to use the themed Prelude prompt and its navigation keymap instead.
       '';
       examples = [
-        "x spike:ghostty --starship"
+        "x prelude:workspace --starship"
       ];
-      exec = "nix run path:.#ghostty-spike --";
-      group = "spike";
-      usage = "x spike:ghostty [--starship]";
+      exec = "nix run path:.#prelude-workspace --";
+      group = "prelude";
+      usage = "x prelude:workspace [--starship]";
+    };
+    record-docs = {
+      description = "record stale VHS showcases and sync docs";
+      exec = "docs-record";
     };
     sync-docs = {
       description = "regenerate option and showcase markdown";
@@ -469,29 +469,29 @@ prelude = {
       motd = 0;
       usage = "x prelude:wizard [--output path] [--recipe path]";
     };
-    record-docs = {
-      description = "record stale VHS showcases and sync docs";
-      exec = "docs-record";
-    };
-    "spike:ghostty" = {
+    "prelude:workspace" = {
       args = [
         {
           boolean = true;
-          description = "Use the real themed Starship prompt instead of the fixed spike prompt, preserving its navigation keymap while the command menu and docs panes move between floating and split layouts.";
+          description = "Use the themed Prelude Starship prompt instead of the fixed `prelude $` prompt, preserving its navigation keymap while the command menu and docs panes move between floating and split layouts.";
           token = "--starship";
         }
       ];
-      description = "try the real-shell libghostty-vt experiment with Prelude keyboard chords, movable menu and docs panes, and an optional Starship prompt";
+      description = "launch a Bash workspace with Prelude keyboard chords, movable menu and docs panes, and an optional Starship prompt";
       details = ''
         Open an isolated Bash with a movable Prelude menu or docs pane. Alt+X toggles the command menu; Ctrl+] cycles pane layouts so you can inspect description wrapping at different widths.
-        The fixed spike prompt is the default. Enable --starship to test the real themed prompt and its navigation keymap instead.
+        The fixed `prelude $` prompt is the default. Enable --starship to use the themed Prelude prompt and its navigation keymap instead.
       '';
       examples = [
-        "x spike:ghostty --starship"
+        "x prelude:workspace --starship"
       ];
-      exec = "nix run path:.#ghostty-spike --";
-      group = "spike";
-      usage = "x spike:ghostty [--starship]";
+      exec = "nix run path:.#prelude-workspace --";
+      group = "prelude";
+      usage = "x prelude:workspace [--starship]";
+    };
+    record-docs = {
+      description = "record stale VHS showcases and sync docs";
+      exec = "docs-record";
     };
     sync-docs = {
       description = "regenerate option and showcase markdown";
