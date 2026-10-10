@@ -87,6 +87,39 @@ claiming public names. As in the devshell, the first `:` or `/` picks the
 menu group (`db:migrate` and `db/migrate` → group `db`, label `migrate`),
 `group` overrides it, and ungrouped keys fall under `develop`.
 
+### Subcommands
+
+Use `children` to put commands behind one parent row in the picker:
+
+```ts
+const menu = Menu.make({
+  commands: {
+    hl: Command.make({
+      description: "Hyperliquid",
+      children: {
+        grid: Command.make({
+          args: [{ token: "--config", default: "grids.ts" }],
+          run: ({ config }) => runGrid(config),
+        }),
+      },
+    }),
+  },
+});
+await menu.dispatch();
+```
+
+Selecting `hl` opens its submenu; Escape returns to the parent list. Both
+`./main.ts hl grid --config other.ts` and `./main.ts hl/grid --config other.ts`
+run the child. Its `RunContext.key` is `hl/grid`; arguments retain their
+original words when dispatched to a function. Parent and child shortcuts work
+within their respective scopes. `--list` includes indented children.
+
+A parent uses `children` instead of `run` or `exec`, has no arguments, and must
+contain at least one leaf command. The native picker currently supports one
+submenu level. Child keys are relative to the parent; `group` on a child does
+not move it into the top-level list. `/` and `:` in an ordinary command key
+still provide visual grouping only.
+
 ## Surfaces
 
 - `Prelude.make(options)` is one app: `commands` plus optional `motd` and

@@ -36,6 +36,7 @@ export interface FunctionDefinition<Specs extends readonly Args.Spec[]> extends 
   /** Runs in this process. A returned number becomes the exit status. */
   run(args: Args.Values<Specs>, context: RunContext): unknown;
   exec?: never;
+  children?: never;
 }
 
 /** A command implemented by shell text, like `exec` in Nix. */
@@ -43,6 +44,7 @@ export interface ShellDefinition<Specs extends readonly Args.Spec[]> extends Inf
   /** Run with bash; argument text entered for it is appended as typed. */
   exec: string;
   run?: never;
+  children?: never;
 }
 
 export type Definition<Specs extends readonly Args.Spec[]> =
@@ -60,13 +62,29 @@ export type Command<Specs extends readonly Args.Spec[] = readonly Args.Spec[]> =
  * Any command, whatever its arguments: the value type of a commands record.
  * `run` takes `never` because every typed `run` is assignable to that.
  */
-export type Any = Info<readonly Args.Spec[]> & {
+export type Leaf = Info<readonly Args.Spec[]> & {
   readonly args: readonly Args.Spec[];
   readonly [TypeId]: true;
+  readonly children?: never;
 } & (
     | { run(args: never, context: RunContext): unknown; exec?: never }
     | { exec: string; run?: never }
   );
+
+/** A native submenu. The current picker supports one level of child commands. */
+export interface ParentDefinition extends Omit<Info<readonly []>, "args"> {
+  children: Readonly<Record<string, Leaf>>;
+  args?: never;
+  run?: never;
+  exec?: never;
+}
+
+export type Parent = Omit<ParentDefinition, "args"> & {
+  readonly args: readonly [];
+  readonly [TypeId]: true;
+};
+
+export type Any = Leaf | Parent;
 
 /**
  * Declares a command next to the code it wraps. Its key comes from where it
@@ -78,13 +96,29 @@ export type Any = Info<readonly Args.Spec[]> & {
  *       run: (args) => serve(args.port),
  *     })
  */
+export function make(definition: ParentDefinition): Parent;
 export function make<const Specs extends readonly Args.Spec[] = readonly []>(
   definition: Definition<Specs>,
-): Command<Specs> {
-  if ((typeof definition.run === "function") === (typeof definition.exec === "string")) {
+): Command<Specs>;
+export function make<const Specs extends readonly Args.Spec[] = readonly []>(
+  definition: Definition<Specs> | ParentDefinition,
+): Command<Specs> | Parent {
+  const modes = [typeof definition.run === "function", typeof definition.exec === "string", definition.children !== undefined];
+  if (modes.filter(Boolean).length !== 1) {
     throw new Error(
-      "prelude: Command.make needs exactly one of `run` (a function) or `exec` (shell text)",
+      "prelude: Command.make needs exactly one of `run`, `exec`, or `children`",
     );
+  }
+  if (definition.children !== undefined) {
+    if (definition.args !== undefined) throw new Error("prelude: submenu parents cannot declare arguments");
+    const children = Object.entries(definition.children);
+    if (children.length === 0) throw new Error("prelude: a submenu needs at least one child command");
+    for (const [name, child] of children) {
+      if (!is(child) || child.children !== undefined) {
+        throw new Error(`prelude: submenu child "${name}" must be a leaf from Command.make()`);
+      }
+    }
+    return Object.freeze({ ...definition, children: Object.freeze({ ...definition.children }), args: [] as const, [TypeId]: true as const });
   }
   const args = definition.args ?? ([] as unknown as Specs);
   validate(args, "prelude: Command.make");

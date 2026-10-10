@@ -3,7 +3,8 @@ import { basename } from "node:path";
 import * as Args from "./Args.ts";
 import type * as Command from "./Command.ts";
 import * as Palette from "./Palette.ts";
-import { catalogue, gettingStarted, type Entry } from "./internal/catalogue.ts";
+import { catalogue, children, gettingStarted, type Entry } from "./internal/catalogue.ts";
+import { mount } from "./internal/command-tree.ts";
 import { call } from "./internal/ffi.ts";
 import { defaults } from "./internal/generated.ts";
 import { resolveColorProfile } from "./internal/palette.ts";
@@ -48,6 +49,7 @@ export interface Task {
   details: string;
   examples: string[];
   args: TaskArg[];
+  children?: Task[];
 }
 
 /** The menu's JSON boundary, internal/menu.Config in Go. */
@@ -150,7 +152,8 @@ function buildConfig(options: Options, dispatcher: string): Config {
   };
 }
 
-function task({ key, label, command }: Entry, dispatcher: string): Task {
+function task(entry: Entry, dispatcher: string): Task {
+  const { key, label, command } = entry;
   const invocation = `${dispatcher} ${key}`;
   return {
     name: key,
@@ -165,6 +168,7 @@ function task({ key, label, command }: Entry, dispatcher: string): Task {
     details: command.details ?? "",
     examples: [...(command.examples ?? [])],
     args: command.args.map(taskArg),
+    ...(command.children === undefined ? {} : { children: children(entry).map((child) => task(child, dispatcher)) }),
   };
 }
 
@@ -183,7 +187,7 @@ function taskArg(spec: Args.Spec): TaskArg {
 export function make(options: Options): Menu {
   const dispatcher = options.dispatcher ?? defaultDispatcher();
   const config = buildConfig(options, dispatcher);
-  const { commands } = options;
+  const { mounted, resolve } = mount(options.commands);
   const { palette } = config;
 
   const select = (args: readonly string[] = []): Selection | null => {
@@ -194,7 +198,7 @@ export function make(options: Options): Menu {
       source: Source;
       dir?: string;
       pathPrefix?: string[];
-    } | null>("prelude_menu_select", { config, args });
+    } | null>("prelude_menu_select", { config, args: resolve(args).native });
     return (
       chosen && {
         key: chosen.name,
@@ -209,9 +213,6 @@ export function make(options: Options): Menu {
 
   const list = (width = process.stdout.columns ?? 80): string => call<string>("prelude_menu_list", { config, width });
 
-  const keyFor = (word: string): string | undefined =>
-    Object.hasOwn(commands, word) ? word : Object.keys(commands).find((key) => commands[key]!.shortcut === word);
-
   const invoke = (key: string, command: Command.Any, argv: readonly string[]) => {
     // Parse before anything runs so a typo never half-starts a command. The
     // values match the command's own declarations, which Command.Any erases.
@@ -224,7 +225,8 @@ export function make(options: Options): Menu {
   // Only a declared selection can name one of this app's functions; an
   // import that shares a key still runs its own shell text.
   const prepareSelection = (selection: Selection): (() => Promise<number>) => {
-    const command = selection.source === "declared" ? commands[selection.key] : undefined;
+    const command = selection.source === "declared" ? mounted.get(selection.key) : undefined;
+    if (command?.children !== undefined) throw new Args.ParseError(`select a subcommand of ${selection.key}`);
     if (command?.run === undefined) {
       return () => {
         announce(palette, selection.shell);
@@ -240,9 +242,7 @@ export function make(options: Options): Menu {
   };
 
   const prepare = (argv: readonly string[]): (() => Promise<number>) => {
-    const [first, ...words] = argv;
-    const key = first === undefined ? undefined : keyFor(first);
-    const command = key === undefined ? undefined : commands[key];
+    const { key, command, words } = resolve(argv);
     // Function commands parse their own words, so quoting survives intact and
     // `--` ends option parsing; with none given, argument entry in the picker
     // collects them.

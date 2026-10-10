@@ -103,6 +103,17 @@ function validate(entries: readonly Entry[]): void {
 export function gettingStarted(groups: readonly Group[]): Entry[] {
   return groups
     .flatMap((group) => group.entries)
+    .flatMap((entry) => [entry, ...children(entry)])
     .filter((entry) => entry.command.motd !== undefined)
     .sort((a, b) => a.command.motd! - b.command.motd! || compare(a.key, b.key));
+}
+
+/** Child keys are relative to their parent; their mounted identity uses `/`. */
+export function children(entry: Entry): Entry[] {
+  if (entry.command.children === undefined) return [];
+  return catalogue(entry.command.children).flatMap((group) => group.entries).map((child) => ({
+    ...child,
+    key: `${entry.key}/${child.key}`,
+    label: child.key,
+  }));
 }

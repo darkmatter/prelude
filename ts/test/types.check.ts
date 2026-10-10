@@ -33,3 +33,12 @@ Command.make({ exec: "eslint .", run: () => {} });
 
 // Commands with different argument lists share one commands record.
 Menu.make({ commands: { dev: preludeCommand, lint: Command.make({ exec: "eslint ." }) } });
+
+const tools = Command.make({ children: { serve: preludeCommand } });
+Menu.make({ commands: { tools } });
+// @ts-expect-error a parent opens its children and cannot also run a function.
+Command.make({ children: { serve: preludeCommand }, run: () => {} });
+// @ts-expect-error parent arguments belong on the child command.
+Command.make({ children: { serve: preludeCommand }, args: [{ token: "--port" }] });
+// @ts-expect-error the native picker supports one submenu level.
+Command.make({ children: { nested: tools } });
