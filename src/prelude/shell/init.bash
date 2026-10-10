@@ -21,6 +21,10 @@ _prelude_init_show_motd() {
   [ -z "${PRELUDE_INIT_QUIET:-}" ] || return 0
 
   "$_PRELUDE_MOTD" >&2 || return 0
+  if [ -n "${DIRENV_IN_ENVRC-}" ] && [ -z "${PRELUDE_WORKSPACE_ACTIVE-}" ] &&
+    { [ -n "${_PRELUDE_WORKSPACE-}" ] || [ "${_PRELUDE_PROMPT_ENABLED-0}" = 1 ]; }; then
+    printf '\nRun nix develop for the full devshell.\n' >&2
+  fi
 }
 
 case "$-" in

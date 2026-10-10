@@ -3,9 +3,10 @@
 A real interactive Bash and movable Prelude docs/menu window rendered
 inside the current terminal through libghostty-vt's C API and Prelude's existing
 Bubble Tea/Ultraviolet stack. Consumer integration is opt-in through
-`prelude.workspace.enable`, which defaults to `false`. When enabled, generated
-project init enters `prelude-workspace` in the foreground in interactive Bash
-with a TTY. Manual launches remain available.
+`prelude.workspace.enable`, which defaults to `false`. When enabled, interactive
+`nix develop` sources generated project init and enters `prelude-workspace` in
+the foreground in Bash with a TTY. Direnv entry remains lightweight. Manual
+launches remain available.
 
 The workspace uses a separate Go module at
 [`src/cmd/prelude-workspace/go.mod`](../../src/cmd/prelude-workspace/go.mod)
@@ -53,25 +54,32 @@ Keep `.envrc` as the conventional loader; do not put a workspace launch in it:
 use flake
 ```
 
-Keep the existing hooks in your interactive Bash rc in this order:
+`cd` + direnv loads the lightweight environment, prints MOTD, and themes an
+already-initialized Starship prompt. It does not install the full interactive
+footer or catalogue completion. Loader-only MOTD includes “Run nix develop for
+the full devshell”; the hint is hidden in workspace or quiet mode.
+
+For the full devshell, run interactively:
 
 ```sh
-eval "$(direnv hook bash)"
-eval "$(prelude hook bash)"
+nix develop
 ```
 
-The Prelude hook sources the generated project init (`PRELUDE_INIT`) after
-direnv has loaded the environment. That init enters the enabled workspace in
-the foreground; `nix develop` also sources it in its interactive Bash. It never
-auto-launches from a noninteractive shell, `.envrc` evaluation, lorri, zsh, or
-without a TTY. `PRELUDE_WORKSPACE_ACTIVE` prevents workspace children from
-recursively entering another workspace. Workspace mode skips legacy BLE
-(ble.sh) initialization.
+No extra Prelude Bash rc hook is required. `nix develop` sources the generated
+project init (`PRELUDE_INIT`) and enters the enabled workspace in the foreground
+in interactive Bash with a TTY. The public `prelude hook bash` remains optional:
+an already-configured interactive handoff may still use
+`eval "$(prelude hook bash)"` after direnv to source that init. It is not an
+onboarding requirement. Automatic entry never runs from a noninteractive shell,
+`.envrc` evaluation, lorri, zsh, or without a TTY. `PRELUDE_WORKSPACE_ACTIVE`
+prevents workspace children from recursively entering another workspace.
+Workspace mode skips legacy BLE (ble.sh) initialization.
 
 Each generated init is stamped **before** attempting the launch. Exiting the
 workspace, or a failed launch, returns to the outer shell without immediately
-reopening it at the next prompt. Leaving and reentering the project environment,
-or receiving a changed init, permits automatic entry again.
+reopening it at the next prompt. Leaving and reentering the devshell, or
+receiving a changed init, permits automatic entry again through an eligible
+interactive init.
 
 Automatic entry follows `prelude.prompt.enable` for Starship. You can still
 launch manually, including reopening after exit or failure:
@@ -89,8 +97,8 @@ evaluated theme and settings, even when `prelude.prompt.enable = false`.
 Its original bracketed right-side keymap reads
 **Alt + [m] motd · [x] menu · [d] docs**. These are direct Alt shortcuts, not a
 prefix sequence. An inherited normal Prelude config selects this workspace
-preset; an explicit custom `STARSHIP_CONFIG` is preserved. Outside workspace
-mode, Prelude activation and its `?`/`x`/`d` shortcuts are unchanged.
+preset; an explicit custom `STARSHIP_CONFIG` is preserved. Standalone interactive
+Prelude activation and its `?`/`x`/`d` shortcuts are unchanged.
 
 ### Published package
 
@@ -354,10 +362,10 @@ build. With `prelude.workspace.enable = false`, the workspace launcher and nativ
 dependencies stay out of consumer shells and closures.
 
 This repository dogfoods `prelude.workspace.enable = true`, so its default
-shell includes the active launcher and native runtime dependencies and enters
-the workspace in eligible interactive Bash contexts. Native headers,
-pkg-config, and renderer tooling remain in the dedicated `workspace` devshell,
-not the default shell:
+shell includes the active launcher and native runtime dependencies. Interactive
+`nix develop` enters the workspace in Bash with a TTY; direnv entry remains
+lightweight. Native headers, pkg-config, and renderer tooling remain in the
+dedicated `workspace` devshell, not the default shell:
 
 ```sh
 nix develop path:.#workspace

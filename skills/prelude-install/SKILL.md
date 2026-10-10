@@ -111,30 +111,28 @@ or, in blueprint, `packages/prelude-docs.nix`.
 
 ## 3. Activation paths
 
-- `nix develop` — with the prompt component enabled (wizard default) the
-  setup hook sources the generated init: MOTD renders, `x`/`docs` land on
-  PATH, `STARSHIP_CONFIG` exports. Nothing extra to configure.
+- `nix develop` — the full interactive devshell. With the prompt component
+  enabled (wizard default), the setup hook sources the generated init: MOTD
+  renders, `x`/`docs` land on PATH, `STARSHIP_CONFIG` exports. Nothing extra to
+  configure. With `prelude.workspace.enable = true`, interactive Bash with a TTY
+  enters the workspace in the foreground, with its footer and catalogue
+  completion. Automatic Starship follows `prelude.prompt.enable`.
 - direnv (nix-direnv) — the generated `.envrc` (`use flake`) loads the cached
-  environment and renders the MOTD. Without workspace activation, new developers
-  need only their existing direnv hook. Preserve an existing `.envrc` and its
-  environment loader.
-  With `prelude.workspace.enable = true`, `.envrc` stays `use flake`; do not
+  environment, renders MOTD, and themes an already-initialized Starship prompt
+  when the prompt component is enabled. Entry stays lightweight: no full footer
+  or catalogue completion. New developers need only their existing direnv hook,
+  not an extra Prelude Bash rc hook. Preserve an existing `.envrc` and its loader.
+  With `prelude.workspace.enable = true`, `.envrc` still stays `use flake`; do not
   launch the workspace or source interactive project init from `.envrc`.
-  Keep the existing hooks in the consumer's interactive Bash rc in this order:
-
-  ```sh
-  eval "$(direnv hook bash)"
-  eval "$(prelude hook bash)"
-  ```
-
-  The Prelude hook sources the generated project init after direnv loads the
-  environment; that init enters `prelude-workspace` in the foreground only in
-  interactive Bash with a TTY. Each init is stamped before launch, so exit or
-  failure does not immediately reopen it; leaving/reentering or a changed init
-  permits reentry. Noninteractive, envrc, lorri, zsh, and non-TTY contexts never
-  auto-launch it; `PRELUDE_WORKSPACE_ACTIVE` prevents child recursion. Workspace
-  mode skips legacy BLE initialization. Automatic Starship follows
-  `prelude.prompt.enable`; manual `x prelude:workspace` and
+  Loader-only MOTD includes “Run nix develop for the full devshell”; the hint is
+  hidden in workspace or quiet mode. Run interactive `nix develop` for the enabled
+  workspace. The public `prelude hook bash` remains optional for already-configured
+  interactive handoffs after direnv, not an onboarding requirement.
+  Each init is stamped before launch, so exit or failure does not immediately
+  reopen it; leaving/reentering the devshell or a changed init permits reentry.
+  Noninteractive, envrc, lorri, zsh, and non-TTY contexts never auto-launch it;
+  `PRELUDE_WORKSPACE_ACTIVE` prevents child recursion. Workspace mode skips legacy
+  BLE initialization. Manual `x prelude:workspace` and
   `prelude-workspace --starship` remain supported.
 
 - lorri — runs `shellHook` inside the Nix builder, so route it through the

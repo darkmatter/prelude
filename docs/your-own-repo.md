@@ -146,10 +146,13 @@ Package-backed commands — `prelude.lib.fromPkg pkgs.foo { … }` — carry the
 runtime closure with them, so they work without adding the tool to the shell.
 
 Prelude's setup hook activates the environment through either standard loader.
-`nix develop` sources `$PRELUDE_INIT` in the interactive shell. nix-direnv
+Interactive `nix develop` sources `$PRELUDE_INIT` for the full devshell. nix-direnv
 evaluates the cached `shellHook` while direnv is loading `.envrc`, where
-`DIRENV_IN_ENVRC` tells the same init to render only the MOTD, never launch the
-workspace. Any other non-interactive context — notably lorri's `shellHook`,
+`DIRENV_IN_ENVRC` keeps entry lightweight: environment, MOTD, and theming an
+already-initialized Starship prompt, never the workspace, footer, or catalogue
+completion. Loader-only MOTD includes “Run nix develop for the full devshell”;
+the hint is hidden in workspace or quiet mode. Any other non-interactive
+context — notably lorri's `shellHook`,
 which runs inside the Nix builder — stays silent rather than printing a banner
 into a build log. The wizard therefore writes the conventional `.envrc` entrypoint:
 
@@ -164,15 +167,16 @@ append `prelude hook zsh` from inside the project. Do not `eval` that command:
 `prelude` is not on `PATH` when rc files initially run. Neither lorri nor the zsh
 hook auto-launches the workspace.
 
-For non-workspace nix-direnv activation, adding a developer requires no shell
-configuration beyond their existing direnv hook. With
-`prelude.workspace.enable = true`, keep `.envrc` as `use flake`; the existing
-interactive Bash rc `eval "$(prelude hook bash)"`, after the direnv hook, sources
-the generated project init and enters `prelude-workspace` in the foreground
-only with a TTY. Workspace mode skips legacy BLE initialization, and automatic
-Starship follows `prelude.prompt.enable`. Manual `x prelude:workspace` and
-`prelude-workspace --starship` remain available. See the
-[workspace guide](guides/workspace.md) for launch guards and reentry behavior.
+Adding a developer requires no extra Prelude Bash rc hook: keep their existing
+direnv hook and `.envrc` as `use flake` for lightweight entry, then run interactive
+`nix develop` for the full devshell. With `prelude.workspace.enable = true`, its
+generated project init enters `prelude-workspace` in the foreground in Bash with
+a TTY. Workspace mode skips legacy BLE initialization, and automatic Starship
+follows `prelude.prompt.enable`. The public `prelude hook bash` remains optional
+for already-configured interactive handoffs after direnv; it is not an onboarding
+requirement. Manual `x prelude:workspace` and `prelude-workspace --starship` remain
+available. See the [workspace guide](guides/workspace.md) for launch guards and
+reentry behavior.
 
 Never `export -f` in a devshell `shellHook`. Bash stores an exported function
 as `BASH_FUNC_<name>%%`; loaders replay that into zsh, which rejects `%` in a

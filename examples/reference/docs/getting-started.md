@@ -1,10 +1,12 @@
 # Getting started
 
-This development shell demonstrates the complete Prelude integration. It enables
-workspace entry in the foreground from generated project init in interactive
-Bash with a TTY, with Starship following `prelude.prompt.enable`. With direnv,
-keep `.envrc` as `use flake`; the existing Bash rc `eval "$(prelude hook bash)"`
-sources the init after direnv.
+This development shell demonstrates the complete Prelude integration. Keep
+`.envrc` as `use flake`: `cd` + direnv provides the lightweight environment, MOTD,
+and theming for an already-initialized Starship prompt. Run interactive
+`nix develop` for the full footer and catalogue completion; generated project
+init enters the enabled workspace in the foreground in Bash with a TTY, with
+Starship following `prelude.prompt.enable`. No extra Prelude Bash rc hook is
+required.
 
 ## Commands
 

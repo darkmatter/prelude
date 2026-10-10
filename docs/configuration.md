@@ -27,12 +27,15 @@ Everything is a `prelude.*` option, validated at build time.
   (`{ options = …; … }`, including any of `transformOptions`, `documentType`,
   `warningsAreErrors`, `revision`, …) used when a generate node is present.
 - **`prelude.prompt.enable`** — themed Starship config at `packages.prelude-prompt`;
-  also selects Starship for automatic workspace entry.
+  themes an existing Starship prompt under direnv and selects Starship for
+  automatic workspace entry through interactive `nix develop`.
 - **`prelude.workspace.enable`** — opt-in foreground workspace entry from generated
-  project init in interactive Bash with a TTY (default: `false`). `.envrc` stays
-  `use flake`; the existing Bash rc Prelude hook sources init after direnv.
-  Manual workspace launches remain available; see the
-  [workspace guide](guides/workspace.md).
+  project init in interactive `nix develop` (Bash with a TTY; default: `false`).
+  `.envrc` stays `use flake` for the lightweight environment, MOTD, and existing
+  Starship theming; the full footer and catalogue completion come with the
+  interactive devshell. No extra Prelude Bash rc hook is required. Manual launches
+  and optional, already-configured `prelude hook bash` handoffs remain supported;
+  see the [workspace guide](guides/workspace.md).
 
 The full option reference is also generated to `docs/reference/options.md`
 (refresh with `x sync-docs`) and appears in the docs TUI under **Options**.

@@ -20,14 +20,17 @@ hello      # package-backed example command
 x prelude:workspace --starship  # manually reopen the consumer-configured workspace
 ```
 
-This example enables the workspace and prompt. Generated project init enters
-`prelude-workspace` in the foreground in interactive Bash with a TTY, with
-Starship because `prelude.prompt.enable = true`; MOTD prints in the workspace's
-main Bash. With direnv, `.envrc` stays `use flake` and the existing interactive
-Bash rc `eval "$(prelude hook bash)"` sources the init after direnv. Exit or
-failure does not immediately reopen the workspace; leaving/reentering or a
-changed init permits automatic entry again. Manual launches remain available.
-See the [workspace guide](../../docs/guides/workspace.md) for launch guards.
+This example enables the workspace and prompt. With `.envrc` set to `use flake`,
+`cd` + direnv provides the lightweight environment, MOTD, and theming for an
+already-initialized Starship prompt. Run interactive `nix develop` for the full
+footer and catalogue completion: generated project init enters `prelude-workspace`
+in the foreground in Bash with a TTY, with Starship because
+`prelude.prompt.enable = true`. No extra Prelude Bash rc hook is required.
+MOTD prints in the workspace's main Bash. Exit or failure does not immediately
+reopen the workspace; leaving/reentering the devshell or a changed init permits
+automatic entry again. Manual launches remain available. See the
+[workspace guide](../../docs/guides/workspace.md) for launch guards and optional
+public hook handoffs.
 
 Run individual flake outputs without entering the shell:
 

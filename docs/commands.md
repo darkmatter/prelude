@@ -14,8 +14,15 @@ Prelude supplies these whenever the components are enabled:
 - **`docs`** (`d`) — this viewer (`x docs`).
 - **`portal`** (`p`) — app launcher with live health lights.
 
-For catalogue-only Bash completion, source `"$PRELUDE_COMPLETION_INIT"` after
-loading the devshell environment. This registers command and argument completion
+With `.envrc` set to `use flake`, `cd` + direnv loads the lightweight environment,
+prints MOTD, and themes an already-initialized Starship prompt. Run interactive
+`nix develop` for the full footer and catalogue completion; no extra Prelude
+Bash rc hook is required. Loader-only MOTD includes “Run nix develop for the full
+devshell”, hidden in workspace or quiet mode.
+
+For catalogue-only Bash completion in an interactive devshell, source
+`"$PRELUDE_COMPLETION_INIT"` after loading the environment. This registers command
+and argument completion
 without loading ble.sh, initializing Starship, printing MOTD, or changing the
 status row. The Prelude workspace sources this completion-only init automatically.
 
@@ -34,11 +41,13 @@ Workspace and project commands (the workspace entry is built in when enabled;
   and bundle the active launcher in `prelude-shell`. Menu and MOTD must be enabled
   and Docs must have at least one page; evaluation asserts these prerequisites.
   The devshell launcher uses the current checkout's menu, with the consumer's own
-  Docs, MOTD, theme, and completion config. Generated project init also enters the
-  workspace in the foreground in interactive Bash with a TTY: `.envrc` stays
-  `use flake`, and the existing Bash rc `eval "$(prelude hook bash)"` sources it
-  after direnv. Each init is stamped before launch, preventing immediate reopen
-  after exit or failure; leaving/reentering or a changed init permits reentry.
+  Docs, MOTD, theme, and completion config. Interactive `nix develop` sources
+  generated project init and enters the enabled workspace in the foreground in
+  Bash with a TTY. `.envrc` stays `use flake` for lightweight loader-only entry.
+  The public `prelude hook bash` remains optional for already-configured
+  interactive handoffs after direnv. Each init is stamped before launch, preventing
+  immediate reopen after exit or failure; leaving/reentering or a changed init
+  permits reentry.
   Noninteractive, envrc, lorri, zsh, and non-TTY contexts never auto-launch it;
   `PRELUDE_WORKSPACE_ACTIVE` prevents child recursion. Workspace mode skips
   legacy BLE initialization.

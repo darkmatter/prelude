@@ -18,7 +18,7 @@ Interactive task picker and non-interactive dispatcher over the command catalogu
 Full-screen Markdown viewer over pages embedded at build time.
 
 **Workspace**:
-Opt-in Bash host (`prelude-workspace`) that renders the shell and a movable Menu or Docs pane through libghostty-vt. With `prelude.workspace.enable = true`, generated project init enters it in the foreground in interactive Bash with a TTY; the existing rc `eval "$(prelude hook bash)"` sources that init after direnv, while `.envrc` stays `use flake`. Manual launches remain supported. MOTD remains ordinary main-shell output.
+Opt-in Bash host (`prelude-workspace`) that renders the shell and a movable Menu or Docs pane through libghostty-vt. `.envrc` stays `use flake`: direnv provides the lightweight environment, MOTD, and theming for an already-initialized Starship prompt. With `prelude.workspace.enable = true`, interactive `nix develop` sources generated project init and enters the workspace in the foreground in Bash with a TTY, including its footer and catalogue completion. No extra Prelude Bash rc hook is required; the public `prelude hook bash` remains optional for already-configured interactive handoffs. Manual launches remain supported. MOTD remains ordinary main-shell output.
 
 **Command catalogue**:
 Project tasks declared in Nix (`prelude.commands`) or by a Host, projected into menu groups and MOTD next-steps, plus the ones the menu imports when it opens (Justfile recipes, package.json scripts), which appear only in the menu.

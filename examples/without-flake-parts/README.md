@@ -37,14 +37,17 @@ prelude.lib.evalModule pkgs {
 For the optional workspace, add `prelude.workspace.enable = true;` to
 `prelude.nix`; this example already enables Menu and MOTD and supplies a Docs
 page. `prelude-shell` then provides `prelude-workspace` and the catalogue entry
-`x prelude:workspace`. Generated project init enters the workspace in the
-foreground in interactive Bash with a TTY. `.envrc` stays `use flake`; the existing
-Bash rc `eval "$(prelude hook bash)"` sources that init after direnv. Automatic
-Starship follows `prelude.prompt.enable`; manual `x prelude:workspace` and
+`x prelude:workspace`. `.envrc` stays `use flake`: `cd` + direnv provides the
+lightweight environment, MOTD, and theming for an already-initialized Starship
+prompt. Run interactive `nix develop` for the full footer and catalogue completion;
+generated project init enters the enabled workspace in the foreground in Bash
+with a TTY. No extra Prelude Bash rc hook is required. Automatic Starship follows
+`prelude.prompt.enable`; manual `x prelude:workspace` and
 `prelude-workspace --starship` remain supported, even with the prompt option off.
 Each init is stamped before launch, so exit or failure does not immediately
-reopen it; leaving/reentering or a changed init permits reentry. See the
-[workspace guide](../../docs/guides/workspace.md) for launch guards.
+reopen it; leaving/reentering the devshell or a changed init permits reentry.
+See the [workspace guide](../../docs/guides/workspace.md) for launch guards and
+optional public hook handoffs.
 
 The flake also exposes the packages as `legacyPackages`, so
 `nix run github:darkmatter/prelude#docs` run in this repository opens these docs

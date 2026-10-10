@@ -316,6 +316,35 @@ def lifecycle(bash: str, fixture: dict, other: dict, shape: str):
     print(f"PASS sentinel {fixture['name']} ({shape} PROMPT_COMMAND): loader ordering, foreground/TTY/active, child recursion, exit/dedupe, changed init, leave/reentry", flush=True)
 
 
+def loader_hint(bash: str, fixture: dict, full_shell: bool):
+    with tempfile.TemporaryDirectory(prefix="workspace-loader-hint-") as temp:
+        directory = Path(temp)
+        env = environment(fixture, directory, bash)
+        env["PRELUDE_INIT"] = fixture["init"]
+        env.pop("PRELUDE_INIT_QUIET")
+        hint = b"Run nix develop for the full devshell."
+        cases = [
+            ({}, 0),
+            ({"DIRENV_IN_ENVRC": "1"}, int(full_shell)),
+            ({"DIRENV_IN_ENVRC": "1", "PRELUDE_INIT_QUIET": "1"}, 0),
+            ({"DIRENV_IN_ENVRC": "1", "PRELUDE_WORKSPACE_ACTIVE": "1"}, 0),
+        ]
+        for context, count in cases:
+            result = subprocess.run(
+                [bash, "--noprofile", "--norc", "-c", '. "$PRELUDE_INIT"'],
+                env=dict(env, **context), capture_output=True, timeout=10, check=False,
+            )
+            assert result.returncode == 0, (context, result.stderr)
+            assert result.stderr.count(hint) == count, (context, result.stderr)
+            assert not result.stdout, (context, result.stdout)
+            if not context or context.get("PRELUDE_INIT_QUIET"):
+                assert not result.stderr, (context, result.stderr)
+            else:
+                assert result.stderr, (context, "loader did not print MOTD")
+        assert not launches(Path(env["PRELUDE_TEST_LAUNCH_LOG"])), "loader hint launched workspace"
+    print("PASS loader MOTD hint: full-shell entry advertised only in non-quiet loader context, never inside workspace", flush=True)
+
+
 def guards(bash: str, zsh: str, fixture: dict):
     with tempfile.TemporaryDirectory(prefix=f"workspace-hook-guards-{fixture['name']}-") as temp:
         directory = Path(temp)
@@ -518,6 +547,9 @@ def main():
         for shape in ("string", "array"):
             lifecycle(bash, fixture, other, shape)
         guards(bash, zsh, fixture)
+        loader_hint(bash, fixture, True)
+    loader_hint(bash, fixtures["standalone"], True)
+    loader_hint(bash, fixtures["disabled"], False)
     zsh_transition(bash, zsh, a, fixtures["standalone"])
     disabled_hook(bash, fixtures["disabled"])
     manual_flags(bash, fixtures["sentinel"])

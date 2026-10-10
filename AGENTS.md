@@ -33,7 +33,8 @@ equal; put package logic there, not in either entry point.
 
 ## Commands
 
-Work inside `nix develop` (or direnv). The catalogue is the public interface:
+Work inside interactive `nix develop` for the full devshell; direnv supplies
+lightweight environment and MOTD entry. The catalogue is the public interface:
 
 ```sh
 x                 # interactive picker
@@ -63,12 +64,15 @@ part of the name (`x go:test`), and groups come only from `group`.
 - **Catalogue:** `prelude.commands` is the Nix-side whole. Import Justfile /
   `package.json` / flake apps; do not write generated entries back to source.
   Existing tools own the canonical invocation (`go test`, `nix flake check`).
-- **Workspace:** consumers opt in with `prelude.workspace.enable`. Generated
-  project init enters `prelude-workspace` in the foreground in interactive Bash
-  with a TTY. `.envrc` stays `use flake`; the existing Bash rc
-  `eval "$(prelude hook bash)"` sources the init after direnv. Stamp each init
-  before launch: exit/failure must not immediately reopen it; leaving/reentering
-  or a changed init permits reentry. Never launch from noninteractive, envrc,
+- **Workspace:** consumers opt in with `prelude.workspace.enable`. Interactive
+  `nix develop` sources generated project init and enters `prelude-workspace` in
+  the foreground in Bash with a TTY, with the full footer and catalogue completion.
+  `.envrc` stays `use flake`: `cd` + direnv provides the lightweight environment,
+  MOTD, and theming for an already-initialized Starship prompt. No extra Prelude
+  Bash rc hook is required. The public `prelude hook bash` remains optional for
+  already-configured interactive handoffs after direnv. Stamp each init before
+  launch: exit/failure must not immediately reopen it; leaving/reentering or a
+  changed init permits reentry. Never auto-launch from noninteractive, envrc,
   lorri, zsh, or non-TTY contexts; `PRELUDE_WORKSPACE_ACTIVE` prevents child
   recursion. Workspace mode skips legacy BLE initialization. Automatic Starship
   follows `prelude.prompt.enable`; manual `x prelude:workspace` /
@@ -79,7 +83,9 @@ part of the name (`x go:test`), and groups come only from `group`.
   Its independent Go module and tooling remain separate from the main module.
   See [`docs/guides/workspace.md`](docs/guides/workspace.md).
 - **Activation:** `eval "$(prelude-preflight)"` is the only shellHook line.
-  Wizard writes a sidecar `prelude.nix` and never overwrites `flake.nix`.
+  Loader-only MOTD includes “Run nix develop for the full devshell”; hide the
+  hint in workspace or quiet mode. Wizard writes a sidecar `prelude.nix` and
+  never overwrites `flake.nix`.
 - **TypeScript API:** `ts/` is a second author of the menu and MOTD Config
   JSON. `ts/src/internal/catalogue.ts` and `ts/src/Motd.ts` port the Nix
   rules, and a conformance fixture holds them to Nix's own output. After

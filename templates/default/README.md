@@ -15,11 +15,13 @@ Add project commands under `prelude.commands` and docs pages under
 `prelude.docs.pages` in `flake.nix`.
 
 Optionally set `prelude.workspace.enable = true` there; keep Menu, MOTD, and at
-least one Docs page enabled. Generated project init then enters the workspace
-in the foreground in interactive Bash with a TTY. `.envrc` stays `use flake`;
-the existing Bash rc `eval "$(prelude hook bash)"` sources the init after direnv.
-Automatic Starship follows `prelude.prompt.enable`. Exit or failure does not
-immediately reopen the workspace; leaving/reentering or a changed init permits
-reentry. Manual `x prelude:workspace` and `prelude-workspace --starship` remain
-available. See the [workspace guide](https://github.com/darkmatter/prelude/blob/main/docs/guides/workspace.md)
-for launch guards and controls.
+least one Docs page enabled. `.envrc` stays `use flake`: `cd` + direnv provides the
+lightweight environment, MOTD, and theming for an already-initialized Starship
+prompt. Run interactive `nix develop` for the full footer and catalogue completion;
+generated project init then enters the enabled workspace in the foreground in
+Bash with a TTY. No extra Prelude Bash rc hook is required. Automatic Starship
+follows `prelude.prompt.enable`. Exit or failure does not immediately reopen the
+workspace; leaving/reentering the devshell or a changed init permits reentry.
+Manual `x prelude:workspace` and `prelude-workspace --starship` remain available.
+See the [workspace guide](https://github.com/darkmatter/prelude/blob/main/docs/guides/workspace.md)
+for launch guards, controls, and optional public hook handoffs.
