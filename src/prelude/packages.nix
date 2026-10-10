@@ -291,6 +291,41 @@
     };
   };
 
+  # What `nix run …#prelude-menu` and the `prelude` app open: the same menu,
+  # bound to the project source, so it reads that project's files and runs
+  # its commands there wherever it starts. The devshell keeps menuPkg, which
+  # works in the caller's checkout.
+  publishedMenuBin =
+    if cfg.root == null
+    then menuBin
+    else
+      mkMenu deps (menuRenderConfig
+        // {
+          inherit (cfg) root;
+          runtimePackages = commandRuntimePackages ++ lib.optional cfg.menu.just.enable pkgs.just;
+        });
+  publishedMenuPkg =
+    if cfg.root == null
+    then menuPkg
+    else
+      pkgs.symlinkJoin {
+        name = "menu";
+        # menuPkg's command and shortcut wrappers call the unbound `x`, so
+        # they stay out. The passthru still describes the catalogue they
+        # come from, which the checks read.
+        paths =
+          [publishedMenuBin]
+          ++ commandRuntimePackages
+          ++ lib.optional cfg.menu.just.enable pkgs.just;
+        passthru =
+          menuPkg.passthru
+          // {
+            componentRoot = publishedMenuBin;
+            menuConfig = publishedMenuBin.configFile;
+          };
+        inherit (menuPkg) meta;
+      };
+
   docsBin = mkDocs deps (generatorConfig cfg.docs);
   docsBasePkg =
     if cfg.motd.enable || cfg.menu.enable
@@ -361,10 +396,21 @@
       if embedDependencies
       then lib.getExe' package executable
       else executable;
+    menuSurface =
+      if embedDependencies
+      then publishedMenuPkg
+      else menuPkg;
+    # The self-contained app puts its own surfaces first on PATH, so a menu
+    # entry such as `docs` or `portal` opens this project's, not the caller's.
+    ownSurfaces =
+      lib.optional cfg.menu.enable menuSurface
+      ++ lib.optional cfg.motd.enable motdPkg
+      ++ lib.optional docsEnabled docsPkg
+      ++ lib.optional cfg.portal.enable portalPkg;
   in
     pkgs.writeShellApplication {
       name = "prelude";
-      runtimeInputs = [pkgs.coreutils];
+      runtimeInputs = [pkgs.coreutils] ++ lib.optionals embedDependencies ownSurfaces;
       text = ''
         command="''${1:-help}"
         if [ "$#" -gt 0 ]; then
@@ -428,10 +474,10 @@
         ''}
         ${lib.optionalString cfg.menu.enable ''
           menu)
-            exec ${target menuPkg "menu"} "$@"
+            exec ${target menuSurface "menu"} "$@"
             ;;
           x)
-            exec ${target menuPkg "x"} "$@"
+            exec ${target menuSurface "x"} "$@"
             ;;
         ''}
         ${lib.optionalString docsEnabled ''
@@ -648,7 +694,7 @@ in
     prelude-wizard = wizardPkg;
   }
   // lib.optionalAttrs cfg.menu.enable {
-    prelude-menu = menuPkg;
+    prelude-menu = publishedMenuPkg;
   }
   // lib.optionalAttrs cfg.portal.enable {
     prelude-portal = portalPkg;

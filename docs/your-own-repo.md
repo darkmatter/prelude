@@ -124,6 +124,18 @@ It never claims a generic attribute name in your flake. Interactive surfaces
 keep `motd`, `menu`, `x`, and `docs`; bootstrap and generator tools install
 only `prelude-*` executables.
 
+The published `prelude` and `prelude-menu` packages are bound to your
+project's source (`prelude.root`), so someone can run
+`nix run github:org/repo#prelude-menu` from anywhere and get your menu: your
+Justfile recipes and package.json scripts, with commands run in a read-only
+copy of your repository. Commands that only read work there; commands that
+write into the tree do not. `nix run github:org/repo#prelude -- menu` also
+opens your docs and portal from the menu. Keep `prelude-shell` in your
+devshell: its menu is not bound and works in your checkout, while the bound
+`prelude-menu` is a snapshot that rebuilds whenever the source changes. To run
+the bound app against your checkout, point it there:
+`PRELUDE_ROOT=$PWD nix run .#prelude -- x fmt`.
+
 `packages.prelude-shell` supplies activation, prompt runtime, and every enabled
 component. Add only it to the devshell. Do not add `packages.prelude`: that
 package embeds every app subcommand for `apps.prelude` and the upstream

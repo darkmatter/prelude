@@ -878,7 +878,7 @@ string
 
 
 
-Optional Justfile path; null uses just’s normal Justfile discovery at runtime\.
+Optional Justfile path; null uses just’s normal Justfile discovery at runtime, from the menu’s root or, without one, from the caller’s directory\.
 
 
 
@@ -970,7 +970,7 @@ true
 
 
 
-package\.json to import\. null uses the nearest package\.json at or above the working directory at runtime\. A relative path resolves from the project root (the nearest directory holding flake\.nix)\. A string, not a Nix path, so it is never copied into the store away from its node_modules\.
+package\.json to import\. null uses the nearest package\.json at or above the menu’s root (or, without one, the caller’s directory) at runtime\. A relative path resolves from the nearest directory holding flake\.nix\. A string, not a Nix path, so it is never copied into the store away from its node_modules\.
 
 
 
@@ -3682,6 +3682,24 @@ TOML value
   format = "$directory$git_branch$character";
 }
 ```
+
+
+
+## prelude\.root
+
+
+
+The root the packages this configuration publishes (` prelude `, ` prelude-menu `) are bound to: they read project files from it and run commands in it, so ` nix run github:org/repo#prelude-menu ` shows that repo’s menu wherever it runs\. ` prelude-shell ` ignores it: the devshell works in your checkout\. With ` lib.evalModule `, set it to your flake’s ` self `\.
+
+
+
+*Type:*
+null or absolute path
+
+
+
+*Default:*
+the flake’s own source, under ` flakeModules.default `
 
 
 

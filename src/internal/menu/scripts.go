@@ -15,7 +15,7 @@ func importScripts(cfg *Config) {
 	if !cfg.Scripts.Enable {
 		return
 	}
-	tasks, err := loadScriptTasks(cfg.Scripts)
+	tasks, err := loadScriptTasks(cfg.Scripts, cfg.Root)
 	if err != nil {
 		cfg.importWarnings = append(cfg.importWarnings, "package.json scripts unavailable: "+err.Error())
 		return
@@ -23,12 +23,18 @@ func importScripts(cfg *Config) {
 	mergeTasks(cfg, tasks)
 }
 
-func loadScriptTasks(cfg ScriptsConfig) ([]Task, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, err
+// loadScriptTasks reads the package.json found from root, or from the working
+// directory when root is empty.
+func loadScriptTasks(cfg ScriptsConfig, root string) ([]Task, error) {
+	base := root
+	if base == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+		base = cwd
 	}
-	path, err := packageJSONPath(cfg, cwd)
+	path, err := packageJSONPath(cfg, base)
 	if err != nil {
 		return nil, err
 	}
@@ -39,23 +45,24 @@ func loadScriptTasks(cfg ScriptsConfig) ([]Task, error) {
 	return parseScripts(data, path, cfg)
 }
 
-// packageJSONPath resolves the package.json to import from the working
-// directory: the configured path, else the nearest one at or above it.
-func packageJSONPath(cfg ScriptsConfig, cwd string) (string, error) {
+// packageJSONPath resolves the package.json to import from base, the root or
+// the caller's directory: the configured path, else the nearest one at or
+// above base.
+func packageJSONPath(cfg ScriptsConfig, base string) (string, error) {
 	if cfg.PackageJSON != nil && strings.TrimSpace(*cfg.PackageJSON) != "" {
 		path := *cfg.PackageJSON
 		if filepath.IsAbs(path) {
 			return path, nil
 		}
-		base := cwd
-		if root, found := nearestWith(cwd, "flake.nix"); found {
-			base = root
+		from := base
+		if flakeDir, found := nearestWith(base, "flake.nix"); found {
+			from = flakeDir
 		}
-		return filepath.Join(base, path), nil
+		return filepath.Join(from, path), nil
 	}
-	dir, found := nearestWith(cwd, "package.json")
+	dir, found := nearestWith(base, "package.json")
 	if !found {
-		return "", fmt.Errorf("no package.json in %s or above", cwd)
+		return "", fmt.Errorf("no package.json in %s or above", base)
 	}
 	return filepath.Join(dir, "package.json"), nil
 }

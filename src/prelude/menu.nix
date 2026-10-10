@@ -16,7 +16,7 @@
   ...
 }:
 # Flat config: { theme?, palette?, colorProfile?, project?, commands?,
-#                placeholder?, height?, execute?, width?, maxWidth? }
+#                placeholder?, height?, execute?, width?, maxWidth?, root? }
 config: let
   d = import ./defaults.nix;
   plib = import ./lib.nix {inherit lib;};
@@ -86,23 +86,39 @@ config: let
     then m.width
     else 0;
 
+  # A menu bound to a root (a published package's own source) reads project
+  # files and runs commands there. Its commands find this `x` first on PATH,
+  # so the `x` entry and any recipe that calls `x` reach this menu rather than
+  # whichever `x` the caller has. The shim takes the Config from
+  # PRELUDE_MENU_CONFIG, which the running menu hands its commands.
+  root = config.root or null;
+  boundX = writeShellApplication {
+    name = "x";
+    text = ''
+      exec ${lib.getExe menuTui} --x "$@"
+    '';
+  };
   jsonGroups = groups;
 
   configFile = writeText "prelude-menu.json" (
-    builtins.toJSON {
-      inherit project maxWidth colorProfile;
-      placeholder = m.placeholder;
-      height = m.height;
-      execute = m.execute;
-      palette = pal;
-      groups = jsonGroups;
-      inherit motdCommands;
-      just = {
-        inherit (just) enable group;
-        justfile = just.justfile;
-      };
-      scripts = {inherit (scripts) enable packageJson group;};
-    }
+    builtins.toJSON ({
+        inherit project maxWidth colorProfile;
+        placeholder = m.placeholder;
+        height = m.height;
+        execute = m.execute;
+        palette = pal;
+        groups = jsonGroups;
+        inherit motdCommands;
+        just = {
+          inherit (just) enable group;
+          justfile = just.justfile;
+        };
+        scripts = {inherit (scripts) enable packageJson group;};
+      }
+      // lib.optionalAttrs (root != null) {
+        root = "${root}";
+        pathPrefix = ["${boundX}/bin"];
+      })
   );
 
   # --- the TUI binary ------------------------------------------------------------
@@ -123,8 +139,12 @@ config: let
       mainProgram = "menu";
     };
   };
+  # A bound menu runs where the caller may have none of the tools it needs:
+  # it brings `just` and its commands' packages on PATH itself.
+  runtimePackages = config.runtimePackages or [];
   menuWrapper = writeShellApplication {
     name = "menu";
+    runtimeInputs = runtimePackages;
     text = ''
       # Public contract: `menu` opens the interactive picker only. Execution
       # and listing belong to the `x` dispatcher.
@@ -139,6 +159,7 @@ config: let
 
   xWrapper = writeShellApplication {
     name = "x";
+    runtimeInputs = runtimePackages;
     text = ''
       exec ${lib.getExe menuTui} --config ${configFile} --x "$@"
     '';

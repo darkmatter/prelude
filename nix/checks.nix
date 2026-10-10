@@ -181,6 +181,9 @@ in {
     configuration = {
       prelude = {
         project = "eval-module";
+        # flakeModules.default defaults the root to the flake's own source;
+        # lib.evalModule callers set it, so set it for both.
+        root = toString ../.;
         motd.enable = true;
         menu.enable = true;
         prompt.enable = true;
@@ -293,6 +296,85 @@ in {
       test "$(jq -r '.just.justfile' ${menu.configFile})" = ${justfile}
       touch "$out"
     '';
+  # A menu bound to a root reads project files there and runs commands there,
+  # wherever it starts: the caller's own Justfile stays out, commands see the
+  # root as their directory and PRELUDE_ROOT, and the `x` entry reaches this
+  # menu. PRELUDE_ROOT overrides the bound root, and print mode carries the
+  # same environment.
+  menu-root = let
+    fixture = pkgs.runCommand "menu-root-fixture" {} ''
+      mkdir "$out"
+      printf 'from-fixture:\n  echo fixture recipe\n' > "$out/justfile"
+    '';
+    mkMenu = import ../src/prelude/menu.nix {
+      inherit
+        (pkgs)
+        lib
+        writeShellApplication
+        writeText
+        symlinkJoin
+        ;
+      buildGoModule = pkgs.buildGo126Module;
+    };
+    bound = {
+      commands = {
+        x.exec = "x";
+        where = {
+          exec = ''pwd -P; echo "root=$PRELUDE_ROOT"'';
+          description = "say where commands run";
+        };
+      };
+      just.enable = true;
+      root = fixture;
+    };
+    x = lib.getExe' (mkMenu bound) "x";
+    printOnly = lib.getExe' (mkMenu (bound // {execute = false;})) "x";
+  in
+    pkgs.runCommand "menu-root" {nativeBuildInputs = [pkgs.just];} ''
+      mkdir elsewhere
+      cd elsewhere
+      printf 'stray:\n  echo stray recipe\n' > justfile
+
+      ${x} --list > list
+      grep -q from-fixture list
+      if grep -q stray list; then
+        echo "the caller's Justfile leaked into a bound menu" >&2
+        exit 1
+      fi
+      ${x} where > ran
+      grep -qx ${fixture} ran
+      grep -qx "root=${fixture}" ran
+      # The `x` entry, like any command calling `x`, reaches this menu.
+      ${x} x --list > reopened
+      grep -q from-fixture reopened
+
+      # Print mode's text runs the same, even in an empty environment.
+      ${printOnly} where > printed
+      env -i ${pkgs.bash}/bin/bash -c "$(cat printed)" > ran-printed
+      grep -qx ${fixture} ran-printed
+      grep -qx "root=${fixture}" ran-printed
+
+      PRELUDE_ROOT=$PWD ${x} --list > overridden
+      grep -q stray overridden
+      touch "$out"
+    '';
+  # This repository's published menu is bound to its source; the devshell's
+  # copy works in the caller's checkout. Run from an unrelated directory with
+  # no `just` of the caller's, the published menu lists this repository's own
+  # Justfile recipes.
+  published-menu-bound = pkgs.runCommand "published-menu-bound" {nativeBuildInputs = [pkgs.jq];} ''
+    test "$(jq -r .root ${config.packages.prelude-menu.menuConfig})" = ${lib.escapeShellArg (toString localFlake.outPath)}
+    test "$(jq -r .root ${config.packages.prelude-shell.menuConfig})" = null
+    if command -v just >/dev/null; then
+      echo "the check itself must not supply just" >&2
+      exit 1
+    fi
+    mkdir elsewhere
+    cd elsewhere
+    ${lib.getExe' config.packages.prelude-menu "x"} --list > list
+    grep -q 'Launches the devshell' list
+    touch "$out"
+  '';
   # package.json scripts end to end: `x` lists them, runs one exactly as
   # written from its package.json directory with node_modules/.bin ahead of
   # PATH, notes the script a declared command hides, and feeds `x <TAB>`

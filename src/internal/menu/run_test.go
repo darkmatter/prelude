@@ -218,7 +218,7 @@ func TestEnterOnSubmenuChildOpensArgMode(t *testing.T) {
 }
 
 func TestStandaloneCommandRunsWhereTheSelectionSays(t *testing.T) {
-	if got := standaloneCommand(&Selection{Command: "go test ./..."}); got != "go test ./..." {
+	if got := standaloneCommand(&Config{}, &Selection{Command: "go test ./..."}); got != "go test ./..." {
 		t.Fatalf("a selection with nowhere to go should print bare, got %q", got)
 	}
 
@@ -236,12 +236,23 @@ func TestStandaloneCommandRunsWhereTheSelectionSays(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := exec.Command(sh, "-c", standaloneCommand(sel)).CombinedOutput()
+	out, err := exec.Command(sh, "-c", standaloneCommand(&Config{}, sel)).CombinedOutput()
 	if err != nil {
-		t.Fatalf("%s: %v\n%s", standaloneCommand(sel), err, out)
+		t.Fatalf("%s: %v\n%s", standaloneCommand(&Config{}, sel), err, out)
 	}
 	if string(out) != "hi from "+dir+"\n" {
 		t.Fatalf("output = %q, want greet run from %s", out, dir)
+	}
+
+	// A bound menu's printed command carries what exec mode would hand it,
+	// even into a shell that has none of it.
+	bound := &Config{Root: dir, path: "/menu/config.json"}
+	printed := standaloneCommand(bound, &Selection{Command: `echo "$PRELUDE_ROOT $PRELUDE_MENU_CONFIG"`, Dir: dir})
+	run := exec.Command(sh, "-c", printed)
+	run.Env = []string{}
+	out, err = run.CombinedOutput()
+	if err != nil || string(out) != dir+" /menu/config.json\n" {
+		t.Fatalf("%s printed %q (%v), want the root and the Config", printed, out, err)
 	}
 }
 

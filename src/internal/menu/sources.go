@@ -3,7 +3,10 @@ package menu
 import (
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -15,6 +18,42 @@ const (
 	sourceJust     = "just"
 	sourceScripts  = "scripts"
 )
+
+// openCatalogue settles where cfg reads project files and runs commands, then
+// imports from there. A task with no directory of its own runs in the root,
+// with the menu's PATH prefix after its own.
+//
+// Only a bound menu takes PRELUDE_ROOT, so a devshell's menu started from a
+// bound menu's command keeps working in its own checkout. A bound menu takes
+// it when someone set it for it, or when it handed it down itself (reopened
+// through its own `x`), but not when another bound menu handed it on.
+func openCatalogue(cfg *Config) {
+	root := os.Getenv("PRELUDE_ROOT")
+	handedBy := os.Getenv("PRELUDE_ROOT_MENU")
+	if root != "" && cfg.Root != "" && (handedBy == "" || handedBy == cfg.path) {
+		if absolute, err := filepath.Abs(root); err == nil {
+			root = absolute
+		}
+		cfg.Root = root
+	}
+	importSources(cfg)
+	if cfg.Root != "" || len(cfg.PathPrefix) > 0 {
+		for index := range cfg.Groups {
+			placeTasks(cfg.Groups[index].Tasks, cfg)
+		}
+	}
+}
+
+func placeTasks(tasks []Task, cfg *Config) {
+	for index := range tasks {
+		task := &tasks[index]
+		if task.Dir == "" {
+			task.Dir = cfg.Root
+		}
+		task.PathPrefix = slices.Concat(task.PathPrefix, cfg.PathPrefix)
+		placeTasks(task.Children, cfg)
+	}
+}
 
 // importSources merges every enabled import into cfg in precedence order, so
 // a Justfile recipe keeps a name that a package.json script also uses.

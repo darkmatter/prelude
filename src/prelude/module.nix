@@ -57,6 +57,7 @@
 }: {
   lib,
   config,
+  self,
   ...
 }: let
   # Currently unused; kept so the exported module can reference the prelude
@@ -68,6 +69,9 @@
   optionTypes = import ./option-types.nix {inherit lib;};
 in {
   imports = import ./modules.nix;
+
+  # Published packages are bound to the flake's own source.
+  config.prelude.root = lib.mkDefault self.outPath;
 
   options.perSystem = flake-parts-lib.mkPerSystemOption (
     {lib, ...}: {

@@ -48,7 +48,7 @@ in {
       justfile = lib.mkOption {
         type = lib.types.nullOr lib.types.path;
         default = null;
-        description = "Optional Justfile path; null uses just's normal Justfile discovery at runtime.";
+        description = "Optional Justfile path; null uses just's normal Justfile discovery at runtime, from the menu's root or, without one, from the caller's directory.";
       };
 
       group = lib.mkOption {
@@ -70,7 +70,7 @@ in {
         type = lib.types.nullOr lib.types.str;
         default = defaults.menu.scripts.packageJson;
         example = "web/package.json";
-        description = "package.json to import. null uses the nearest package.json at or above the working directory at runtime. A relative path resolves from the project root (the nearest directory holding flake.nix). A string, not a Nix path, so it is never copied into the store away from its node_modules.";
+        description = "package.json to import. null uses the nearest package.json at or above the menu's root (or, without one, the caller's directory) at runtime. A relative path resolves from the nearest directory holding flake.nix. A string, not a Nix path, so it is never copied into the store away from its node_modules.";
       };
 
       group = lib.mkOption {

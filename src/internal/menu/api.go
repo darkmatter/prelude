@@ -34,7 +34,7 @@ func ParseConfig(raw []byte) (*Config, error) {
 		return nil, err
 	}
 	cfg.applyDefaults()
-	importSources(cfg)
+	openCatalogue(cfg)
 	return cfg, nil
 }
 

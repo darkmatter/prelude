@@ -96,17 +96,18 @@ func importJust(cfg *Config) {
 	if !cfg.Just.Enable {
 		return
 	}
-	if tasks, err := loadJustTasks(cfg.Just); err == nil {
+	if tasks, err := loadJustTasks(cfg.Just, cfg.Root); err == nil {
 		mergeTasks(cfg, tasks)
 	} else {
 		cfg.importWarnings = append(cfg.importWarnings, "just recipes unavailable; check that just and a Justfile are available")
 	}
 }
 
-// loadJustTasks runs just in the user's current shell directory. It is a
-// best-effort import: callers can keep the Nix-generated menu when just is not
-// installed, no Justfile is present, or the Justfile cannot be parsed.
-func loadJustTasks(cfg JustConfig) ([]Task, error) {
+// loadJustTasks runs just in dir, the root, or in the current directory when
+// dir is empty. It is a best-effort import: callers can keep the Nix-generated
+// menu when just is not installed, no Justfile is present, or the Justfile
+// cannot be parsed.
+func loadJustTasks(cfg JustConfig, dir string) ([]Task, error) {
 	if !cfg.Enable {
 		return nil, nil
 	}
@@ -116,6 +117,7 @@ func loadJustTasks(cfg JustConfig) ([]Task, error) {
 	}
 
 	command := exec.Command("just", args...)
+	command.Dir = dir
 	command.Stderr = io.Discard
 	output, err := command.Output()
 	if err != nil {

@@ -2,6 +2,7 @@ package menu
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"prelude/pkg/shared"
@@ -24,12 +25,23 @@ type Config struct {
 	// Dispatcher is the public command that opens this picker and runs its
 	// keys. Empty means the devshell's `x`; a TypeScript app names itself.
 	Dispatcher string `json:"dispatcher,omitempty"`
+	// Root binds the menu to a project: the directory it reads project files
+	// from and runs commands in, a published package's own source. Empty
+	// means the caller's directory, as in a devshell. PRELUDE_ROOT overrides
+	// a bound root, and a menu without one ignores it.
+	Root string `json:"root,omitempty"`
+	// PathPrefix puts directories ahead of PATH for every command. A bound
+	// menu puts its own `x` here, so commands reach this menu rather than
+	// whichever `x` the caller's PATH holds.
+	PathPrefix []string `json:"pathPrefix,omitempty"`
 
 	importWarnings []string // imports that failed, said under `x --list`
+	path           string   // the Config file, absolute, which commands inherit
 }
 
 // JustConfig controls the optional runtime import from a Justfile. A nil
-// Justfile uses just's normal discovery from the current working directory.
+// Justfile uses just's normal discovery from the root, or from the caller's
+// directory when the menu has none.
 type JustConfig struct {
 	Enable   bool    `json:"enable"`
 	Justfile *string `json:"justfile"`
@@ -37,9 +49,10 @@ type JustConfig struct {
 }
 
 // ScriptsConfig controls the optional runtime import of package.json scripts.
-// A nil PackageJSON uses the nearest package.json at or above the working
-// directory. A relative one resolves from the project root, the nearest
-// directory holding flake.nix, else from the working directory.
+// The search starts at the root, or at the caller's directory when the menu
+// has none. A nil PackageJSON uses the nearest package.json at or above it; a
+// relative one resolves from the nearest directory above it that holds
+// flake.nix, else from where the search starts.
 type ScriptsConfig struct {
 	Enable      bool    `json:"enable"`
 	PackageJSON *string `json:"packageJson"`
@@ -143,6 +156,12 @@ func loadConfig(path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Commands inherit the path after the menu enters the root, so it must
+	// not depend on the directory the menu started in.
+	if absolute, err := filepath.Abs(path); err == nil {
+		path = absolute
+	}
+	cfg.path = path
 	cfg.applyDefaults()
 	return cfg, nil
 }

@@ -54,7 +54,7 @@ func Run() {
 		fmt.Fprintln(os.Stderr, "menu:", err)
 		os.Exit(1)
 	}
-	importSources(cfg)
+	openCatalogue(cfg)
 	if path := os.Getenv("PRELUDE_MENU_DEBUG"); path != "" {
 		if f, err := tea.LogToFile(path, "menu"); err == nil {
 			defer f.Close()
@@ -72,7 +72,7 @@ func Run() {
 			fmt.Fprintln(w, st.errText.Render("menu: "+err.Error()))
 			os.Exit(1)
 		}
-		if err := writeSelectionOutput(*selectOutput, sel); err != nil {
+		if err := writeSelectionOutput(*selectOutput, cfg, sel); err != nil {
 			fmt.Fprintln(os.Stderr, "menu: --select-output:", err)
 			os.Exit(1)
 		}
@@ -198,7 +198,7 @@ func runPicker(cfg *Config, m model) (*Selection, error) {
 // return to.
 func finish(cfg *Config, st styles, sel *Selection) {
 	if !cfg.Execute {
-		fmt.Println(standaloneCommand(sel))
+		fmt.Println(standaloneCommand(cfg, sel))
 		return
 	}
 	w := shared.ColorWriter(os.Stdout, os.Environ(), cfg.ColorProfile)
@@ -217,23 +217,28 @@ func finish(cfg *Config, st styles, sel *Selection) {
 			os.Exit(1)
 		}
 	}
-	if err := syscall.Exec(sh, []string{sh, "-c", sel.Command}, withPathPrefix(os.Environ(), sel.PathPrefix)); err != nil {
+	if err := syscall.Exec(sh, []string{sh, "-c", sel.Command}, commandEnviron(cfg, sel)); err != nil {
 		fmt.Fprintln(os.Stderr, "menu: exec:", err)
 		os.Exit(1)
 	}
 }
 
-// standaloneCommand is the selection as shell text that runs from anywhere:
-// the command itself, or a subshell that enters Dir and extends PATH first.
-// The command ends its own line so a trailing comment cannot swallow the
-// closing parenthesis.
-func standaloneCommand(sel *Selection) string {
-	if sel.Dir == "" && len(sel.PathPrefix) == 0 {
+// standaloneCommand is the selection as shell text that runs from anywhere,
+// with what exec mode would give it: the command itself, or a subshell that
+// enters Dir, sets the bound menu's variables, and extends PATH first. The
+// command ends its own line so a trailing comment cannot swallow the closing
+// parenthesis.
+func standaloneCommand(cfg *Config, sel *Selection) string {
+	variables := boundEnv(cfg)
+	if sel.Dir == "" && len(sel.PathPrefix) == 0 && len(variables) == 0 {
 		return sel.Command
 	}
 	setup := ""
 	if sel.Dir != "" {
 		setup += "cd " + shellWord(sel.Dir) + " || exit; "
+	}
+	for _, variable := range variables {
+		setup += "export " + variable[0] + "=" + shellWord(variable[1]) + "; "
 	}
 	if len(sel.PathPrefix) > 0 {
 		setup += "export PATH=" + shellWord(strings.Join(sel.PathPrefix, ":")) + `:"$PATH"; `
@@ -244,7 +249,7 @@ func standaloneCommand(sel *Selection) string {
 // writeSelectionOutput publishes only after the picker has quit. A same-directory
 // rename keeps the host's empty file intact if writing or closing fails, and
 // replaces any existing file permissions with a private result.
-func writeSelectionOutput(path string, sel *Selection) error {
+func writeSelectionOutput(path string, cfg *Config, sel *Selection) error {
 	f, err := os.CreateTemp(filepath.Dir(path), ".prelude-menu-selection-*")
 	if err != nil {
 		return err
@@ -256,7 +261,7 @@ func writeSelectionOutput(path string, sel *Selection) error {
 	}
 	command := ""
 	if sel != nil {
-		command = standaloneCommand(sel)
+		command = standaloneCommand(cfg, sel)
 	}
 	_, err = f.WriteString(command)
 	closeErr := f.Close()
@@ -267,6 +272,45 @@ func writeSelectionOutput(path string, sel *Selection) error {
 		return closeErr
 	}
 	return os.Rename(f.Name(), path)
+}
+
+// boundEnv is what a bound menu hands its commands: its root and its Config,
+// so a nested `x` or `docs` stays on the same project, and which menu handed
+// the root on, so another bound menu leaves it alone. A menu without a root
+// hands nothing; the devshell already exports what its commands need.
+func boundEnv(cfg *Config) [][2]string {
+	if cfg.Root == "" {
+		return nil
+	}
+	variables := [][2]string{{"PRELUDE_ROOT", cfg.Root}}
+	if cfg.path != "" {
+		variables = append(variables,
+			[2]string{"PRELUDE_MENU_CONFIG", cfg.path},
+			[2]string{"PRELUDE_ROOT_MENU", cfg.path},
+		)
+	}
+	return variables
+}
+
+// commandEnviron is the environment a selected command runs with: PATH with
+// the task's prefix ahead, and the bound menu's variables.
+func commandEnviron(cfg *Config, sel *Selection) []string {
+	environ := withPathPrefix(os.Environ(), sel.PathPrefix)
+	for _, variable := range boundEnv(cfg) {
+		environ = setEnv(environ, variable[0], variable[1])
+	}
+	return environ
+}
+
+// setEnv returns environ with key set to value, replacing an earlier value.
+func setEnv(environ []string, key, value string) []string {
+	out := make([]string, 0, len(environ)+1)
+	for _, entry := range environ {
+		if !strings.HasPrefix(entry, key+"=") {
+			out = append(out, entry)
+		}
+	}
+	return append(out, key+"="+value)
 }
 
 // withPathPrefix returns environ with prefix put ahead of its PATH.

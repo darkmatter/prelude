@@ -24,6 +24,10 @@ Explicitly launched Bash host (`prelude-workspace`) that renders the shell and a
 Project tasks declared in Nix (`prelude.commands`) or by a Host, projected into menu groups and MOTD next-steps, plus the ones the menu imports when it opens (Justfile recipes, package.json scripts), which appear only in the menu.
 _Avoid_: Task list (prefer catalogue for the Nix-side whole; menu still uses Task at its JSON boundary)
 
+**Root**:
+The directory a surface reads project files from and runs commands in. A published package (`prelude`, `prelude-menu`) is bound to its project's source (`prelude.root`), so `nix run github:org/repo#prelude-menu` shows that repo's menu wherever it starts; the devshell's surfaces have no root and work in the caller's directory. `PRELUDE_ROOT` overrides a bound root, and a surface without one ignores it, as does a bound menu that another bound menu's command started. A bound menu's commands inherit the root and find the menu's own `x` first on `PATH`.
+_Avoid_: project dir, cwd (for the bound directory)
+
 **Source**:
 Where a catalogue task came from: `declared` (Nix or a Host), or an import (`just`, then `scripts`). When two sources produce the same key, or an import's key is a declared shortcut, the one listed first keeps it and the other is hidden: reported under `x --list` and in the picker's details, never dropped silently. A source is not part of a task's identity.
 _Avoid_: origin, provider

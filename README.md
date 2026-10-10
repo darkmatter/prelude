@@ -6,7 +6,7 @@
 
 Greets `nix develop` with a MOTD, command picker, docs viewer, and themed prompt. Use it as a flake-parts module or, in any other flake (blueprint, a plain `outputs` function), through `prelude.lib.evalModule`.
 
-Prelude keeps docs next to where you run the project. `docs` in the devshell explains this repo; `nix run github:darkmatter/prelude#docs` explains whatever checkout you are in, with its own Prelude theme and pages when it has them; `nix run github:org/repo#prelude-docs` explains a prelude-enabled dependency. The only command to remember is `nix develop`.
+Prelude keeps docs next to where you run the project. `docs` in the devshell explains this repo; `nix run github:darkmatter/prelude#docs` explains whatever checkout you are in, with its own Prelude theme and pages when it has them; `nix run github:org/repo#prelude-docs` explains a prelude-enabled dependency, and `nix run github:org/repo#prelude-menu` opens its command menu. The only command to remember is `nix develop`.
 
 <br />
 <div align="center">
@@ -128,7 +128,7 @@ pkgs.mkShell {
 }
 ```
 
-The module receives `pkgs`, so package-backed commands go straight into `prelude.commands`; pass anything else it takes (`self`, `inputs`) through `_module.args`. A complete plain flake: [`examples/without-flake-parts/`](examples/without-flake-parts/).
+The module receives `pkgs`, so package-backed commands go straight into `prelude.commands`; pass anything else it takes (`self`, `inputs`) through `_module.args`. To publish `prelude` or `prelude-menu` bound to your repository, as flakeModules.default does, set `prelude.root = self;`. A complete plain flake: [`examples/without-flake-parts/`](examples/without-flake-parts/).
 
 A custom `shellHook` activates with `eval "$(prelude-preflight)"`.
 

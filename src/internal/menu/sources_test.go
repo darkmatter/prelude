@@ -1,6 +1,8 @@
 package menu
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -150,5 +152,66 @@ func TestListShowsUngroupedCommandsFirstWithoutAHeading(t *testing.T) {
 	}
 	if !slices.Contains(lines, "DB") {
 		t.Fatalf("a named group keeps its heading:\n%s", strings.Join(lines, "\n"))
+	}
+}
+
+func TestRootIsWhereImportsAreReadAndCommandsRun(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	writePackageJSON(t, root, `{"lint": "eslint ."}`)
+	bin := t.TempDir()
+	// The stand-in just records the directory it was run in.
+	if err := os.WriteFile(filepath.Join(bin, "just"), []byte(`#!/bin/sh
+pwd -P > "$JUST_RAN_IN"
+printf '%s\n' '{"recipes":{"build":{"name":"build","namepath":"build","private":false}}}'
+`), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ranIn := filepath.Join(t.TempDir(), "ran-in")
+	t.Setenv("JUST_RAN_IN", ranIn)
+	t.Setenv("PATH", bin)
+	t.Chdir(t.TempDir())
+
+	rooted := func(root string) *Config {
+		cfg := testMenuConfig(Task{Name: "dev", Run: "bun run dev"})
+		cfg.Just = JustConfig{Enable: true, Group: "just"}
+		cfg.Scripts = ScriptsConfig{Enable: true, Group: "scripts"}
+		cfg.Root = root
+		cfg.PathPrefix = []string{"/menu/own/bin"}
+		return parseTestConfig(t, cfg)
+	}
+
+	cfg := rooted(root)
+	for _, key := range []string{"dev", "build", "lint"} {
+		got, err := Select(cfg, []string{key})
+		if err != nil || got.Dir != root {
+			t.Fatalf("x %s = %+v (%v), want it to run in the root %s", key, got, err, root)
+		}
+		// The menu's own directories come after a task's own.
+		if prefix := got.PathPrefix; len(prefix) == 0 || prefix[len(prefix)-1] != "/menu/own/bin" {
+			t.Fatalf("x %s PATH prefix = %q, want the menu's own last", key, prefix)
+		}
+	}
+	if data, err := os.ReadFile(ranIn); err != nil || strings.TrimSpace(string(data)) != root {
+		t.Fatalf("just ran in %q (%v), want the root %s", data, err, root)
+	}
+
+	other := t.TempDir()
+	t.Setenv("PRELUDE_ROOT", other)
+	if got, err := Select(rooted(root), []string{"dev"}); err != nil || got.Dir != other {
+		t.Fatalf("x dev = %+v (%v), want PRELUDE_ROOT %s to win", got, err, other)
+	}
+	// A root another bound menu handed on stays with that menu.
+	t.Setenv("PRELUDE_ROOT_MENU", "/another/menu.json")
+	if got, err := Select(rooted(root), []string{"dev"}); err != nil || got.Dir != root {
+		t.Fatalf("x dev = %+v (%v), want another menu's root ignored", got, err)
+	}
+	t.Setenv("PRELUDE_ROOT_MENU", "")
+	// A menu without a root, such as a devshell's, ignores an inherited one.
+	unbound := parseTestConfig(t, testMenuConfig(Task{Name: "dev", Run: "bun run dev"}))
+	if got, err := Select(unbound, []string{"dev"}); err != nil || got.Dir != "" {
+		t.Fatalf("x dev = %+v (%v), want an unbound menu to stay in the caller's directory", got, err)
 	}
 }

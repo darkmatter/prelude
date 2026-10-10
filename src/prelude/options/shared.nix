@@ -58,6 +58,13 @@ in {
         description = "Project name shown in the motd banner and menu header.";
       };
 
+      root = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        defaultText = lib.literalMD "the flake's own source, under `flakeModules.default`";
+        description = "The root the packages this configuration publishes (`prelude`, `prelude-menu`) are bound to: they read project files from it and run commands in it, so `nix run github:org/repo#prelude-menu` shows that repo's menu wherever it runs. `prelude-shell` ignores it: the devshell works in your checkout. With `lib.evalModule`, set it to your flake's `self`.";
+      };
+
       commands = lib.mkOption {
         type = lib.types.attrsOf t.commandType;
         default = defaults.commands;

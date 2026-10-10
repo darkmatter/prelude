@@ -146,7 +146,7 @@ printf '%s\n' '{"recipes":{"check":{"name":"check","namepath":"check","private":
 	}
 	t.Setenv("PATH", dir)
 
-	tasks, err := loadJustTasks(JustConfig{Enable: true})
+	tasks, err := loadJustTasks(JustConfig{Enable: true}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ printf '%s\n' '{"recipes":{"check":{"name":"check","namepath":"check","private":
 
 func TestLoadJustTasksFailsWithoutJust(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
-	_, err := loadJustTasks(JustConfig{Enable: true})
+	_, err := loadJustTasks(JustConfig{Enable: true}, "")
 	if err == nil {
 		t.Fatal("loadJustTasks unexpectedly succeeded without just")
 	}
