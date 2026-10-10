@@ -4,10 +4,11 @@
 #   prelude.menu    — interactive command menu
 #   prelude.docs    — Markdown project docs viewer
 #   prelude.prompt  — themed starship config (packages.prelude-prompt = starship.toml)
+#   prelude.workspace — opt-in Bash workspace with the project's Menu and Docs
 #
 # Shared config covers theme/palette, project identity, and a flat command
 # catalogue. MOTD guidance and docs content are authored independently.
-# Options are declared in ./options/{shared,motd,menu,docs}.nix.
+# Options are declared under ./options/; ./modules.nix lists the shared modules.
 #
 # Without flake-parts, `prelude.lib.evalModule` (./eval.nix) evaluates the same
 # modules (./modules.nix); both build through ./packages.nix.

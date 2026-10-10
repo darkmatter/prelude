@@ -73,6 +73,7 @@
         ];
 
         prompt.enable = true;
+        workspace.enable = true;
       };
 
       perSystem = {

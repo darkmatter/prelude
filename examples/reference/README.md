@@ -17,6 +17,7 @@ Inside the development shell:
 x          # interactive command picker / catalogue dispatcher
 docs       # Markdown reference viewer
 hello      # package-backed example command
+x prelude:workspace --starship  # explicit consumer-configured workspace
 ```
 
 The shell prints the MOTD automatically. If Starship is initialized by your
@@ -39,7 +40,7 @@ Its declared `github:darkmatter/prelude` input works without the local
 ## What it demonstrates
 
 - Importing `prelude.flakeModules.default` with flake-parts.
-- Enabling the MOTD, command menu, Markdown docs viewer, and Starship prompt.
+- Enabling the MOTD, command menu, Markdown docs viewer, Starship prompt, and opt-in workspace.
 - Configuring status, environment probes, project commands, and recipes.
 - Keeping canonical `packages`, `apps`, and `checks` as ordinary let bindings.
 - Adapting one package with `prelude.lib.fromPkg` without duplicating its executable or runtime closure.

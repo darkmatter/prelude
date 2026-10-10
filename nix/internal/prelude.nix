@@ -20,6 +20,7 @@
       (self + /src/prelude/options/portal.nix)
       (self + /src/prelude/options/docs.nix)
       (self + /src/prelude/options/prompt.nix)
+      (self + /src/prelude/options/workspace.nix)
     ];
   };
 in {
@@ -29,6 +30,7 @@ in {
     project = "prelude";
 
     prompt.enable = true;
+    workspace.enable = true;
     # prompt.settings = {
     #   # format = "\n$directory$git_branch$character";
     #   # add_newline =  true;
@@ -154,7 +156,7 @@ in {
 
     commands."prelude:workspace" = {
       description = "launch a Bash workspace with Prelude keyboard chords, movable menu and docs panes, and an optional Starship prompt";
-      exec = "nix run path:.#prelude-workspace --";
+      exec = "prelude-workspace";
       group = "prelude";
       details = ''
         Open an isolated Bash with a movable Prelude menu or docs pane. Alt+X toggles the command menu; Ctrl+] cycles pane layouts so you can inspect description wrapping at different widths.

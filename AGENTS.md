@@ -63,9 +63,13 @@ part of the name (`x go:test`), and groups come only from `group`.
 - **Catalogue:** `prelude.commands` is the Nix-side whole. Import Justfile /
   `package.json` / flake apps; do not write generated entries back to source.
   Existing tools own the canonical invocation (`go test`, `nix flake check`).
-- **Workspace:** explicitly launched, never from activation. Its independent
-  Go module keeps the native renderer pin and headers out of the main Go module
-  and default consumer closures. See [`docs/guides/workspace.md`](docs/guides/workspace.md).
+- **Workspace:** consumers opt in with `prelude.workspace.enable`, then launch
+  explicitly, never from activation. Both entrypoints build consumer Config
+  through `packages.nix`: the shell uses the checkout Menu, the published
+  workspace honors `prelude.root`. Native compilation is Config-independent;
+  disabled consumers exclude its renderer. The repo opts in for dogfooding.
+  Its independent Go module and tooling remain separate from the main module.
+  See [`docs/guides/workspace.md`](docs/guides/workspace.md).
 - **Activation:** `eval "$(prelude-preflight)"` is the only shellHook line.
   Wizard writes a sidecar `prelude.nix` and never overwrites `flake.nix`.
 - **TypeScript API:** `ts/` is a second author of the menu and MOTD Config

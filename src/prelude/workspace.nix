@@ -1,31 +1,16 @@
-# Explicitly launched Bash workspace: neither it nor its native library enters
-# a consumer's closure or the default devshell. Nixpkgs' lock pins the C API.
+# Explicitly launched Bash workspace. Evaluated surface and prompt artifacts
+# stay in the launcher; the native derivation is shared across configurations.
+# Nixpkgs' lock pins the C API.
 {
   pkgs,
   lib,
-  config,
-  ...
+  menuPkg,
+  docsPkg,
+  motdPkg,
+  completionInit,
+  normalPromptConfig,
+  promptConfig,
 }: let
-  normalPromptConfig = config.packages.prelude-prompt;
-  prompt = config.packages.prelude-shell.promptPreset {
-    prefix = "Alt +";
-    shortcuts = [
-      {
-        alias = "m";
-        command = "motd";
-      }
-      {
-        alias = "x";
-        command = "menu";
-      }
-      {
-        alias = "d";
-        command = "docs";
-      }
-    ];
-  };
-  promptConfig = prompt.live;
-
   # An inherited Prelude default is not a user-owned Starship override.
   # Keep this selection identical in the wrapper and the dedicated devshell.
   promptInit = ''
@@ -34,17 +19,12 @@
     fi
 
   '';
-  completionInit = config.packages.prelude-shell.completionInit;
-  menuConfig = config.packages.prelude-menu.menuConfig;
+  menuConfig = menuPkg.menuConfig;
   runtime = [
     pkgs.bashInteractive
     pkgs.starship
   ];
-  surfaces = [
-    config.packages.prelude-menu
-    config.packages.prelude-docs
-    config.packages.prelude-motd
-  ];
+  surfaces = [menuPkg docsPkg motdPkg];
   native = pkgs.buildGo126Module {
     pname = "prelude-workspace";
     version = "0.1.0";
@@ -66,19 +46,27 @@
     vendorHash = "sha256-dRR8YIxXmK6wT9S1R9uL2aW6Q3yb3t7SMLe/x/LrM/U=";
     nativeBuildInputs = [pkgs.pkg-config];
     buildInputs = [pkgs.libghostty-vt];
-    nativeCheckInputs = runtime ++ surfaces;
-    env = {
-      CGO_ENABLED = "1";
-      STARSHIP_CONFIG = promptConfig;
-      PRELUDE_GHOSTTY_TEST_STARSHIP_CONFIG = promptConfig;
-
-      PRELUDE_COMPLETION_INIT = completionInit;
-      PRELUDE_MENU_CONFIG = menuConfig;
-    };
-    doCheck = true;
-    checkFlags = ["-count=1"];
+    env.CGO_ENABLED = "1";
+    doCheck = false;
     meta.mainProgram = "prelude-workspace";
   };
+  # The full native/PTY suite requires the repository's catalogue. The root
+  # flake selects this check with dogfood inputs; consumer launchers use only
+  # `native`, so building them never runs catalogue-dependent tests.
+  check = native.overrideAttrs (old: {
+    pname = "prelude-workspace-check";
+    nativeCheckInputs = runtime ++ surfaces;
+    env =
+      (old.env or {})
+      // {
+        STARSHIP_CONFIG = promptConfig;
+        PRELUDE_GHOSTTY_TEST_STARSHIP_CONFIG = promptConfig;
+        PRELUDE_COMPLETION_INIT = completionInit;
+        PRELUDE_MENU_CONFIG = menuConfig;
+      };
+    doCheck = true;
+    checkFlags = ["-count=1"];
+  });
   package = pkgs.symlinkJoin {
     name = "prelude-workspace";
     paths = [native];
@@ -87,18 +75,17 @@
       wrapProgram "$out/bin/prelude-workspace" \
         --prefix PATH : ${lib.makeBinPath (runtime ++ surfaces)} \
         --run ${lib.escapeShellArg promptInit} \
-        --set-default PRELUDE_COMPLETION_INIT ${completionInit} \
-        --set-default PRELUDE_MENU_CONFIG ${menuConfig}
+        --set PRELUDE_COMPLETION_INIT ${completionInit} \
+        --set PRELUDE_MENU_CONFIG ${menuConfig}
     '';
-    passthru = {inherit promptConfig promptInit;};
+    passthru = {inherit native promptConfig promptInit;};
     meta = {
       description = "Bash workspace with Prelude keyboard chords and movable menu and docs panes";
       mainProgram = "prelude-workspace";
     };
   };
 in {
-  inherit package;
-  check = native;
+  inherit package native check promptConfig promptInit;
   shell = pkgs.mkShell {
     packages =
       [

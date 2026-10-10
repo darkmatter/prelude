@@ -67,13 +67,29 @@ Each Markdown file is one page. Digits jump, `Tab` steps, `j`/`k` scroll, `q` qu
 
 ### Workspace
 
-For an opt-in managed Bash with a movable docs/menu pane, launch explicitly from this repository:
+Opt into a managed Bash with a movable docs/menu pane. `prelude.workspace.enable` defaults to `false`; enable it in your `prelude.nix` sidecar with the required surfaces:
 
-```sh
-nix run path:.#prelude-workspace
+```nix
+{
+  prelude = {
+    workspace.enable = true;
+    menu.enable = true;
+    motd.enable = true;
+    docs.pages = [ { text = ./README.md; } ];
+  };
+}
 ```
 
-The catalogue also offers `x prelude:workspace`. Normal shell activation and consumer native closures are unchanged. See the [workspace guide](docs/guides/workspace.md) for controls, the opt-in `--starship` prompt, and limitations.
+Both `flakeModules.default` and `lib.evalModule` export `packages.prelude-workspace` and bundle the active launcher in `prelude-shell` when enabled. The Menu/MOTD/Docs prerequisites are asserted; `prelude.prompt.enable` is not required. After entering the devshell, launch explicitly:
+
+```sh
+x prelude:workspace             # fixed prelude $ prompt
+prelude-workspace --starship    # explicitly opt into Starship
+```
+
+Both use the current checkout's menu, with your own Docs, MOTD, theme, and completion config. The published package honors `prelude.root` (`lib.evalModule` users set it to `self`); `PRELUDE_ROOT` still overrides it.
+
+Disabled consumers avoid workspace native dependencies. This repo dogfoods it enabled, so its default shell includes the launcher and native runtime, but not headers or renderer tooling. It never launches automatically or takes over activation. See the [workspace guide](docs/guides/workspace.md) for published launches, controls, and runtime limitations.
 
 ### TypeScript
 
@@ -128,7 +144,7 @@ pkgs.mkShell {
 }
 ```
 
-The module receives `pkgs`, so package-backed commands go straight into `prelude.commands`; pass anything else it takes (`self`, `inputs`) through `_module.args`. To publish `prelude` or `prelude-menu` bound to your repository, as flakeModules.default does, set `prelude.root = self;`. A complete plain flake: [`examples/without-flake-parts/`](examples/without-flake-parts/).
+The module receives `pkgs`, so package-backed commands go straight into `prelude.commands`; pass anything else it takes (`self`, `inputs`) through `_module.args`. To publish `prelude`, `prelude-menu`, or an enabled `prelude-workspace` bound to your repository, as flakeModules.default does, set `prelude.root = self;`. A complete plain flake: [`examples/without-flake-parts/`](examples/without-flake-parts/).
 
 A custom `shellHook` activates with `eval "$(prelude-preflight)"`.
 

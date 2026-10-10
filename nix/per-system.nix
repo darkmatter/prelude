@@ -30,7 +30,7 @@
   docsAutomation = import ./docs-automation.nix args;
   skill = import ./skill.nix args;
   typescript = import ./typescript.nix args;
-  workspace = import ../src/prelude/workspace.nix args;
+  workspace = config.packages.prelude-shell.workspace;
   # Mutually recursive but well-founded: previews only reads the (static)
   # attribute names of checks, while one check value resolves advertised
   # motd commands against the previews package.
@@ -50,7 +50,6 @@ in {
         previews
         skill
         typescript
-        workspace
         ;
     }
   );

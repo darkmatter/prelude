@@ -29,6 +29,7 @@
   mkPromptStatus = import ./prompt-status.nix;
   mkPreflight = import ./preflight.nix;
   mkShellInit = import ./shell-init.nix;
+  mkWorkspace = import ./workspace.nix;
   plib = import ./lib.nix {inherit lib;};
 
   # Shared config threaded into every generator.
@@ -406,7 +407,8 @@
       lib.optional cfg.menu.enable menuSurface
       ++ lib.optional cfg.motd.enable motdPkg
       ++ lib.optional docsEnabled docsPkg
-      ++ lib.optional cfg.portal.enable portalPkg;
+      ++ lib.optional cfg.portal.enable portalPkg
+      ++ lib.optional cfg.workspace.enable publishedWorkspace.package;
   in
     pkgs.writeShellApplication {
       name = "prelude";
@@ -562,6 +564,40 @@
   shellRuntime = shell.runtime;
   completionInit = shell.completionInit;
 
+  # Pass evaluated artifacts, never config.packages or prelude-shell: the
+  # shell core bundles this launcher, so reading it back would recurse.
+  workspaceInputs = {
+    inherit pkgs lib menuPkg docsPkg motdPkg completionInit;
+    normalPromptConfig = promptPkg;
+    # Prompt presets remain available even when standalone prompt activation
+    # is disabled. The workspace initializes Starship only with --starship.
+    promptConfig =
+      (promptPreset {
+        prefix = "Alt +";
+        shortcuts = [
+          {
+            alias = "m";
+            command = "motd";
+          }
+          {
+            alias = "x";
+            command = "menu";
+          }
+          {
+            alias = "d";
+            command = "docs";
+          }
+        ];
+      }).live;
+  };
+  workspace = mkWorkspace workspaceInputs;
+  # Published workspaces use the root-bound Menu; devshell workspaces keep the
+  # active checkout Menu. Only wrappers vary: both share the native derivation.
+  publishedWorkspace =
+    if cfg.root == null
+    then workspace
+    else mkWorkspace (workspaceInputs // {menuPkg = publishedMenuPkg;});
+
   # Canonical shell-core package. Its dispatcher resolves components from
   # PATH, and the generated init invokes `motd` from PATH, so enabled
   # component packages are bundled into this closure. Consumers add only
@@ -589,7 +625,8 @@
       ++ lib.optional cfg.motd.enable motdPkg
       ++ lib.optional cfg.menu.enable menuPkg
       ++ lib.optional docsEnabled docsPkg
-      ++ lib.optional cfg.portal.enable portalPkg;
+      ++ lib.optional cfg.portal.enable portalPkg
+      ++ lib.optional cfg.workspace.enable workspace.package;
     # Always emitted. The MOTD is the module's core promise, and reaching it
     # from lorri requires PRELUDE_INIT to exist as an exported variable even
     # when the prompt component is off. With prompt disabled, `shellInit`
@@ -673,6 +710,9 @@
       // lib.optionalAttrs cfg.prompt.enable {
         prompt = promptPkg;
         inherit promptPreset;
+      }
+      // lib.optionalAttrs cfg.workspace.enable {
+        inherit workspace;
       };
     meta = {
       description = "Prelude shell runtime, PATH dispatcher, and activation";
@@ -680,28 +720,37 @@
     };
   };
 in
+  assert lib.assertMsg (!cfg.workspace.enable || cfg.menu.enable)
+  "prelude.workspace.enable requires prelude.menu.enable = true; enable the Menu or disable the workspace";
+  assert lib.assertMsg (!cfg.workspace.enable || cfg.motd.enable)
+  "prelude.workspace.enable requires prelude.motd.enable = true; enable the MOTD or disable the workspace";
+  assert lib.assertMsg (!cfg.workspace.enable || docsEnabled)
+  "prelude.workspace.enable requires non-empty prelude.docs.pages; add a Docs page or disable the workspace";
   # `prelude` backs the app/default-package surface; `prelude-shell` is the
   # closure-minimal devshell package.
-  {
-    prelude = preludeAppPkg;
-    prelude-shell = preludeShellPkg;
-    prelude-preflight = preflightPkg;
-  }
-  // lib.optionalAttrs cfg.motd.enable {
-    prelude-motd = motdPkg;
-    prelude-title = titlePkg;
-    prelude-title-previews = titlePreviewsPkg;
-    prelude-wizard = wizardPkg;
-  }
-  // lib.optionalAttrs cfg.menu.enable {
-    prelude-menu = publishedMenuPkg;
-  }
-  // lib.optionalAttrs cfg.portal.enable {
-    prelude-portal = portalPkg;
-  }
-  // lib.optionalAttrs docsEnabled {
-    prelude-docs = docsPkg;
-  }
-  // lib.optionalAttrs cfg.prompt.enable {
-    prelude-prompt = promptPkg;
-  }
+    {
+      prelude = preludeAppPkg;
+      prelude-shell = preludeShellPkg;
+      prelude-preflight = preflightPkg;
+    }
+    // lib.optionalAttrs cfg.motd.enable {
+      prelude-motd = motdPkg;
+      prelude-title = titlePkg;
+      prelude-title-previews = titlePreviewsPkg;
+      prelude-wizard = wizardPkg;
+    }
+    // lib.optionalAttrs cfg.menu.enable {
+      prelude-menu = publishedMenuPkg;
+    }
+    // lib.optionalAttrs cfg.portal.enable {
+      prelude-portal = portalPkg;
+    }
+    // lib.optionalAttrs docsEnabled {
+      prelude-docs = docsPkg;
+    }
+    // lib.optionalAttrs cfg.prompt.enable {
+      prelude-prompt = promptPkg;
+    }
+    // lib.optionalAttrs cfg.workspace.enable {
+      prelude-workspace = publishedWorkspace.package;
+    }

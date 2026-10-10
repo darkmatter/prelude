@@ -15,6 +15,9 @@
 }: let
   preludeLib = import ./lib.nix {inherit lib;};
   internalLib = import ../src/prelude/lib.nix {inherit lib;};
+  workspaceConsumerChecks = import ./workspace-consumer-checks.nix {
+    inherit pkgs lib flakePartsLib localFlake;
+  };
   # Evaluate the actual starter and reference flakes with this checkout as
   # their Prelude input. This catches lexical-scope mistakes in consumer
   # snippets that evaluating the root module cannot see.
@@ -86,6 +89,13 @@
       touch "$out"
     '';
 in {
+  inherit
+    (workspaceConsumerChecks)
+    workspace-consumer-contract
+    workspace-consumer-wrappers
+    workspace-disabled-closures
+    workspace-prompt
+    ;
   output-surface = assert lib.assertMsg
   (
     builtins.attrNames config.apps
@@ -1780,143 +1790,6 @@ in {
     grep -F '──╯' "$TMPDIR/status"
     touch "$out"
   '';
-
-  workspace-prompt = let
-    workspace = import ../src/prelude/workspace.nix {inherit pkgs lib config;};
-    mkWorkspace = preludeConfig:
-      import ../src/prelude/workspace.nix {
-        inherit pkgs lib;
-        config.packages =
-          config.packages
-          // (preludeLib.evalModule pkgs {
-            prelude =
-              preludeConfig
-              // {prompt = {enable = true;} // (preludeConfig.prompt or {});};
-          }).packages;
-      };
-    customSource = pkgs.writeText "workspace-custom-starship.toml" "format = 'custom'\n";
-    customFile = mkWorkspace {prompt.configFile = customSource;};
-    customFormat = mkWorkspace {prompt.settings.format = "custom";};
-    tweaked = mkWorkspace {
-      theme = "paper";
-      palette.accent = "#123456";
-      prompt.settings = {
-        add_newline = false;
-        directory.truncation_length = 3;
-      };
-    };
-    normal = config.packages.prelude-prompt;
-    variant = workspace.package.promptConfig;
-    # Exercise the actual wrapper without building native or surface binaries.
-    environmentProbe = pkgs.writeShellScriptBin "prelude-workspace" ''
-      printf '%s\n' "$STARSHIP_CONFIG"
-    '';
-    wrapper =
-      (import ../src/prelude/workspace.nix {
-        inherit lib;
-        pkgs = pkgs // {buildGo126Module = _: environmentProbe;};
-        config.packages =
-          config.packages
-          // {
-            prelude-shell = config.packages.prelude-shell // {completionInit = pkgs.writeText "workspace-probe-completion.bash" "";};
-            prelude-menu = environmentProbe // {menuConfig = pkgs.writeText "workspace-probe-menu.json" "{}";};
-            prelude-docs = environmentProbe;
-            prelude-motd = environmentProbe;
-          };
-      }).package;
-  in
-    assert toString (config.packages.prelude-shell.promptPreset {}).live == toString normal;
-    assert customFile.package.promptConfig == customSource;
-      pkgs.runCommand "workspace-prompt" {nativeBuildInputs = [pkgs.python3 pkgs.starship];} ''
-        set -euo pipefail
-        python3 - <<'PY'
-        import tomllib
-        from pathlib import Path
-
-        def load(path):
-            return tomllib.loads(Path(path).read_text())
-
-        normal = load("${normal}")
-        workspace = load("${variant}")
-        keymap = (
-            r"Alt + \[[m](bold fg:accent)\][─](fg:surface)motd"
-            r"[──](fg:surface)\[[x](bold fg:accent)\][─](fg:surface)menu"
-            r"[──](fg:surface)\[[d](bold fg:accent)\][─](fg:surface)docs"
-        )
-        normal_keymap = (
-            r"\[[?](bold fg:accent)\][─](fg:surface)motd"
-            r"[──](fg:surface)\[[x](bold fg:accent)\][─](fg:surface)menu"
-            r"[──](fg:surface)\[[d](bold fg:accent)\][─](fg:surface)docs"
-        )
-        assert f"[{keymap}](fg:muted)" in workspace["format"]
-        assert workspace["format"].count("Alt +") == 1
-        assert "Ctrl+P" not in workspace["format"]
-        assert f"[{normal_keymap}](fg:muted)" in normal["format"]
-        assert "Alt +" not in normal["format"]
-        normal.pop("format")
-        workspace.pop("format")
-        assert workspace == normal, "The preset must change only the keymap"
-        assert load("${customFormat.package.promptConfig}")["format"] == "custom"
-        tweaked = load("${tweaked.package.promptConfig}")
-        assert tweaked["add_newline"] is False
-        assert tweaked["directory"]["truncation_length"] == 3
-        assert tweaked["palettes"]["prelude"]["accent"] == "#123456"
-        assert tweaked["palettes"]["prelude"]["bg"] != normal["palettes"]["prelude"]["bg"]
-        PY
-
-        export HOME="$TMPDIR/home" XDG_CACHE_HOME="$TMPDIR/cache" NO_COLOR=1
-        unset STARSHIP_SHELL
-        mkdir -p "$HOME" "$XDG_CACHE_HOME"
-        export STARSHIP_CONFIG=${variant}
-        starship prompt --terminal-width 120 --status 0 > "$TMPDIR/prompt"
-        python3 - "$TMPDIR/prompt" <<'PY'
-        import re
-        import sys
-        from pathlib import Path
-
-        rendered = Path(sys.argv[1]).read_text()
-        plain = re.sub(r"\x1b\[[0-9;]*m", "", rendered)
-        assert "Alt + [m]─motd──[x]─menu──[d]─docs" in plain.splitlines()[1], repr(plain)
-        assert plain.count("Alt +") == 1
-        assert "Ctrl+P" not in plain
-        PY
-
-        env -u STARSHIP_CONFIG ${lib.getExe wrapper} > "$TMPDIR/wrapper-default"
-        STARSHIP_CONFIG= ${lib.getExe wrapper} > "$TMPDIR/wrapper-empty"
-        STARSHIP_CONFIG=${normal} ${lib.getExe wrapper} > "$TMPDIR/wrapper-inherited"
-        STARSHIP_CONFIG=${variant} ${lib.getExe wrapper} > "$TMPDIR/wrapper-variant"
-        STARSHIP_CONFIG=${customSource} ${lib.getExe wrapper} > "$TMPDIR/wrapper-custom"
-        python3 - "$TMPDIR" <<'PY'
-        import sys
-        from pathlib import Path
-
-        root = Path(sys.argv[1])
-        for name in ("default", "empty", "inherited", "variant"):
-            assert (root / f"wrapper-{name}").read_text().splitlines() == ["${variant}"]
-        assert (root / "wrapper-custom").read_text().splitlines() == ["${customSource}"]
-        PY
-        (
-          export STARSHIP_CONFIG=${normal}
-          ${workspace.shell.shellHook}
-          test "$STARSHIP_CONFIG" = ${variant}
-        )
-        (
-          export STARSHIP_CONFIG=${customSource}
-          ${workspace.package.promptInit}
-          test "$STARSHIP_CONFIG" = ${customSource}
-        )
-        (
-          unset STARSHIP_CONFIG
-          ${customFile.package.promptInit}
-          test "$STARSHIP_CONFIG" = ${customSource}
-        )
-        (
-          unset STARSHIP_CONFIG
-          ${customFormat.shell.shellHook}
-          test "$STARSHIP_CONFIG" = ${customFormat.package.promptConfig}
-        )
-        touch "$out"
-      '';
 
   prompt-status-runtime = let
     statusPkg =

@@ -8,7 +8,6 @@
   previews,
   skill,
   typescript,
-  workspace,
   ...
 }:
 {
@@ -18,6 +17,5 @@
   docs-sync = docsAutomation.sync;
   inherit (typescript) libprelude;
   ts-sync = typescript.sync;
-  prelude-workspace = workspace.package;
 }
 // demos.examplePackages

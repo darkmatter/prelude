@@ -20,7 +20,8 @@ without loading ble.sh, initializing Starship, printing MOTD, or changing the
 status row. The Prelude workspace does this automatically; normal activation is
 unchanged.
 
-Project commands declared in `nix/internal/prelude.nix`:
+Workspace and project commands (the workspace entry is built in when enabled;
+`nix/internal/prelude.nix` declares this repo's project commands):
 
 - **`x go:test`**, **`x go:vet`** — public catalogue commands listed under the
   `go` group; they dispatch to canonical `go test -C src ./...` / `go vet -C src ./...` without generating duplicate executables.
@@ -28,9 +29,15 @@ Project commands declared in `nix/internal/prelude.nix`:
 - **`x fmt`** — `treefmt` (alejandra for Nix, gofmt/goimports for Go) over the repository.
 - **`x build <target>`** — `nix build` with flake-output suggestions.
 - **`x prelude:previews`** — build the render checks and display their output.
-- **`x prelude:workspace`** — explicitly launch the opt-in libghostty-vt workspace:
-  a single themed hints footer and borderless, floating-by-default docs/menu
-  window, with no host-imposed backdrop. Menu panes use `x --embedded` automatically.
+- **`prelude-workspace`** / **`x prelude:workspace`** — explicitly launch the
+  libghostty-vt workspace when `prelude.workspace.enable = true` (default: `false`).
+  Both `flakeModules.default` and `lib.evalModule` export `packages.prelude-workspace`
+  and bundle the active launcher in `prelude-shell`. Menu and MOTD must be enabled
+  and Docs must have at least one page; evaluation asserts these prerequisites.
+  The devshell launcher uses the current checkout's menu, with the consumer's own
+  Docs, MOTD, theme, and completion config. It never launches during activation.
+  The workspace has a single themed hints footer and borderless, floating-by-default
+  docs/menu window, with no host-imposed backdrop. Menu panes use `x --embedded` automatically.
   Alt+M reprints MOTD in the main shell, Alt+X toggles the menu, and Alt+D toggles
   docs. Ctrl+P unlocks one command: `m` MOTD, `x` menu, `d` docs, `t` window,
   Tab focus, `v` layout, or `c` close. The footer highlights UNLOCKED until that
@@ -50,9 +57,13 @@ Project commands declared in `nix/internal/prelude.nix`:
   `Alt + [m] motd · [x] menu · [d] docs`. The separate footer shows LOCKED / UNLOCKED
   in all prompt modes; completion keys still use that one protected bottom row. Completion is rendering-only: it preserves
   Bash's PTY size and the full visible Starship prompt, shifting the displayed
-  viewport only when space below the prompt is insufficient. For the real Starship prompt, run
-  `nix run path:.#prelude-workspace -- --starship`; the fixed `prelude $ ` prompt stays the default.
-  See the [workspace guide](guides/workspace.md).
+  viewport only when space below the prompt is insufficient. For the real Starship
+  prompt, run `prelude-workspace --starship` in the devshell;
+  `prelude.prompt.enable` is not required. The fixed `prelude $ ` prompt stays the
+  default. The published package honors `prelude.root` (`lib.evalModule` users set
+  it to `self`) with `PRELUDE_ROOT` override support; it uses the consumer's published
+  menu. See the [workspace guide](guides/workspace.md) for the enable snippet,
+  published launches, and runtime limitations.
 - **`x sync-docs`** / **`x record-docs`** — documentation workflows.
 - **`x demos`** tours every feature demo; its subcommands (`x demos themes`,
   `x demos titles`, `x demos defaults`) dispatch to the canonical

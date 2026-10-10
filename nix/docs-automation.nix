@@ -452,6 +452,7 @@
     ../src/prelude/options/portal.nix
     ../src/prelude/options/docs.nix
     ../src/prelude/options/prompt.nix
+    ../src/prelude/options/workspace.nix
   ];
   evaluatedOptions = lib.evalModules {modules = optionModules;};
   validatedMotdConfigs =

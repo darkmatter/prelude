@@ -34,6 +34,13 @@ prelude.lib.evalModule pkgs {
 }
 ```
 
+For the optional workspace, add `prelude.workspace.enable = true;` to
+`prelude.nix`; this example already enables Menu and MOTD and supplies a Docs
+page. `prelude-shell` then provides `prelude-workspace` and the catalogue entry
+`x prelude:workspace`. Launch it explicitly with `x prelude:workspace --starship`;
+normal shell activation stays unchanged. Standalone prompt activation is not
+required. See the [workspace guide](../../docs/guides/workspace.md).
+
 The flake also exposes the packages as `legacyPackages`, so
 `nix run github:darkmatter/prelude#docs` run in this repository opens these docs
 with this configuration, and `nix run .#prelude-docs` works too.

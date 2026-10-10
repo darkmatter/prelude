@@ -3689,7 +3689,7 @@ TOML value
 
 
 
-The root the packages this configuration publishes (` prelude `, ` prelude-menu `) are bound to: they read project files from it and run commands in it, so ` nix run github:org/repo#prelude-menu ` shows that repo’s menu wherever it runs\. ` prelude-shell ` ignores it: the devshell works in your checkout\. With ` lib.evalModule `, set it to your flake’s ` self `\.
+The root the packages this configuration publishes (` prelude `, ` prelude-menu `, ` prelude-workspace `) are bound to: they read project files from it and run commands in it, so ` nix run github:org/repo#prelude-menu ` shows that repo’s menu wherever it runs\. ` prelude-shell ` ignores it: the devshell works in your checkout\. With ` lib.evalModule `, set it to your flake’s ` self `\.
 
 
 
@@ -3755,4 +3755,38 @@ one of “amber”, “apathy”, “gruvbox”, “minted”, “mono”, “no
 
 ```nix
 "minted"
+```
+
+
+
+## prelude\.workspace\.enable
+
+
+
+Whether to enable explicitly launched Bash workspace (` packages.prelude-workspace ` and
+` x prelude:workspace `)\. Requires ` prelude.menu.enable `,
+` prelude.motd.enable `, and non-empty ` prelude.docs.pages `; it never enables
+those components or launches during shell activation\. ` --starship ` opts
+in to the consumer’s prompt settings independently of ` prelude.prompt.enable `
+\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+
+
+*Example:*
+
+```nix
+true
 ```

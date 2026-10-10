@@ -1,4 +1,4 @@
-# Prelude's own catalogue entries: the menu, docs and portal launchers. A
+# Prelude's own catalogue entries: menu, docs, portal and workspace launchers. A
 # plain module, shared by flakeModules.default and lib.evalModule.
 {
   lib,
@@ -24,6 +24,15 @@ in {
         description = lib.mkDefault "browse project documentation";
         exec = lib.mkDefault "docs";
         key = lib.mkDefault "d";
+      };
+    })
+    (lib.mkIf cfg.workspace.enable {
+      "prelude:workspace" = {
+        description = lib.mkDefault "open the Bash workspace with menu and docs panes";
+        # Resolve from PATH: a package-backed entry would cycle through the
+        # workspace's own menu package and its command catalogue.
+        exec = lib.mkDefault "prelude-workspace";
+        group = lib.mkDefault "prelude";
       };
     })
     (lib.mkIf cfg.portal.enable {

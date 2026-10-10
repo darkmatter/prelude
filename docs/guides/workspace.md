@@ -2,10 +2,10 @@
 
 A real interactive Bash and movable Prelude docs/menu window rendered
 inside the current terminal through libghostty-vt's C API and Prelude's existing
-Bubble Tea/Ultraviolet stack. The `prelude-workspace` CLI is opt-in, not a
-replacement for shell activation. There is no consumer `workspace.enable`
-integration or automatic launch; normal Prelude activation, the default shell,
-and consumer native closures are unchanged.
+Bubble Tea/Ultraviolet stack. Consumer integration is opt-in through
+`prelude.workspace.enable`, which defaults to `false`. The `prelude-workspace`
+CLI must still be launched explicitly: it never starts during shell activation
+or replaces normal Prelude activation.
 
 The workspace uses a separate Go module at
 [`src/cmd/prelude-workspace/go.mod`](../../src/cmd/prelude-workspace/go.mod)
@@ -14,33 +14,92 @@ upstream Ultraviolet fixes for decomposed combining characters and wide-cell
 repainting when moving or resizing panes. Normal Prelude surfaces keep their
 existing dependencies.
 
+## Enable in consumers
+
+Both `flakeModules.default` and `lib.evalModule` support the same opt-in setting.
+Add it to the `prelude.nix` sidecar used by either install path, alongside the
+required surfaces (keep your existing Docs pages if you already have them):
+
+```nix
+{
+  prelude = {
+    workspace.enable = true;
+    menu.enable = true;
+    motd.enable = true;
+    docs.pages = [ { text = ./README.md; } ];
+  };
+}
+```
+
+Enabling the workspace does not implicitly enable its surfaces. Evaluation
+assertions require `prelude.menu.enable = true`, `prelude.motd.enable = true`,
+and non-empty `prelude.docs.pages`; failures identify the missing prerequisite
+and advise enabling it or disabling the workspace. `prelude.prompt.enable` is
+not required, even for `--starship`: the workspace supplies the consumer's prompt
+settings independently, but initializes Starship only when explicitly requested.
+
+When enabled, both entrypoints export `packages.prelude-workspace` and bundle the
+active launcher in `prelude-shell`. Keep using `prelude-shell` in your devshell
+as described in [Install](../../README.md#install); no workspace shellHook is
+needed. The launcher binds Menu, Docs, MOTD, theme, and completion to that
+consumer's evaluated config, not this repository's config. It does not take over
+activation or launch automatically.
+
 ## Run
 
-From the repository root, run the `prelude-workspace` package (the `path:` form
-also includes unstaged new files):
-
-```sh
-nix run path:.#prelude-workspace
-```
-
-To opt into the real Starship prompt instead of the fixed `prelude $ ` prompt:
-
-```sh
-nix run path:.#prelude-workspace -- --starship
-```
-
-The launcher supplies Starship and derives its prompt from Prelude's evaluated
-theme and settings. Its original bracketed right-side keymap reads
-**Alt + [m] motd · [x] menu · [d] docs**. These are direct Alt shortcuts, not a
-prefix sequence. An inherited normal Prelude
-config selects this workspace preset; an explicit custom `STARSHIP_CONFIG` is preserved.
-Normal Prelude activation and its `?`/`x`/`d` shortcuts are unchanged.
-
-After reloading the normal devshell, the catalogue also offers:
+After entering or reloading your normal devshell, explicitly launch the workspace:
 
 ```sh
 x prelude:workspace
 ```
+
+The fixed `prelude $ ` prompt is the default. To opt into real Starship instead:
+
+```sh
+prelude-workspace --starship
+```
+
+Both commands use the current checkout's menu through the active launcher in
+`prelude-shell`, rather than a menu bound to a published source snapshot.
+
+The launcher supplies Starship and derives its prompt from the consumer's
+evaluated theme and settings, even when `prelude.prompt.enable = false`.
+Its original bracketed right-side keymap reads
+**Alt + [m] motd · [x] menu · [d] docs**. These are direct Alt shortcuts, not a
+prefix sequence. An inherited normal Prelude config selects this workspace
+preset; an explicit custom `STARSHIP_CONFIG` is preserved. Normal Prelude
+activation and its `?`/`x`/`d` shortcuts are unchanged.
+
+### Published package
+
+From a flake that exports the enabled workspace package (including this
+repository), launch it directly; the `path:` form also includes unstaged new files:
+
+```sh
+nix run path:.#prelude-workspace
+nix run path:.#prelude-workspace -- --starship
+```
+
+Unlike the devshell launcher, the published package honors `prelude.root` and
+uses the consumer's published Menu. `flakeModules.default` sets that root to
+the flake's own source. With `lib.evalModule`, set it explicitly to your flake's
+`self` when evaluating the sidecar. For example, in your flake's `outputs`, with
+`self`, `inputs`, and the target system's `pkgs` in scope:
+
+```nix
+evaluated = inputs.prelude.lib.evalModule pkgs {
+  imports = [ ./prelude.nix ];
+  prelude.root = self;
+};
+```
+
+Use `evaluated.packages.prelude-shell` in the devshell and expose
+`evaluated.packages.prelude-workspace` as your flake's `prelude-workspace` package
+to publish it. A remote launch such as
+`nix run github:org/repo#prelude-workspace` uses that consumer's published menu,
+Docs, MOTD, theme, and completion config. An explicit `PRELUDE_ROOT` still
+overrides the root; otherwise the published menu runs against `prelude.root`,
+not the caller's checkout.
 
 ## Controls
 
@@ -265,8 +324,15 @@ rewrite are intentionally not reproduced here.
 
 The root `flake.lock` pins Nixpkgs' `libghostty-vt` C API (currently
 `0.1.0-unstable-2026-05-03`). No Ghostty GUI, Raylib, or new flake input is
-needed. Native dependencies stay out of the default devshell and consumer
-closures; workspace builds and checks require them.
+needed. The native compile is shared and config-independent; consumer options
+change the launcher and bound surface/config artifacts, not the native renderer
+build. With `prelude.workspace.enable = false`, the workspace launcher and native
+dependencies stay out of consumer shells and closures.
+
+This repository dogfoods `prelude.workspace.enable = true`, so its default
+shell includes the active launcher and native runtime dependencies. It still
+never launches automatically. Native headers, pkg-config, and renderer tooling
+remain in the dedicated `workspace` devshell, not the default shell:
 
 ```sh
 nix develop path:.#workspace
@@ -326,7 +392,10 @@ verification.
 
 ## Code map
 
-- [`src/prelude/workspace.nix`](../../src/prelude/workspace.nix): package,
+- [`src/prelude/options/workspace.nix`](../../src/prelude/options/workspace.nix): the opt-in public setting.
+- [`src/prelude/packages.nix`](../../src/prelude/packages.nix): prerequisite assertions,
+  consumer surface binding, checkout/published launchers, and shell bundling.
+- [`src/prelude/workspace.nix`](../../src/prelude/workspace.nix): shared native build,
   launcher, native dependencies, workspace devshell, and checks.
 - [`main.go`](../../src/cmd/prelude-workspace/main.go): CLI and outer-terminal lifecycle.
 - [`host.go`](../../src/cmd/prelude-workspace/host.go): UI-loop state, prompt tracking, and tagged pane events.

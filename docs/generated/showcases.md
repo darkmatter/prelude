@@ -172,7 +172,7 @@ prelude = {
       examples = [
         "x prelude:workspace --starship"
       ];
-      exec = "nix run path:.#prelude-workspace --";
+      exec = "prelude-workspace";
       group = "prelude";
       usage = "x prelude:workspace [--starship]";
     };
@@ -485,7 +485,7 @@ prelude = {
       examples = [
         "x prelude:workspace --starship"
       ];
-      exec = "nix run path:.#prelude-workspace --";
+      exec = "prelude-workspace";
       group = "prelude";
       usage = "x prelude:workspace [--starship]";
     };

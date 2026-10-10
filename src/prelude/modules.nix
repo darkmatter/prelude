@@ -8,5 +8,6 @@
   ./options/portal.nix
   ./options/docs.nix
   ./options/prompt.nix
+  ./options/workspace.nix
   ./builtin-commands.nix
 ]
