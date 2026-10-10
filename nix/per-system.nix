@@ -30,10 +30,15 @@
   docsAutomation = import ./docs-automation.nix args;
   skill = import ./skill.nix args;
   typescript = import ./typescript.nix args;
+  ghosttySpike = import ./ghostty-spike.nix args;
   # Mutually recursive but well-founded: previews only reads the (static)
   # attribute names of checks, while one check value resolves advertised
   # motd commands against the previews package.
-  checks = import ./checks.nix (args // {inherit demos docsAutomation previews typescript;});
+  checks =
+    (import ./checks.nix (args // {inherit demos docsAutomation previews typescript;}))
+    // {
+      ghostty-spike = ghosttySpike.check;
+    };
   previews = import ./previews.nix (args // {inherit checks;});
 in {
   packages = import ./packages.nix (
@@ -45,6 +50,7 @@ in {
         previews
         skill
         typescript
+        ghosttySpike
         ;
     }
   );
@@ -60,6 +66,7 @@ in {
     }
   );
   devShells.default = import ./shell.nix (args // {inherit docsAutomation previews typescript;});
+  devShells.ghostty-spike = ghosttySpike.shell;
   inherit checks;
   treefmt = {
     programs.alejandra.enable = true;

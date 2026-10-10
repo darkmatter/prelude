@@ -509,6 +509,7 @@ in {
               command -v blesh-share >/dev/null
               test -f ${config.packages.prelude-shell}/share/blesh/ble.sh
               test -f ${config.packages.prelude-shell}/share/prelude/init.bash
+              cmp ${config.packages.prelude-shell.completionInit} ${config.packages.prelude-shell}/share/prelude/completion-init.bash
               test -f ${config.packages.prelude-shell}/share/prelude/shell/init.bash
               test -f ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
               test -f ${config.packages.prelude-shell}/share/prelude/shell/status.bash
@@ -530,6 +531,7 @@ in {
               # variables it exported, so `prelude-init` — a function — never
               # arrives. Without this path lorri users get no MOTD.
               grep -Fq 'export PRELUDE_INIT=' ${config.packages.prelude-shell}/nix-support/setup-hook
+              grep -Fq 'export PRELUDE_COMPLETION_INIT=${config.packages.prelude-shell.completionInit}' ${config.packages.prelude-shell}/nix-support/setup-hook
               test -f ${config.packages.prelude-shell}/share/prelude/shell/hook.bash
               test -f ${config.packages.prelude-shell}/share/prelude/shell/hook.zsh
               prelude --help | grep -Fq 'hook           print the shell hook'
@@ -678,7 +680,7 @@ in {
 
                 _ble_edit_str='x build'
                 ble/prompt/backslash:prelude/status
-                printf '%s' "$_prelude_fake_line" | grep -F 'build a flake output'
+                printf '%s' "$_prelude_fake_line" | grep -F 'build a Prelude flake output'
                 printf '%s' "$_prelude_fake_line" | grep -F 'x build'
                 printf '%s' "$_prelude_fake_line" | grep -F 'bare x then Tab'
 
@@ -692,7 +694,7 @@ in {
                 ble/prompt/backslash:prelude/status
                 printf '%s' "$_prelude_fake_line" | grep -F 'argument .#p'
                 printf '%s' "$_prelude_fake_line" | grep -F 'optional'
-                printf '%s' "$_prelude_fake_line" | grep -F 'flake output to build'
+                printf '%s' "$_prelude_fake_line" | grep -F 'Flake installable to build'
                 printf '%s' "$_prelude_fake_line" | grep -F 'candidates: .#prelude-motd'
 
                 _ble_edit_str="x '"
@@ -853,6 +855,7 @@ in {
                 test "$_ble_canvas_panel_vfill" -eq 4
               )
               ${pkgs.bash}/bin/bash -n ${config.packages.prelude-shell}/share/prelude/init.bash
+              ${pkgs.bash}/bin/bash -n ${config.packages.prelude-shell}/share/prelude/completion-init.bash
               for source in ${config.packages.prelude-shell}/share/prelude/shell/*.bash; do
                 ${pkgs.bash}/bin/bash -n "$source"
               done
@@ -947,6 +950,112 @@ in {
       # rebuild must perturb the generated init path without adding runtime state.
       test ${light.init} != ${changed.init}
       grep -Fq '# MOTD revision: revision-a' ${light.init}
+      touch "$out"
+    '';
+
+  # A host can load the generated catalogue and completion without activating
+  # the shell UI or even evaluating its prompt/runtime dependencies.
+  shell-init-completion-only = let
+    mkCompletion = justImport:
+      (import ../src/prelude/shell-init.nix {
+        inherit (pkgs) lib writeText;
+        runCommand = throw "completion-only init evaluated the activation runtime";
+        starship = throw "completion-only init evaluated Starship";
+        blesh = throw "completion-only init evaluated ble.sh";
+        bash-completion = throw "completion-only init evaluated bash-completion";
+        stdenv = throw "completion-only init evaluated activation platform settings";
+      }) {
+        palette = {};
+        inherit justImport;
+        commandEntries = internalLib.normalizeCommandEntries {
+          build = {
+            exec = "fixture-build";
+            args = [
+              {
+                token = "TARGET";
+                options = ["debug" "release"];
+              }
+            ];
+          };
+          deploy = {
+            exec = "fixture-deploy";
+            args = [
+              {
+                token = "ENV";
+                options = ["prod" "stage"];
+              }
+              {
+                token = "--force";
+                boolean = true;
+              }
+            ];
+          };
+          "go:test".exec = "go test ./...";
+        };
+      };
+    plain = (mkCompletion false).completionInit;
+    withJust = (mkCompletion true).completionInit;
+    completionClosure = pkgs.closureInfo {rootPaths = [withJust];};
+  in
+    pkgs.runCommand "shell-init-completion-only" {} ''
+      if grep -Ei 'starship|blesh|bash-completion|status\.bash|status-cap\.bash|motd|bash-init\.bash|/init\.bash' ${plain} ${withJust} ${completionClosure}/store-paths; then
+        echo "completion-only init references activation dependencies" >&2
+        exit 1
+      fi
+      env -i HOME="$TMPDIR" PATH=${lib.makeBinPath [pkgs.bash pkgs.just pkgs.coreutils]} ${lib.getExe pkgs.bash} --noprofile --norc <<'EOF'
+      set -eo pipefail
+      PS1='private primary> '
+      PS2='private secondary> '
+      PROMPT_COMMAND=(':' 'true')
+      before=$(declare -p PS1 PS2 PROMPT_COMMAND COMP_WORDBREAKS)
+      source ${plain} >completion-output 2>completion-error
+      test ! -s completion-output
+      test ! -s completion-error
+      test "$(declare -p PS1 PS2 PROMPT_COMMAND COMP_WORDBREAKS)" = "$before"
+      test -z "''${BLE_VERSION-}''${BASH_COMPLETION_VERSINFO-}''${_PRELUDE_INIT_DONE-}"
+      for function in ble-attach starship_precmd prelude/status/update _prelude_init_show_motd; do
+        if declare -F "$function" >/dev/null; then
+          echo "completion-only init activated $function" >&2
+          exit 1
+        fi
+      done
+      test "$(complete -p x)" = 'complete -F _prelude_complete_x x'
+      test "$(complete -p -I)" = 'complete -o bashdefault -F _prelude_complete_initial -I'
+      test "$(complete -p build)" = 'complete -F _prelude_complete_direct build'
+      test "$(complete -p deploy)" = 'complete -F _prelude_complete_direct deploy'
+      if complete -p just >/dev/null 2>&1; then
+        echo "just completion registered while imports were disabled" >&2
+        exit 1
+      fi
+      COMP_WORDS=(x de)
+      COMP_CWORD=1
+      _prelude_complete_x
+      test "''${COMPREPLY[*]}" = deploy
+      COMP_WORDS=(x)
+      COMP_CWORD=0
+      _prelude_complete_initial
+      test "''${#COMPREPLY[@]}" -eq 3
+      test "''${COMPREPLY[0]}" = 'x build'
+      test "''${COMPREPLY[1]}" = 'x deploy'
+      test "''${COMPREPLY[2]}" = 'x go:test'
+      COMP_WORDS=(x build re)
+      COMP_CWORD=2
+      _prelude_complete_x
+      test "''${COMPREPLY[*]}" = release
+      COMP_WORDS=(x deploy prod --f)
+      COMP_CWORD=3
+      _prelude_complete_x
+      test "''${COMPREPLY[*]}" = --force
+      COMP_WORDS=(build de)
+      COMP_CWORD=1
+      _prelude_complete_direct
+      test "''${COMPREPLY[*]}" = debug
+      source ${withJust} >completion-output 2>completion-error
+      test ! -s completion-output
+      test ! -s completion-error
+      complete -p just >/dev/null
+      test "$(declare -p PS1 PS2 PROMPT_COMMAND COMP_WORDBREAKS)" = "$before"
+      EOF
       touch "$out"
     '';
 
@@ -1563,6 +1672,143 @@ in {
     grep -F '──╯' "$TMPDIR/status"
     touch "$out"
   '';
+
+  ghostty-spike-prompt = let
+    spike = import ./ghostty-spike.nix {inherit pkgs lib config;};
+    mkSpike = preludeConfig:
+      import ./ghostty-spike.nix {
+        inherit pkgs lib;
+        config.packages =
+          config.packages
+          // (preludeLib.evalModule pkgs {
+            prelude =
+              preludeConfig
+              // {prompt = {enable = true;} // (preludeConfig.prompt or {});};
+          }).packages;
+      };
+    customSource = pkgs.writeText "ghostty-custom-starship.toml" "format = 'custom'\n";
+    customFile = mkSpike {prompt.configFile = customSource;};
+    customFormat = mkSpike {prompt.settings.format = "custom";};
+    tweaked = mkSpike {
+      theme = "paper";
+      palette.accent = "#123456";
+      prompt.settings = {
+        add_newline = false;
+        directory.truncation_length = 3;
+      };
+    };
+    normal = config.packages.prelude-prompt;
+    variant = spike.package.promptConfig;
+    # Exercise the actual wrapper without building native or surface binaries.
+    environmentProbe = pkgs.writeShellScriptBin "prelude-ghostty-spike" ''
+      printf '%s\n' "$STARSHIP_CONFIG"
+    '';
+    wrapper =
+      (import ./ghostty-spike.nix {
+        inherit lib;
+        pkgs = pkgs // {buildGo126Module = _: environmentProbe;};
+        config.packages =
+          config.packages
+          // {
+            prelude-shell = config.packages.prelude-shell // {completionInit = pkgs.writeText "ghostty-probe-completion.bash" "";};
+            prelude-menu = environmentProbe // {menuConfig = pkgs.writeText "ghostty-probe-menu.json" "{}";};
+            prelude-docs = environmentProbe;
+            prelude-motd = environmentProbe;
+          };
+      }).package;
+  in
+    assert toString (config.packages.prelude-shell.promptPreset {}).live == toString normal;
+    assert customFile.package.promptConfig == customSource;
+      pkgs.runCommand "ghostty-spike-prompt" {nativeBuildInputs = [pkgs.python3 pkgs.starship];} ''
+        set -euo pipefail
+        python3 - <<'PY'
+        import tomllib
+        from pathlib import Path
+
+        def load(path):
+            return tomllib.loads(Path(path).read_text())
+
+        normal = load("${normal}")
+        spike = load("${variant}")
+        keymap = (
+            r"Alt + \[[m](bold fg:accent)\][─](fg:surface)motd"
+            r"[──](fg:surface)\[[x](bold fg:accent)\][─](fg:surface)menu"
+            r"[──](fg:surface)\[[d](bold fg:accent)\][─](fg:surface)docs"
+        )
+        normal_keymap = (
+            r"\[[?](bold fg:accent)\][─](fg:surface)motd"
+            r"[──](fg:surface)\[[x](bold fg:accent)\][─](fg:surface)menu"
+            r"[──](fg:surface)\[[d](bold fg:accent)\][─](fg:surface)docs"
+        )
+        assert f"[{keymap}](fg:muted)" in spike["format"]
+        assert spike["format"].count("Alt +") == 1
+        assert "Ctrl+P" not in spike["format"]
+        assert f"[{normal_keymap}](fg:muted)" in normal["format"]
+        assert "Alt +" not in normal["format"]
+        normal.pop("format")
+        spike.pop("format")
+        assert spike == normal, "The preset must change only the keymap"
+        assert load("${customFormat.package.promptConfig}")["format"] == "custom"
+        tweaked = load("${tweaked.package.promptConfig}")
+        assert tweaked["add_newline"] is False
+        assert tweaked["directory"]["truncation_length"] == 3
+        assert tweaked["palettes"]["prelude"]["accent"] == "#123456"
+        assert tweaked["palettes"]["prelude"]["bg"] != normal["palettes"]["prelude"]["bg"]
+        PY
+
+        export HOME="$TMPDIR/home" XDG_CACHE_HOME="$TMPDIR/cache" NO_COLOR=1
+        unset STARSHIP_SHELL
+        mkdir -p "$HOME" "$XDG_CACHE_HOME"
+        export STARSHIP_CONFIG=${variant}
+        starship prompt --terminal-width 120 --status 0 > "$TMPDIR/prompt"
+        python3 - "$TMPDIR/prompt" <<'PY'
+        import re
+        import sys
+        from pathlib import Path
+
+        rendered = Path(sys.argv[1]).read_text()
+        plain = re.sub(r"\x1b\[[0-9;]*m", "", rendered)
+        assert "Alt + [m]─motd──[x]─menu──[d]─docs" in plain.splitlines()[1], repr(plain)
+        assert plain.count("Alt +") == 1
+        assert "Ctrl+P" not in plain
+        PY
+
+        env -u STARSHIP_CONFIG ${lib.getExe wrapper} > "$TMPDIR/wrapper-default"
+        STARSHIP_CONFIG= ${lib.getExe wrapper} > "$TMPDIR/wrapper-empty"
+        STARSHIP_CONFIG=${normal} ${lib.getExe wrapper} > "$TMPDIR/wrapper-inherited"
+        STARSHIP_CONFIG=${variant} ${lib.getExe wrapper} > "$TMPDIR/wrapper-variant"
+        STARSHIP_CONFIG=${customSource} ${lib.getExe wrapper} > "$TMPDIR/wrapper-custom"
+        python3 - "$TMPDIR" <<'PY'
+        import sys
+        from pathlib import Path
+
+        root = Path(sys.argv[1])
+        for name in ("default", "empty", "inherited", "variant"):
+            assert (root / f"wrapper-{name}").read_text().splitlines() == ["${variant}"]
+        assert (root / "wrapper-custom").read_text().splitlines() == ["${customSource}"]
+        PY
+        (
+          export STARSHIP_CONFIG=${normal}
+          ${spike.shell.shellHook}
+          test "$STARSHIP_CONFIG" = ${variant}
+        )
+        (
+          export STARSHIP_CONFIG=${customSource}
+          ${spike.package.promptInit}
+          test "$STARSHIP_CONFIG" = ${customSource}
+        )
+        (
+          unset STARSHIP_CONFIG
+          ${customFile.package.promptInit}
+          test "$STARSHIP_CONFIG" = ${customSource}
+        )
+        (
+          unset STARSHIP_CONFIG
+          ${customFormat.shell.shellHook}
+          test "$STARSHIP_CONFIG" = ${customFormat.package.promptConfig}
+        )
+        touch "$out"
+      '';
 
   prompt-status-runtime = let
     statusPkg =

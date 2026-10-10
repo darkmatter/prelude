@@ -64,23 +64,67 @@ in {
       description = "reprint the welcome banner";
     };
     commands."prelude:previews" = {
-      description = "build the render checks and show their output";
+      description = "build render checks and print their output to inspect the command catalogue, title fonts, and feature demos without opening an interactive surface";
       exec = "prelude-previews";
+      details = ''
+        Build the selected render checks and print each resulting preview. Leave the argument line empty to inspect every render check, or choose individual checks to focus on the menu, titles, or the feature demos.
+      '';
+      usage = "x prelude:previews [check ...]";
+      examples = [
+        "x prelude:previews menu-list-renders"
+        "x prelude:previews titles-command-renders examples-render"
+      ];
+      args = [
+        {
+          token = "<check>";
+          description = "Render check name, or several names separated by spaces; leave empty to build every preview. The suggested choices cover the command catalogue, title fonts, and feature demos.";
+          options = [
+            "menu-list-renders"
+            "titles-command-renders"
+            "examples-render"
+          ];
+        }
+      ];
     };
     commands."prelude:wizard" = {
-      description = "run the interactive setup wizard";
+      description = "run the interactive setup wizard to choose a title, theme, and command catalogue, then write a consumer's Prelude sidecar without replacing flake.nix";
       exec = "nix run . -- wizard";
       motd = 0;
+      details = ''
+        Generate a Prelude sidecar and a sibling title.txt for a consumer project. Choose a different output path when experimenting in this repository so the wizard does not replace our own prelude.nix.
+      '';
+      usage = "x prelude:wizard [--output path] [--recipe path]";
+      examples = ["x prelude:wizard --output .work/prelude.nix"];
+      args = [
+        {
+          token = "--output";
+          description = "Destination path for the generated Nix sidecar; the wizard writes title.txt beside it. Use .work/prelude.nix to try the wizard without replacing this repository's own configuration.";
+          default = "prelude.nix";
+          options = [".work/prelude.nix"];
+        }
+        {
+          token = "--recipe";
+          description = "Path to a Nix title recipe used to prefill the title text and font before the interactive wizard opens; leave this option unset to choose both in the wizard.";
+        }
+      ];
     };
     commands.build = {
-      description = "build a flake output";
+      description = "build a Prelude flake output, such as the command menu, MOTD, docs viewer, or a feature demo, with optional build logs and result-link control";
       exec = "nix build";
-
-      usage = "x build .#prelude-motd";
+      details = ''
+        Build a flake output with Nix. Choose one of the component or demo outputs below, or enter another installable manually; leaving the target empty builds the default package.
+        Use --no-link to avoid replacing the result symlink, and --print-build-logs to inspect compiler output while a package builds.
+      '';
+      usage = "x build [target] [--no-link] [--print-build-logs]";
+      examples = [
+        "x build .#prelude-menu --no-link"
+        "x build .#prelude-motd --print-build-logs"
+      ];
       args = [
         {
           token = "<target>";
-          description = "flake output to build";
+          description = "Flake installable to build; choose a component or demo below, or type a target. Leave empty for the default package.";
+          default = ".";
           options = [
             ".#prelude-motd"
             ".#prelude-menu"
@@ -88,6 +132,11 @@ in {
             ".#example-themes"
             ".#example-default"
           ];
+        }
+        {
+          token = "--no-link";
+          description = "Keep the existing result symlink untouched while Nix builds the selected output.";
+          boolean = true;
         }
       ];
     };
@@ -99,6 +148,24 @@ in {
     commands."record-docs" = {
       description = "record stale VHS showcases and sync docs";
       exec = "docs-record";
+    };
+
+    commands."spike:ghostty" = {
+      description = "try the real-shell libghostty-vt experiment with Prelude keyboard chords, movable menu and docs panes, and an optional Starship prompt";
+      exec = "nix run path:.#ghostty-spike --";
+      details = ''
+        Open an isolated Bash with a movable Prelude menu or docs pane. Alt+X toggles the command menu; Ctrl+] cycles pane layouts so you can inspect description wrapping at different widths.
+        The fixed spike prompt is the default. Enable --starship to test the real themed prompt and its navigation keymap instead.
+      '';
+      usage = "x spike:ghostty [--starship]";
+      examples = ["x spike:ghostty --starship"];
+      args = [
+        {
+          token = "--starship";
+          description = "Use the real themed Starship prompt instead of the fixed spike prompt, preserving its navigation keymap while the command menu and docs panes move between floating and split layouts.";
+          boolean = true;
+        }
+      ];
     };
 
     commands."demos:titles" = {

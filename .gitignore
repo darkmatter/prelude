@@ -64,4 +64,7 @@ src/.tmp-motd-region-test/
 !.envrc
 .work/
 .ruff_cache/
-prototypes/
+# Scratch prototypes stay local; the runnable Ghostty spike is versioned.
+/prototypes/*
+!/prototypes/ghostty/
+/prototypes/ghostty/prelude-ghostty-spike
