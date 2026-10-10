@@ -17,8 +17,7 @@ Prelude supplies these whenever the components are enabled:
 For catalogue-only Bash completion, source `"$PRELUDE_COMPLETION_INIT"` after
 loading the devshell environment. This registers command and argument completion
 without loading ble.sh, initializing Starship, printing MOTD, or changing the
-status row. The Prelude workspace does this automatically; normal activation is
-unchanged.
+status row. The Prelude workspace sources this completion-only init automatically.
 
 Workspace and project commands (the workspace entry is built in when enabled;
 `nix/internal/prelude.nix` declares this repo's project commands):
@@ -29,13 +28,20 @@ Workspace and project commands (the workspace entry is built in when enabled;
 - **`x fmt`** — `treefmt` (alejandra for Nix, gofmt/goimports for Go) over the repository.
 - **`x build <target>`** — `nix build` with flake-output suggestions.
 - **`x prelude:previews`** — build the render checks and display their output.
-- **`prelude-workspace`** / **`x prelude:workspace`** — explicitly launch the
+- **`prelude-workspace`** / **`x prelude:workspace`** — manually launch the
   libghostty-vt workspace when `prelude.workspace.enable = true` (default: `false`).
   Both `flakeModules.default` and `lib.evalModule` export `packages.prelude-workspace`
   and bundle the active launcher in `prelude-shell`. Menu and MOTD must be enabled
   and Docs must have at least one page; evaluation asserts these prerequisites.
   The devshell launcher uses the current checkout's menu, with the consumer's own
-  Docs, MOTD, theme, and completion config. It never launches during activation.
+  Docs, MOTD, theme, and completion config. Generated project init also enters the
+  workspace in the foreground in interactive Bash with a TTY: `.envrc` stays
+  `use flake`, and the existing Bash rc `eval "$(prelude hook bash)"` sources it
+  after direnv. Each init is stamped before launch, preventing immediate reopen
+  after exit or failure; leaving/reentering or a changed init permits reentry.
+  Noninteractive, envrc, lorri, zsh, and non-TTY contexts never auto-launch it;
+  `PRELUDE_WORKSPACE_ACTIVE` prevents child recursion. Workspace mode skips
+  legacy BLE initialization.
   The workspace has a single themed hints footer and borderless, floating-by-default
   docs/menu window, with no host-imposed backdrop. Menu panes use `x --embedded` automatically.
   Alt+M reprints MOTD in the main shell, Alt+X toggles the menu, and Alt+D toggles
@@ -57,10 +63,11 @@ Workspace and project commands (the workspace entry is built in when enabled;
   `Alt + [m] motd · [x] menu · [d] docs`. The separate footer shows LOCKED / UNLOCKED
   in all prompt modes; completion keys still use that one protected bottom row. Completion is rendering-only: it preserves
   Bash's PTY size and the full visible Starship prompt, shifting the displayed
-  viewport only when space below the prompt is insufficient. For the real Starship
-  prompt, run `prelude-workspace --starship` in the devshell;
-  `prelude.prompt.enable` is not required. The fixed `prelude $ ` prompt stays the
-  default. The published package honors `prelude.root` (`lib.evalModule` users set
+  viewport only when space below the prompt is insufficient. Automatic entry uses
+  Starship when `prelude.prompt.enable = true`, otherwise the fixed `prelude $ `
+  prompt. Manual launches use the fixed prompt unless passed `--starship`;
+  `prelude-workspace --starship` works even when `prelude.prompt.enable = false`.
+  The published package honors `prelude.root` (`lib.evalModule` users set
   it to `self`) with `PRELUDE_ROOT` override support; it uses the consumer's published
   menu. See the [workspace guide](guides/workspace.md) for the enable snippet,
   published launches, and runtime limitations.

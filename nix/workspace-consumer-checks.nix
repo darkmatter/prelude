@@ -67,6 +67,9 @@
   # Workspace prerequisites deliberately do not include standalone prompt activation.
   b = mkFixture "beta" "paper" false;
   fixtures = [a b];
+  enabledClosures = map (fixture:
+    pkgs.closureInfo {rootPaths = [fixture.packages.prelude-shell];})
+  fixtures;
   workspaceArtifacts = packages: let
     workspace = packages.prelude-shell.workspace;
   in {
@@ -137,7 +140,7 @@
     case "''${1-}" in
       "") printf '%s\n' "$STARSHIP_CONFIG" ;;
       --environment)
-        printf '%s\n' "$STARSHIP_CONFIG" "$PRELUDE_MENU_CONFIG" "$PRELUDE_COMPLETION_INIT"
+        printf '%s\n' "$STARSHIP_CONFIG" "$PRELUDE_MENU_CONFIG" "$PRELUDE_COMPLETION_INIT" "''${PRELUDE_WORKSPACE_ACTIVE-}"
         ;;
       *) exec "$@" ;;
     esac
@@ -187,6 +190,61 @@
   normal = a.packages.prelude-prompt;
   variant = a.packages.prelude-workspace.promptConfig;
   wrapper = probeLauncher a.packages.prelude-workspace;
+
+  # Keep the public evaluation, generated PRELUDE_INIT, and workspace wrapper.
+  # Only native's executable endpoint is a sentinel, so launch guards/arguments
+  # and the wrapper's active marker are observed rather than reimplemented.
+  hookSentinel = pkgs.writeShellScriptBin "prelude-workspace" ''
+    exec ${lib.getExe pkgs.python3} ${./workspace-hook-pty-test.py} --sentinel "$@"
+  '';
+  hookPkgs =
+    pkgs
+    // {
+      buildGo126Module = args:
+        if (args.pname or "") == "prelude-workspace"
+        then hookSentinel
+        else pkgs.buildGo126Module args;
+    };
+  hookFixture = fixture: let
+    packages = (evaluate hookPkgs fixture.configuration).viaFunction;
+  in {
+    inherit (fixture) name;
+    promptEnabled = fixture.configuration.prelude.prompt.enable;
+    init = toString packages.prelude-shell.shellInit;
+    launcher = lib.getExe packages.prelude-shell.workspace.package;
+    commandPath = lib.makeBinPath [packages.prelude-shell pkgs.bashInteractive pkgs.coreutils];
+  };
+  hookManifest = pkgs.writeText "workspace-hook-fixtures.json" (builtins.toJSON {
+    sentinel = map hookFixture fixtures;
+    disabled = {
+      name = "disabled";
+      init = toString (builtins.elemAt disabled 1).viaFunction.prelude-shell.shellInit;
+      commandPath = lib.makeBinPath [(builtins.elemAt disabled 1).viaFunction.prelude-shell pkgs.bashInteractive pkgs.coreutils];
+    };
+    standalone = let
+      packages =
+        (evaluate pkgs (lib.recursiveUpdate (builtins.elemAt disabledConfigurations 1) {
+          prelude.prompt = {
+            enable = true;
+            settings = {
+              add_newline = false;
+              format = "PUBLIC-ZSH-STARSHIP> ";
+            };
+          };
+        })).viaFunction;
+    in {
+      init = toString packages.prelude-shell.shellInit;
+      commandPath = lib.makeBinPath [packages.prelude-shell pkgs.bashInteractive pkgs.coreutils];
+      promptConfig = toString packages.prelude-prompt;
+    };
+    real = {
+      inherit (a) name;
+      project = a.configuration.prelude.project;
+      init = toString a.packages.prelude-shell.shellInit;
+      commandPath = lib.makeBinPath [a.packages.prelude-shell pkgs.bashInteractive pkgs.coreutils];
+    };
+  });
+  hookPython = pkgs.python3.withPackages (pythonPackages: [pythonPackages.pyte]);
 in {
   workspace-consumer-contract = assert lib.all matchesEntrypoints fixtures;
   assert lib.assertMsg (lib.all rejected missingPrerequisites)
@@ -219,6 +277,13 @@ in {
     (fixture: toString fixture.packages.prelude-motd.componentRoot.configFile)
   ]) "consumer fixtures must differ in configured packages and Config paths, not only their names";
     pkgs.runCommand "workspace-consumer-contract" {} ''
+      for closure in ${lib.concatMapStringsSep " " toString enabledClosures}; do
+        if grep -Fxq ${forbiddenPath pkgs.blesh} "$closure/store-paths" \
+          || grep -E -- '-blesh(-|$)' "$closure/store-paths"; then
+          echo 'ble.sh leaked into an enabled workspace consumer' >&2
+          exit 1
+        fi
+      done
       ${lib.concatMapStringsSep "\n" (fixture: ''
           test -x ${fixture.packages.prelude-workspace}/bin/prelude-workspace
           test -x ${fixture.packages.prelude-shell}/bin/prelude-workspace
@@ -327,11 +392,11 @@ in {
             launcher = fixture[f"{mode}Launcher"]
             expected_menu = fixture["menuConfig" if mode == "published" else "activeMenuConfig"]
             snapshot = run([launcher, "--environment"], env).splitlines()
-            assert snapshot == ["${customSource}", expected_menu, fixture["completionInit"]], snapshot
+            assert snapshot == ["${customSource}", expected_menu, fixture["completionInit"], "1"], snapshot
             default_env = dict(env)
             default_env.pop("STARSHIP_CONFIG")
             snapshot = run([launcher, "--environment"], default_env).splitlines()
-            assert snapshot == [fixture["promptConfig"], expected_menu, fixture["completionInit"]], snapshot
+            assert snapshot == [fixture["promptConfig"], expected_menu, fixture["completionInit"], "1"], snapshot
             listed = run([launcher, "x", "--list"], env)
             assert f"{name}-task" in listed and f"{foreign}-task" not in listed, listed
             imported = f"{name}-published" if mode == "published" else "checkout-only"
@@ -354,6 +419,14 @@ in {
         overridden = run([fixture["publishedLauncher"], "x", "--list"], dict(env, PRELUDE_ROOT=str(checkout)))
         assert "checkout-only" in overridden and f"{name}-published" not in overridden, overridden
     PY
+    touch "$out"
+  '';
+
+  workspace-hook-autoentry = pkgs.runCommand "workspace-hook-autoentry" {} ''
+    ${lib.getExe hookPython} ${./workspace-hook-pty-test.py} \
+      ${lib.getExe pkgs.bashInteractive} \
+      ${lib.getExe pkgs.zsh} \
+      ${hookManifest}
     touch "$out"
   '';
 

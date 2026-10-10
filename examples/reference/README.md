@@ -17,12 +17,17 @@ Inside the development shell:
 x          # interactive command picker / catalogue dispatcher
 docs       # Markdown reference viewer
 hello      # package-backed example command
-x prelude:workspace --starship  # explicit consumer-configured workspace
+x prelude:workspace --starship  # manually reopen the consumer-configured workspace
 ```
 
-The shell prints the MOTD automatically. If Starship is initialized by your
-shell, Prelude also applies the generated project prompt while the shell is
-active.
+This example enables the workspace and prompt. Generated project init enters
+`prelude-workspace` in the foreground in interactive Bash with a TTY, with
+Starship because `prelude.prompt.enable = true`; MOTD prints in the workspace's
+main Bash. With direnv, `.envrc` stays `use flake` and the existing interactive
+Bash rc `eval "$(prelude hook bash)"` sources the init after direnv. Exit or
+failure does not immediately reopen the workspace; leaving/reentering or a
+changed init permits automatic entry again. Manual launches remain available.
+See the [workspace guide](../../docs/guides/workspace.md) for launch guards.
 
 Run individual flake outputs without entering the shell:
 

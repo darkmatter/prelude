@@ -26,7 +26,13 @@ Everything is a `prelude.*` option, validated at build time.
 - **`prelude.docs.nixosOptions`** — full `pkgs.nixosOptionsDoc` argument set
   (`{ options = …; … }`, including any of `transformOptions`, `documentType`,
   `warningsAreErrors`, `revision`, …) used when a generate node is present.
-- **`prelude.prompt.enable`** — themed Starship config at `packages.prelude-prompt`.
+- **`prelude.prompt.enable`** — themed Starship config at `packages.prelude-prompt`;
+  also selects Starship for automatic workspace entry.
+- **`prelude.workspace.enable`** — opt-in foreground workspace entry from generated
+  project init in interactive Bash with a TTY (default: `false`). `.envrc` stays
+  `use flake`; the existing Bash rc Prelude hook sources init after direnv.
+  Manual workspace launches remain available; see the
+  [workspace guide](guides/workspace.md).
 
 The full option reference is also generated to `docs/reference/options.md`
 (refresh with `x sync-docs`) and appears in the docs TUI under **Options**.

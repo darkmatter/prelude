@@ -3,9 +3,9 @@
 A real interactive Bash and movable Prelude docs/menu window rendered
 inside the current terminal through libghostty-vt's C API and Prelude's existing
 Bubble Tea/Ultraviolet stack. Consumer integration is opt-in through
-`prelude.workspace.enable`, which defaults to `false`. The `prelude-workspace`
-CLI must still be launched explicitly: it never starts during shell activation
-or replaces normal Prelude activation.
+`prelude.workspace.enable`, which defaults to `false`. When enabled, generated
+project init enters `prelude-workspace` in the foreground in interactive Bash
+with a TTY. Manual launches remain available.
 
 The workspace uses a separate Go module at
 [`src/cmd/prelude-workspace/go.mod`](../../src/cmd/prelude-workspace/go.mod)
@@ -35,28 +35,50 @@ Enabling the workspace does not implicitly enable its surfaces. Evaluation
 assertions require `prelude.menu.enable = true`, `prelude.motd.enable = true`,
 and non-empty `prelude.docs.pages`; failures identify the missing prerequisite
 and advise enabling it or disabling the workspace. `prelude.prompt.enable` is
-not required, even for `--starship`: the workspace supplies the consumer's prompt
-settings independently, but initializes Starship only when explicitly requested.
+not required. Automatic workspace entry uses Starship when that option is `true`
+and the fixed `prelude $ ` prompt otherwise. Manual `--starship` launches use the
+consumer's prompt settings even when `prelude.prompt.enable = false`.
 
 When enabled, both entrypoints export `packages.prelude-workspace` and bundle the
 active launcher in `prelude-shell`. Keep using `prelude-shell` in your devshell
 as described in [Install](../../README.md#install); no workspace shellHook is
 needed. The launcher binds Menu, Docs, MOTD, theme, and completion to that
-consumer's evaluated config, not this repository's config. It does not take over
-activation or launch automatically.
+consumer's evaluated config, not this repository's config.
 
 ## Run
 
-After entering or reloading your normal devshell, explicitly launch the workspace:
+Keep `.envrc` as the conventional loader; do not put a workspace launch in it:
 
 ```sh
-x prelude:workspace
+use flake
 ```
 
-The fixed `prelude $ ` prompt is the default. To opt into real Starship instead:
+Keep the existing hooks in your interactive Bash rc in this order:
 
 ```sh
-prelude-workspace --starship
+eval "$(direnv hook bash)"
+eval "$(prelude hook bash)"
+```
+
+The Prelude hook sources the generated project init (`PRELUDE_INIT`) after
+direnv has loaded the environment. That init enters the enabled workspace in
+the foreground; `nix develop` also sources it in its interactive Bash. It never
+auto-launches from a noninteractive shell, `.envrc` evaluation, lorri, zsh, or
+without a TTY. `PRELUDE_WORKSPACE_ACTIVE` prevents workspace children from
+recursively entering another workspace. Workspace mode skips legacy BLE
+(ble.sh) initialization.
+
+Each generated init is stamped **before** attempting the launch. Exiting the
+workspace, or a failed launch, returns to the outer shell without immediately
+reopening it at the next prompt. Leaving and reentering the project environment,
+or receiving a changed init, permits automatic entry again.
+
+Automatic entry follows `prelude.prompt.enable` for Starship. You can still
+launch manually, including reopening after exit or failure:
+
+```sh
+x prelude:workspace             # fixed prelude $ prompt
+prelude-workspace --starship    # Starship even when prelude.prompt.enable = false
 ```
 
 Both commands use the current checkout's menu through the active launcher in
@@ -67,8 +89,8 @@ evaluated theme and settings, even when `prelude.prompt.enable = false`.
 Its original bracketed right-side keymap reads
 **Alt + [m] motd · [x] menu · [d] docs**. These are direct Alt shortcuts, not a
 prefix sequence. An inherited normal Prelude config selects this workspace
-preset; an explicit custom `STARSHIP_CONFIG` is preserved. Normal Prelude
-activation and its `?`/`x`/`d` shortcuts are unchanged.
+preset; an explicit custom `STARSHIP_CONFIG` is preserved. Outside workspace
+mode, Prelude activation and its `?`/`x`/`d` shortcuts are unchanged.
 
 ### Published package
 
@@ -160,7 +182,7 @@ handled.
   Readline handoff: an open pane is hidden but retained, the parked line/point/mark
   return afterward, and a busy/PS2 shell queues it until the next primary prompt.
   An occupied pending slot is never replaced. There is no MOTD window or Ctrl+P ?
-  chord, and normal Prelude activation is unchanged.
+  chord.
 
 - One Prelude pane exists at a time. Opening menu/docs focuses it. When mouse
   reporting is active, clicks in the shell or an interactive pane also move
@@ -281,9 +303,9 @@ responses. Readline expands real Tab internally, so foreground programs receive
 ordinary Tab and PS2 keeps native completion. Editing, paste, focus/layout changes,
 or quoted keys dismiss or invalidate the chooser. The popup is keyboard-only.
 
-This does not run full `prelude-init`, load ble.sh or the general bash-completion
-framework, or reprint MOTD. Normal Prelude activation is
-unchanged. A missing or failing init prints a warning but leaves the shell usable.
+This completion-only init does not run full `prelude-init`, load ble.sh or the
+general bash-completion framework, or reprint MOTD. A missing or failing init
+prints a warning but leaves the shell usable.
 An unset or empty `PRELUDE_COMPLETION_INIT` skips catalogue initialization; the
 launcher respects an explicit override.
 
@@ -292,8 +314,10 @@ The workspace's chooser handles full colon-containing key prefixes, including
 Readline completion; its existing colon-tokenization limitation is unchanged.
 The chooser opens on Tab, not automatically on every typed character.
 
-## Starship (opt-in)
+## Starship
 
+Automatic workspace entry uses Starship when `prelude.prompt.enable = true`;
+manual `--starship` launches remain available independently of that option.
 `--starship` loads the installed full Bash integration, not a simulated prompt.
 Bash still owns readline, history, completion, signals, and job control; ble.sh
 and user shell rc files are not loaded. The packaged Bash is modern enough for
@@ -330,9 +354,10 @@ build. With `prelude.workspace.enable = false`, the workspace launcher and nativ
 dependencies stay out of consumer shells and closures.
 
 This repository dogfoods `prelude.workspace.enable = true`, so its default
-shell includes the active launcher and native runtime dependencies. It still
-never launches automatically. Native headers, pkg-config, and renderer tooling
-remain in the dedicated `workspace` devshell, not the default shell:
+shell includes the active launcher and native runtime dependencies and enters
+the workspace in eligible interactive Bash contexts. Native headers,
+pkg-config, and renderer tooling remain in the dedicated `workspace` devshell,
+not the default shell:
 
 ```sh
 nix develop path:.#workspace
@@ -351,8 +376,9 @@ verification.
 ## Intentional limits
 
 - This starts an isolated Bash with a private rc, no user rc/inputrc and no
-  persistent history file. The fixed `prelude $ ` prompt is the default;
-  `--starship` opts into real Starship. It inherits devshell tools and environment
+  persistent history file. Automatic entry uses `prelude.prompt.enable` to choose
+  Starship or the fixed `prelude $ ` prompt; manual launches use the fixed prompt
+  unless passed `--starship`. It inherits devshell tools and environment
   but isolates inherited shell-hook framework state. OSC133 hooks supply prompt
   lifecycle; this is not arbitrary-shell integration. Surface wrappers inherit
   the host environment directly.

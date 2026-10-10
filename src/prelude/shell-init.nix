@@ -19,6 +19,8 @@
   navigation ? [],
   motdCommand ? null,
   motdRevision ? null,
+  workspaceCommand ? null,
+  workspaceStarship ? false,
   statusEnabled ? false,
   # When true, completion registers just's own engine for `just <TAB>`.
   justImport ? false,
@@ -32,9 +34,11 @@
   # or bash-completion at all. Nix derives runtime references by scanning output
   # text for store hashes, so merely mentioning those paths would pull all three
   # into every consumer's closure — which is exactly what the prompt gating in
-  # module.nix exists to avoid. The MOTD is then the whole surface.
+  # module.nix exists to avoid. The MOTD is then the whole surface unless a
+  # workspace owns the interactive runtime instead.
   promptEnabled ? true,
 }: let
+  shellPromptEnabled = promptEnabled && workspaceCommand == null;
   plib = import ./lib.nix {inherit lib;};
   resolvedShadow =
     if shadow == null
@@ -162,7 +166,17 @@
     }
     _PRELUDE_SHELL_RUNTIME=${lib.escapeShellArg runtime}
     _PRELUDE_PROMPT_ENABLED=${
-      if promptEnabled
+      if shellPromptEnabled
+      then "1"
+      else "0"
+    }
+    _PRELUDE_WORKSPACE=${lib.escapeShellArg (
+      if workspaceCommand == null
+      then ""
+      else workspaceCommand
+    )}
+    _PRELUDE_WORKSPACE_STARSHIP=${
+      if workspaceStarship
       then "1"
       else "0"
     }
@@ -176,7 +190,7 @@
       then "1"
       else ""
     }
-    ${lib.optionalString promptEnabled ''
+    ${lib.optionalString shellPromptEnabled ''
       _PRELUDE_BASH_COMPLETION=${lib.escapeShellArg "${bash-completion}/etc/profile.d/bash_completion.sh"}
       _PRELUDE_BLESH=${lib.escapeShellArg "${blesh}/share/blesh/ble.sh"}
       _PRELUDE_STARSHIP=${lib.escapeShellArg (lib.getExe starship)}
@@ -219,8 +233,9 @@
     . ${lib.escapeShellArg "${runtime}/init.bash"}
 
     unset _PRELUDE_SHELL_RUNTIME _PRELUDE_PROMPT_ENABLED
+    unset _PRELUDE_WORKSPACE _PRELUDE_WORKSPACE_STARSHIP
     unset _PRELUDE_MOTD _PRELUDE_DARWIN
-    ${lib.optionalString promptEnabled ''
+    ${lib.optionalString shellPromptEnabled ''
       unset _PRELUDE_BASH_COMPLETION _PRELUDE_BLESH
       unset _PRELUDE_STARSHIP _PRELUDE_STARSHIP_FINAL_CONFIG _PRELUDE_STARSHIP_STATUS_ENABLED
       unset _PRELUDE_PROMPT_PROJECT

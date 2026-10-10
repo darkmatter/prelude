@@ -37,7 +37,7 @@ Work inside `nix develop` (or direnv). The catalogue is the public interface:
 
 ```sh
 x                 # interactive picker
-x prelude:workspace --starship  # explicit workspace with the themed prompt
+x prelude:workspace --starship  # manual workspace with the themed prompt
 x go:test         # Go unit tests → go test -C src ./...
 x go:vet          # go vet -C src ./...
 x fmt             # format Nix sources
@@ -63,9 +63,17 @@ part of the name (`x go:test`), and groups come only from `group`.
 - **Catalogue:** `prelude.commands` is the Nix-side whole. Import Justfile /
   `package.json` / flake apps; do not write generated entries back to source.
   Existing tools own the canonical invocation (`go test`, `nix flake check`).
-- **Workspace:** consumers opt in with `prelude.workspace.enable`, then launch
-  explicitly, never from activation. Both entrypoints build consumer Config
-  through `packages.nix`: the shell uses the checkout Menu, the published
+- **Workspace:** consumers opt in with `prelude.workspace.enable`. Generated
+  project init enters `prelude-workspace` in the foreground in interactive Bash
+  with a TTY. `.envrc` stays `use flake`; the existing Bash rc
+  `eval "$(prelude hook bash)"` sources the init after direnv. Stamp each init
+  before launch: exit/failure must not immediately reopen it; leaving/reentering
+  or a changed init permits reentry. Never launch from noninteractive, envrc,
+  lorri, zsh, or non-TTY contexts; `PRELUDE_WORKSPACE_ACTIVE` prevents child
+  recursion. Workspace mode skips legacy BLE initialization. Automatic Starship
+  follows `prelude.prompt.enable`; manual `x prelude:workspace` /
+  `prelude-workspace --starship` remain supported. Both entrypoints build consumer
+  Config through `packages.nix`: the shell uses the checkout Menu, the published
   workspace honors `prelude.root`. Native compilation is Config-independent;
   disabled consumers exclude its renderer. The repo opts in for dogfooding.
   Its independent Go module and tooling remain separate from the main module.

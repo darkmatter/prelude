@@ -56,8 +56,23 @@
     typescript.sync
   ];
 
-  preludeShellClosure = pkgs.closureInfo {
-    rootPaths = [config.packages.prelude-shell];
+  # Retain the dogfood catalogue, including package-backed system commands,
+  # but evaluate a genuine standalone consumer through the public entrypoint.
+  # Enabled workspace activation has its own public consumer checks above.
+  standalonePrelude = localFlake.lib.evalModule pkgs {
+    prelude =
+      lib.recursiveUpdate
+      (import ../prelude.nix {
+        self = localFlake;
+        inherit lib;
+      }).prelude {
+        root = localFlake.outPath;
+        workspace.enable = false;
+        commands = config.prelude.commands;
+      };
+  };
+  standaloneShellClosure = pkgs.closureInfo {
+    rootPaths = [standalonePrelude.packages.prelude-shell];
   };
   componentClosures = {
     motd = pkgs.closureInfo {
@@ -94,6 +109,7 @@ in {
     workspace-consumer-contract
     workspace-consumer-wrappers
     workspace-disabled-closures
+    workspace-hook-autoentry
     workspace-prompt
     ;
   output-surface = assert lib.assertMsg
@@ -442,11 +458,11 @@ in {
       touch "$out"
     '';
   status-gradient-width = pkgs.runCommand "status-gradient-width" {} ''
-    gradient_line=$(grep '^_PRELUDE_PROMPT_STATUS_GRADIENT=' ${config.packages.prelude-shell.shellInit})
+    gradient_line=$(grep '^_PRELUDE_PROMPT_STATUS_GRADIENT=' ${standalonePrelude.packages.prelude-shell.shellInit})
     test "$(printf '%s' "$gradient_line" | tr -cd '#' | wc -c)" -eq 64
-    grep -Fq '_PRELUDE_PROMPT_STATUS_GRADIENT_FG=' ${config.packages.prelude-shell.shellInit}
-    grep -Fq '_PRELUDE_PROMPT_STATUS_HINT_BOLD_START=' ${config.packages.prelude-shell.shellInit}
-    grep -Fq '_PRELUDE_PROMPT_STATUS_HINT_BOLD_WIDTH=' ${config.packages.prelude-shell.shellInit}
+    grep -Fq '_PRELUDE_PROMPT_STATUS_GRADIENT_FG=' ${standalonePrelude.packages.prelude-shell.shellInit}
+    grep -Fq '_PRELUDE_PROMPT_STATUS_HINT_BOLD_START=' ${standalonePrelude.packages.prelude-shell.shellInit}
+    grep -Fq '_PRELUDE_PROMPT_STATUS_HINT_BOLD_WIDTH=' ${standalonePrelude.packages.prelude-shell.shellInit}
 
     ${lib.getExe pkgs.bash} <<'EOF'
     set -euo pipefail
@@ -504,17 +520,23 @@ in {
     touch "$out"
   '';
 
-  prelude-shell-default = assert lib.all (invocation: lib.elem invocation config.packages.prelude-menu.xInvocations) [
+  prelude-shell-default = assert lib.assertMsg (
+    !standalonePrelude.config.prelude.workspace.enable
+    && standalonePrelude.config.prelude.prompt.enable
+    && !(standalonePrelude.packages ? prelude-workspace)
+    && !(standalonePrelude.packages.prelude-shell ? workspace)
+  ) "prelude-shell-default requires a workspace-disabled standalone prompt consumer";
+  assert lib.all (invocation: lib.elem invocation standalonePrelude.packages.prelude-menu.xInvocations) [
     "x prelude:previews"
     "x prelude:wizard"
   ];
     pkgs.runCommand "prelude-shell-default"
     {
       nativeBuildInputs = [
-        config.packages.prelude-shell
-        config.packages.prelude-motd
-        config.packages.prelude-menu
-        config.packages.prelude-docs
+        standalonePrelude.packages.prelude-shell
+        standalonePrelude.packages.prelude-motd
+        standalonePrelude.packages.prelude-menu
+        standalonePrelude.packages.prelude-docs
         pkgs.shellcheck
       ];
     }
@@ -526,18 +548,18 @@ in {
               command -v docs >/dev/null
               # The shell core bundles every enabled component. Repository-only
               # generators/previews must not leak onto a consumer's PATH.
-              test ! -e ${config.packages.prelude-shell}/bin/prelude-wizard
-              test ! -e ${config.packages.prelude-shell}/bin/prelude-title-previews
-              test ! -e ${config.packages.prelude-motd}/bin/menu
-              test ! -e ${config.packages.prelude-motd}/bin/docs
-              test ! -e ${config.packages.prelude-motd}/bin/prelude-wizard
-              test ! -e ${config.packages.prelude-motd}/bin/prelude-title-previews
-              test ! -e ${config.packages.prelude-menu}/bin/docs
+              test ! -e ${standalonePrelude.packages.prelude-shell}/bin/prelude-wizard
+              test ! -e ${standalonePrelude.packages.prelude-shell}/bin/prelude-title-previews
+              test ! -e ${standalonePrelude.packages.prelude-motd}/bin/menu
+              test ! -e ${standalonePrelude.packages.prelude-motd}/bin/docs
+              test ! -e ${standalonePrelude.packages.prelude-motd}/bin/prelude-wizard
+              test ! -e ${standalonePrelude.packages.prelude-motd}/bin/prelude-title-previews
+              test ! -e ${standalonePrelude.packages.prelude-menu}/bin/docs
               for package in \
-                ${config.packages.prelude-shell} \
-                ${config.packages.prelude-motd} \
-                ${config.packages.prelude-menu} \
-                ${config.packages.prelude-docs}; do
+                ${standalonePrelude.packages.prelude-shell} \
+                ${standalonePrelude.packages.prelude-motd} \
+                ${standalonePrelude.packages.prelude-menu} \
+                ${standalonePrelude.packages.prelude-docs}; do
                 test ! -e "$package/bin/examples"
                 test ! -e "$package/bin/previews"
               done
@@ -550,21 +572,21 @@ in {
               # generators transitively. Enabled component packages are
               # intentionally bundled, so they are excluded here.
               for forbidden in \
-                ${config.packages.prelude} \
-                ${config.packages.prelude-title} \
-                ${config.packages.prelude-title-previews} \
-                ${config.packages.prelude-wizard} \
+                ${standalonePrelude.packages.prelude} \
+                ${standalonePrelude.packages.prelude-title} \
+                ${standalonePrelude.packages.prelude-title-previews} \
+                ${standalonePrelude.packages.prelude-wizard} \
                 ${demos.examplesRunner} \
                 ${previews}; do
-                if grep -Fxq "$forbidden" ${preludeShellClosure}/store-paths; then
+                if grep -Fxq "$forbidden" ${standaloneShellClosure}/store-paths; then
                   echo "$forbidden leaked into the prelude-shell closure" >&2
                   exit 1
                 fi
               done
               # Prelude's own tools never claim generic executable names.
-              test ! -e ${config.packages.prelude-shell}/bin/setup
-              test ! -e ${config.packages.prelude-shell}/bin/preflight
-              test ! -e ${config.packages.prelude-shell}/bin/wizard
+              test ! -e ${standalonePrelude.packages.prelude-shell}/bin/setup
+              test ! -e ${standalonePrelude.packages.prelude-shell}/bin/preflight
+              test ! -e ${standalonePrelude.packages.prelude-shell}/bin/wizard
               if command -v wizard >/dev/null 2>&1; then
                 echo 'a bare wizard executable leaked onto the consumer devshell PATH' >&2
                 exit 1
@@ -584,7 +606,7 @@ in {
               prelude preflight > cli-preflight
               prelude-preflight > bin-preflight
               cmp -s cli-preflight bin-preflight
-              cmp -s bin-preflight ${config.packages.prelude-shell}/share/prelude/shell/preflight.bash
+              cmp -s bin-preflight ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/preflight.bash
               grep -Fq '. "$PRELUDE_INIT"' bin-preflight
               grep -Fq 'case "$-" in' bin-preflight
               # The snippet must name no build-time path: the MOTD binary
@@ -605,47 +627,47 @@ in {
               # lorri shellHook case (nix-community/lorri#159). Rendering here
               # would go to a build log nobody reads, so it must stay absent.
               (
-                export PRELUDE_INIT=${config.packages.prelude-shell.shellInit}
+                export PRELUDE_INIT=${standalonePrelude.packages.prelude-shell.shellInit}
                 eval "$(prelude-preflight)" 2>preflight-builder
                 test ! -s preflight-builder
               )
               # nix-direnv evaluates the cached shellHook inside .envrc, where
               # DIRENV_IN_ENVRC makes the generated init render automatically.
               (
-                export PRELUDE_INIT=${config.packages.prelude-shell.shellInit}
+                export PRELUDE_INIT=${standalonePrelude.packages.prelude-shell.shellInit}
                 export DIRENV_IN_ENVRC=1
                 . "$PRELUDE_INIT" 2>preflight-direnv
                 test -s preflight-direnv
               )
               command -v starship >/dev/null
               command -v blesh-share >/dev/null
-              test -f ${config.packages.prelude-shell}/share/blesh/ble.sh
-              test -f ${config.packages.prelude-shell}/share/prelude/init.bash
-              cmp ${config.packages.prelude-shell.completionInit} ${config.packages.prelude-shell}/share/prelude/completion-init.bash
-              test -f ${config.packages.prelude-shell}/share/prelude/shell/init.bash
-              test -f ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
-              test -f ${config.packages.prelude-shell}/share/prelude/shell/status.bash
-              test -f ${config.packages.prelude-shell}/share/prelude/shell/completion.bash
-              test -f ${config.packages.prelude-shell}/share/prelude/shell/status-cap.bash
-              test -f ${config.packages.prelude-shell}/share/prelude/shell/catalogue.bash
-              test -f ${config.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
-              test -f ${config.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
-              test -f ${config.packages.prelude-shell}/nix-support/setup-hook
-              grep -Fq 'prelude-init()' ${config.packages.prelude-shell}/nix-support/setup-hook
-              grep -Fq '. ${config.packages.prelude-shell.shellInit}' ${config.packages.prelude-shell}/nix-support/setup-hook
-              grep -Fq '_PRELUDE_INIT_LOADED-' ${config.packages.prelude-shell}/nix-support/setup-hook
-              grep -Fq '_PRELUDE_INIT_LOADED=$PRELUDE_INIT' ${config.packages.prelude-shell}/share/prelude/shell/init.bash
+              test -f ${standalonePrelude.packages.prelude-shell}/share/blesh/ble.sh
+              test -f ${standalonePrelude.packages.prelude-shell}/share/prelude/init.bash
+              cmp ${standalonePrelude.packages.prelude-shell.completionInit} ${standalonePrelude.packages.prelude-shell}/share/prelude/completion-init.bash
+              test -f ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/init.bash
+              test -f ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/bash-init.bash
+              test -f ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/status.bash
+              test -f ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/completion.bash
+              test -f ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/status-cap.bash
+              test -f ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/catalogue.bash
+              test -f ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
+              test -f ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
+              test -f ${standalonePrelude.packages.prelude-shell}/nix-support/setup-hook
+              grep -Fq 'prelude-init()' ${standalonePrelude.packages.prelude-shell}/nix-support/setup-hook
+              grep -Fq '. ${standalonePrelude.packages.prelude-shell.shellInit}' ${standalonePrelude.packages.prelude-shell}/nix-support/setup-hook
+              grep -Fq '_PRELUDE_INIT_LOADED-' ${standalonePrelude.packages.prelude-shell}/nix-support/setup-hook
+              grep -Fq '_PRELUDE_INIT_LOADED=$PRELUDE_INIT' ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/init.bash
               # STARSHIP_CONFIG must be exported from the setup-hook (not
               # shellHook) so direnv `use flake` re-themes the prompt.
-              grep -Fq 'export STARSHIP_CONFIG=' ${config.packages.prelude-shell}/nix-support/setup-hook
+              grep -Fq 'export STARSHIP_CONFIG=' ${standalonePrelude.packages.prelude-shell}/nix-support/setup-hook
               # Activation must reach the shell as an exported *variable*.
               # lorri runs shellHook inside the builder and replays only the
               # variables it exported, so `prelude-init` — a function — never
               # arrives. Without this path lorri users get no MOTD.
-              grep -Fq 'export PRELUDE_INIT=' ${config.packages.prelude-shell}/nix-support/setup-hook
-              grep -Fq 'export PRELUDE_COMPLETION_INIT=${config.packages.prelude-shell.completionInit}' ${config.packages.prelude-shell}/nix-support/setup-hook
-              test -f ${config.packages.prelude-shell}/share/prelude/shell/hook.bash
-              test -f ${config.packages.prelude-shell}/share/prelude/shell/hook.zsh
+              grep -Fq 'export PRELUDE_INIT=' ${standalonePrelude.packages.prelude-shell}/nix-support/setup-hook
+              grep -Fq 'export PRELUDE_COMPLETION_INIT=${standalonePrelude.packages.prelude-shell.completionInit}' ${standalonePrelude.packages.prelude-shell}/nix-support/setup-hook
+              test -f ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/hook.bash
+              test -f ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/hook.zsh
               prelude --help | grep -Fq 'hook           print the shell hook'
               # The hook is pasted into a user's rc file, so it must never carry
               # a Bash-only payload into another shell.
@@ -672,44 +694,44 @@ in {
                 echo "prelude hook accepted an unsupported shell" >&2
                 exit 1
               fi
-              grep -Fq '_PRELUDE_BLESH=${pkgs.blesh}/share/blesh/ble.sh' ${config.packages.prelude-shell}/share/prelude/init.bash
-              grep -Fq '_PRELUDE_STARSHIP=${lib.getExe pkgs.starship}' ${config.packages.prelude-shell}/share/prelude/init.bash
-              grep -Fq '_PRELUDE_STARSHIP_STATUS_ENABLED=1' ${config.packages.prelude-shell}/share/prelude/init.bash
-              grep -Fq 'bleopt color_scheme=prelude' ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
-              grep -Fq 'bleopt_import_path=' ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
-              grep -Fq 'ble/prompt/backslash:lib/vim-airline' ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
+              grep -Fq '_PRELUDE_BLESH=${pkgs.blesh}/share/blesh/ble.sh' ${standalonePrelude.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq '_PRELUDE_STARSHIP=${lib.getExe pkgs.starship}' ${standalonePrelude.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq '_PRELUDE_STARSHIP_STATUS_ENABLED=1' ${standalonePrelude.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq 'bleopt color_scheme=prelude' ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/bash-init.bash
+              grep -Fq 'bleopt_import_path=' ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/bash-init.bash
+              grep -Fq 'ble/prompt/backslash:lib/vim-airline' ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/bash-init.bash
               # ble.sh sources ~/.blerc during load, so the runtime must be on
               # import_path before that source line runs.
-              seed_line=$(grep -n 'bleopt_import_path=' ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash | head -1 | cut -d: -f1)
-              blesh_line=$(grep -nF 'source "''$_PRELUDE_BLESH" --attach=none' ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash | head -1 | cut -d: -f1)
+              seed_line=$(grep -n 'bleopt_import_path=' ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/bash-init.bash | head -1 | cut -d: -f1)
+              blesh_line=$(grep -nF 'source "''$_PRELUDE_BLESH" --attach=none' ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/bash-init.bash | head -1 | cut -d: -f1)
               test "$seed_line" -lt "$blesh_line"
-              grep -Fq 'function ble/contrib/scheme:prelude/initialize' ${config.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
-              grep -Fq "ble-face -d prelude_status_cap" ${config.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
-              test "$(grep -c '^  ble-face -[sd] ' ${config.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash)" -eq 75
-              ! grep -Fq '%prelude_' ${config.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
-              ! grep -Eq '#[[:xdigit:]]{6}[[:alnum:]_]' ${config.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
-              grep -Fq 'function ble/lib/vim-airline/theme:prelude/initialize' ${config.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
-              grep -Fq 'ble-face -r vim_airline_@' ${config.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
-              test "$(grep -c '^  ble-face -s ' ${config.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash)" -eq 17
-              ! grep -Fq '%prelude_' ${config.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
-              ! grep -Eq '#[[:xdigit:]]{6}[[:alnum:]_]' ${config.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
-              grep -Fq 'right_format' ${config.packages.prelude-prompt}
-              grep -Fq '╰─' ${config.packages.prelude-prompt}
-              ! grep -Fq ']()$character' ${config.packages.prelude-prompt}
-              ! grep -Fq 'Type a command' ${config.packages.prelude-prompt}
-              grep -Fq '_PRELUDE_PROMPT_PROJECT=' ${config.packages.prelude-shell}/share/prelude/init.bash
-              grep -Fq '_PRELUDE_PROMPT_NAVIGATION=' ${config.packages.prelude-shell}/share/prelude/init.bash
-              grep -Fq '_PRELUDE_PROMPT_NAVIGATION_RENDERED=' ${config.packages.prelude-shell}/share/prelude/init.bash
-              grep -Fq '_PRELUDE_PROMPT_STATUS_HINT=' ${config.packages.prelude-shell}/share/prelude/init.bash
-              grep -Fq '_PRELUDE_PROMPT_STATUS_HINT_RENDERED=' ${config.packages.prelude-shell}/share/prelude/init.bash
-              grep -Fq '_PRELUDE_PROMPT_STATUS_GRADIENT=' ${config.packages.prelude-shell}/share/prelude/init.bash
-              grep -Fq '_PRELUDE_PROMPT_STATUS_GRADIENT_FG=' ${config.packages.prelude-shell}/share/prelude/init.bash
-              grep -Fq "bleopt prompt_status_line='\\q{prelude/status}'" ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
-              grep -Fq "blehook PRECMD!='prelude/status/update'" ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
-              grep -Fq 'prelude/status/cap/install' ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
-              grep -Fq '_PRELUDE_STARSHIP_FINAL_CONFIG=' ${config.packages.prelude-shell}/share/prelude/init.bash
-              grep -Fq 'STARSHIP_CONFIG=' ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
-              grep -Fq 'starship prompt --terminal-width=' ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
+              grep -Fq 'function ble/contrib/scheme:prelude/initialize' ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
+              grep -Fq "ble-face -d prelude_status_cap" ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
+              test "$(grep -c '^  ble-face -[sd] ' ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash)" -eq 75
+              ! grep -Fq '%prelude_' ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
+              ! grep -Eq '#[[:xdigit:]]{6}[[:alnum:]_]' ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
+              grep -Fq 'function ble/lib/vim-airline/theme:prelude/initialize' ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
+              grep -Fq 'ble-face -r vim_airline_@' ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
+              test "$(grep -c '^  ble-face -s ' ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash)" -eq 17
+              ! grep -Fq '%prelude_' ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
+              ! grep -Eq '#[[:xdigit:]]{6}[[:alnum:]_]' ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
+              grep -Fq 'right_format' ${standalonePrelude.packages.prelude-prompt}
+              grep -Fq '╰─' ${standalonePrelude.packages.prelude-prompt}
+              ! grep -Fq ']()$character' ${standalonePrelude.packages.prelude-prompt}
+              ! grep -Fq 'Type a command' ${standalonePrelude.packages.prelude-prompt}
+              grep -Fq '_PRELUDE_PROMPT_PROJECT=' ${standalonePrelude.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq '_PRELUDE_PROMPT_NAVIGATION=' ${standalonePrelude.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq '_PRELUDE_PROMPT_NAVIGATION_RENDERED=' ${standalonePrelude.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq '_PRELUDE_PROMPT_STATUS_HINT=' ${standalonePrelude.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq '_PRELUDE_PROMPT_STATUS_HINT_RENDERED=' ${standalonePrelude.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq '_PRELUDE_PROMPT_STATUS_GRADIENT=' ${standalonePrelude.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq '_PRELUDE_PROMPT_STATUS_GRADIENT_FG=' ${standalonePrelude.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq "bleopt prompt_status_line='\\q{prelude/status}'" ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/bash-init.bash
+              grep -Fq "blehook PRECMD!='prelude/status/update'" ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/bash-init.bash
+              grep -Fq 'prelude/status/cap/install' ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/bash-init.bash
+              grep -Fq '_PRELUDE_STARSHIP_FINAL_CONFIG=' ${standalonePrelude.packages.prelude-shell}/share/prelude/init.bash
+              grep -Fq 'STARSHIP_CONFIG=' ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/bash-init.bash
+              grep -Fq 'starship prompt --terminal-width=' ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/bash-init.bash
               (
                 COLUMNS=200
                 _PRELUDE_STARSHIP_STATUS_ENABLED=1
@@ -751,8 +773,8 @@ in {
                     *) cs=''${text:index:1}; w=1; extend=0 ;;
                   esac
                 }
-                source ${config.packages.prelude-shell}/share/prelude/shell/catalogue.bash
-                source ${config.packages.prelude-shell}/share/prelude/shell/status.bash
+                source ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/catalogue.bash
+                source ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/status.bash
                 _prelude_status_revision=42
                 prelude/status/update
                 ble/prompt/backslash:prelude/status
@@ -927,7 +949,7 @@ in {
                   _ble_canvas_panel_height[5]=1
                 }
                 ble/edit/is-command-layout() { return 1; }
-                source ${config.packages.prelude-shell}/share/prelude/shell/status-cap.bash
+                source ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/status-cap.bash
                 prelude/status/cap/install
                 test "''${_ble_canvas_panel_class[4]}" = prelude/status/cap
                 test "''${_ble_canvas_panel_class[5]}" = ble/prompt/status
@@ -959,31 +981,31 @@ in {
                 _ble_canvas_panel_class=(ble/textarea ble/textarea ble/edit/info ble/edit/visible-bell unexpected)
                 _ble_canvas_panel_height=(1 0 0 0 0)
                 _ble_canvas_panel_vfill=4
-                source ${config.packages.prelude-shell}/share/prelude/shell/status-cap.bash
+                source ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/status-cap.bash
                 ! prelude/status/cap/install >/dev/null 2>&1
                 test "''${#_ble_canvas_panel_class[@]}" -eq 5
                 test "''${_ble_canvas_panel_class[4]}" = unexpected
                 test "$_ble_prompt_status_panel" -eq 4
                 test "$_ble_canvas_panel_vfill" -eq 4
               )
-              ${pkgs.bash}/bin/bash -n ${config.packages.prelude-shell}/share/prelude/init.bash
-              ${pkgs.bash}/bin/bash -n ${config.packages.prelude-shell}/share/prelude/completion-init.bash
-              for source in ${config.packages.prelude-shell}/share/prelude/shell/*.bash; do
+              ${pkgs.bash}/bin/bash -n ${standalonePrelude.packages.prelude-shell}/share/prelude/init.bash
+              ${pkgs.bash}/bin/bash -n ${standalonePrelude.packages.prelude-shell}/share/prelude/completion-init.bash
+              for source in ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/*.bash; do
                 ${pkgs.bash}/bin/bash -n "$source"
               done
-              ${pkgs.bash}/bin/bash -n ${config.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
-              ${pkgs.bash}/bin/bash -n ${config.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
-              shellcheck -x ${config.packages.prelude-shell}/share/prelude/init.bash
-              shellcheck -x ${config.packages.prelude-shell}/share/prelude/shell/init.bash
+              ${pkgs.bash}/bin/bash -n ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
+              ${pkgs.bash}/bin/bash -n ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
+              shellcheck -x ${standalonePrelude.packages.prelude-shell}/share/prelude/init.bash
+              shellcheck -x ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/init.bash
               # PROMPT_COMMAND is legitimately a string or an array depending on
               # the Bash version, and the hook handles both shapes explicitly.
-              shellcheck -x -e SC2178,SC2128 ${config.packages.prelude-shell}/share/prelude/shell/hook.bash
-              shellcheck -x ${config.packages.prelude-shell}/share/prelude/shell/preflight.bash
-              shellcheck -x -e SC1091,SC2154 ${config.packages.prelude-shell}/share/prelude/shell/bash-init.bash
-              shellcheck -x -e SC2016,SC2154 ${config.packages.prelude-shell}/share/prelude/shell/status.bash
-              shellcheck -x -e SC2154 ${config.packages.prelude-shell}/share/prelude/shell/completion.bash
-              shellcheck -e SC2154 ${config.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
-              shellcheck -e SC2154 ${config.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
+              shellcheck -x -e SC2178,SC2128 ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/hook.bash
+              shellcheck -x ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/preflight.bash
+              shellcheck -x -e SC1091,SC2154 ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/bash-init.bash
+              shellcheck -x -e SC2016,SC2154 ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/status.bash
+              shellcheck -x -e SC2154 ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/completion.bash
+              shellcheck -e SC2154 ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/contrib/scheme/prelude.bash
+              shellcheck -e SC2154 ${standalonePrelude.packages.prelude-shell}/share/prelude/shell/contrib/airline/prelude.bash
               touch "$out"
     '';
 

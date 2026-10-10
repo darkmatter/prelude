@@ -34,6 +34,39 @@ case "$-" in
     ;;
 esac
 
+# The workspace owns its private Bash prompt and completion. Leave the parent
+# untouched, and dedupe by init path rather than the legacy per-shell guard so
+# leaving and returning to a project can enter it again.
+if [ -n "${_PRELUDE_WORKSPACE-}" ]; then
+  if [ -z "${BASH_VERSION-}" ] || [ -n "${ZSH_VERSION-}" ]; then
+    # Unsupported shells keep the MOTD without consuming the standalone prompt
+    # guard: a later workspace-disabled project must still initialize its prompt.
+    _prelude_init_show_motd
+    if [ -n "${PRELUDE_INIT-}" ]; then
+      _PRELUDE_INIT_LOADED=$PRELUDE_INIT
+    fi
+    unset -f _prelude_init_show_motd
+    return 0
+  fi
+  unset -f _prelude_init_show_motd
+  [ -z "${DIRENV_IN_ENVRC-}" ] || return 0
+  [ -z "${PRELUDE_WORKSPACE_ACTIVE-}" ] || return 0
+  # A skipped entry must remain eligible when a real terminal becomes available.
+  [ -t 0 ] && [ -t 1 ] || return 0
+
+  if [ -n "${PRELUDE_INIT-}" ]; then
+    [ "$PRELUDE_INIT" != "${_PRELUDE_INIT_LOADED-}" ] || return 0
+    # Stamp before entry: returning from the child must not reopen it next prompt.
+    _PRELUDE_INIT_LOADED=$PRELUDE_INIT
+  fi
+  if [ "${_PRELUDE_WORKSPACE_STARSHIP-0}" = 1 ]; then
+    "$_PRELUDE_WORKSPACE" --starship || :
+  else
+    "$_PRELUDE_WORKSPACE" || :
+  fi
+  return 0
+fi
+
 # Everything below mutates the shell irreversibly (ble.sh attaches, Starship
 # installs its hooks, completion registers). Those must happen at most once per
 # shell; the MOTD above is deliberately outside this guard so it can re-render.

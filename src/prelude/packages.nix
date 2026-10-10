@@ -349,7 +349,7 @@
   # Keep invalid local-server keys fail-closed even when a custom prompt
   # suppresses Prelude's generated status package.
   promptStatusPkg = assert builtins.deepSeq promptLocalServer true;
-    if cfg.prompt.enable && cfg.prompt.configFile == null && promptLocalServer != null
+    if cfg.prompt.enable && !cfg.workspace.enable && cfg.prompt.configFile == null && promptLocalServer != null
     then
       mkPromptStatus deps (
         shared
@@ -559,9 +559,16 @@
         then null
         else promptStatusPkg.configFile;
       promptEnabled = cfg.prompt.enable;
+      workspaceCommand =
+        if cfg.workspace.enable
+        then lib.getExe workspace.package
+        else null;
+      workspaceStarship = cfg.prompt.enable;
     };
   shellInit = shell.init;
   shellRuntime = shell.runtime;
+  # Keep completion independent of init: init names workspace.package, whose
+  # wrapper in turn names only this completion-only artifact.
   completionInit = shell.completionInit;
 
   # Pass evaluated artifacts, never config.packages or prelude-shell: the
@@ -569,8 +576,9 @@
   workspaceInputs = {
     inherit pkgs lib menuPkg docsPkg motdPkg completionInit;
     normalPromptConfig = promptPkg;
-    # Prompt presets remain available even when standalone prompt activation
-    # is disabled. The workspace initializes Starship only with --starship.
+    # Prompt presets remain available even when prompt activation is disabled.
+    # Automatic entry passes --starship iff cfg.prompt.enable; manual entry
+    # keeps its existing opt-in flag.
     promptConfig =
       (promptPreset {
         prefix = "Alt +";
@@ -602,7 +610,7 @@
   # PATH, and the generated init invokes `motd` from PATH, so enabled
   # component packages are bundled into this closure. Consumers add only
   # this one package to their devshell.
-  promptRuntimePackages = lib.optionals cfg.prompt.enable [
+  promptRuntimePackages = lib.optionals (cfg.prompt.enable && !cfg.workspace.enable) [
     pkgs.starship
     pkgs.blesh
     pkgs.bash-completion
@@ -629,9 +637,9 @@
       ++ lib.optional cfg.workspace.enable workspace.package;
     # Always emitted. The MOTD is the module's core promise, and reaching it
     # from lorri requires PRELUDE_INIT to exist as an exported variable even
-    # when the prompt component is off. With prompt disabled, `shellInit`
-    # names no Starship/ble.sh/completion paths, so this costs those
-    # consumers nothing in closure size.
+    # when the prompt component is off. Without a workspace, prompt-disabled
+    # init names no Starship/ble.sh/bash-completion paths. With a workspace,
+    # only its launcher owns the interactive runtime dependencies.
     postBuild = ''
       mkdir -p "$out/nix-support" "$out/share/prelude/shell"
       cp -f ${shellInit} "$out/share/prelude/init.bash"
@@ -671,19 +679,19 @@
         . ${shellInit}
       }
 
-      ${lib.optionalString cfg.prompt.enable ''
+      ${lib.optionalString (cfg.prompt.enable || cfg.workspace.enable) ''
           # setup-hooks run while Nix constructs the environment; the final
           # shellHook is what runs in the real interactive shell. Source the
           # init after the consumer hook so STARSHIP_CONFIG is already set.
           #
-          # Only appended when the prompt is enabled. MOTD-only projects are
-          # documented to write `shellHook = "motd"` themselves, and appending
-          # here as well would render the banner twice under `nix develop`.
-          # Those projects reach the same init through `prelude hook` instead.
+          # Register prompt or workspace activation. With both disabled,
+          # MOTD-only projects can write `shellHook = "motd"` themselves without
+          # rendering twice under `nix develop`; they reach the same init
+          # through `prelude hook` instead.
           # A consumer shellHook may already have evaluated preflight. The
           # init records that same-shell load without exporting it, so skip
-          # only this automatic source; explicit `prelude-init` or preflight
-          # calls remain deliberate MOTD reprints.
+          # only this automatic source. Explicit calls remain deliberate MOTD
+          # reprints without a workspace; workspace entry dedupes by init path.
           if [ -z "''${_prelude_init_registered:-}" ]; then
             _prelude_init_registered=1
             shellHook="''${shellHook-}

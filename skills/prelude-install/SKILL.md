@@ -55,7 +55,7 @@ writes:
 starter files land at the root — with a non-root `-o`, fix those paths before
 evaluating. The wizard refuses `-o flake.nix` and never writes or replaces a
 flake. No flake at all? `nix flake init -t github:darkmatter/prelude#default`
-scaffolds a starter instead (configure `prelude.*` inline, skip to *Verify*).
+scaffolds a starter instead (configure `prelude.*` inline, skip to _Verify_).
 
 ## 2. Wire it into the flake (merge, don't replace)
 
@@ -115,8 +115,28 @@ or, in blueprint, `packages/prelude-docs.nix`.
   setup hook sources the generated init: MOTD renders, `x`/`docs` land on
   PATH, `STARSHIP_CONFIG` exports. Nothing extra to configure.
 - direnv (nix-direnv) — the generated `.envrc` (`use flake`) loads the cached
-  environment and renders the MOTD; new developers need only their existing
-  direnv hook. Preserve an existing `.envrc` and its environment loader.
+  environment and renders the MOTD. Without workspace activation, new developers
+  need only their existing direnv hook. Preserve an existing `.envrc` and its
+  environment loader.
+  With `prelude.workspace.enable = true`, `.envrc` stays `use flake`; do not
+  launch the workspace or source interactive project init from `.envrc`.
+  Keep the existing hooks in the consumer's interactive Bash rc in this order:
+
+  ```sh
+  eval "$(direnv hook bash)"
+  eval "$(prelude hook bash)"
+  ```
+
+  The Prelude hook sources the generated project init after direnv loads the
+  environment; that init enters `prelude-workspace` in the foreground only in
+  interactive Bash with a TTY. Each init is stamped before launch, so exit or
+  failure does not immediately reopen it; leaving/reentering or a changed init
+  permits reentry. Noninteractive, envrc, lorri, zsh, and non-TTY contexts never
+  auto-launch it; `PRELUDE_WORKSPACE_ACTIVE` prevents child recursion. Workspace
+  mode skips legacy BLE initialization. Automatic Starship follows
+  `prelude.prompt.enable`; manual `x prelude:workspace` and
+  `prelude-workspace --starship` remain supported.
+
 - lorri — runs `shellHook` inside the Nix builder, so route it through the
   same `.envrc`: replace `use flake` with `eval "$(lorri export direnv-adapter)"`.
 - Custom `shellHook` — `eval "$(prelude-preflight)"` is the loader-aware

@@ -148,10 +148,10 @@ runtime closure with them, so they work without adding the tool to the shell.
 Prelude's setup hook activates the environment through either standard loader.
 `nix develop` sources `$PRELUDE_INIT` in the interactive shell. nix-direnv
 evaluates the cached `shellHook` while direnv is loading `.envrc`, where
-`DIRENV_IN_ENVRC` tells the same init to render only the MOTD. Any other
-non-interactive context — notably lorri's `shellHook`, which runs inside the Nix
-builder — stays silent rather than printing a banner into a build log. The
-wizard therefore writes the conventional `.envrc` entrypoint:
+`DIRENV_IN_ENVRC` tells the same init to render only the MOTD, never launch the
+workspace. Any other non-interactive context — notably lorri's `shellHook`,
+which runs inside the Nix builder — stays silent rather than printing a banner
+into a build log. The wizard therefore writes the conventional `.envrc` entrypoint:
 
 ```sh
 use flake
@@ -161,10 +161,18 @@ lorri runs `shellHook` only inside the Nix builder — non-interactively, in the
 build directory — so its exported variables reach you but the MOTD never does.
 For lorri, use its native prompt hook (`eval "$(lorri hook zsh)"` in rc) and
 append `prelude hook zsh` from inside the project. Do not `eval` that command:
-`prelude` is not on `PATH` when rc files initially run.
+`prelude` is not on `PATH` when rc files initially run. Neither lorri nor the zsh
+hook auto-launches the workspace.
 
-The nix-direnv path lives entirely in the repository, so adding a developer
-requires no shell configuration beyond their existing direnv hook.
+For non-workspace nix-direnv activation, adding a developer requires no shell
+configuration beyond their existing direnv hook. With
+`prelude.workspace.enable = true`, keep `.envrc` as `use flake`; the existing
+interactive Bash rc `eval "$(prelude hook bash)"`, after the direnv hook, sources
+the generated project init and enters `prelude-workspace` in the foreground
+only with a TTY. Workspace mode skips legacy BLE initialization, and automatic
+Starship follows `prelude.prompt.enable`. Manual `x prelude:workspace` and
+`prelude-workspace --starship` remain available. See the
+[workspace guide](guides/workspace.md) for launch guards and reentry behavior.
 
 Never `export -f` in a devshell `shellHook`. Bash stores an exported function
 as `BASH_FUNC_<name>%%`; loaders replay that into zsh, which rejects `%` in a

@@ -1,4 +1,4 @@
-# Explicitly launched Bash workspace. Evaluated surface and prompt artifacts
+# Bash workspace for interactive init and explicit entry. Evaluated artifacts
 # stay in the launcher; the native derivation is shared across configurations.
 # Nixpkgs' lock pins the C API.
 {
@@ -75,6 +75,7 @@
       wrapProgram "$out/bin/prelude-workspace" \
         --prefix PATH : ${lib.makeBinPath (runtime ++ surfaces)} \
         --run ${lib.escapeShellArg promptInit} \
+        --set PRELUDE_WORKSPACE_ACTIVE 1 \
         --set PRELUDE_COMPLETION_INIT ${completionInit} \
         --set PRELUDE_MENU_CONFIG ${menuConfig}
     '';

@@ -16,7 +16,7 @@ Prelude keeps docs next to where you run the project. `docs` in the devshell exp
 
 ## Quickstart (Setup Wizard)
 
-The wizard writes `prelude.nix`, a sibling `title.txt`, and a project-root `.envrc` (`use flake` plus preflight):
+The wizard writes `prelude.nix`, a sibling `title.txt`, and a project-root `.envrc` (`use flake`):
 
 ```bash
 nix run github:darkmatter/prelude -- wizard
@@ -80,16 +80,18 @@ Opt into a managed Bash with a movable docs/menu pane. `prelude.workspace.enable
 }
 ```
 
-Both `flakeModules.default` and `lib.evalModule` export `packages.prelude-workspace` and bundle the active launcher in `prelude-shell` when enabled. The Menu/MOTD/Docs prerequisites are asserted; `prelude.prompt.enable` is not required. After entering the devshell, launch explicitly:
+Both `flakeModules.default` and `lib.evalModule` export `packages.prelude-workspace` and bundle the active launcher in `prelude-shell` when enabled. The Menu/MOTD/Docs prerequisites are asserted; `prelude.prompt.enable` is not required. Generated project init enters the workspace in the foreground in interactive Bash with a TTY. Keep `.envrc` as `use flake`; the existing interactive Bash rc `eval "$(prelude hook bash)"` sources the init after direnv. Automatic Starship follows `prelude.prompt.enable`; manual launches remain available:
 
 ```sh
-x prelude:workspace             # fixed prelude $ prompt
-prelude-workspace --starship    # explicitly opt into Starship
+x prelude:workspace             # manual launch with the fixed prelude $ prompt
+prelude-workspace --starship    # manual launch with Starship, even if prelude.prompt.enable = false
 ```
 
 Both use the current checkout's menu, with your own Docs, MOTD, theme, and completion config. The published package honors `prelude.root` (`lib.evalModule` users set it to `self`); `PRELUDE_ROOT` still overrides it.
 
-Disabled consumers avoid workspace native dependencies. This repo dogfoods it enabled, so its default shell includes the launcher and native runtime, but not headers or renderer tooling. It never launches automatically or takes over activation. See the [workspace guide](docs/guides/workspace.md) for published launches, controls, and runtime limitations.
+Each init is stamped before launch, so exit or failure does not immediately reopen the workspace. Leaving and reentering the project environment, or a changed init, permits automatic entry again. Noninteractive, envrc, lorri, zsh, and non-TTY contexts never auto-launch it; `PRELUDE_WORKSPACE_ACTIVE` prevents child recursion. Workspace mode skips legacy BLE initialization.
+
+Disabled consumers avoid workspace native dependencies. This repo dogfoods it enabled, so its default shell includes the launcher and native runtime, but not headers or renderer tooling. See the [workspace guide](docs/guides/workspace.md) for activation details, published launches, controls, and runtime limitations.
 
 ### TypeScript
 
