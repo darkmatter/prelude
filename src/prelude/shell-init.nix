@@ -40,6 +40,7 @@
 }: let
   shellPromptEnabled = promptEnabled && workspaceCommand == null;
   plib = import ./lib.nix {inherit lib;};
+  hintAccent = plib.canonicalColor palette.accent;
   resolvedShadow =
     if shadow == null
     then plib.lightenColor palette.bg
@@ -185,6 +186,11 @@
       then ""
       else motdCommand
     )}
+    _PRELUDE_MOTD_HINT_COLOR=${lib.escapeShellArg (
+      if shellPromptEnabled || workspaceCommand != null
+      then lib.concatMapStringsSep ";" (offset: toString (lib.fromHexString (builtins.substring offset 2 hintAccent))) [1 3 5]
+      else ""
+    )}
     _PRELUDE_DARWIN=${
       if stdenv.isDarwin
       then "1"
@@ -234,7 +240,7 @@
 
     unset _PRELUDE_SHELL_RUNTIME _PRELUDE_PROMPT_ENABLED
     unset _PRELUDE_WORKSPACE _PRELUDE_WORKSPACE_STARSHIP
-    unset _PRELUDE_MOTD _PRELUDE_DARWIN
+    unset _PRELUDE_MOTD _PRELUDE_MOTD_HINT_COLOR _PRELUDE_DARWIN
     ${lib.optionalString shellPromptEnabled ''
       unset _PRELUDE_BASH_COMPLETION _PRELUDE_BLESH
       unset _PRELUDE_STARSHIP _PRELUDE_STARSHIP_FINAL_CONFIG _PRELUDE_STARSHIP_STATUS_ENABLED

@@ -326,6 +326,8 @@ def loader_hint(bash: str, fixture: dict, full_shell: bool):
         cases = [
             ({}, 0),
             ({"DIRENV_IN_ENVRC": "1"}, int(full_shell)),
+            ({"DIRENV_IN_ENVRC": "1", "NO_COLOR": "1"}, int(full_shell)),
+            ({"DIRENV_IN_ENVRC": "1", "TERM": "dumb"}, int(full_shell)),
             ({"DIRENV_IN_ENVRC": "1", "PRELUDE_INIT_QUIET": "1"}, 0),
             ({"DIRENV_IN_ENVRC": "1", "PRELUDE_WORKSPACE_ACTIVE": "1"}, 0),
         ]
@@ -336,13 +338,21 @@ def loader_hint(bash: str, fixture: dict, full_shell: bool):
             )
             assert result.returncode == 0, (context, result.stderr)
             assert result.stderr.count(hint) == count, (context, result.stderr)
+            if count:
+                if context.get("NO_COLOR") or context.get("TERM") == "dumb":
+                    styled_hint = hint
+                else:
+                    accent = json.loads(Path(fixture["motdConfig"]).read_text())["palette"]["accent"]
+                    rgb = ";".join(str(int(accent[i:i + 2], 16)) for i in (1, 3, 5))
+                    styled_hint = f"\x1b[1;38;2;{rgb}m".encode() + hint + b"\x1b[0m"
+                assert result.stderr.endswith(b"\n\n  " + styled_hint + b"\n\n\n"), (context, result.stderr)
             assert not result.stdout, (context, result.stdout)
             if not context or context.get("PRELUDE_INIT_QUIET"):
                 assert not result.stderr, (context, result.stderr)
             else:
                 assert result.stderr, (context, "loader did not print MOTD")
         assert not launches(Path(env["PRELUDE_TEST_LAUNCH_LOG"])), "loader hint launched workspace"
-    print("PASS loader MOTD hint: full-shell entry advertised only in non-quiet loader context, never inside workspace", flush=True)
+    print("PASS loader MOTD hint: theme accent + bold + spacing, NO_COLOR/dumb fallback, hidden in quiet/workspace mode", flush=True)
 
 
 def guards(bash: str, zsh: str, fixture: dict):

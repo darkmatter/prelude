@@ -210,6 +210,7 @@
   in {
     inherit (fixture) name;
     promptEnabled = fixture.configuration.prelude.prompt.enable;
+    motdConfig = toString packages.prelude-motd.componentRoot.configFile;
     init = toString packages.prelude-shell.shellInit;
     launcher = lib.getExe packages.prelude-shell.workspace.package;
     commandPath = lib.makeBinPath [packages.prelude-shell pkgs.bashInteractive pkgs.coreutils];
@@ -236,6 +237,7 @@
       init = toString packages.prelude-shell.shellInit;
       commandPath = lib.makeBinPath [packages.prelude-shell pkgs.bashInteractive pkgs.coreutils];
       promptConfig = toString packages.prelude-prompt;
+      motdConfig = toString packages.prelude-motd.componentRoot.configFile;
     };
     real = {
       inherit (a) name;

@@ -23,7 +23,11 @@ _prelude_init_show_motd() {
   "$_PRELUDE_MOTD" >&2 || return 0
   if [ -n "${DIRENV_IN_ENVRC-}" ] && [ -z "${PRELUDE_WORKSPACE_ACTIVE-}" ] &&
     { [ -n "${_PRELUDE_WORKSPACE-}" ] || [ "${_PRELUDE_PROMPT_ENABLED-0}" = 1 ]; }; then
-    printf '\nRun nix develop for the full devshell.\n' >&2
+    if [ -n "${_PRELUDE_MOTD_HINT_COLOR-}" ] && [ -z "${NO_COLOR-}" ] && [ "${TERM-}" != dumb ]; then
+      printf '\n\n  \033[1;38;2;%smRun nix develop for the full devshell.\033[0m\n\n\n' "$_PRELUDE_MOTD_HINT_COLOR" >&2
+    else
+      printf '\n\n  Run nix develop for the full devshell.\n\n\n' >&2
+    fi
   fi
 }
 
