@@ -31,10 +31,13 @@ config: let
     config.resolvedPalette
     or (plib.resolvePalette (config.theme or d.theme) (config.palette or d.palette));
 
+  keymapPrefix = config.keymapPrefix or "";
   mkKey = char: label: "\\[[${char}](bold fg:accent)\\][─](fg:surface)${label}";
-  keymap = lib.concatStringsSep "[──](fg:surface)" (
-    map (shortcut: mkKey shortcut.alias shortcut.command) (config.shortcuts or [])
-  );
+  keymap =
+    lib.optionalString (keymapPrefix != "") "${keymapPrefix} "
+    + lib.concatStringsSep "[──](fg:surface)" (
+      map (shortcut: mkKey shortcut.alias shortcut.command) (config.shortcuts or [])
+    );
 
   # Styles reference palette tokens by name (bg:surface, fg:accent2, …);
   # `palettes.prelude` maps them to the resolved theme hex values, mirroring

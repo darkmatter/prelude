@@ -326,13 +326,23 @@
   # Resolve the palette and shell-only shadow once for every consumer.
   backdropPalette = plib.resolveBackdropPalette cfg.theme cfg.palette;
   pal = backdropPalette.palette;
-  promptArtifacts = mkPrompt deps (
+  promptRenderConfig =
     generatorConfig cfg.prompt
     // {
       shortcuts = internalShortcuts;
       resolvedPalette = pal;
-    }
-  );
+    };
+  promptArtifacts = mkPrompt deps promptRenderConfig;
+  # Keymap-only presets reuse the evaluated theme, settings, and configFile.
+  promptPreset = {
+    shortcuts ? internalShortcuts,
+    prefix ? "",
+  }:
+    mkPrompt deps (promptRenderConfig
+      // {
+        inherit shortcuts;
+        keymapPrefix = prefix;
+      });
   promptPkg = promptArtifacts.live;
   promptFinalPkg = promptArtifacts.final;
 
@@ -497,6 +507,7 @@
     };
   shellInit = shell.init;
   shellRuntime = shell.runtime;
+  completionInit = shell.completionInit;
 
   # Canonical shell-core package. Its dispatcher resolves components from
   # PATH, and the generated init invokes `motd` from PATH, so enabled
@@ -534,6 +545,7 @@
     postBuild = ''
       mkdir -p "$out/nix-support" "$out/share/prelude/shell"
       cp -f ${shellInit} "$out/share/prelude/init.bash"
+      cp -f ${completionInit} "$out/share/prelude/completion-init.bash"
       cp -R ${shellRuntime}/. "$out/share/prelude/shell/"
       # The shell core owns exactly one setup hook.
       rm -f "$out/nix-support/setup-hook"
@@ -551,6 +563,7 @@
       # this path from an interactive shell is what actually renders the
       # MOTD under lorri, direnv, and `nix develop` alike.
       export PRELUDE_INIT=${shellInit}
+      export PRELUDE_COMPLETION_INIT=${completionInit}
       ${lib.optionalString cfg.prompt.enable ''
         # Export the generated starship config path from the setup-hook (not
         # shellHook) so direnv `use flake` picks it up — direnv re-emits
@@ -600,11 +613,13 @@
           promptStatusPackages
           shellInit
           shellRuntime
+          completionInit
           ;
         menuConfig = menuBin.configFile;
       }
       // lib.optionalAttrs cfg.prompt.enable {
         prompt = promptPkg;
+        inherit promptPreset;
       };
     meta = {
       description = "Prelude shell runtime, PATH dispatcher, and activation";
