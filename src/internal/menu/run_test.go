@@ -12,7 +12,7 @@ import (
 func TestEnterOnReadyCommandQuitsToFinish(t *testing.T) {
 	cfg := testMenuConfig(Task{Name: "dev", Run: "nix develop -c $SHELL"})
 	cfg.Execute = true
-	m := newModel(cfg, newStyles(cfg), nil)
+	m := newModel(cfg, newStyles(cfg, false), nil)
 
 	next, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	got, ok := next.(model)
@@ -44,7 +44,7 @@ func TestArgSubmitQuitsToFinish(t *testing.T) {
 	}
 	cfg := testMenuConfig(task)
 	cfg.Execute = true
-	m := newModel(cfg, newStyles(cfg), &task)
+	m := newModel(cfg, newStyles(cfg, false), &task)
 	m.prompt = m.prompt.WithValue("prod")
 
 	next, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -75,7 +75,7 @@ func TestEnterOnMultilineCommandPreservesScriptForFinish(t *testing.T) {
 	const run = "sync-docs\nrecord-docs"
 	cfg := testMenuConfig(Task{Name: "gen", Run: run})
 	cfg.Execute = true
-	m := newModel(cfg, newStyles(cfg), nil)
+	m := newModel(cfg, newStyles(cfg, false), nil)
 
 	next, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	got, ok := next.(model)
@@ -97,7 +97,7 @@ func TestEnterOnArgTaskStaysInMenu(t *testing.T) {
 		Args: []Arg{{Token: "ENV", Required: true}},
 	})
 	cfg.Execute = true
-	m := newModel(cfg, newStyles(cfg), nil)
+	m := newModel(cfg, newStyles(cfg, false), nil)
 
 	next, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	got, ok := next.(model)
@@ -124,7 +124,7 @@ func TestEnterOnModuleParentOpensSubmenu(t *testing.T) {
 			{Name: "e2e::coder", Label: "coder", Run: "just e2e::coder"},
 		},
 	})
-	m := newModel(cfg, newStyles(cfg), nil)
+	m := newModel(cfg, newStyles(cfg, false), nil)
 
 	next, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	got, ok := next.(model)
@@ -157,7 +157,7 @@ func TestEscFromSubmenuRestoresRootList(t *testing.T) {
 			{Name: "e2e::coder", Label: "coder", Run: "just e2e::coder"},
 		},
 	})
-	m := newModel(cfg, newStyles(cfg), nil)
+	m := newModel(cfg, newStyles(cfg, false), nil)
 
 	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	next, cmd := next.(model).Update(tea.KeyPressMsg{Code: tea.KeyEsc})
@@ -194,7 +194,7 @@ func TestEnterOnSubmenuChildOpensArgMode(t *testing.T) {
 			Args:  []Arg{{Token: "file", Required: true}},
 		}},
 	})
-	m := newModel(cfg, newStyles(cfg), nil)
+	m := newModel(cfg, newStyles(cfg, false), nil)
 
 	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	next, cmd := next.(model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})

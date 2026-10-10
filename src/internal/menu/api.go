@@ -43,7 +43,10 @@ func ParseConfig(raw []byte) (*Config, error) {
 // declares arguments but received none, or a module's subcommand picker. It
 // returns nil when the user leaves the picker without choosing.
 func Select(cfg *Config, args []string) (*Selection, error) {
-	st := newStyles(cfg)
+	return selectWithStyles(cfg, newStyles(cfg, false), args)
+}
+
+func selectWithStyles(cfg *Config, st styles, args []string) (*Selection, error) {
 	if len(args) == 0 {
 		return runPicker(cfg, newPicker(cfg, st, nil, nil))
 	}
@@ -68,5 +71,5 @@ func List(w, terminal io.Writer, environ []string, cfg *Config, width int) {
 	if width <= 0 {
 		width = 80
 	}
-	writeList(shared.ColorWriterFor(w, terminal, environ, cfg.ColorProfile), cfg, newStyles(cfg), width)
+	writeList(shared.ColorWriterFor(w, terminal, environ, cfg.ColorProfile), cfg, newStyles(cfg, false), width)
 }

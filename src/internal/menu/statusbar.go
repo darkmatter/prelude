@@ -27,6 +27,7 @@ func (s statusBar) View(hints [][2]string, status string) string {
 		statusStyle = st.chromeUI.Info().Bold(true)
 	}
 	keyStyle := st.kbdChip
+
 	footer := ui.KeyHintsFooter{
 		Context:           st.chromeUI,
 		Width:             s.inner + 2,

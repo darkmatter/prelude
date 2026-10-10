@@ -72,8 +72,8 @@ func (m model) View() tea.View {
 
 	// BackgroundColor controls Bubble Tea's default SGR background, but cells
 	// outside the rendered content can remain untouched by the renderer. Emit a
-	// terminal-sized canvas with explicitly styled whitespace so every cell,
-	// including the margins below and beside the panel, receives the theme bg.
+	// terminal-sized canvas so standalone margins receive the theme bg; embedded
+	// margins leave the same whitespace on the terminal's default background.
 	// Reserve the last terminal row for the pinned script preview: place the
 	// panel into height-1 rows so it cannot grow into the preview's slot,
 	// then overlayLastRow stamps the preview onto the genuine last row.
@@ -91,7 +91,9 @@ func (m model) View() tea.View {
 	// like typing the command at a prompt.
 	content = overlayLastRow(content, m.renderScriptPreviewRow(), m.blankWindowRow(), m.layout.height)
 	view := tea.NewView(content)
-	view.BackgroundColor = m.st.bgColor
+	if !m.st.canvasUI.Transparent {
+		view.BackgroundColor = m.st.bgColor
+	}
 	view.AltScreen = true
 	cursor := m.prompt.Cursor(m.promptCtx)
 	if cursor != nil {
@@ -150,10 +152,10 @@ func (m model) renderScriptPreviewRow() string {
 	script := collapsePreviewScript(m.invocationPreview())
 	row := m.st.windowBg.PaddingLeft(padX).Render("")
 	if script != "" {
-		row += m.st.windowUI.Accent().Render("$ ") + m.st.windowUI.Foreground().Render(script)
+		row += m.st.canvasUI.Accent().Render("$ ") + m.st.canvasUI.Foreground().Render(script)
 	}
 	if m.pendingArgsHint() {
-		row += m.st.windowUI.Dim().Render(" …")
+		row += m.st.canvasUI.Dim().Render(" …")
 	}
 	return m.st.windowBg.Width(width).MaxWidth(width).Render(ansi.Truncate(row, width, ""))
 }

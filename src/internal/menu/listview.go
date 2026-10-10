@@ -2,12 +2,10 @@ package menu
 
 import (
 	"fmt"
-	"strings"
 
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"prelude/pkg/ui"
 )
@@ -68,7 +66,7 @@ func (l *ListView) WithSize(inner int) *ListView {
 // "no commands match %q" message); frame provides Paint/Blank for the panel
 // rails.
 func (l *ListView) Sync(flat []Task, matches []int, sel int, expanded bool, height int, filter string, frame Frame) *ListView {
-	lines, selLine := l.renderRows(flat, matches, sel, expanded, height, filter, frame)
+	lines, selLine, selEnd := l.renderRows(flat, matches, sel, expanded, height, filter, frame)
 
 	// Expanded menus grow past the configured height so the full disclosure
 	// stays on screen — same contract as the pre-viewport implementation.
@@ -85,7 +83,8 @@ func (l *ListView) Sync(flat []Task, matches []int, sel int, expanded bool, heig
 	l.viewport.SetHeight(max(targetH, 1))
 	l.viewport.SetWidth(max(l.inner+2, 1))
 	l.viewport.SetContentLines(lines)
-	// Keep the selected command row in view; EnsureVisible clamps for us.
+	// Reveal the whole selected command when it fits, or its first screenful.
+	l.viewport.EnsureVisible(min(selEnd, selLine+targetH-1), 0, 0)
 	l.viewport.EnsureVisible(selLine, 0, 0)
 	return l
 }
@@ -114,8 +113,8 @@ func (l ListView) Height() int {
 
 // renderRows builds the full grouped result list (not yet windowed). Geometry
 // comes from l.inner, styles from l.st, and root-owned state from the
-// parameters. Returns the lines and the selected command's line index.
-func (l *ListView) renderRows(flat []Task, matches []int, sel int, expanded bool, height int, filter string, frame Frame) ([]string, int) {
+// parameters. Returns the lines and the selected command's first/last line indices.
+func (l *ListView) renderRows(flat []Task, matches []int, sel int, expanded bool, height int, filter string, frame Frame) ([]string, int, int) {
 	inner := l.inner
 	h := height
 
@@ -128,7 +127,7 @@ func (l *ListView) renderRows(flat []Task, matches []int, sel int, expanded bool
 			l.st.sFg.Render(fmt.Sprintf("%q", filter)) +
 			l.st.sMuted.Render(" — press ") + l.st.sAccent2.Render("esc") + l.st.sMuted.Render(" to reset")
 		lines[h/2] = frame.Paint(lipgloss.PlaceHorizontal(inner, lipgloss.Center, msg, lipgloss.WithWhitespaceStyle(l.st.sp)), l.st.sp)
-		return lines, 0
+		return lines, 0, 0
 	}
 
 	nameW := 4
@@ -138,7 +137,7 @@ func (l *ListView) renderRows(flat []Task, matches []int, sel int, expanded bool
 	nameW += 2
 
 	var lines []string
-	selLine := 0
+	selLine, selEnd := 0, 0
 	lastGroup := "\x00"
 	for pos, fi := range matches {
 		t := flat[fi]
@@ -156,57 +155,53 @@ func (l *ListView) renderRows(flat []Task, matches []int, sel int, expanded bool
 		if active {
 			selLine = len(lines)
 		}
-		lines = append(lines, l.renderRow(t, active, nameW, frame))
+		lines = append(lines, l.renderRow(t, active, nameW, frame)...)
+		if active {
+			selEnd = len(lines) - 1
+		}
 		if active && expanded {
 			lines = append(lines, l.renderDetails(t)...)
 		}
 	}
 	lines = append(lines, frame.Blank())
-	return lines, selLine
+	return lines, selLine, selEnd
 }
 
-// renderRow renders one command row; frame provides Paint for the panel rails.
-func (l *ListView) renderRow(t Task, active bool, nameW int, frame Frame) string {
+// renderRow wraps a command's description into individually framed rows.
+func (l *ListView) renderRow(t Task, active bool, nameW int, frame Frame) []string {
 	st := l.st
-	inner := l.inner
-
-	keyLabel := ""
-	if t.Key != "" {
-		keyLabel = t.Key
-	}
-
-	if active {
-		// Compact columns: caret then command name; the hotkey keycap sits in
-		// the right lane.
-		caretCol := st.selText.Bold(true).Width(2).Render("❯")
-		chip := ""
-		if t.Key != "" {
-			// Glyph rails keep the outlined keycap while every cell stays on
-			// the active row's accent background.
-			chip = st.selChip.Render("│" + keyLabel + "│")
-		}
-		name := st.selText.Bold(true).Width(nameW).Render(t.displayName())
-		used := (padX - 1) + 2 + nameW + 1 + lipgloss.Width(chip) + 1 + padX
-		desc := st.selText.Render(ansi.Truncate(t.Description, max(inner-used, 4), "…"))
-		line := st.selSp.PaddingLeft(padX-1).Render("") + caretCol +
-			name + st.selSp.Render(" ") + desc
-		tail := chip + st.selSp.PaddingRight(padX).Render("")
-		line = ui.PlaceRight(inner, line, tail, st.selSp)
-		return frame.Paint(line, st.selSp)
-	}
-
-	caretCol := st.sp.Width(2).Render("")
+	filler, nameStyle, descStyle := st.sp, st.sFg, st.sMuted
+	caretCol := filler.Width(2).Render("")
 	chip := ""
 	if t.Key != "" {
-		chip = st.keyChip.Render(keyLabel)
+		chip = st.keyChip.Render(t.Key)
 	}
-	used := (padX - 1) + 2 + nameW + 1 + lipgloss.Width(chip) + 1 + padX
-	desc := st.sMuted.Render(ansi.Truncate(t.Description, max(inner-used, 4), "…"))
-	line := st.sp.PaddingLeft(padX-1).Render("") + caretCol +
-		st.sFg.Bold(true).Width(nameW).Render(t.displayName()) + st.sp.Render(" ") + desc
-	tail := chip + st.sp.PaddingRight(padX).Render("")
-	line = ui.PlaceRight(inner, line, tail, st.sp)
-	return frame.Paint(line, st.sp)
+	if active {
+		filler, nameStyle, descStyle = st.selSp, st.selText, st.selText
+		caretCol = st.selText.Bold(true).Width(2).Render("❯")
+		if t.Key != "" {
+			// Glyph rails keep every keycap cell on the selection background.
+			chip = st.selChip.Render("│" + t.Key + "│")
+		}
+	}
+
+	prefix := filler.PaddingLeft(padX-1).Render("") + caretCol +
+		nameStyle.Bold(true).Width(nameW).Render(t.displayName()) + filler.Render(" ")
+	tail := chip + filler.PaddingRight(padX).Render("")
+	indentW := lipgloss.Width(prefix)
+	wrapW := l.inner - indentW - lipgloss.Width(tail) - 1
+
+	var rows []string
+	for i, text := range ui.WrapText(t.Description, wrapW) {
+		left := filler.Width(indentW).Render("")
+		right := ""
+		if i == 0 {
+			left, right = prefix, tail
+		}
+		line := ui.PlaceRight(l.inner, left+descStyle.Render(text), right, filler)
+		rows = append(rows, frame.Paint(line, filler))
+	}
+	return rows
 }
 
 // renderDetails draws the expanded panel on the darker bg inset, framed with
@@ -217,7 +212,7 @@ func (l *ListView) renderRow(t Task, active bool, nameW int, frame Frame) string
 func (l *ListView) renderDetails(t Task) []string {
 	st := l.st
 	inner := l.inner
-	insetSp := lipgloss.NewStyle().Background(st.bgColor)
+	insetSp := st.windowUI.Fill()
 	// Align disclosure content with the caret column of the item rows.
 	detailIndent := padX - 1
 	indent := insetSp.PaddingLeft(detailIndent).Render("")
@@ -231,7 +226,7 @@ func (l *ListView) renderDetails(t Task) []string {
 	out = append(out, paintInset(""))
 	if t.Details != "" {
 		wrapW := inner - detailIndent - padX
-		for _, line := range strings.Split(ansi.Wordwrap(t.Details, wrapW, ""), "\n") {
+		for _, line := range ui.WrapText(t.Details, wrapW) {
 			out = append(out, paintInset(indent+st.inset(st.pal.Muted).Render(line)))
 		}
 	} else {

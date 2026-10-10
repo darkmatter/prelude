@@ -26,9 +26,10 @@ import (
 // output) stay explicit.
 //
 // lipgloss does not re-apply a parent background after a child style's
-// reset, so every segment style carries its own background. The plain
-// (background-free) styles serve non-TUI output: `x --list` and the
-// post-quit `$ command` preview.
+// reset, so every segment style carries its own background in standalone
+// mode. Embedded mode makes only the outer canvas transparent; the menu's
+// window insets, body, input, chrome, and highlights keep their own backgrounds. The plain (background-free) styles
+// serve non-TUI output: `x --list` and the post-quit `$ command` preview.
 type styles struct {
 	pal shared.Palette
 
@@ -44,6 +45,7 @@ type styles struct {
 	// the named *UI fields below are convenience aliases for existing callers.
 	surfaces map[string]ui.Context
 
+	canvasUI ui.Context
 	bodyUI   ui.Context
 	openUI   ui.Context
 	chromeUI ui.Context
@@ -94,7 +96,7 @@ type styles struct {
 	selSp   lipgloss.Style
 }
 
-func newStyles(cfg *Config) styles {
+func newStyles(cfg *Config, embedded bool) styles {
 	p := cfg.Palette
 	h := shared.NewPaletteHelper(p)
 	bgColor := h.Color(string(p.Bg))
@@ -110,12 +112,14 @@ func newStyles(cfg *Config) styles {
 	// Surface map is the single source for semantic styles. Transparent
 	// "plain" is the no-background export surface used by `x --list`.
 	surfaces := map[string]ui.Context{
+		"canvas": ui.NewContext(p, bgColor, embedded),
 		"window": ui.NewContext(p, bgColor, false),
 		"body":   ui.NewContext(p, body, false),
 		"open":   ui.NewContext(p, open, false),
 		"chrome": ui.NewContext(p, chrome, false),
 		"plain":  ui.NewContext(p, nil, true),
 	}
+	canvasUI := surfaces["canvas"]
 	windowUI := surfaces["window"]
 	bodyUI := surfaces["body"]
 	openUI := surfaces["open"]
@@ -125,6 +129,7 @@ func newStyles(cfg *Config) styles {
 	return styles{
 		pal:         p,
 		surfaces:    surfaces,
+		canvasUI:    canvasUI,
 		bodyUI:      bodyUI,
 		openUI:      openUI,
 		chromeUI:    chromeUI,
@@ -137,7 +142,7 @@ func newStyles(cfg *Config) styles {
 		bgColor:     bgColor,
 		accentC:     accentC,
 		borderC:     borderC,
-		windowBg:    windowUI.Fill(),
+		windowBg:    canvasUI.Fill(),
 
 		// plain export surface
 		fg:      plainUI.Foreground(),
@@ -195,7 +200,7 @@ func (s styles) surface(name string) ui.Context {
 	return s.bodyUI
 }
 
-// inset returns an arbitrary foreground on the bg (details inset) background.
+// inset returns an arbitrary foreground on the window (details inset) surface.
 func (s styles) inset(fg shared.Color) lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(string(fg))).Background(s.bgColor)
+	return s.windowUI.Style(fg)
 }

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"prelude/pkg/ui"
 )
@@ -195,10 +196,17 @@ func (a *ArgsView) View(frame Frame, bodyHeight int) string {
 	))
 	body = append(body, frame.Blank())
 
+	// Reserve each argument's label, chip, and spacer rows before allowing
+	// description continuations to consume the remaining body height.
+	extraRows := bodyHeight - len(body) - 2*len(t.Args)
 	tokenW := 4
 	for _, arg := range t.Args {
 		tokenW = max(tokenW, lipgloss.Width(arg.Token))
+		if len(arg.Options) > 0 || arg.Boolean {
+			extraRows--
+		}
 	}
+	extraRows = max(extraRows, 0)
 
 	chipIdx := 0
 	for _, arg := range t.Args {
@@ -217,11 +225,25 @@ func (a *ArgsView) View(frame Frame, bodyHeight int) string {
 			}
 			description += "(default: " + *arg.Default + ")"
 		}
-		row := st.sp.PaddingLeft(padX).Render("") +
+		prefix := st.sp.PaddingLeft(padX).Render("") +
 			st.sAccent.Bold(true).Width(tokenW).Render(arg.Token) + st.sp.Render("  ") +
-			tagStyle.Width(8).Render(tag) + st.sp.Render("  ") +
-			st.sMuted.Render(description)
-		body = append(body, frame.Paint(row, st.sp))
+			tagStyle.Width(8).Render(tag) + st.sp.Render("  ")
+		indentW := lipgloss.Width(prefix)
+		descriptionW := max(a.inner-indentW-padX, 1)
+		lines := ui.WrapText(description, descriptionW)
+		rows := min(len(lines), extraRows+1)
+		extraRows -= rows - 1
+		if rows < len(lines) {
+			lines = lines[:rows]
+			lines[rows-1] = ansi.Truncate(lines[rows-1]+"…", descriptionW, "…")
+		}
+		for i, line := range lines {
+			left := st.sp.Width(indentW).Render("")
+			if i == 0 {
+				left = prefix
+			}
+			body = append(body, frame.Paint(left+st.sMuted.Render(line), st.sp))
+		}
 
 		nChips := len(arg.Options)
 		if arg.Boolean && nChips == 0 {
@@ -258,9 +280,7 @@ func (a *ArgsView) View(frame Frame, bodyHeight int) string {
 
 	var errLine string
 	if a.argErr != "" {
-		errStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color(string(st.pal.Error))).
-			Background(st.openColor)
+		errStyle := st.openUI.Error()
 		errLine = st.openSp.Width(a.inner + 2).MaxWidth(a.inner + 2).Render(
 			st.openSp.PaddingLeft(padX).Render("") + errStyle.Render(a.argErr),
 		)

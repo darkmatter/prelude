@@ -15,7 +15,7 @@ func TestFlattenSearchesModuleChildrenThroughParent(t *testing.T) {
 			{Name: "e2e::desktop", Label: "desktop", Description: "run desktop e2e"},
 		},
 	})
-	m := newModel(cfg, newStyles(cfg), nil)
+	m := newModel(cfg, newStyles(cfg, false), nil)
 	m.prompt = m.prompt.WithValue("desktop")
 	m.filter()
 
@@ -46,7 +46,7 @@ func TestPrintListIndentsModuleChildren(t *testing.T) {
 	})
 
 	var out strings.Builder
-	printListTo(&out, nil, cfg, newStyles(cfg))
+	printListTo(&out, nil, cfg, newStyles(cfg, false))
 	rendered := ansi.Strip(out.String())
 
 	if !strings.Contains(rendered, "e2e 2 subcommands") {

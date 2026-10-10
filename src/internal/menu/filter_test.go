@@ -21,7 +21,7 @@ func TestFilterEmptyQueryReturnsAll(t *testing.T) {
 		Task{Name: "dev", Description: "start server"},
 		Task{Name: "test:unit", Description: "unit tests"},
 	)
-	m := newModel(cfg, newStyles(cfg), nil)
+	m := newModel(cfg, newStyles(cfg, false), nil)
 	if len(m.matches) != 2 {
 		t.Fatalf("empty filter matches = %d, want 2", len(m.matches))
 	}
@@ -33,7 +33,7 @@ func TestFilterFuzzySubsequence(t *testing.T) {
 		Task{Name: "motd", Description: "banner"},
 		Task{Name: "docs", Description: "manual"},
 	)
-	m := newModel(cfg, newStyles(cfg), nil)
+	m := newModel(cfg, newStyles(cfg, false), nil)
 	// Non-contiguous subsequence unique to "check".
 	m.prompt = m.prompt.WithValue("chk")
 	m.filter()
@@ -62,7 +62,7 @@ func TestFilterPreservesCatalogueOrder(t *testing.T) {
 		Task{Name: "beta", Description: "second"},
 		Task{Name: "gamma", Description: "third"},
 	)
-	m := newModel(cfg, newStyles(cfg), nil)
+	m := newModel(cfg, newStyles(cfg, false), nil)
 	m.prompt = m.prompt.WithValue("a")
 	m.filter()
 
@@ -78,7 +78,7 @@ func TestFilterPreservesCatalogueOrder(t *testing.T) {
 
 func TestFilterNoMatchClampsSelection(t *testing.T) {
 	cfg := testMenuConfig(Task{Name: "dev", Description: "start"})
-	m := newModel(cfg, newStyles(cfg), nil)
+	m := newModel(cfg, newStyles(cfg, false), nil)
 	m.sel = 0
 	m.prompt = m.prompt.WithValue("zzzz-nope")
 	m.filter()

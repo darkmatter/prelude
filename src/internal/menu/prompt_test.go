@@ -16,7 +16,7 @@ func TestModelViewPlacesBarCursorAtPromptInput(t *testing.T) {
 		Height:      8,
 		MaxWidth:    60,
 	}
-	m := newModel(cfg, newStyles(cfg), nil)
+	m := newModel(cfg, newStyles(cfg, false), nil)
 
 	for _, size := range []struct {
 		width  int

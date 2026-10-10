@@ -13,7 +13,7 @@ func TestListViewPreviewsSelectedScriptOnLastRow(t *testing.T) {
 		Task{Name: "dev", Run: "nix develop -c $SHELL"},
 		Task{Name: "check", Run: "nix flake check"},
 	)
-	m := newModel(cfg, newStyles(cfg), nil)
+	m := newModel(cfg, newStyles(cfg, false), nil)
 	m.applyLayout(80, 24)
 	m.syncList()
 
@@ -34,7 +34,7 @@ func TestArgsViewPreviewsAssembledScriptOnLastRow(t *testing.T) {
 		Args: []Arg{{Token: "ENV"}},
 	}
 	cfg := testMenuConfig(task)
-	m := newModel(cfg, newStyles(cfg), &task)
+	m := newModel(cfg, newStyles(cfg, false), &task)
 	m.applyLayout(80, 24)
 	m.prompt = m.prompt.WithValue("prod")
 
@@ -47,7 +47,7 @@ func TestListViewCollapsesMultilineScriptOnLastRow(t *testing.T) {
 	// row; finish() still receives the original newlines.
 	const run = "sync-docs\nrecord-docs"
 	cfg := testMenuConfig(Task{Name: "gen", Run: run})
-	m := newModel(cfg, newStyles(cfg), nil)
+	m := newModel(cfg, newStyles(cfg, false), nil)
 	m.applyLayout(80, 24)
 	m.syncList()
 
@@ -60,7 +60,7 @@ func TestScriptPreviewLeavesStatusFooterIntact(t *testing.T) {
 	// status footer's lower half-cell (▀).
 	cfg := testMenuConfig(Task{Name: "dev", Run: "nix develop -c $SHELL"})
 	cfg.Height = 16
-	m := newModel(cfg, newStyles(cfg), nil)
+	m := newModel(cfg, newStyles(cfg, false), nil)
 	m.applyLayout(80, 24)
 	m.syncList()
 
@@ -82,7 +82,7 @@ func TestListViewMarksPendingArgumentsOnLastRow(t *testing.T) {
 		Run:  "just deploy",
 		Args: []Arg{{Token: "ENV", Required: true}},
 	})
-	m := newModel(cfg, newStyles(cfg), nil)
+	m := newModel(cfg, newStyles(cfg, false), nil)
 	m.applyLayout(80, 24)
 	m.syncList()
 
@@ -100,7 +100,7 @@ func TestArgsViewRendersScriptPreviewOnce(t *testing.T) {
 		Args: []Arg{{Token: "ENV"}},
 	}
 	cfg := testMenuConfig(task)
-	m := newModel(cfg, newStyles(cfg), &task)
+	m := newModel(cfg, newStyles(cfg, false), &task)
 	m.applyLayout(80, 24)
 	m.prompt = m.prompt.WithValue("prod")
 

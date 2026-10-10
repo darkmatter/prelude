@@ -18,6 +18,7 @@ type titleBar struct {
 // View renders the three-row title: half-pad up, centered title, half-pad down.
 func (t titleBar) View(title string) string {
 	st := t.st
+
 	return ui.TitleBar{
 		Context:           st.chromeUI,
 		Width:             t.inner + 2,

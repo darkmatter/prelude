@@ -68,11 +68,29 @@ func mergeTasks(cfg *Config, tasks []Task) {
 	for groupIndex, group := range cfg.Groups {
 		groupIndexes[group.Title] = groupIndex
 		for taskIndex, task := range group.Tasks {
-			claimed[task.Name] = position{groupIndex, taskIndex}
+			at := position{groupIndex, taskIndex}
+			claimed[task.Name] = at
 			// `x <word>` tries names before shortcuts, so an import named
 			// like a declared shortcut would take it over.
 			if task.Key != "" {
-				claimed[task.Key] = position{groupIndex, taskIndex}
+				claimed[task.Key] = at
+			}
+			if task.source() == sourceDeclared {
+				// Children claim their mounted key and scoped argv routes;
+				// keep hidden-import notes on the owning parent row.
+				for _, child := range task.Children {
+					claimed[child.Name] = at
+					for _, parent := range []string{task.Name, task.Key} {
+						if parent == "" {
+							continue
+						}
+						for _, name := range []string{child.Label, child.Key} {
+							if name != "" {
+								claimed[parent+" "+name] = at
+							}
+						}
+					}
+				}
 			}
 		}
 	}

@@ -33,10 +33,57 @@ func TestListNotesImportsHiddenByDeclaredCommands(t *testing.T) {
 	}
 }
 
+func TestDeclaredChildRoutesHideImports(t *testing.T) {
+	path := writePackageJSON(t, t.TempDir(), `{
+		"tools/status": "exit 19",
+		"tools status": "exit 19",
+		"t status": "exit 19",
+		"tools s": "exit 19",
+		"t s": "exit 19",
+		"s": "exit 3",
+		"t/s": "exit 4"
+	}`)
+	cfg := testMenuConfig(Task{
+		Name: "tools", Key: "t", Run: "acme tools",
+		Children: []Task{{Name: "tools/status", Label: "status", Key: "s", Run: "exit 7"}},
+	})
+	cfg.Scripts = ScriptsConfig{Enable: true, PackageJSON: &path, Group: "scripts"}
+	cfg = parseTestConfig(t, cfg)
+
+	lines := listLines(cfg)
+	for _, key := range []string{"tools/status", "tools status", "t status", "tools s", "t s"} {
+		note := key + ": package.json script hidden by declared command tools"
+		if !slices.Contains(lines, note) {
+			t.Fatalf("--list should say %q:\n%s", note, strings.Join(lines, "\n"))
+		}
+	}
+	if text := strings.Join(lines, "\n"); strings.Contains(text, "exit 19") {
+		t.Fatalf("--list still offers a hidden script:\n%s", text)
+	}
+	for _, parent := range []string{"tools", "t"} {
+		got, err := Select(cfg, []string{parent, "status"})
+		if err != nil {
+			t.Fatalf("Select(%s status): %v", parent, err)
+		}
+		if got == nil || got.Name != "tools/status" || got.Source != sourceDeclared || got.Command != "exit 7" {
+			t.Fatalf("Select(%s status) = %+v, want the declared child", parent, got)
+		}
+	}
+	for key, command := range map[string]string{"s": "exit 3", "t/s": "exit 4"} {
+		got, err := Select(cfg, []string{key})
+		if err != nil {
+			t.Fatalf("Select(%s): %v", key, err)
+		}
+		if got == nil || got.Source != sourceScripts || got.Command != command {
+			t.Fatalf("Select(%s) = %+v, want the unclaimed script", key, got)
+		}
+	}
+}
+
 func TestDetailsNameWhatATaskHides(t *testing.T) {
 	cfg := testMenuConfig(Task{Name: "test", Run: "go test ./...", Details: "runs the suite"})
 	mergeTasks(cfg, []Task{{Name: "test", Run: "just test", Source: sourceJust, group: "just"}})
-	st := newStyles(cfg)
+	st := newStyles(cfg, false)
 	list := newListView(st, 60).WithSize(60)
 	frame := Frame{st: st}.WithSize(60)
 

@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -24,10 +25,28 @@ func Run() {
 	xMode := flag.Bool("x", false, "dispatch using x command names")
 	xList := flag.Bool("list", false, "list x commands")
 	xImports := flag.Bool("imports", false, "print imported command keys, for shell completion")
+	embedded := flag.Bool("embedded", false, "render without canvas backgrounds; preserve menu panel backgrounds")
+	selectOutput := flag.String("select-output", "", "write selected shell source to a private file without executing")
 	showHelp := flag.Bool("help", false, "print usage and exit")
 	flag.Parse()
 	if *showHelp {
 		usage()
+	}
+	selectMode := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "select-output" {
+			selectMode = true
+		}
+	})
+	if selectMode {
+		if *selectOutput == "" {
+			fmt.Fprintln(os.Stderr, "menu: --select-output requires a non-empty path")
+			os.Exit(1)
+		}
+		if *xList || *xImports {
+			fmt.Fprintln(os.Stderr, "menu: --select-output cannot be combined with --list or --imports")
+			os.Exit(1)
+		}
 	}
 
 	cfg, err := loadConfig(*cfgPath)
@@ -43,9 +62,22 @@ func Run() {
 			log.Println("debug log enabled")
 		}
 	}
-	st := newStyles(cfg)
+	st := newStyles(cfg, *embedded)
 
 	args := flag.Args()
+	if selectMode {
+		sel, err := selectWithStyles(cfg, st, args)
+		if err != nil {
+			w := shared.ColorWriter(os.Stderr, os.Environ(), cfg.ColorProfile)
+			fmt.Fprintln(w, st.errText.Render("menu: "+err.Error()))
+			os.Exit(1)
+		}
+		if err := writeSelectionOutput(*selectOutput, sel); err != nil {
+			fmt.Fprintln(os.Stderr, "menu: --select-output:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	switch {
 	case *xMode && *xList:
 		printList(cfg, st)
@@ -111,8 +143,11 @@ func newPicker(cfg *Config, st styles, argTask *Task, subTask *Task) model {
 // usage prints a short command synopsis to stderr and exits 0 without
 // entering the TUI.
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: menu [--config path]")
-	fmt.Fprintln(os.Stderr, "       x [--config path] [--list | <command-key> [args…]]")
+	fmt.Fprintln(os.Stderr, "usage: menu [--config path] [--embedded] [--select-output PATH [<command-key> [args…]]]")
+	fmt.Fprintln(os.Stderr, "       x [--config path] [--embedded] [--select-output PATH] [--list | --imports | <command-key> [args…]]")
+	fmt.Fprintln(os.Stderr, "--embedded: render without canvas backgrounds; preserve menu panel backgrounds")
+	fmt.Fprintln(os.Stderr, "--select-output PATH: never execute; write complete shell source (0600), or empty on cancellation")
+	fmt.Fprintln(os.Stderr, "                      accepts x command keys/args; incompatible with --list and --imports")
 	fmt.Fprintln(os.Stderr, "shortcuts: motd|?  x|m  docs|d")
 	os.Exit(0)
 }
@@ -195,6 +230,34 @@ func standaloneCommand(sel *Selection) string {
 		setup += "export PATH=" + shellWord(strings.Join(sel.PathPrefix, ":")) + `:"$PATH"; `
 	}
 	return "(" + setup + sel.Command + "\n)"
+}
+
+// writeSelectionOutput publishes only after the picker has quit. A same-directory
+// rename keeps the host's empty file intact if writing or closing fails, and
+// replaces any existing file permissions with a private result.
+func writeSelectionOutput(path string, sel *Selection) error {
+	f, err := os.CreateTemp(filepath.Dir(path), ".prelude-menu-selection-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if err := f.Chmod(0o600); err != nil {
+		f.Close()
+		return err
+	}
+	command := ""
+	if sel != nil {
+		command = standaloneCommand(sel)
+	}
+	_, err = f.WriteString(command)
+	closeErr := f.Close()
+	if err != nil {
+		return err
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	return os.Rename(f.Name(), path)
 }
 
 // withPathPrefix returns environ with prefix put ahead of its PATH.
