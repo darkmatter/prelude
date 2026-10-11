@@ -322,7 +322,9 @@ def loader_hint(bash: str, fixture: dict, full_shell: bool):
         env = environment(fixture, directory, bash)
         env["PRELUDE_INIT"] = fixture["init"]
         env.pop("PRELUDE_INIT_QUIET")
-        hint = b"Run nix develop for the full devshell."
+        hint = b"You're using the cached devshell"
+        notice = ("You're using the cached devshell, which doesn't run the shellHook "
+                  "in your interactive shell. Run nix develop for the full devshell.")
         cases = [
             ({}, 0),
             ({"DIRENV_IN_ENVRC": "1"}, int(full_shell)),
@@ -339,20 +341,14 @@ def loader_hint(bash: str, fixture: dict, full_shell: bool):
             assert result.returncode == 0, (context, result.stderr)
             assert result.stderr.count(hint) == count, (context, result.stderr)
             if count:
-                if context.get("NO_COLOR") or context.get("TERM") == "dumb":
-                    styled_hint = hint
-                else:
-                    accent = json.loads(Path(fixture["motdConfig"]).read_text())["palette"]["accent"]
-                    rgb = ";".join(str(int(accent[i:i + 2], 16)) for i in (1, 3, 5))
-                    styled_hint = f"\x1b[1;38;2;{rgb}m".encode() + hint + b"\x1b[0m"
-                assert result.stderr.endswith(b"\n\n  " + styled_hint + b"\n\n\n"), (context, result.stderr)
+                assert " ".join(result.stderr.decode().split()).endswith(notice), (context, result.stderr)
             assert not result.stdout, (context, result.stdout)
             if not context or context.get("PRELUDE_INIT_QUIET"):
                 assert not result.stderr, (context, result.stderr)
             else:
                 assert result.stderr, (context, "loader did not print MOTD")
         assert not launches(Path(env["PRELUDE_TEST_LAUNCH_LOG"])), "loader hint launched workspace"
-    print("PASS loader MOTD hint: theme accent + bold + spacing, NO_COLOR/dumb fallback, hidden in quiet/workspace mode", flush=True)
+    print("PASS loader MOTD notice: cached-entry explanation, NO_COLOR/dumb fallback, hidden in quiet/workspace mode", flush=True)
 
 
 def guards(bash: str, zsh: str, fixture: dict):

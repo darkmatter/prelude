@@ -11,7 +11,10 @@ import (
 // MOTDView is the top-level presentational composer. It assembles header,
 // middle, and footer sections through shallow adapters in sections.go, keeping
 // layout policy in one place.
-type MOTDView struct{ r renderer }
+type MOTDView struct {
+	r            renderer
+	DevshellHint bool
+}
 
 // Render paints the MOTD in its terminal window.
 func (v MOTDView) Render() string {
@@ -27,6 +30,10 @@ func (v MOTDView) Render() string {
 	}
 	if body == "" {
 		return ""
+	}
+	if v.DevshellHint {
+		// Five newline separators leave four empty rows after the card.
+		body += defaultBackground + strings.Repeat("\n", 5) + (DevshellHintView{r: v.r}).Render()
 	}
 
 	output := ui.Window{

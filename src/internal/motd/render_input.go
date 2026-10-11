@@ -9,6 +9,7 @@ type RenderInput struct {
 	Cache          Cache
 	TerminalWidth  int
 	TerminalHeight int
+	DevshellHint   bool
 }
 
 // Render produces the MOTD banner purely from RenderInput.
@@ -16,5 +17,5 @@ type RenderInput struct {
 // Post-banner diagnostics are not emitted (D2).
 func Render(in RenderInput) string {
 	model := Resolve(in.Config, in.Cache, in.TerminalWidth, in.TerminalHeight, time.Now())
-	return render(model)
+	return (MOTDView{r: newRenderer(model), DevshellHint: in.DevshellHint}).Render()
 }

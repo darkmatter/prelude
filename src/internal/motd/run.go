@@ -23,6 +23,7 @@ func Run() {
 	preflightOnly := flag.Bool("preflight-only", false, "run Preflight and write Cache without painting")
 	asyncOnly := flag.Bool("async", false, "with --preflight-only, refresh only async status entries")
 	pure := flag.Bool("pure", false, "skip Preflight; render from Config and Cache only")
+	devshellHint := flag.Bool("devshell-hint", false, "show the cached-devshell notice below the MOTD")
 	// Legacy alias kept for one release so existing wrappers keep working.
 	refreshStatus := flag.Bool("refresh-status", false, "deprecated: use --preflight-only --async")
 	flag.Parse()
@@ -73,7 +74,7 @@ func Run() {
 		cache = store.loadOrEmpty()
 	}
 
-	input := RenderInput{Config: cfg, Cache: cache}
+	input := RenderInput{Config: cfg, Cache: cache, DevshellHint: *devshellHint}
 	if *pure {
 		// Pure: size only from cache or defaults inside Render.
 	} else {

@@ -56,8 +56,11 @@ use flake
 
 `cd` + direnv loads the lightweight environment, prints MOTD, and themes an
 already-initialized Starship prompt. It does not install the full interactive
-footer or catalogue completion. Loader-only MOTD includes “Run nix develop for
-the full devshell”; the hint is hidden in workspace or quiet mode.
+footer or catalogue completion. Loader-only MOTD explains that cached entry does
+not run `shellHook` in the interactive shell and points to `nix develop` for the
+full devshell. The notice is centered within the MOTD width, four blank rows below
+the card, with muted prose and only `nix develop` accented. It is hidden in
+workspace or quiet mode.
 
 For the full devshell, run interactively:
 
