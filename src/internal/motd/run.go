@@ -19,6 +19,12 @@ import (
 //	--async           with --preflight-only, only async status entries
 //	--pure            skip Preflight; Render from Config+Cache files only
 func Run() {
+	if os.Getenv("DIRENV_IN_ENVRC") != "" {
+		// direnv captures its environment JSON on fd3, outside stdio. Do not
+		// let detached Preflight inherit that pipe and hold activation open.
+		syscall.CloseOnExec(3)
+	}
+
 	configPath := flag.String("config", os.Getenv("PRELUDE_MOTD_CONFIG"), "path to the MOTD config JSON")
 	preflightOnly := flag.Bool("preflight-only", false, "run Preflight and write Cache without painting")
 	asyncOnly := flag.Bool("async", false, "with --preflight-only, refresh only async status entries")
