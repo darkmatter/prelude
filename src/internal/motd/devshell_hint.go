@@ -14,7 +14,7 @@ type DevshellHintView struct{ r renderer }
 func (v DevshellHintView) Render() string {
 	context := ui.NewContext(v.r.model.Config.Palette, nil, true)
 	muted := ui.Inline(context.Muted())
-	text := muted.Render("You're using the cached devshell, which doesn't run the shellHook in your interactive shell. Run ") +
+	text := muted.Render("You're using the cached devshell, which fails to reproduce some features. Run ") +
 		ui.Inline(context.Accent()).Render("nix develop") +
 		muted.Render(" for the full devshell.")
 

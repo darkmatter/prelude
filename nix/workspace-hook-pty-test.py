@@ -323,8 +323,8 @@ def loader_hint(bash: str, fixture: dict, full_shell: bool):
         env["PRELUDE_INIT"] = fixture["init"]
         env.pop("PRELUDE_INIT_QUIET")
         hint = b"You're using the cached devshell"
-        notice = ("You're using the cached devshell, which doesn't run the shellHook "
-                  "in your interactive shell. Run nix develop for the full devshell.")
+        notice = ("You're using the cached devshell, which fails to reproduce some features."
+                  "Run nix develop for the full devshell.")
         cases = [
             ({}, 0),
             ({"DIRENV_IN_ENVRC": "1"}, int(full_shell)),
