@@ -73,18 +73,22 @@ func TestDocsPagesAreDiscreteNotConcatenated(t *testing.T) {
 	)
 	viewer := New(document, testPalette())
 	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 24})
-	// j moves the sidebar cursor to the next leaf page.
+	// Plain j scrolls the page; shift+j moves the nav cursor to the next leaf.
 	viewer, _ = viewer.Handle(keyPress("j"))
+	if plain := ansi.Strip(viewer.viewport.GetContent()); !strings.Contains(plain, "only on page one") {
+		t.Fatalf("plain j must not change page:\n%s", plain)
+	}
+	viewer, _ = viewer.Handle(keyPress("shift+j"))
 	plain := ansi.Strip(viewer.viewport.GetContent())
 	if !strings.Contains(plain, "only on page two") {
-		t.Fatalf("expected page two after j:\n%s", plain)
+		t.Fatalf("expected page two after shift+j:\n%s", plain)
 	}
 	if strings.Contains(plain, "only on page one") {
 		t.Fatalf("page one leaked into page two:\n%s", plain)
 	}
 }
 
-func TestDocsTreeExpandCollapseAndFocus(t *testing.T) {
+func TestDocsTreeNavigationKeys(t *testing.T) {
 	document := testDoc(NavNode{
 		Title: "Guides",
 		Children: []NavNode{
@@ -94,21 +98,54 @@ func TestDocsTreeExpandCollapseAndFocus(t *testing.T) {
 	})
 	viewer := New(document, testPalette())
 	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 24})
-	if viewer.focus != focusSidebar {
-		t.Fatalf("focus = %v, want sidebar", viewer.focus)
-	}
 	plain := ansi.Strip(viewer.viewport.GetContent())
 	if !strings.Contains(plain, "body one") {
 		t.Fatalf("expected first leaf body:\n%s", plain)
 	}
-	viewer, _ = viewer.Handle(keyPress("j"))
+	viewer, _ = viewer.Handle(keyPress("shift+down"))
 	plain = ansi.Strip(viewer.viewport.GetContent())
 	if !strings.Contains(plain, "body two") {
-		t.Fatalf("expected second leaf after j:\n%s", plain)
+		t.Fatalf("expected second leaf after shift+down:\n%s", plain)
+	}
+	viewer, _ = viewer.Handle(keyPress("shift+tab"))
+	plain = ansi.Strip(viewer.viewport.GetContent())
+	if !strings.Contains(plain, "body one") {
+		t.Fatalf("expected first leaf after shift+tab:\n%s", plain)
 	}
 	viewer, _ = viewer.Handle(keyPress("tab"))
-	if viewer.focus != focusContent {
-		t.Fatalf("focus = %v, want content", viewer.focus)
+	plain = ansi.Strip(viewer.viewport.GetContent())
+	if !strings.Contains(plain, "body two") {
+		t.Fatalf("expected second leaf after tab:\n%s", plain)
+	}
+}
+
+func TestPlainKeysScrollPageWithoutChangingLeaf(t *testing.T) {
+	body := "# Tall\n\n" + strings.Repeat("line of content\n", 80)
+	document := testDoc(
+		NavNode{Title: "Tall", Markdown: body},
+		NavNode{Title: "Other", Markdown: "# Other\n\nother body"},
+	)
+	viewer := New(document, testPalette())
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 16})
+	leaf := fmt.Sprint(viewer.leafPath)
+
+	viewer, _ = viewer.Handle(keyPress("j"))
+	if viewer.viewport.YOffset() == 0 {
+		t.Fatal("plain j must scroll the page down")
+	}
+	viewer, _ = viewer.Handle(keyPress("down"))
+	viewer, _ = viewer.Handle(keyPress("k"))
+	if fmt.Sprint(viewer.leafPath) != leaf {
+		t.Fatalf("plain motion changed leaf: %s → %v", leaf, viewer.leafPath)
+	}
+	viewer, _ = viewer.Handle(keyPress("G"))
+	maxScroll := max(0, viewer.viewport.TotalLineCount()-viewer.viewport.Height())
+	if viewer.viewport.YOffset() != maxScroll {
+		t.Fatalf("G must jump to page bottom: y=%d max=%d", viewer.viewport.YOffset(), maxScroll)
+	}
+	viewer, _ = viewer.Handle(keyPress("g"))
+	if viewer.viewport.YOffset() != 0 {
+		t.Fatalf("g must jump to page top: y=%d", viewer.viewport.YOffset())
 	}
 }
 
@@ -121,7 +158,7 @@ func TestDocsGroupCursorResizeKeepsLeafBody(t *testing.T) {
 	})
 	viewer := New(document, testPalette())
 	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 24})
-	viewer, _ = viewer.Handle(keyPress("k"))
+	viewer, _ = viewer.Handle(keyPress("shift+k"))
 	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 100, Height: 30})
 	plain := ansi.Strip(viewer.viewport.GetContent())
 	if !strings.Contains(plain, "keep me") {
@@ -140,7 +177,7 @@ func TestDocsSidebarWindowsAroundCursor(t *testing.T) {
 	viewer := New(testDoc(nav...), testPalette())
 	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 12})
 	for i := 0; i < 25; i++ {
-		viewer, _ = viewer.Handle(keyPress("j"))
+		viewer, _ = viewer.Handle(keyPress("shift+j"))
 	}
 	_ = viewer.render()
 	plain := ansi.Strip(viewer.viewport.GetContent())
@@ -234,7 +271,7 @@ func TestMouseWheelMovesViewportWithoutChangingLeaf(t *testing.T) {
 	document := testDoc(NavNode{Title: "Tall", Markdown: body})
 	viewer := New(document, testPalette())
 	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 16})
-	viewer, _ = viewer.Handle(keyPress("tab")) // content focus so wheel scrolls body
+	// No focus switch needed: the wheel always scrolls the body.
 	leaf := append([]int{}, viewer.leafPath...)
 	viewer, _ = viewer.Handle(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
 	if fmt.Sprint(viewer.leafPath) != fmt.Sprint(leaf) {
@@ -296,69 +333,58 @@ func TestSidebarDragClearsOnMouseNoneRelease(t *testing.T) {
 	}
 }
 
-func TestFocusedPaneUsesAccentTopBorder(t *testing.T) {
+func TestTopBorderAccentIsStaticAcrossFocus(t *testing.T) {
 	document := testDoc(
 		NavNode{Title: "One", Markdown: "# One\n\nbody"},
 		NavNode{Title: "Two", Markdown: "# Two\n\nbody"},
 	)
 	viewer := New(document, testPalette())
 	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 20})
-	if viewer.focus != focusSidebar {
-		t.Fatalf("focus = %v, want sidebar", viewer.focus)
+	if !viewer.focused {
+		t.Fatal("viewer must start focused until a blur report")
 	}
 
 	norm := lipgloss.NormalBorder()
-	dbl := lipgloss.DoubleBorder()
-	// #00ffff → truecolor 0;255;255
-	const accentSGR = "0;255;255"
-	const borderSGR = "85;85;85" // #555555
+	accentNav := viewer.styles.frameAccent.Render(strings.Repeat(norm.Top, viewer.l.sideW))
+	accentBody := viewer.styles.topAccent.Render(norm.MiddleTop + strings.Repeat(norm.Top, viewer.l.bodyW))
 
-	assertTop := func(t *testing.T, navFocused bool, label string) {
-		t.Helper()
-		raw := strings.Split(viewer.render(), "\n")[0]
-		plain := ansi.Strip(raw)
-		sideW := viewer.l.sideW
-		runes := []rune(plain)
-		if len(runes) < sideW+1 {
-			t.Fatalf("%s: top too short %q", label, plain)
+	assertAccent := func(label string) {
+		top := strings.Split(viewer.render(), "\n")[0]
+		if !strings.Contains(top, accentNav) || !strings.Contains(top, accentBody) {
+			t.Fatalf("%s: top border must stay accent across both panes:\n%q", label, top)
 		}
-		sidePart := string(runes[:sideW])
-		bodyPart := string(runes[sideW+1:])
-		if strings.Contains(sidePart, dbl.Top) || strings.Contains(bodyPart, dbl.Top) {
-			t.Fatalf("%s: double-border glyph present", label)
-		}
-		if !strings.Contains(sidePart, norm.Top) || !strings.Contains(bodyPart, norm.Top) {
-			t.Fatalf("%s: missing normal top glyphs", label)
-		}
-		// Expected full-run styles for each half.
-		wantNav := viewer.styles.frameAccent.Render(strings.Repeat(norm.Top, sideW))
-		wantBody := viewer.styles.topAccent.Render(strings.Repeat(norm.Top, max(viewer.l.bodyW, 1)))
-		idleNav := viewer.styles.frame.Render(strings.Repeat(norm.Top, sideW))
-		if navFocused {
-			if !strings.Contains(raw, wantNav) && !strings.Contains(raw, accentSGR) {
-				t.Fatalf("%s: expected accent on nav top\nraw=%q\nwant=%q", label, raw, wantNav)
-			}
-			if strings.Contains(raw, wantBody) {
-				t.Fatalf("%s: body top should not be accent", label)
-			}
-		} else {
-			if !strings.Contains(raw, wantBody) && !strings.Contains(raw, accentSGR) {
-				t.Fatalf("%s: expected accent on body top\nraw=%q\nwant=%q", label, raw, wantBody)
-			}
-			// Nav should be idle (border color), not the accent run.
-			if strings.Contains(raw, wantNav) && !strings.Contains(raw, idleNav) {
-				t.Fatalf("%s: nav top still accent while body focused", label)
-			}
-		}
-		_ = borderSGR
 	}
+	assertAccent("focused")
 
-	assertTop(t, true, "sidebar focus")
-	viewer, _ = viewer.Handle(keyPress("tab"))
-	if viewer.focus != focusContent {
-		t.Fatalf("focus = %v, want content", viewer.focus)
+	// Only the status bar dims on blur; the identity chrome is static.
+	viewer, _ = viewer.Handle(tea.BlurMsg{})
+	if viewer.focused {
+		t.Fatal("BlurMsg must mark the viewer unfocused")
 	}
-	assertTop(t, false, "content focus")
+	assertAccent("blurred")
+}
+
+func TestStatusBarDimsWhileBlurred(t *testing.T) {
+	document := testDoc(NavNode{Title: "One", Markdown: "# One\n\nbody"})
+	viewer := New(document, testPalette())
+	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 20})
+
+	// Accent2 (#ff00ff) bar while focused.
+	focusedSpace, _ := viewer.styles.statusChrome(true)
+	blurredSpace, _ := viewer.styles.statusChrome(false)
+	bar := func(v Viewer) string {
+		lines := strings.Split(v.render(), "\n")
+		return lines[len(lines)-1]
+	}
+	if got := bar(viewer); !strings.Contains(got, focusedSpace.Render(" ")) && !strings.Contains(got, "255;0;255") {
+		t.Fatalf("focused status bar must use the accent2 bar:\n%q", got)
+	}
+	viewer, _ = viewer.Handle(tea.BlurMsg{})
+	if got := bar(viewer); strings.Contains(got, "255;0;255") {
+		t.Fatalf("blurred status bar must not use accent2:\n%q", got)
+	} else if !strings.Contains(got, blurredSpace.Render(" ")) && !strings.Contains(got, "17;17;17") {
+		t.Fatalf("blurred status bar must use the dim surface bar:\n%q", got)
+	}
 }
 
 func TestBodyScrollbarWhenOverflow(t *testing.T) {
@@ -367,7 +393,6 @@ func TestBodyScrollbarWhenOverflow(t *testing.T) {
 	document := testDoc(NavNode{Title: "Tall", Markdown: body})
 	viewer := New(document, testPalette())
 	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 16})
-	viewer, _ = viewer.Handle(keyPress("tab")) // body focus
 
 	maxScroll := max(0, viewer.viewport.TotalLineCount()-viewer.viewport.Height())
 	if maxScroll <= 0 {
@@ -441,57 +466,71 @@ func TestSelectedNavRowHasNoCaret(t *testing.T) {
 	}
 }
 
-func TestSelectedNavRowStylesByFocus(t *testing.T) {
+func TestSelectedNavRowStyleIsStableAcrossFocus(t *testing.T) {
 	document := testDoc(
 		NavNode{Title: "One", Markdown: "# One\n\nbody"},
 		NavNode{Title: "Two", Markdown: "# Two\n\nbody"},
 	)
 	viewer := New(document, testPalette())
 	viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 20})
-	if viewer.focus != focusSidebar {
-		t.Fatalf("focus = %v, want sidebar", viewer.focus)
-	}
 
-	// Focused: full-row secondary fill + Fg bold.
-	focusedBody := viewer.styles.onActive(viewer.styles.pal.Fg).Bold(true).Render("One")
-	// Unfocused: Fg + bold on surface (no secondary fill, no accent).
-	idleBody := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(string(viewer.styles.pal.Fg))).
-		Background(viewer.styles.surface).
-		Bold(true).
-		Render("One")
+	// The selection is the persistent current-page cue: full-row secondary
+	// fill + Fg bold, identical focused or blurred (only the status bar dims).
+	selectedBody := viewer.styles.onActive(viewer.styles.pal.Fg).Bold(true).Render("One")
 	accentInvert := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(string(viewer.styles.pal.Bg))).
 		Background(viewer.styles.accent).
 		Bold(true).
 		Render("One")
 
-	raw := viewer.render()
-	if !strings.Contains(raw, focusedBody) {
-		t.Fatalf("nav-focused selection missing secondary-row style for One")
+	assertSelected := func(label string) {
+		raw := viewer.render()
+		if !strings.Contains(raw, selectedBody) {
+			t.Fatalf("%s: selection missing secondary-row style for One", label)
+		}
+		if strings.Contains(raw, accentInvert) {
+			t.Fatalf("%s: selection must not use accent invert", label)
+		}
 	}
-	if strings.Contains(raw, accentInvert) {
-		t.Fatalf("nav-focused selection must not use accent invert")
-	}
+	assertSelected("focused")
 
-	viewer, _ = viewer.Handle(keyPress("tab"))
-	if viewer.focus != focusContent {
-		t.Fatalf("focus = %v, want content", viewer.focus)
-	}
-	raw = viewer.render()
-	if !strings.Contains(raw, idleBody) {
-		t.Fatalf("nav-unfocused selection missing Fg+bold style for One")
-	}
-	if strings.Contains(raw, focusedBody) {
-		t.Fatalf("nav-unfocused selection still on secondary fill")
-	}
-	if strings.Contains(raw, accentInvert) {
-		t.Fatalf("nav-unfocused selection must not use accent")
-	}
+	viewer, _ = viewer.Handle(tea.BlurMsg{})
+	assertSelected("blurred")
 }
 
+// keyPress builds the message a terminal would send for a keystroke name
+// ("j", "tab", "shift+j", "shift+down", …) so msg.String() matches production.
 func keyPress(key string) tea.KeyPressMsg {
-	return tea.KeyPressMsg{Text: key, Code: []rune(key)[0]}
+	if rest, ok := strings.CutPrefix(key, "shift+"); ok {
+		return tea.KeyPressMsg{Code: keyCode(rest), Mod: tea.ModShift}
+	}
+	if len(key) == 1 {
+		return tea.KeyPressMsg{Text: key, Code: rune(key[0])}
+	}
+	return tea.KeyPressMsg{Code: keyCode(key)}
+}
+
+func keyCode(key string) rune {
+	switch key {
+	case "tab":
+		return tea.KeyTab
+	case "up":
+		return tea.KeyUp
+	case "down":
+		return tea.KeyDown
+	case "left":
+		return tea.KeyLeft
+	case "right":
+		return tea.KeyRight
+	case "home":
+		return tea.KeyHome
+	case "end":
+		return tea.KeyEnd
+	case "enter":
+		return tea.KeyEnter
+	default:
+		return []rune(key)[0]
+	}
 }
 
 func TestNavFromGroupChildrenToTopLevelLeaves(t *testing.T) {
@@ -517,32 +556,32 @@ func TestNavFromGroupChildrenToTopLevelLeaves(t *testing.T) {
 	}
 
 	// Navigate down through the README group children to the top-level leaves.
-	// j → Quickstart
-	viewer, _ = viewer.Handle(keyPress("j"))
+	// shift+j → Quickstart
+	viewer, _ = viewer.Handle(keyPress("shift+j"))
 	plain = ansi.Strip(viewer.viewport.GetContent())
 	if !strings.Contains(plain, "quickstart body") {
-		t.Fatalf("expected quickstart after first j:\n%s", plain)
+		t.Fatalf("expected quickstart after first shift+j:\n%s", plain)
 	}
 
-	// j → Usage
-	viewer, _ = viewer.Handle(keyPress("j"))
+	// tab → Usage
+	viewer, _ = viewer.Handle(keyPress("tab"))
 	plain = ansi.Strip(viewer.viewport.GetContent())
 	if !strings.Contains(plain, "usage body") {
-		t.Fatalf("expected usage after second j:\n%s", plain)
+		t.Fatalf("expected usage after tab:\n%s", plain)
 	}
 
-	// j → This shell (top-level leaf after the group)
-	viewer, _ = viewer.Handle(keyPress("j"))
+	// shift+down → This shell (top-level leaf after the group)
+	viewer, _ = viewer.Handle(keyPress("shift+down"))
 	plain = ansi.Strip(viewer.viewport.GetContent())
 	if !strings.Contains(plain, "shell body") {
-		t.Fatalf("expected shell body after third j:\n%s", plain)
+		t.Fatalf("expected shell body after shift+down:\n%s", plain)
 	}
 
-	// j → Commands
-	viewer, _ = viewer.Handle(keyPress("j"))
+	// J (shift+j as an uppercase rune) → Commands
+	viewer, _ = viewer.Handle(keyPress("J"))
 	plain = ansi.Strip(viewer.viewport.GetContent())
 	if !strings.Contains(plain, "commands body") {
-		t.Fatalf("expected commands body after fourth j:\n%s", plain)
+		t.Fatalf("expected commands body after J:\n%s", plain)
 	}
 }
 

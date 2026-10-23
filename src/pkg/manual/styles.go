@@ -114,8 +114,16 @@ func (s styles) onActive(fg shared.Color) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(string(fg))).Background(s.secondary)
 }
 
-// statusChrome returns inverted status-bar styles (accent2 bar for docs).
-func (s styles) statusChrome() (space, text lipgloss.Style) {
+// statusChrome returns status-bar styles: the inverted accent2 bar while the
+// viewer holds the keyboard, a dim surface bar while blurred so an unfocused
+// modal pane reads as background.
+func (s styles) statusChrome(focused bool) (space, text lipgloss.Style) {
+	if !focused {
+		space = lipgloss.NewStyle().Background(s.surface)
+		text = lipgloss.NewStyle().Background(s.surface).
+			Foreground(lipgloss.Color(string(s.pal.Dim)))
+		return space, text
+	}
 	bar := lipgloss.Color(string(s.pal.Accent2))
 	space = lipgloss.NewStyle().Background(bar)
 	text = lipgloss.NewStyle().Background(bar).Foreground(s.bg)

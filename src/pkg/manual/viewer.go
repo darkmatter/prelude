@@ -8,13 +8,10 @@ import (
 	"prelude/pkg/shared"
 )
 
-// focusTarget is which pane receives navigation keys.
-type focusTarget uint8
-
-const (
-	focusContent focusTarget = iota
-	focusSidebar
-)
+// The viewer is modeless: shift-modified keys drive the navigation tree and
+// plain keys scroll the page, so there is no per-pane keyboard focus. The
+// only focus left is the application's own — whether the terminal (or the
+// workspace modal hosting this viewer) currently gives it the keyboard.
 
 // Viewer owns docs state, navigation, layout, chrome, and presentation.
 type Viewer struct {
@@ -31,7 +28,7 @@ type Viewer struct {
 	cursorPath   []int
 	leafPath     []int
 	expanded     map[string]bool
-	focus        focusTarget
+	focused      bool      // app-level focus; dims only the status bar when false
 	rows         []treeRow // full visible tree (not windowed)
 	windowOffset int       // first rows index shown in the sidebar pane
 
@@ -74,7 +71,7 @@ func New(document Document, palette shared.Palette) Viewer {
 	}
 	nav := document.Nav
 	v.expanded = defaultExpanded(nav)
-	v.focus = focusSidebar
+	v.focused = true
 	leaf := ensureLeafActive(nav, nil)
 	v.leafPath = leaf
 	v.cursorPath = append([]int{}, leaf...)
@@ -121,10 +118,11 @@ func (v Viewer) Handle(msg tea.Msg) (Viewer, tea.Cmd) {
 			v.dragging = false
 			v.setSideWidth(msg.X)
 		}
+	case tea.FocusMsg:
+		v.focused = true
+	case tea.BlurMsg:
+		v.focused = false
 	case tea.MouseWheelMsg:
-		if v.focus == focusSidebar {
-			return v, nil
-		}
 		return v.updateViewport(msg)
 	}
 	return v, nil
@@ -135,6 +133,9 @@ func (v Viewer) View() tea.View {
 	view := tea.NewView(v.render())
 	view.BackgroundColor = v.styles.bg
 	view.AltScreen = true
+	// Focus reports let the status bar dim while a hosting modal gives the
+	// keyboard to the shell; standalone terminals report window focus.
+	view.ReportFocus = true
 	// CellMotion: click/release/wheel, plus drag motion while a button is held.
 	// Needed so the sidebar divider can be dragged. Tradeoff vs MouseModeNone:
 	// the terminal no longer owns highlight-to-copy while the viewer is open

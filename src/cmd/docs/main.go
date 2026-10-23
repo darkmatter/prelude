@@ -5,7 +5,8 @@
 //	docs next
 //
 // Content comes from Markdown files declared in prelude.docs.pages; this binary
-// renders and navigates them. Digits 1–9 jump to pages; j/k scroll; q quits.
+// renders and navigates them. Digits 1–9 jump to pages; tab / shift+arrows /
+// shift+hjkl move in the sidebar; plain j/k and arrows scroll; q quits.
 package main
 
 import (

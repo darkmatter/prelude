@@ -9,8 +9,9 @@ This shell is Prelude developing itself: everything you see is produced from
 root `prelude.nix` (plus the small `nix/prelude-*.nix` imports), the same shape
 a downstream project would use.
 
-Viewer keys: digits jump between pages, `Tab`/`Shift-Tab` step through them,
-`j`/`k` scroll, `q` quits.
+Viewer keys: digits jump between pages, `Tab`/`Shift-Tab` (or `Shift` with the
+arrows or `h`/`j`/`k`/`l`) move through the navigation, plain `j`/`k` and the
+arrows scroll the page, `q` quits.
 
 ## Silencing direnv noise under the MOTD
 
