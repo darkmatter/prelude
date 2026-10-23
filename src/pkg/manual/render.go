@@ -87,26 +87,18 @@ func (v Viewer) renderLeaf(leaf *NavNode, textWidth int) []string {
 // render composes the full screen from the cached layout and three
 // sub-model views: sidebar column, document body column, and status bar row.
 // The sidebar and body are zipped row-by-row with a vertical border junction
-// between them. Focus is shown by painting the focused pane's top border in
-// accent — border style stays Normal on both sides.
+// between them. The top border is static accent chrome; only the bottom
+// status bar reflects app-level focus.
 func (v Viewer) render() string {
 	l := v.l
 	scroll := v.viewport.YOffset()
 	maxScroll := max(0, v.viewport.TotalLineCount()-v.viewport.Height())
 
 	border := lipgloss.NormalBorder()
-	navFocus := v.focus == focusSidebar
-	bodyFocus := v.focus == focusContent
-
-	// Top border: accent on the focused pane, idle border elsewhere.
-	topNav := v.styles.frame
-	if navFocus {
-		topNav = v.styles.frameAccent
-	}
-	topBody := v.styles.divider
-	if bodyFocus {
-		topBody = v.styles.topAccent
-	}
+	// Top border: static accent across both panes (the viewer's identity
+	// chrome). App focus is signalled by the status bar alone.
+	topNav := v.styles.frameAccent
+	topBody := v.styles.topAccent
 	divStyle := v.styles.divider
 
 	// Sidebar column — windowed to viewH so the cursor never leaves the pane.
@@ -122,13 +114,12 @@ func (v Viewer) render() string {
 		}
 	}
 	sb := sidebarView{
-		label:     v.document.SidebarLabel(),
-		rows:      sideRows,
-		cursor:    cursorLocal,
-		focusSide: v.focus == focusSidebar,
-		styles:    v.styles,
-		width:     l.sideW,
-		height:    l.viewH,
+		label:  v.document.SidebarLabel(),
+		rows:   sideRows,
+		cursor: cursorLocal,
+		styles: v.styles,
+		width:  l.sideW,
+		height: l.viewH,
 	}
 	sideLines := strings.Split(sb.View(), "\n")
 
@@ -183,6 +174,7 @@ func (v Viewer) render() string {
 		section:   section,
 		jumpCount: jumpCount,
 		mode:      v.document.ModeLabel(),
+		focused:   v.focused,
 		styles:    v.styles,
 	}
 	rows = append(rows, stBar.View())

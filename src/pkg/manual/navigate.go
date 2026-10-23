@@ -17,15 +17,16 @@ func (v Viewer) handleKey(msg tea.KeyPressMsg) (Viewer, tea.Cmd) {
 		return v, nil
 	}
 
-	if v.focus == focusSidebar {
-		return v.handleSidebarKey(key)
-	}
-
-	// Content focus: scroll only (plus home/end).
+	// No pane focus to switch: shift-modified motion (and tab) drives the
+	// navigation tree, plain motion scrolls the page. Shift+letter arrives
+	// as the uppercase rune on most terminals, hence the J/K/H/L aliases.
 	switch key {
-	case "tab", "shift+tab":
-		v.focus = focusSidebar
-		return v, nil
+	case "tab", "shift+down", "shift+j", "J",
+		"shift+tab", "shift+up", "shift+k", "K",
+		"shift+right", "shift+l", "L",
+		"shift+left", "shift+h", "H",
+		"shift+home", "shift+end", "enter":
+		return v.handleNavKey(key)
 	case "home", "g":
 		v.viewport.GotoTop()
 	case "end", "G", "shift+g":
@@ -36,32 +37,26 @@ func (v Viewer) handleKey(msg tea.KeyPressMsg) (Viewer, tea.Cmd) {
 	return v, nil
 }
 
-func (v Viewer) handleSidebarKey(key string) (Viewer, tea.Cmd) {
+func (v Viewer) handleNavKey(key string) (Viewer, tea.Cmd) {
 	v.refreshRows()
 	if len(v.rows) == 0 {
 		return v, nil
 	}
 	cur := v.cursorRow()
 	switch key {
-	case "tab":
-		v.focus = focusContent
-		return v, nil
-	case "shift+tab":
-		v.focus = focusContent
-		return v, nil
-	case "up", "k", "ctrl+p":
+	case "shift+tab", "shift+up", "shift+k", "K":
 		v.selectRow(stepSelectable(v.rows, cur, -1))
-	case "down", "j", "ctrl+n":
+	case "tab", "shift+down", "shift+j", "J":
 		v.selectRow(stepSelectable(v.rows, cur, 1))
-	case "right", "l":
+	case "shift+right", "shift+l", "L":
 		v.expandOrEnter(cur)
-	case "left", "h":
+	case "shift+left", "shift+h", "H":
 		v.collapseOrParent(cur)
 	case "enter":
 		v.activateRow(cur)
-	case "home", "g":
+	case "shift+home":
 		v.selectRow(stepSelectable(v.rows, -1, 1)) // first selectable
-	case "end", "G", "shift+g":
+	case "shift+end":
 		// step backward from past-end to last selectable
 		v.selectRow(stepSelectable(v.rows, len(v.rows), -1))
 	}
@@ -154,7 +149,6 @@ func (v *Viewer) activateRow(index int) {
 	}
 	v.cursorPath = append([]int{}, row.path...)
 	v.setLeaf(row.path, true)
-	v.focus = focusContent
 }
 
 func (v *Viewer) jumpTopLevel(index int) {
@@ -195,7 +189,6 @@ func (v *Viewer) click(x, y int) {
 	win := v.windowedRows()
 	index := y - SidebarItemsTop
 	if index >= 0 && index < len(win) {
-		v.focus = focusSidebar
 		// Map window-local index back to full rows index.
 		v.selectRow(v.windowOffset + index)
 	}

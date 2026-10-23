@@ -11,13 +11,12 @@ import (
 // sidebarView renders the navigation column as a self-contained panel.
 // The viewer constructs one per render with its current state.
 type sidebarView struct {
-	label     string
-	rows      []treeRow // visible (windowed) tree rows
-	cursor    int       // cursor index within rows (window-local)
-	focusSide bool      // sidebar focused
-	styles    styles
-	width     int
-	height    int // viewH — total rows including header and border
+	label  string
+	rows   []treeRow // visible (windowed) tree rows
+	cursor int       // cursor index within rows (window-local)
+	styles styles
+	width  int
+	height int // viewH — total rows including header and border
 }
 
 // itemsTop is the number of header rows before the first nav entry.
@@ -104,9 +103,10 @@ func (s sidebarView) treeItem(index int, pad func(string) string) string {
 		body = row.branch + title
 	}
 
-	if active && s.focusSide {
-		// Nav focused: full-row highlight on secondary (prior selection color).
-		// Accent stays on the top border only.
+	if active {
+		// Full-row highlight on secondary — the persistent current-page cue,
+		// stable whether or not the viewer holds the keyboard. Accent stays
+		// on the top border only.
 		indentCell := s.styles.onActive(s.styles.pal.Fg).Width(indentWidth).Render("")
 		digitCell := s.styles.onActive(s.styles.pal.Dim).Width(digitWidth).Render(digitGlyph)
 		bodyCell := s.styles.onActive(s.styles.pal.Fg).Bold(true).Render(body)
@@ -117,25 +117,6 @@ func (s sidebarView) treeItem(index int, pad func(string) string) string {
 			line,
 			lipgloss.WithWhitespaceStyle(s.styles.activeSpace),
 		)
-	}
-	if active {
-		// Nav unfocused: lighten + bold on surface.
-		indentCell := lipgloss.NewStyle().
-			Background(s.styles.surface).
-			Width(indentWidth).
-			Render("")
-		digitCell := lipgloss.NewStyle().
-			Foreground(lipgloss.Color(string(s.styles.pal.Fg))).
-			Background(s.styles.surface).
-			Bold(true).
-			Width(digitWidth).
-			Render(digitGlyph)
-		bodyCell := lipgloss.NewStyle().
-			Foreground(lipgloss.Color(string(s.styles.pal.Fg))).
-			Background(s.styles.surface).
-			Bold(true).
-			Render(body)
-		return pad(indentCell + digitCell + bodyCell)
 	}
 
 	indentCell := lipgloss.NewStyle().
