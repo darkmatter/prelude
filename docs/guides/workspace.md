@@ -195,9 +195,14 @@ handled.
   An occupied pending slot is never replaced. There is no MOTD window or Ctrl+P ?
   chord.
 
-- One Prelude pane exists at a time. Opening menu/docs focuses it. When mouse
-  reporting is active, clicks in the shell or an interactive pane also move
-  focus.
+- One Prelude pane exists at a time. Opening menu/docs focuses it. Clicks in the
+  shell or an interactive pane move focus. The wheel scrolls the band under the
+  pointer through its retained history; typing or pasting snaps that band back
+  to the live screen. A child that requests mouse tracking receives wheel events
+  itself, as in any terminal. A full-screen child that does not track the mouse
+  (the menu, `less`, `man`) instead receives the Up/Down key the
+  outer terminal used to send. Mouse reporting is always on so the host can claim
+  the wheel; use Shift+drag for the outer terminal's own text selection.
 
 - Each pane has its own PTY and Ghostty engine. Moving/resizing reflows the
   terminal and delivers SIGWINCH without restarting the child. Placement is
@@ -399,8 +404,9 @@ verification.
   redraw. Fingerprints retain at most 256 cells / 4 KiB; they identify prompt
   geometry, not a complete command model.
 
-- One Prelude pane only: no tabs, Process Compose, session daemon, or interactive
-  scrollback viewer yet. The native engines retain scrollback for reflow.
+- One Prelude pane only: no tabs, Process Compose, session daemon, scrollbar,
+  paging keys, or transcript search. The native engines retain scrollback for
+  reflow and for wheel scrolling.
 
 - Mode-2027 width negotiation is not synchronized between the native engine and
   the outer renderer. Variation-selector and ZWJ emoji can therefore disagree

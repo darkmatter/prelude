@@ -208,8 +208,9 @@ type promptState struct {
 	anchorCols     int
 	fingerprint    []promptCell
 	wholeTail      bool
-	promptRows     int // persistent display height, not retained PS1 source
-	promptRowsCols int // measured width; zero means the layout is unknown
+	pendingCapture bool // B arrived while scrolled; retry on the live screen
+	promptRows     int  // persistent display height, not retained PS1 source
+	promptRowsCols int  // measured width; zero means the layout is unknown
 
 	promptBytes       []byte // temporary A..B capture
 	promptStartColumn int
@@ -329,9 +330,16 @@ func (p *promptState) renderedPromptRows(frame terminalFrame) (rows, measuredCol
 }
 
 func (p *promptState) capture(frame terminalFrame) {
+	p.pendingCapture = false
 	p.anchor = frame.CursorY*frame.Cols + frame.CursorX
 	p.anchorCols = frame.Cols
 	p.fingerprint, p.wholeTail = nil, false
+	if frame.Scrolled {
+		// Cursor coordinates describe the live screen, not these history
+		// cells. Retry on the first live snapshot within the same lifecycle.
+		p.anchor, p.pendingCapture = -1, true
+		return
+	}
 	// The adapter does not expose pending-wrap: a cursor at the last column
 	// cannot distinguish B before that cell from B after filling the row.
 	if frame.AltScreen || frame.Cols < 1 || frame.CursorX == frame.Cols-1 || p.anchor < 0 || p.anchor > len(frame.Cells) {
@@ -361,7 +369,7 @@ func (p *promptState) capture(frame terminalFrame) {
 func (p *promptState) mark(marker promptMarker, frame terminalFrame) {
 	switch marker.kind {
 	case 'A':
-		p.phase, p.ready, p.anchor = "prompt", false, -1
+		p.phase, p.ready, p.anchor, p.pendingCapture = "prompt", false, -1, false
 		p.promptBytes, p.promptCollecting, p.promptOverflow = nil, true, frame.AltScreen
 		p.promptStartColumn, p.promptStartCols = frame.CursorX, frame.Cols
 	case 'B':
@@ -379,9 +387,9 @@ func (p *promptState) mark(marker promptMarker, frame terminalFrame) {
 		p.capture(frame)
 		p.observe(frame)
 	case 'C':
-		p.phase, p.ready = "running", false
+		p.phase, p.ready, p.pendingCapture = "running", false, false
 	case 'D':
-		p.phase, p.ready = "prompt", false
+		p.phase, p.ready, p.pendingCapture = "prompt", false, false
 
 	}
 	if marker.kind == 'B' || marker.kind == 'C' || marker.kind == 'D' {
@@ -400,6 +408,13 @@ func (p *promptState) observe(frame terminalFrame) {
 	if frame.AltScreen || frame.Cols < 1 || len(frame.Cells) == 0 {
 		p.anchor = -1
 		return
+	}
+	if frame.Scrolled {
+		// Only the viewport moved; the live prompt and its anchor are unchanged.
+		return
+	}
+	if p.pendingCapture {
+		p.capture(frame)
 	}
 	cursor := frame.CursorY*frame.Cols + frame.CursorX
 	anchor := p.anchor

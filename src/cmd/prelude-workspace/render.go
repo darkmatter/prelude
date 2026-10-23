@@ -146,6 +146,12 @@ func (h *host) View() tea.View {
 	view := tea.NewView(buffer.Render())
 	view.AltScreen, view.ReportFocus = true, true
 	view.WindowTitle = displayText(h.frame.Title)
+	// Capture the wheel even when neither child tracks the mouse. Left to the
+	// outer terminal, a wheel tick becomes Up/Down on the alternate screen,
+	// which Bash reads as history. Cell motion covers clicks, drags, and the
+	// wheel; a child that asked for any-motion still gets the richer mode.
+	// The outer terminal no longer owns highlight-to-copy; Shift+drag selects.
+	view.MouseMode = tea.MouseModeCellMotion
 	if (!layout.Shell.Empty() && h.frame.MouseTracking) ||
 		(!layout.Body.Empty() && h.currentPane(h.pane) && h.pane.frame.MouseTracking) {
 		view.MouseMode = tea.MouseModeAllMotion
@@ -163,7 +169,9 @@ func (h *host) View() tea.View {
 		y -= layout.ShellScroll
 	}
 	point := image.Pt(x, y)
-	if h.terminalFocused && frame.CursorVisible && point.In(cursorArea) &&
+	// The native cursor stays on the live screen while the viewport shows
+	// history, so drawing it would land on unrelated scrollback content.
+	if h.terminalFocused && !frame.Scrolled && frame.CursorVisible && point.In(cursorArea) &&
 		(paneFocused || !point.In(layout.Panel)) {
 		view.Cursor = tea.NewCursor(x, y)
 		switch frame.CursorStyle {

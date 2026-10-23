@@ -1,7 +1,9 @@
 #include "bridge.h"
 
 #include <ghostty/vt/focus.h>
+#include <ghostty/vt/modes.h>
 #include <ghostty/vt/paste.h>
+#include <ghostty/vt/terminal.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -106,16 +108,17 @@ static GhosttyResult restrict_capabilities(bridge_terminal *t) {
     size_t apc_limit = 4096;
     TRY(ghostty_terminal_set(t->terminal, GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_STORAGE_LIMIT, &no_images));
     TRY(ghostty_terminal_set(t->terminal, GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_FILE, &disabled));
-    TRY(ghostty_terminal_set(t->terminal, GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_TEMP_FILE, &disabled));
+    /* The temp-file medium now takes a directory to restrict to; NULL disables it. */
+    TRY(ghostty_terminal_set(t->terminal, GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_TEMP_FILE, NULL));
     TRY(ghostty_terminal_set(t->terminal, GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_SHARED_MEM, &disabled));
     TRY(ghostty_terminal_set(t->terminal, GHOSTTY_TERMINAL_OPT_APC_MAX_BYTES, &apc_limit));
     return GHOSTTY_SUCCESS;
 }
 
 static GhosttyResult initialize(bridge_terminal *t) {
-    TRY(ghostty_terminal_new(NULL, &t->terminal, (GhosttyTerminalOptions){
-        .cols = t->cols, .rows = t->height, .max_scrollback = 1000,
-    }));
+    TRY(ghostty_terminal_new(NULL, &t->terminal, t->cols, t->height));
+    size_t max_scrollback = 1000;
+    TRY(ghostty_terminal_set(t->terminal, GHOSTTY_TERMINAL_OPT_SCROLLBACK_MAX_LINES, &max_scrollback));
     TRY(ghostty_terminal_set(t->terminal, GHOSTTY_TERMINAL_OPT_USERDATA, t));
     TRY(ghostty_terminal_set(t->terminal, GHOSTTY_TERMINAL_OPT_WRITE_PTY, (const void *)write_pty));
     TRY(ghostty_terminal_set(t->terminal, GHOSTTY_TERMINAL_OPT_TITLE_CHANGED, (const void *)title_changed));
@@ -235,6 +238,12 @@ GhosttyResult bridge_snapshot(bridge_terminal *t, bridge_frame *out) {
     TRY(ghostty_render_state_get(t->render, GHOSTTY_RENDER_STATE_DATA_CURSOR_BLINKING, &out->cursor_blink));
     TRY(ghostty_render_state_get(t->render, GHOSTTY_RENDER_STATE_DATA_CURSOR_VISUAL_STYLE, &cursor_style));
     out->alt_screen = screen == GHOSTTY_TERMINAL_SCREEN_ALTERNATE;
+    /* Cursor coordinates stay live-screen based while the viewport shows
+       history; report that split so callers can hide/retarget the cursor.
+       VIEWPORT_ACTIVE avoids the scrollbar geometry computation per frame. */
+    bool viewport_active = true;
+    if (ghostty_terminal_get(t->terminal, GHOSTTY_TERMINAL_DATA_VIEWPORT_ACTIVE, &viewport_active) == GHOSTTY_SUCCESS)
+        out->scrolled = !viewport_active;
     out->cursor_style = cursor_style == GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BAR ? 1 :
                         cursor_style == GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_UNDERLINE ? 2 : 0;
     GhosttyColorRgb palette[256];
@@ -312,9 +321,18 @@ GhosttyResult bridge_key(bridge_terminal *t, GhosttyKey key, GhosttyMods mods,
     return r;
 }
 
+/* Modes are queried through the terminal data API, which needs the packed
+   mode identifier and reports the current value alongside it. */
+static GhosttyResult mode_get(bridge_terminal *t, GhosttyMode mode, bool *out) {
+    GhosttyTerminalModeConfig config = {.mode = mode};
+    TRY(ghostty_terminal_get(t->terminal, GHOSTTY_TERMINAL_DATA_MODE, &config));
+    *out = config.value;
+    return GHOSTTY_SUCCESS;
+}
+
 GhosttyResult bridge_paste(bridge_terminal *t, char *text, size_t len, bridge_bytes *out) {
     bool bracketed;
-    TRY(ghostty_terminal_mode_get(t->terminal, GHOSTTY_MODE_BRACKETED_PASTE, &bracketed));
+    TRY(mode_get(t, GHOSTTY_MODE_BRACKETED_PASTE, &bracketed));
     if (len > SIZE_MAX - 12) return GHOSTTY_OUT_OF_MEMORY;
     TRY(reserve((void **)&t->encoded, &t->encoded_cap, len + 12, 1));
     size_t written = 0;
@@ -325,7 +343,7 @@ GhosttyResult bridge_paste(bridge_terminal *t, char *text, size_t len, bridge_by
 
 GhosttyResult bridge_focus(bridge_terminal *t, bool focused, bridge_bytes *out) {
     bool enabled;
-    TRY(ghostty_terminal_mode_get(t->terminal, GHOSTTY_MODE_FOCUS_EVENT, &enabled));
+    TRY(mode_get(t, GHOSTTY_MODE_FOCUS_EVENT, &enabled));
     *out = (bridge_bytes){0};
     if (!enabled) return GHOSTTY_SUCCESS;
     TRY(reserve((void **)&t->encoded, &t->encoded_cap, 3, 1));
@@ -342,7 +360,7 @@ GhosttyResult bridge_mouse(bridge_terminal *t, GhosttyMouseAction action,
     *out = (bridge_bytes){0};
     if (x < 0 || y < 0 || x >= t->cols || y >= t->height) return GHOSTTY_SUCCESS;
     bool pixel_mode;
-    TRY(ghostty_terminal_mode_get(t->terminal, GHOSTTY_MODE_SGR_PIXELS_MOUSE, &pixel_mode));
+    TRY(mode_get(t, GHOSTTY_MODE_SGR_PIXELS_MOUSE, &pixel_mode));
     if (pixel_mode) return GHOSTTY_NO_VALUE;
     TRY(reserve((void **)&t->encoded, &t->encoded_cap, 128, 1));
     GhosttyMouseEvent event;
@@ -373,4 +391,20 @@ GhosttyResult bridge_mouse(bridge_terminal *t, GhosttyMouseAction action,
     ghostty_mouse_event_free(event);
     if (r == GHOSTTY_SUCCESS) *out = (bridge_bytes){.data = t->encoded, .len = written};
     return r;
+}
+
+GhosttyResult bridge_scroll(bridge_terminal *t, intptr_t delta, bool bottom, bool *moved) {
+    /* The viewport is terminal state, not a Go-side offset: keeping it native
+       means the render state, resize reflow, and scrollbar clamp agree. */
+    GhosttyTerminalScrollbar before = {0}, after = {0};
+    bool measured = ghostty_terminal_get(t->terminal, GHOSTTY_TERMINAL_DATA_SCROLLBAR, &before) == GHOSTTY_SUCCESS;
+    GhosttyTerminalScrollViewport behavior = {
+        .tag = bottom ? GHOSTTY_SCROLL_VIEWPORT_BOTTOM : GHOSTTY_SCROLL_VIEWPORT_DELTA,
+    };
+    behavior.value.delta = delta;
+    ghostty_terminal_scroll_viewport(t->terminal, behavior);
+    if (measured)
+        measured = ghostty_terminal_get(t->terminal, GHOSTTY_TERMINAL_DATA_SCROLLBAR, &after) == GHOSTTY_SUCCESS;
+    *moved = measured && before.offset != after.offset;
+    return GHOSTTY_SUCCESS;
 }

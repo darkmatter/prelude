@@ -192,6 +192,47 @@ func TestPromptSemanticBoundaryForColoredMultilineWidePrompt(t *testing.T) {
 	}
 }
 
+func TestPromptRecapturesAfterMarkerWhileScrolled(t *testing.T) {
+	engine := ghosttyTestTerminal(t, 80, 7)
+	ghosttyWrite(t, engine, workspacePrompt+"x go:")
+	live := ghosttySnapshot(t, engine)
+	scrolled := live
+	scrolled.Scrolled = true
+
+	var state promptState
+	state.mark(promptMarker{kind: 'B'}, scrolled)
+	if state.anchor != -1 {
+		t.Fatalf("scrolled marker captured a live-screen anchor: %+v", state)
+	}
+	// Output can keep arriving while the user reads history; the first
+	// live snapshot must restore the semantic input boundary.
+	state.observe(live)
+	if want := live.CursorY*live.Cols + live.CursorX; state.anchor != want {
+		t.Fatalf("anchor = %d, want %d after returning to the live screen", state.anchor, want)
+	}
+}
+
+func TestCompletionHiddenWhileScrolled(t *testing.T) {
+	engine := ghosttyTestTerminal(t, 80, 7)
+	ghosttyWrite(t, engine, workspacePrompt+"x go:")
+	h := &host{cols: 80, rows: 8, terminal: engine, frame: ghosttySnapshot(t, engine), terminalFocused: true}
+	h.prompt.mark(promptMarker{kind: 'B'}, h.frame)
+	h.completion = &completionState{phase: completionPopup, snapshot: completionSnapshot{candidates: []completionCandidate{
+		{name: "go:test"}, {name: "go:vet"},
+	}}}
+	if h.layout().Completion.Empty() {
+		t.Fatal("setup: completion should be visible on the live screen")
+	}
+	h.frame.Scrolled = true
+	if !h.layout().Completion.Empty() {
+		t.Fatal("completion was painted over scrolled history")
+	}
+	h.frame.Scrolled = false
+	if h.layout().Completion.Empty() {
+		t.Fatal("completion did not return with the live screen")
+	}
+}
+
 func TestPromptUnknownAnchorSuppressesCompletion(t *testing.T) {
 	engine := ghosttyTestTerminal(t, 80, 7)
 	ghosttyWrite(t, engine, workspacePrompt+"x go:")

@@ -357,7 +357,13 @@ func (h *host) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		h.leader, h.quoted, h.notice = false, false, ""
 		if h.paneFocused() {
+			if cmd := h.followPane(); cmd != nil {
+				return h, cmd
+			}
 			return h, h.forwardPane(h.pane.terminal.Paste(message.Content))
+		}
+		if cmd := h.followShell(); cmd != nil {
+			return h, cmd
 		}
 		data, err := h.terminal.Paste(message.Content)
 		if err == nil {

@@ -569,8 +569,10 @@ func TestHostRoutesFocusMouseAndShowsTerminalErrors(t *testing.T) {
 	awaitSpike(t, h, "focus and shell mouse bytes (not footer mouse)", func() bool {
 		return h.prompt.ready && strings.Contains(spikeFrameText(h.frame), `ROUTE:$'\E[O':$'\E[<0;2;2M'`)
 	})
-	if h.View().MouseMode != tea.MouseModeNone {
-		t.Fatal("host retained mouse capture after the child disabled it")
+	// The host keeps cell motion even after the child disables tracking: the
+	// wheel belongs to the viewport, not to Bash history.
+	if h.View().MouseMode != tea.MouseModeCellMotion {
+		t.Fatalf("mouse mode = %v, want cell motion after the child disabled tracking", h.View().MouseMode)
 	}
 	h.terminal.Close()
 	spikeKey(h, tea.KeyEnter, 0)
