@@ -34,7 +34,7 @@ typedef struct {
 
 typedef struct {
     uint16_t cols, rows, cursor_x, cursor_y;
-    bool cursor_visible, cursor_blink, alt_screen, mouse_tracking;
+    bool cursor_visible, cursor_blink, alt_screen, mouse_tracking, scrolled;
     int cursor_style;
     GhosttyString title;
     const bridge_cell *cells;
@@ -57,5 +57,8 @@ GhosttyResult bridge_focus(bridge_terminal *terminal, bool focused, bridge_bytes
 GhosttyResult bridge_mouse(bridge_terminal *terminal, GhosttyMouseAction action,
                            GhosttyMouseButton button, GhosttyMods mods, int x, int y,
                            bridge_bytes *out);
+/* Negative delta scrolls up through retained history; bottom ignores it.
+   moved reports whether the viewport offset actually changed. */
+GhosttyResult bridge_scroll(bridge_terminal *terminal, intptr_t delta, bool bottom, bool *moved);
 
 #endif

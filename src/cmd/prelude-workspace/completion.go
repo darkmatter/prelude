@@ -71,7 +71,7 @@ func (h *host) completionVisible() bool {
 // Crop earlier output when necessary, but keep the entire visible prompt and
 // editable tail. If those leave no safe space, suppress the chooser.
 func (h *host) completionLayout(layout workspaceLayout) workspaceLayout {
-	if !h.completionVisible() || layout.Shell.Empty() || h.frame.Cols < 1 ||
+	if !h.completionVisible() || layout.Shell.Empty() || h.frame.Cols < 1 || h.frame.Scrolled ||
 		h.prompt.anchor < 0 || h.prompt.anchor >= len(h.frame.Cells) {
 		return layout
 	}

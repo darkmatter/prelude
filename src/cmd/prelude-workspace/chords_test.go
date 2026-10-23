@@ -365,8 +365,8 @@ func TestFrontendPaneInputLifecycleAndStaleEvents(t *testing.T) {
 	spikeKey(h, 'H', 0)
 	frontendChord(h, 't')
 	if h.paneVisible || h.focusPane || h.leader || h.pane != p || !h.currentPane(p) || !reflect.DeepEqual(before, p.frame) ||
-		h.View().MouseMode != tea.MouseModeNone {
-		t.Fatal("one-shot t must retain the live image/reader and return input/capture to Bash")
+		h.View().MouseMode != tea.MouseModeCellMotion {
+		t.Fatal("one-shot t must retain the live image/reader and return input to Bash while the host keeps the wheel")
 	}
 	assertSpikeFooter(t, h, spikeFooterKeyText(spikeHiddenKeys), "menu hidden | running")
 	awaitFrontend(t, h, "hidden pane continues absorbing child output", func() bool {

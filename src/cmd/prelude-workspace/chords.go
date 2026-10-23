@@ -6,7 +6,12 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	uv "github.com/charmbracelet/ultraviolet"
 )
+
+// wheelScrollLines is one wheel notch's worth of history, matching the step
+// size most terminal emulators use for their own scrollback.
+const wheelScrollLines = 3
 
 func (h *host) layout() workspaceLayout {
 	return h.completionLayout(computeLayout(h.cols, h.rows, h.placement, h.paneVisible && h.surface != surfaceNone))
@@ -269,7 +274,13 @@ func (h *host) keyInput(message tea.KeyPressMsg) tea.Cmd {
 	}
 	// Ordinary keys and Ctrl+G belong to the focused child outside command mode.
 	if h.paneFocused() {
+		if cmd := h.followPane(); cmd != nil {
+			return cmd
+		}
 		return h.forwardPane(h.pane.terminal.Key(message.Key()))
+	}
+	if cmd := h.followShell(); cmd != nil {
+		return cmd
 	}
 	h.completionWanted = !quoted && message.String() == "tab"
 	data, err := h.terminal.Key(message.Key())
@@ -277,6 +288,112 @@ func (h *host) keyInput(message tea.KeyPressMsg) tea.Cmd {
 		h.noteShellInput(data, quoted)
 	}
 	return h.forward(data, err)
+}
+
+// wheelDelta is a vertical wheel notch in viewport lines, negative upward.
+// Horizontal wheel events and other buttons do not scroll history.
+func wheelDelta(message tea.MouseMsg) (int, bool) {
+	if _, ok := message.(tea.MouseWheelMsg); !ok {
+		return 0, false
+	}
+	switch message.Mouse().Button {
+	case tea.MouseWheelUp:
+		return -wheelScrollLines, true
+	case tea.MouseWheelDown:
+		return wheelScrollLines, true
+	}
+	return 0, false
+}
+
+// scrollShell moves the Bash viewport and repaints only when the snapshot
+// would actually change, so wheel ticks at the ends of history stay free.
+func (h *host) scrollShell(delta int) tea.Cmd {
+	moved, err := h.terminal.Scroll(delta)
+	if err != nil {
+		return h.fail(err)
+	}
+	if !moved {
+		return nil
+	}
+	if err := h.snapshot(); err != nil {
+		return h.fail(err)
+	}
+	return nil
+}
+
+// wheelArrow is the key an outer terminal would send for a wheel notch on the
+// alternate screen, where there is no scrollback to move.
+func wheelArrow(delta int) tea.Key {
+	if delta < 0 {
+		return tea.Key{Code: uv.KeyUp}
+	}
+	return tea.Key{Code: uv.KeyDown}
+}
+
+// wheelShell leaves a full-screen child's paging to the child, preserving the
+// arrow-key behaviour the outer terminal had before the host claimed the wheel.
+func (h *host) wheelShell(delta int) tea.Cmd {
+	if !h.frame.AltScreen {
+		return h.scrollShell(delta)
+	}
+	data, err := h.terminal.Key(wheelArrow(delta))
+	if err != nil {
+		return h.forward(nil, err)
+	}
+	return h.forward(data, nil)
+}
+
+func (h *host) wheelPane(delta int) tea.Cmd {
+	if !h.pane.frame.AltScreen {
+		return h.scrollPane(delta)
+	}
+	data, err := h.pane.terminal.Key(wheelArrow(delta))
+	if err != nil {
+		return h.forwardPane(nil, err)
+	}
+	return h.forwardPane(data, nil)
+}
+
+func (h *host) scrollPane(delta int) tea.Cmd {
+	moved, err := h.pane.terminal.Scroll(delta)
+	if err != nil {
+		return h.failPane(err)
+	}
+	if !moved {
+		return nil
+	}
+	if err := h.pane.snapshot(); err != nil {
+		return h.failPane(err)
+	}
+	return nil
+}
+
+// Typing returns the viewport to the live screen, the way a scrolled-back
+// terminal snaps to the bottom on input.
+func (h *host) followShell() tea.Cmd {
+	moved, err := h.terminal.ScrollBottom()
+	if err != nil {
+		return h.forward(nil, err)
+	}
+	if moved {
+		if err := h.snapshot(); err != nil {
+			return h.fail(err)
+		}
+	}
+	return nil
+}
+
+func (h *host) followPane() tea.Cmd {
+	moved, err := h.pane.terminal.ScrollBottom()
+	if err != nil {
+		return h.forwardPane(nil, err)
+	}
+	if moved {
+		if err := h.pane.snapshot(); err != nil {
+			return h.failPane(err)
+		}
+	}
+	return nil
 }
 
 func localMouse(message tea.MouseMsg, x, y int) tea.MouseMsg {
@@ -319,6 +436,9 @@ func (h *host) mouseInput(message tea.MouseMsg) tea.Cmd {
 				return nil
 			}
 		}
+		if delta, wheel := wheelDelta(message); wheel && !h.pane.frame.MouseTracking {
+			return h.wheelPane(delta)
+		}
 		return h.forwardPane(h.pane.terminal.Mouse(localMouse(message,
 			mouse.X-layout.Body.Min.X, mouse.Y-layout.Body.Min.Y)))
 	}
@@ -328,6 +448,10 @@ func (h *host) mouseInput(message tea.MouseMsg) tea.Cmd {
 			if cmd := h.syncFocus(); cmd != nil {
 				return cmd
 			}
+		}
+
+		if delta, wheel := wheelDelta(message); wheel && !h.frame.MouseTracking {
+			return h.wheelShell(delta)
 		}
 
 		nativeY := mouse.Y - layout.Shell.Min.Y + layout.ShellScroll
