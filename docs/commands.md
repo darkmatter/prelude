@@ -35,8 +35,8 @@ Workspace and project commands (the workspace entry is built in when enabled;
 - **`x fmt`** — `treefmt` (alejandra for Nix, gofmt/goimports for Go) over the repository.
 - **`x build <target>`** — `nix build` with flake-output suggestions.
 - **`x prelude:previews`** — build the render checks and display their output.
-- **`prelude-workspace`** / **`x prelude:workspace`** — manually launch the
-  libghostty-vt workspace when `prelude.workspace.enable = true` (default: `false`).
+- **`prelude`** / **`prelude-workspace`** / **`x prelude:workspace`** — manually launch the
+  libghostty-vt workspace when `prelude.workspace.enable = true` (default: `true`); `prelude help` lists subcommands.
   Both `flakeModules.default` and `lib.evalModule` export `packages.prelude-workspace`
   and bundle the active launcher in `prelude-shell`. Menu and MOTD must be enabled
   and Docs must have at least one page; evaluation asserts these prerequisites.
@@ -53,11 +53,12 @@ Workspace and project commands (the workspace entry is built in when enabled;
   legacy BLE initialization.
   The workspace has a single themed hints footer and borderless, floating-by-default
   docs/menu window, with no host-imposed backdrop. Menu panes use `x --embedded` automatically.
-  Alt+M reprints MOTD in the main shell, Alt+X toggles the menu, and Alt+D toggles
-  docs. Ctrl+P unlocks one command: `m` MOTD, `x` menu, `d` docs, `t` window,
-  Tab focus, `v` layout, or `c` close. The footer highlights UNLOCKED until that
-  action; Esc or Ctrl+P again locks. Ctrl+G is child-owned, not a Prelude binding. Ctrl+\] / Ctrl+\[ cycle
-  floating/left/right/top/bottom without a leader; `Ctrl+\` is the legacy-terminal
+  Alt+M reprints MOTD in the main shell, Alt+X toggles the menu, Alt+D toggles
+  docs, Alt+W shows/hides the current window, and Alt+Tab switches focus between
+  Bash and a live window. With a window open, Ctrl+P unlocks layout commands: `]` / `[`
+  next/previous layout, Tab focus; it stays unlocked until Esc or Ctrl+P locks. With
+  no window, Ctrl+P reaches Bash. Ctrl+G is child-owned, not a Prelude binding. Ctrl+\] / Ctrl+\[ cycle
+  floating/left/right/top/bottom without unlocking; `Ctrl+\` is the legacy-terminal
   fallback for previous layout. Normal `motd` prints once on entry before the
   first prompt, as main-shell output, not a pane; a startup failure is nonfatal.
   Menu selections close the picker and run in the main Bash, preserving parked
@@ -67,15 +68,17 @@ Workspace and project commands (the workspace entry is built in when enabled;
   Enter inserts without running, Esc dismisses; single matches insert directly.
   A later Enter runs the completed command. File/argument completion stays in
   Readline. Key hints use the command menu's padded bold keycaps, muted labels,
-  and right-aligned status; only keycaps and the active mode badge paint a
-  background. Starship keeps its original bracketed keymap on the right with
-  `Alt + [m] motd · [x] menu · [d] docs`. The separate footer shows LOCKED / UNLOCKED
+  and right-aligned status, ending in an always-on `⌥ +` powerline pill: a dim
+  `w viewer` chip while no window shows, then a filled `w hide` chip plus the window and `shell`, with the
+  focused one in bold accent, a thin muted divider pointing at it, and `⇥` on the one Alt+Tab reaches; the closed `w` key is bold `accent2` like `^P`. Only keycaps, the active
+  mode badge, and that pill paint a background. Starship keeps its original bracketed keymap on the right with
+  `Alt + [m] motd · [x] menu · [d] docs`. The left side of the footer is empty until a window opens, then shows `^P layout`
   in all prompt modes; completion keys still use that one protected bottom row. Completion is rendering-only: it preserves
   Bash's PTY size and the full visible Starship prompt, shifting the displayed
   viewport only when space below the prompt is insufficient. Automatic entry uses
   Starship when `prelude.prompt.enable = true`, otherwise the fixed `prelude $ `
-  prompt. Manual launches use the fixed prompt unless passed `--starship`;
-  `prelude-workspace --starship` works even when `prelude.prompt.enable = false`.
+  prompt (passing `--starship=false`). Manual launches default to Starship even
+  when `prelude.prompt.enable = false`; `prelude --starship=false` gives the fixed prompt. In a direnv-loaded shell, `prelude` opens the full workspace without `nix develop`.
   The published package honors `prelude.root` (`lib.evalModule` users set
   it to `self`) with `PRELUDE_ROOT` override support; it uses the consumer's published
   menu. See the [workspace guide](guides/workspace.md) for the enable snippet,

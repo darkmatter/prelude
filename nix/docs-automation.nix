@@ -150,10 +150,12 @@
   # media in a dirty checkout and would make its own freshness check loop.
   fingerprintConfig = config:
     config
-    // lib.optionalAttrs (
-      config ? title && config.title ? text && config.title.text != null
-    ) {
-      title = config.title // {text = builtins.readFile config.title.text;};
+    // lib.optionalAttrs (config ? title && config.title ? text && config.title.text != null) {
+      title =
+        config.title
+        // {
+          text = builtins.readFile config.title.text;
+        };
     };
   fingerprint = componentInput: tapeText: config:
     builtins.hashString "sha256" (
@@ -423,7 +425,7 @@
 
     The menu demonstrates live filtering, command details, argument suggestion
     chips, and a command preview. The recording selects `build`, opens its
-    details, and accepts a target suggestion chip.
+    detail view, and accepts a target suggestion chip.
 
     ![Prelude interactive menu recording](../media/menu.gif)
 

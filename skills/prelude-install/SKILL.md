@@ -132,8 +132,10 @@ or, in blueprint, `packages/prelude-docs.nix`.
   reopen it; leaving/reentering the devshell or a changed init permits reentry.
   Noninteractive, envrc, lorri, zsh, and non-TTY contexts never auto-launch it;
   `PRELUDE_WORKSPACE_ACTIVE` prevents child recursion. Workspace mode skips legacy
-  BLE initialization. Manual `x prelude:workspace` and
-  `prelude-workspace --starship` remain supported.
+  BLE initialization. Bare `prelude` opens the workspace manually (Starship
+  by default; `--starship=false` for the fixed prompt), including from a
+  direnv-loaded shell without `nix develop`; `x prelude:workspace` and
+  `prelude-workspace` remain equivalent.
 
 - lorri — runs `shellHook` inside the Nix builder, so route it through the
   same `.envrc`: replace `use flake` with `eval "$(lorri export direnv-adapter)"`.

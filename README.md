@@ -67,12 +67,12 @@ Each Markdown file is one page. Digits jump, `Tab` steps, `j`/`k` scroll, `q` qu
 
 ### Workspace
 
-Opt into a managed Bash with a movable docs/menu pane. `prelude.workspace.enable` defaults to `false`; enable it in your `prelude.nix` sidecar with the required surfaces:
+Prelude provides a managed Bash with a movable docs/menu pane by default. `prelude.workspace.enable` defaults to `true`; configure the required surfaces in your `prelude.nix` sidecar:
 
 ```nix
 {
   prelude = {
-    workspace.enable = true;
+
     menu.enable = true;
     motd.enable = true;
     docs.pages = [ { text = ./README.md; } ];
@@ -83,15 +83,15 @@ Opt into a managed Bash with a movable docs/menu pane. `prelude.workspace.enable
 Both `flakeModules.default` and `lib.evalModule` export `packages.prelude-workspace` and bundle the active launcher in `prelude-shell` when enabled. The Menu/MOTD/Docs prerequisites are asserted; `prelude.prompt.enable` is not required. Keep `.envrc` as `use flake`: `cd` + direnv provides the lightweight environment, MOTD, and theming for an already-initialized Starship prompt. Run interactive `nix develop` for the full footer and catalogue completion; generated project init enters the enabled workspace in the foreground in Bash with a TTY. No extra Prelude Bash rc hook is required. Automatic Starship follows `prelude.prompt.enable`; manual launches remain available:
 
 ```sh
-x prelude:workspace             # manual launch with the fixed prelude $ prompt
-prelude-workspace --starship    # manual launch with Starship, even if prelude.prompt.enable = false
+prelude                         # open the workspace; Starship by default (also `x prelude:workspace` / `prelude-workspace`)
+prelude --starship=false        # fixed prelude $ prompt
 ```
 
-Both use the current checkout's menu, with your own Docs, MOTD, theme, and completion config. The published package honors `prelude.root` (`lib.evalModule` users set it to `self`); `PRELUDE_ROOT` still overrides it.
+All use the current checkout's menu, with your own Docs, MOTD, theme, and completion config; manual launches use Starship even if `prelude.prompt.enable = false`. In a direnv-loaded shell, `prelude` opens the full workspace without `nix develop` (one shell level); `prelude help` lists subcommands. The published package honors `prelude.root` (`lib.evalModule` users set it to `self`); `PRELUDE_ROOT` still overrides it.
 
 Each init is stamped before launch, so exit or failure does not immediately reopen the workspace. Leaving and reentering the devshell, or a changed init, permits automatic entry again. Noninteractive, envrc, lorri, zsh, and non-TTY contexts never auto-launch it; `PRELUDE_WORKSPACE_ACTIVE` prevents child recursion. Workspace mode skips legacy BLE initialization. The public `prelude hook bash` remains optional for already-configured interactive handoffs after direnv, not an onboarding requirement.
 
-Disabled consumers avoid workspace native dependencies. This repo dogfoods it enabled, so its default shell includes the launcher and native runtime, but not headers or renderer tooling. See the [workspace guide](docs/guides/workspace.md) for activation details, published launches, controls, and runtime limitations.
+Set `prelude.workspace.enable = false` to opt out and avoid workspace native dependencies. This repo dogfoods it enabled, so its default shell includes the launcher and native runtime, but not headers or renderer tooling. See the [workspace guide](docs/guides/workspace.md) for activation details, published launches, controls, and runtime limitations.
 
 ### TypeScript
 

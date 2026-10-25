@@ -144,7 +144,7 @@ prelude = {
           token = "--recipe";
         }
       ];
-      description = "run the interactive setup wizard to choose a title, theme, and command catalogue, then write a consumer's Prelude sidecar without replacing flake.nix";
+      description = "run the interactive setup wizard ";
       details = ''
         Generate a Prelude sidecar and a sibling title.txt for a consumer project. Choose a different output path when experimenting in this repository so the wizard does not replace our own prelude.nix.
       '';
@@ -160,21 +160,21 @@ prelude = {
       args = [
         {
           boolean = true;
-          description = "Use the themed Prelude Starship prompt instead of the fixed `prelude $` prompt, preserving its navigation keymap while the command menu and docs panes move between floating and split layouts.";
-          token = "--starship";
+          description = "Use the fixed `prelude $` prompt instead of the themed Prelude Starship prompt; the command menu and docs panes still move between floating and split layouts.";
+          token = "--starship=false";
         }
       ];
-      description = "launch a Bash workspace with Prelude keyboard chords, movable menu and docs panes, and an optional Starship prompt";
+      description = "launch a Bash workspace with Prelude keyboard chords, movable menu and docs panes, and the themed Starship prompt";
       details = ''
         Open an isolated Bash with a movable Prelude menu or docs pane. Alt+X toggles the command menu; Ctrl+] cycles pane layouts so you can inspect description wrapping at different widths.
-        The fixed `prelude $` prompt is the default. Enable --starship to use the themed Prelude prompt and its navigation keymap instead.
+        The themed Prelude Starship prompt and its navigation keymap are the default; bare `prelude` opens the same workspace. Enable --starship=false for the fixed `prelude $` prompt instead.
       '';
       examples = [
-        "x prelude:workspace --starship"
+        "x prelude:workspace --starship=false"
       ];
       exec = "prelude-workspace";
       group = "prelude";
-      usage = "x prelude:workspace [--starship]";
+      usage = "x prelude:workspace [--starship=false]";
     };
     record-docs = {
       description = "record stale VHS showcases and sync docs";
@@ -208,8 +208,16 @@ prelude = {
   motd = {
     description = {
       text = ''
-        You are inside Prelude's own devshell — the banner, menu, docs, and prompt around you are built by this repo from `prelude.nix`, the same way a downstream project would. Run `x` to browse every command, or `docs` for the guides — including how to set up Prelude in your own repo.
-      '';
+        You are in the prelude devshell, which contains everything you need to develop.
+        
+        The primary commands are shown below. The rest are available in the
+        launcher (`x`), where every command also runs as `x <cmd>` with Tab
+        completion.
+        
+        Open the project documentation with `docs`.
+        
+        In the workspace, Alt+X toggles the command menu and Alt+D the
+        documentation.'';
     };
     header = {
       status = {
@@ -318,7 +326,7 @@ prelude = {
 
 The menu demonstrates live filtering, command details, argument suggestion
 chips, and a command preview. The recording selects `build`, opens its
-details, and accepts a target suggestion chip.
+detail view, and accepts a target suggestion chip.
 
 ![Prelude interactive menu recording](../media/menu.gif)
 
@@ -457,7 +465,7 @@ prelude = {
           token = "--recipe";
         }
       ];
-      description = "run the interactive setup wizard to choose a title, theme, and command catalogue, then write a consumer's Prelude sidecar without replacing flake.nix";
+      description = "run the interactive setup wizard ";
       details = ''
         Generate a Prelude sidecar and a sibling title.txt for a consumer project. Choose a different output path when experimenting in this repository so the wizard does not replace our own prelude.nix.
       '';
@@ -473,21 +481,21 @@ prelude = {
       args = [
         {
           boolean = true;
-          description = "Use the themed Prelude Starship prompt instead of the fixed `prelude $` prompt, preserving its navigation keymap while the command menu and docs panes move between floating and split layouts.";
-          token = "--starship";
+          description = "Use the fixed `prelude $` prompt instead of the themed Prelude Starship prompt; the command menu and docs panes still move between floating and split layouts.";
+          token = "--starship=false";
         }
       ];
-      description = "launch a Bash workspace with Prelude keyboard chords, movable menu and docs panes, and an optional Starship prompt";
+      description = "launch a Bash workspace with Prelude keyboard chords, movable menu and docs panes, and the themed Starship prompt";
       details = ''
         Open an isolated Bash with a movable Prelude menu or docs pane. Alt+X toggles the command menu; Ctrl+] cycles pane layouts so you can inspect description wrapping at different widths.
-        The fixed `prelude $` prompt is the default. Enable --starship to use the themed Prelude prompt and its navigation keymap instead.
+        The themed Prelude Starship prompt and its navigation keymap are the default; bare `prelude` opens the same workspace. Enable --starship=false for the fixed `prelude $` prompt instead.
       '';
       examples = [
-        "x prelude:workspace --starship"
+        "x prelude:workspace --starship=false"
       ];
       exec = "prelude-workspace";
       group = "prelude";
-      usage = "x prelude:workspace [--starship]";
+      usage = "x prelude:workspace [--starship=false]";
     };
     record-docs = {
       description = "record stale VHS showcases and sync docs";

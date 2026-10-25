@@ -11,6 +11,16 @@
 
 ## Workflow
 
+The default shell loads its tools and Prelude configuration explicitly, keeping
+Nix build metadata out of direnv's exported environment. It includes Go, Bun,
+Git, Nix, curl, Make, pkg-config, and the platform's wrapped C/C++ compiler and
+binutils. Package setup hooks are not loaded automatically: native library
+search paths must be supplied explicitly, for example through `PKG_CONFIG_PATH`.
+
+For work on the separate Go/C workspace module, use `nix develop .#workspace`.
+That shell retains the standard build environment and configures libghostty-vt
+and pkg-config for its native dependencies.
+
 Edit, then verify — from the repo root:
 
 ```sh
