@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-const devshellHintCopy = "You're using the cached devshell, which doesn't run the shellHook in your interactive shell. Run nix develop for the full devshell."
+const devshellHintCopy = "You're using the cached devshell, which fails to reproduce some features. Run nix develop for the full devshell."
 
 func TestRenderDevshellHintUsesCardGeometry(t *testing.T) {
 	cases := []struct {

@@ -1,7 +1,43 @@
 # prelude.motd.* options — the static devshell welcome banner.
-{lib, ...}: let
+{
+  lib,
+  config,
+  ...
+}: let
   defaults = import ../defaults.nix;
   t = import ../option-types.nix {inherit lib;};
+
+  # Universal welcome copy. Name the configured project, and only mention the
+  # launcher, docs viewer, and workspace hotkeys that this evaluation actually
+  # enables; a consumer who omits description.text never gets a stale promise.
+  descriptionText = let
+    # Some option-only evaluations (docs, fixtures) include this module without
+    # the sibling component options; absence means disabled, not an error.
+    menu = (config.prelude.menu or {}).enable or false;
+    docs = ((config.prelude.docs or {}).pages or []) != [];
+    workspace = (config.prelude.workspace or {}).enable or false;
+    paragraphs =
+      [
+        (defaults.motdWelcome (config.prelude.project or defaults.project))
+      ]
+      ++ lib.optional menu ''
+        The primary commands are shown below. The rest are available in the
+        launcher (`x`), where every command also runs as `x <cmd>` with Tab
+        completion.
+      ''
+      ++ lib.optional docs "Open the project documentation with `docs`."
+      ++ lib.optional (workspace && menu && docs) ''
+        In the workspace, Alt+X toggles the command menu and Alt+D the
+        documentation.
+      ''
+      ++ lib.optional (workspace && menu && !docs) ''
+        In the workspace, Alt+X toggles the command menu.
+      ''
+      ++ lib.optional (workspace && docs && !menu) ''
+        In the workspace, Alt+D toggles the documentation.
+      '';
+  in
+    lib.concatStringsSep "\n\n" (map lib.trim paragraphs);
 
   # One {label, url} terminal hyperlink; shared by `links` and
   # `header.statusHint.links`.
@@ -224,6 +260,7 @@ in {
     description = t.mkTextOption (
       defaults.motd.description
       // {
+        text = descriptionText;
         description = "Styled text rendered beneath the header (theme fg role). Empty text hides it.";
       }
     );
