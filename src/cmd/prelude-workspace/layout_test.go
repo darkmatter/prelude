@@ -56,7 +56,7 @@ func TestComputeLayoutGeometry(t *testing.T) {
 						if again := computeLayout(cols, rows, where, panelOpen); again != layout {
 							t.Fatalf("%dx%d: nondeterministic layout: %+v then %+v", cols, rows, layout, again)
 						}
-						contentRows := max(rows-1, 1)
+						contentRows := shellRows(rows)
 						usable := uv.Rect(0, 0, cols, contentRows)
 						footerY := -1
 						if rows > 1 {
@@ -64,6 +64,21 @@ func TestComputeLayoutGeometry(t *testing.T) {
 						}
 						if layout.FooterY != footerY {
 							t.Fatalf("%dx%d: footer = %d, want %d", cols, rows, layout.FooterY, footerY)
+						}
+						// The row above the footer is blank padding from
+						// footerPaddingMinRows up; below it content reaches the footer.
+						if footerY >= 0 {
+							contentEnd := layout.Shell.Max.Y
+							if !layout.Panel.Empty() && layout.Panel.Max.Y > contentEnd {
+								contentEnd = layout.Panel.Max.Y
+							}
+							if rows >= footerPaddingMinRows {
+								if paddingY := footerY - 1; contentEnd > paddingY || (paddingY >= layout.Shell.Min.Y && paddingY < layout.Shell.Max.Y) || (!layout.Panel.Empty() && paddingY >= layout.Panel.Min.Y && paddingY < layout.Panel.Max.Y) {
+									t.Fatalf("%dx%d: padding row %d inside content: %+v", cols, rows, paddingY, layout)
+								}
+							} else if contentEnd != footerY {
+								t.Fatalf("%dx%d: below padding threshold content must reach footer: %+v", cols, rows, layout)
+							}
 						}
 						if layout.Shell.Dx() < 1 || layout.Shell.Dy() < 1 {
 							t.Fatalf("%dx%d: shell has no usable cell: %+v", cols, rows, layout)
@@ -193,7 +208,7 @@ func TestComputeLayoutInvalidPlacement(t *testing.T) {
 
 func TestComputeLayoutFloatingCap(t *testing.T) {
 	layout := computeLayout(240, 100, placementFloating, true)
-	if layout.Shell != uv.Rect(0, 0, 240, 99) || layout.FooterY != 99 {
+	if layout.Shell != uv.Rect(0, 0, 240, shellRows(100)) || layout.FooterY != 99 {
 		t.Fatalf("large floating pane changed shell/footer geometry: %+v", layout)
 	}
 	if layout.Panel != uv.Rect(70, 34, 100, 30) || layout.Body != layout.Panel {

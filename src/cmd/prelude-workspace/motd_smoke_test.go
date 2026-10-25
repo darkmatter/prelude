@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"image"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -66,8 +65,8 @@ func TestGhosttyStartupMotdBinarySmoke(t *testing.T) {
 		args   []string
 		prompt string
 	}{
-		{"Fixed", nil, strings.TrimSpace(workspacePrompt)},
-		{"Starship", []string{"--starship"}, "界❯"},
+		{"Fixed", []string{fixedPromptFlag}, strings.TrimSpace(workspacePrompt)},
+		{"Starship", nil, "界❯"},
 	} {
 		t.Run(mode.name, func(t *testing.T) {
 			t.Run("OnceBeforePromptAndManualReprint", func(t *testing.T) {
@@ -96,58 +95,61 @@ fi`, log, log, log))
 				s.send("echo parked")
 				s.await("parked Bash input after startup MOTD", func(f smokeFrame) bool { return f.hasInput(mode.prompt, "echo parked") && f.footer() == pending })
 				for _, surface := range []struct{ key, kind string }{{"x", "menu"}, {"d", "docs"}} {
-					s.send("\x10" + surface.key)
+					s.send("\x1b" + surface.key)
 					shown := s.await("MOTD stays outside the "+surface.kind+" pane", func(f smokeFrame) bool {
-						return f.panel(surface.kind) && f.hasPaneFooter(surface.kind+" | floating | focus:pane | running")
+						return f.panel(surface.kind) && f.hasPaneFooter(f.paneFooterStatus(surface.kind, "")) && f.pillFocusesPane()
 					})
-					if body := leaderSmokeBody(shown, image.Rect(9, 2, 81, 21)); strings.Contains(body, "MOTD_") {
+					if body := leaderSmokeBody(shown, smokeLayoutBody(ghosttySmokeCols, ghosttySmokeRows, placementFloating)); strings.Contains(body, "MOTD_") {
 						t.Fatalf("MOTD appeared in the surface pane: %q", body)
 					}
 					if surface.kind == "menu" && shown.rows[0] != "STARTUP_MOTD_ONCE" {
 						t.Fatalf("startup banner was not ordinary main-shell output\n%s", s.diagnostics())
 					}
-					s.send("\x10" + surface.key)
+					s.send("\x1b" + surface.key)
 					s.await("hide "+surface.kind+" without replaying startup", func(f smokeFrame) bool {
-						return f.hasInput(mode.prompt, "echo parked") && f.hasPaneFooter(surface.kind+" hidden | running")
+						return f.hasInput(mode.prompt, "echo parked") && f.hasPaneFooter(smokeClosedPill())
 					})
-					s.send("\x10t")
+					s.send("\x1b" + surface.key)
 					s.await("show "+surface.kind+" without replaying startup", func(f smokeFrame) bool {
-						return f.panel(surface.kind) && f.hasPaneFooter(surface.kind+" | floating | focus:pane | running")
+						return f.panel(surface.kind) && f.hasPaneFooter(f.paneFooterStatus(surface.kind, "")) && f.pillFocusesPane()
 					})
 					s.send("\x1d")
 					s.await("docked "+surface.kind+" with parked Bash input", func(f smokeFrame) bool {
-						return f.hasPaneFooter("Placement: left | " + surface.kind + " | left | focus:pane | running")
+						return f.hasPaneFooter(f.paneFooterStatus(surface.kind, "")) && f.pillFocusesPane()
 					})
 					s.resize(104, 28)
 					s.await("outer resize does not rerun MOTD", func(f smokeFrame) bool {
-						return f.cols == 104 && len(f.rows) == 28 && f.hasPaneFooter("Placement: left | "+surface.kind+" | left | focus:pane | running")
+						return f.cols == 104 && len(f.rows) == 28 && f.hasPaneFooter(f.paneFooterStatus(surface.kind, "")) && f.pillFocusesPane()
 					})
 					s.send("\x1c")
 					s.await("floating "+surface.kind+" restored", func(f smokeFrame) bool {
-						return f.panel(surface.kind) && f.hasPaneFooter("Placement: floating | "+surface.kind+" | floating | focus:pane | running")
+						return f.panel(surface.kind) && f.hasPaneFooter(f.paneFooterStatus(surface.kind, "")) && f.pillFocusesPane()
 					})
-					s.send("\x10c")
-					s.await("close "+surface.kind+" leaves MOTD in Bash only", func(f smokeFrame) bool { return f.hasInput(mode.prompt, "echo parked") && f.footer() == pending })
+					s.send("\x1b" + surface.key)
+					s.await("hide "+surface.kind+" leaves MOTD in Bash only", func(f smokeFrame) bool {
+						return f.hasInput(mode.prompt, "echo parked") && f.hasPaneFooter(smokeClosedPill())
+					})
 					s.resize(ghosttySmokeCols, ghosttySmokeRows)
 					s.await("original shell geometry restored", func(f smokeFrame) bool {
-						return f.cols == ghosttySmokeCols && len(f.rows) == ghosttySmokeRows && f.hasInput(mode.prompt, "echo parked") && f.footer() == pending
+						return f.cols == ghosttySmokeCols && len(f.rows) == ghosttySmokeRows && f.hasInput(mode.prompt, "echo parked") &&
+							f.hasPaneFooter(smokeClosedPill())
 					})
 					assertMotdCalls(t, log, 1)
 				}
 				s.send("\x0c")
 				s.await("readline redraw clears banner without replaying it", func(f smokeFrame) bool {
-					return !f.hasLine("STARTUP_MOTD_ONCE") && f.hasInput(mode.prompt, "echo parked") && f.footer() == pending
+					return !f.hasLine("STARTUP_MOTD_ONCE") && f.hasInput(mode.prompt, "echo parked") && f.hasPaneFooter(smokeClosedPill())
 				})
 				s.send("\r")
 				s.await("ordinary command after startup", func(f smokeFrame) bool {
-					return f.hasLine("parked") && f.hasInput(mode.prompt, "") && f.footer() == smokeBaseFooter
+					return f.hasLine("parked") && f.hasInput(mode.prompt, "") && f.hasPaneFooter(smokeClosedPill())
 				})
 				s.send("false\r")
-				awaitSmokeStatus(s, mode.prompt, "motd-user-failure", 1)
+				awaitSmokeStatus(s, mode.prompt, "motd-user-failure", 1, smokeClosedPill())
 				assertMotdCalls(t, log, 1)
 				s.send("motd\r")
 				s.await("manual argument-free MOTD remains a shell command", func(f smokeFrame) bool {
-					return f.hasLine("MANUAL_MOTD_REPRINT") && f.hasInput(mode.prompt, "") && f.footer() == smokeBaseFooter
+					return f.hasLine("MANUAL_MOTD_REPRINT") && f.hasInput(mode.prompt, "") && f.hasPaneFooter(smokeClosedPill())
 				})
 				assertMotdCalls(t, log, 2)
 				s.send("exit 0\r")
@@ -180,15 +182,15 @@ builtin printf 'ALTM_MOTD:%%s\n' "$calls"`, log, ttyLog, log))
 				s.await("parked line before Alt+M", func(f smokeFrame) bool { return f.hasInput(mode.prompt, parked) })
 				s.send("\x1bx")
 				pane := s.await("Alt+x opens retained native menu", func(f smokeFrame) bool {
-					return f.panel("menu") && f.hasPaneFooter("menu | floating | focus:pane | running")
+					return f.panel("menu") && f.hasPaneFooter(f.paneFooterStatus("menu", "")) && f.pillFocusesPane()
 				})
-				body := image.Rect(30, 2, 130, 24)
+				body := smokeLayoutBody(160, 28, placementFloating)
 				identity := strings.TrimSpace(pane.textAt(body.Min.X, body.Min.Y, body.Dx()))
 				s.send("R")
 				s.await("pane retains its own input", func(f smokeFrame) bool { return strings.Contains(leaderSmokeBody(f, body), "BYTES:52") })
 				s.send("\x1bm")
 				s.await("Alt+M prints in main shell, hides pane and restores exact parked input", func(f smokeFrame) bool {
-					return f.hasLine("ALTM_MOTD:2") && f.hasInput(mode.prompt, parked) && !f.panel("menu") && f.hasPaneFooter("menu hidden | running")
+					return f.hasLine("ALTM_MOTD:2") && f.hasInput(mode.prompt, parked) && !f.panel("menu") && f.hasPaneFooter(smokeClosedPill())
 				})
 				s.send("-")
 				s.await("Alt+M preserves mid-line point", func(f smokeFrame) bool { return f.hasInput(mode.prompt, strings.Replace(parked, "XY", "XY-", 1)) })
@@ -196,29 +198,31 @@ builtin printf 'ALTM_MOTD:%%s\n' "$calls"`, log, ttyLog, log))
 				s.await("Alt+M preserves Readline mark", func(f smokeFrame) bool { return f.hasInput(mode.prompt, strings.Replace(parked, "XY", "MXY-", 1)) })
 				s.send("\x05\r")
 				s.await("restored input executes byte-for-byte", func(f smokeFrame) bool { return f.hasLine("ALTM_PARKED:abMXY-cd") && f.hasInput(mode.prompt, "") })
-				s.send("\x10t")
+				s.send("\x1bw")
 				s.await("MOTD hid rather than replaced the same pane", func(f smokeFrame) bool {
 					return f.panel("menu") && strings.TrimSpace(f.textAt(body.Min.X, body.Min.Y, body.Dx())) == identity && strings.Contains(leaderSmokeBody(f, body), "BYTES:52")
 				})
 				s.send("\x10")
-				s.await("MOTD command visibly unlocks", func(f smokeFrame) bool { return f.hasFooter(smokeLeaderKeys, "") })
-				s.send("m")
-				s.await("unlocked m performs one MOTD action and locks", func(f smokeFrame) bool {
-					return f.hasLine("ALTM_MOTD:3") && f.hasInput(mode.prompt, "") && f.hasPaneFooter("menu hidden | running")
+				s.await("MOTD command visibly unlocks", func(f smokeFrame) bool {
+					return f.hasFooter(smokeLeaderWindowKeys, f.paneFooterStatus("menu", ""))
+				})
+				s.send("\x1bm")
+				s.await("Alt+M performs one MOTD action and locks command mode", func(f smokeFrame) bool {
+					return f.hasLine("ALTM_MOTD:3") && f.hasInput(mode.prompt, "") && f.hasPaneFooter(smokeClosedPill())
 				})
 				s.send("altm_foreground\r")
 				s.await("foreground read owns main-shell input", func(f smokeFrame) bool {
 					return f.hasLine("ALTM_FOREGROUND_READY") && f.hasInput(mode.prompt, "altm_foreground")
 				})
 				s.send("\x1bm")
-				s.await("Alt+M queues rather than injecting into foreground input", func(f smokeFrame) bool { return f.hasPaneFooter("menu hidden | running | command queued") })
+				s.await("Alt+M queues rather than injecting into foreground input", func(f smokeFrame) bool { return f.hasPaneFooter(smokeClosedPill() + " command queued") })
 				assertMotdCalls(t, log, 3)
 				if data, err := os.ReadFile(foregroundLog); !os.IsNotExist(err) {
 					t.Fatalf("Alt+M injected foreground bytes before user input: %q, %v", data, err)
 				}
 				s.send("only-user-input\r")
 				s.await("queued foreground MOTD runs after the next primary prompt", func(f smokeFrame) bool {
-					return f.hasLine("ALTM_MOTD:4") && f.hasLine("ALTM_FOREGROUND_DONE") && f.hasInput(mode.prompt, "") && f.hasPaneFooter("menu hidden | running")
+					return f.hasLine("ALTM_MOTD:4") && f.hasLine("ALTM_FOREGROUND_DONE") && f.hasInput(mode.prompt, "") && f.hasPaneFooter(smokeClosedPill())
 				})
 				if data, err := os.ReadFile(foregroundLog); err != nil || string(data) != "only-user-input" {
 					t.Fatalf("foreground reader received shortcut bytes: %q, %v", data, err)
@@ -231,7 +235,7 @@ builtin printf 'ALTM_MOTD:%%s\n' "$calls"`, log, ttyLog, log))
 				s.await("PS2 owns unfinished shell command", func(f smokeFrame) bool { return f.hasLine(ps2) })
 				s.send("\x1bm")
 				s.await("Alt+M safely queues at PS2", func(f smokeFrame) bool {
-					return f.hasLine(ps2) && f.hasPaneFooter("menu hidden | running | command queued")
+					return f.hasLine(ps2) && f.hasPaneFooter(smokeClosedPill()+" command queued")
 				})
 				assertMotdCalls(t, log, 4)
 				s.send("printf 'ALTM_PS2_BODY:%s\\n' \"$motd_item\"\r")
@@ -241,7 +245,7 @@ builtin printf 'ALTM_MOTD:%%s\n' "$calls"`, log, ttyLog, log))
 				assertMotdCalls(t, log, 4)
 				s.send("done\r")
 				s.await("queued PS2 MOTD waits until the loop really completes", func(f smokeFrame) bool {
-					return f.hasLine("ALTM_PS2_BODY:one") && f.hasLine("ALTM_MOTD:5") && f.hasInput(mode.prompt, "") && f.hasPaneFooter("menu hidden | running")
+					return f.hasLine("ALTM_PS2_BODY:one") && f.hasLine("ALTM_MOTD:5") && f.hasInput(mode.prompt, "") && f.hasPaneFooter(smokeClosedPill())
 				})
 				assertMotdCalls(t, log, 5)
 				wantTTY, err := os.ReadFile(mainTTY)
@@ -251,8 +255,9 @@ builtin printf 'ALTM_MOTD:%%s\n' "$calls"`, log, ttyLog, log))
 				if got, err := os.ReadFile(ttyLog); err != nil || string(got) != strings.Repeat(string(wantTTY), 5) {
 					t.Fatalf("every MOTD must use the main Bash PTY, not a pane: got %q, main %q, err=%v", got, wantTTY, err)
 				}
-				s.send("\x10c")
-				s.await("retained pane closes without disturbing main shell", func(f smokeFrame) bool { return f.hasInput(mode.prompt, "") && f.footer() == smokeBaseFooter })
+				s.await("hidden pane leaves main shell undisturbed", func(f smokeFrame) bool {
+					return f.hasInput(mode.prompt, "") && f.hasPaneFooter(smokeClosedPill())
+				})
 				s.send("exit 0\r")
 				s.expectExit(0)
 			})
@@ -268,7 +273,7 @@ builtin printf 'ALTM_MOTD:%%s\n' "$calls"`, log, ttyLog, log))
 						// A private PATH makes the command genuinely missing, rather
 						// than replacing it with a successful production skip flag.
 						commands := []string{"bash"}
-						if len(mode.args) != 0 {
+						if mode.name == "Starship" {
 							commands = append(commands, "starship")
 						}
 						for _, command := range commands {

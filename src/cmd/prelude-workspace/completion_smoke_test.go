@@ -26,8 +26,8 @@ func TestGhosttyCompletionInitBinarySmoke(t *testing.T) {
 		args   []string
 		prompt string
 	}{
-		{"Fixed", nil, strings.TrimSpace(workspacePrompt)},
-		{"Starship", []string{"--starship"}, "界❯"},
+		{"Fixed", []string{fixedPromptFlag}, strings.TrimSpace(workspacePrompt)},
+		{"Starship", nil, "界❯"},
 	} {
 		t.Run(mode.name, func(t *testing.T) {
 			for _, initMode := range []string{"GeneratedCatalogueAndHandoff", "InheritedNoclobber", "Unset", "Empty", "Missing", "Failing"} {
@@ -159,7 +159,7 @@ func TestGhosttyCompletionInitBinarySmoke(t *testing.T) {
 						s.await("ordinary x dispatch still executes after completion", func(f smokeFrame) bool {
 							text := strings.Join(f.rows[:len(f.rows)-1], "\n")
 							return strings.Contains(text, "PAGES") && strings.Contains(text, "DOCS") &&
-								f.footer() == smokeBaseFooter && !smokeCompletionVisible(f) && !strings.Contains(f.footer(), " | menu")
+								f.footer() == smokeBaseFooter && !smokeCompletionVisible(f) && strings.Contains(f.footer(), "w viewer")
 						})
 						s.send("q")
 						s.await("actual x/docs returns to the original shell footer", func(f smokeFrame) bool {
@@ -188,7 +188,7 @@ func TestGhosttyCompletionInitBinarySmoke(t *testing.T) {
 						})
 						s.send("\x1bx")
 						s.await("configured picker still works after completion", func(f smokeFrame) bool {
-							return strings.Contains(strings.Join(f.rows, "\n"), "prelude — command menu") && f.hasPaneFooter("menu | floating | focus:pane | running")
+							return strings.Contains(strings.Join(f.rows, "\n"), "prelude — command menu") && f.hasPaneFooter(f.paneFooterStatus("menu", "")) && f.pillFocusesPane()
 						})
 						s.send("docs")
 						s.await("real picker filters to docs", func(f smokeFrame) bool {
@@ -198,7 +198,7 @@ func TestGhosttyCompletionInitBinarySmoke(t *testing.T) {
 						s.await("selected docs runs in main without a menu pane", func(f smokeFrame) bool {
 							text := strings.Join(f.rows[:len(f.rows)-1], "\n")
 							return strings.Contains(text, "PAGES") && strings.Contains(text, "DOCS") &&
-								f.footer() == smokeBaseFooter && !strings.Contains(f.footer(), " | menu")
+								f.footer() == smokeBaseFooter && !smokeCompletionVisible(f) && strings.Contains(f.footer(), "w viewer")
 						})
 						s.send("q")
 						s.await("completion and menu handoff preserve parked readline input", func(f smokeFrame) bool {

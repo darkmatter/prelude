@@ -255,7 +255,8 @@ func TestPromptUnknownAnchorSuppressesCompletion(t *testing.T) {
 	rows := strings.Split(ansi.Strip(view.Content), "\n")
 	if h.prompt.anchor >= 0 || h.completion != nil || !layout.Completion.Empty() || layout.ShellScroll != 0 || layout.FooterY != h.rows-1 ||
 		len(rows) != h.rows || strings.TrimSpace(rows[0]) != workspacePrompt+"x go:" ||
-		strings.Contains(ansi.Strip(view.Content), completionHint) || strings.TrimRight(rows[layout.FooterY], " ") != baseFooter ||
+		strings.Contains(ansi.Strip(view.Content), completionHint) ||
+		strings.TrimSpace(rows[layout.FooterY]) != strings.TrimSpace(spikeClosedPill()) ||
 		view.Cursor == nil || view.Cursor.X != h.frame.CursorX || view.Cursor.Y != h.frame.CursorY {
 		t.Fatalf("unknown semantic boundary must not infer an anchor from prompt-like text or project a chooser: anchor=%d layout=%+v\n%s", h.prompt.anchor, layout, ansi.Strip(view.Content))
 	}

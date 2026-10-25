@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"image"
 
 	"strings"
@@ -49,24 +48,6 @@ func drawFrameRows(buffer *uv.ScreenBuffer, frame terminalFrame, area uv.Rectang
 			x += cell.Width
 		}
 	}
-}
-
-func (h *host) paneStatus() string {
-	if h.paneError != nil || (h.pane != nil && h.pane.err != nil) {
-		return "error"
-	}
-	if h.pane != nil && h.pane.done {
-		return fmt.Sprintf("exited:%d", h.pane.exitCode)
-	}
-	return "running"
-}
-
-func (h *host) paneLabel() string {
-	focus := "focus:shell"
-	if h.paneFocused() {
-		focus = "focus:pane"
-	}
-	return fmt.Sprintf("%s | %s | %s | %s", h.surface, h.placement, focus, h.paneStatus())
 }
 
 func (h *host) drawPane(buffer *uv.ScreenBuffer, layout workspaceLayout) {

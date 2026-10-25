@@ -227,9 +227,10 @@ func TestHostCompletionFloatingPaneDoesNotCoverProjectedPrompt(t *testing.T) {
 	awaitSpike(t, h, "prompt at the bottom of the native viewport", func() bool {
 		return h.prompt.ready && spikeInput(h) == "" && h.frame.CursorY == h.frame.Rows-1 && strings.Contains(spikeFrameText(h.frame), "FLOAT_FILL")
 	})
-	frontendChord(h, 'd')
+	frontendAlt(h, 'd')
 	awaitFrontendReady(t, h, "DOCS")
 	frontendChord(h, tea.KeyTab)
+	spikeKey(h, 'p', tea.ModCtrl)
 	h.Update(tea.PasteMsg{Content: "x go:"})
 	awaitSpike(t, h, "visible shell input below floating docs", func() bool { return spikeInput(h) == "x go:" })
 	mainSize, paneSize := frontendPTYSize(t, h.child), frontendPTYSize(t, h.pane.process)
@@ -251,15 +252,16 @@ func TestHostCompletionFloatingPaneDoesNotCoverProjectedPrompt(t *testing.T) {
 		t.Fatal("floating-pane suppression changed native or pane geometry")
 	}
 	// Removing the occluder must make the same line completable again.
-	frontendChord(h, 'c')
+	frontendAlt(h, 'd')
 	spikeKey(h, tea.KeyTab, 0)
-	awaitSpike(t, h, "closing floating docs makes completion usable", func() bool {
+	awaitSpike(t, h, "hiding floating docs makes completion usable", func() bool {
 		return spikeInput(h) == "x go:" && strings.Contains(ansi.Strip(h.View().Content), completionHint)
 	})
 	spikeKey(h, tea.KeyEscape, 0)
-	if spikeInput(h) != "x go:" || h.footer() != baseFooter {
-		t.Fatal("floating-pane completion cleanup changed input or the existing footer")
+	if spikeInput(h) != "x go:" {
+		t.Fatal("floating-pane completion cleanup changed input")
 	}
+	assertSpikeFooter(t, h, spikeFooterKeyText(spikeNavigationKeys), spikeClosedPill())
 }
 
 func TestHostCompletionMouseFocusKeepsNativeGeometry(t *testing.T) {
@@ -288,10 +290,11 @@ func TestHostCompletionMouseFocusKeepsNativeGeometry(t *testing.T) {
 	awaitSpike(t, h, "initial command completed", func() bool {
 		return h.prompt.ready && spikeInput(h) == "" && strings.Contains(spikeFrameText(h.frame), "COMPLETION_INITIAL_STATUS:0")
 	})
-	frontendChord(h, 'd')
+	frontendAlt(h, 'd')
 	awaitFrontendReady(t, h, "DOCS")
 	spikeKey(h, ']', tea.ModCtrl)
 	frontendChord(h, tea.KeyTab)
+	spikeKey(h, 'p', tea.ModCtrl)
 	h.Update(tea.PasteMsg{Content: "x go:"})
 	awaitSpike(t, h, "shell input with visible docked pane", func() bool { return spikeInput(h) == "x go:" })
 	before := frontendPTYSize(t, h.child)
@@ -323,6 +326,6 @@ func TestHostCompletionMouseFocusKeepsNativeGeometry(t *testing.T) {
 	awaitFrontend(t, h, "clicked pane owns input rather than the old popup", func() bool {
 		return strings.Contains(frontendCompactText(h.pane.frame), fmt.Sprintf("%x", "mouse-owned")) && spikeInput(h) == "x go:"
 	})
-	frontendChord(h, 'c')
-	awaitSpike(t, h, "closing pane preserves original readline input", func() bool { return h.prompt.ready && spikeInput(h) == "x go:" })
+	frontendAlt(h, 'd')
+	awaitSpike(t, h, "hiding pane preserves original readline input", func() bool { return h.prompt.ready && spikeInput(h) == "x go:" })
 }

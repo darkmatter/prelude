@@ -121,13 +121,15 @@ func TestHostMenuSelectionSubmissionRaces(t *testing.T) {
 			h := newSpikeTestHost(t)
 			h.Update(tea.PasteMsg{Content: "race-foreground"})
 			awaitSpike(t, h, "foreground command in readline", func() bool { return spikeInput(h) == "race-foreground" })
-			frontendChord(h, 'x')
+			frontendAlt(h, 'x')
 			awaitFrontendReady(t, h, "MENU")
 			frontendChord(h, tea.KeyTab)
+			spikeKey(h, 'p', tea.ModCtrl)
 			spikeKey(h, tea.KeyEnter, 0)
 			awaitFile(ready)
 
 			frontendChord(h, tea.KeyTab)
+			spikeKey(h, 'p', tea.ModCtrl)
 			spikeKey(h, tea.KeyEnter, 0)
 			finishHostMenuWithoutShellOutput(t, h)
 
@@ -170,7 +172,7 @@ func TestHostMenuSelectionSubmissionRaces(t *testing.T) {
 		spikeKey(h, tea.KeyEnter, 0)
 		h.Update(tea.PasteMsg{Content: suffix})
 		awaitSpike(t, h, "literal Enter remains editable in readline", func() bool { return spikeInput(h) == parked })
-		frontendChord(h, 'x')
+		frontendAlt(h, 'x')
 		awaitFrontendReady(t, h, "MENU")
 		spikeKey(h, tea.KeyEnter, 0)
 		awaitFrontend(t, h, "selection runs without cancelling the quoted parked line", func() bool {
