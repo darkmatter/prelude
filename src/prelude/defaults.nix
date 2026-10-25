@@ -25,6 +25,11 @@
   # Project identity, shared by motd and menu.
   project = "acme";
 
+  # First line of the universal welcome copy. The project name is
+  # configuration, so this is a function: the module appends guidance for the
+  # components it enables, while direct mkMotd consumers get this line alone.
+  motdWelcome = project: "You are in the ${project} devshell, which contains everything you need to develop.";
+
   # Example catalogue for ACME. The first `:` or `/` infers the menu group;
   # the complete key stays callable through `x`. Set `group` on a command to
   # override the inferred group without prefixing the key. Commands
@@ -212,16 +217,12 @@
       };
     };
 
-    # Styled text rendered beneath the header (theme fg role). An empty
-    # text hides it. { text, foreground, background, bold, italic, faint }
-    description = {
-      text = ''
-        You are inside the ACME example devshell — the out-of-the-box Prelude
-        welcome banner. Set `prelude.project`, rewrite the tagline and this
-        description, and replace `prelude.commands` with your real workflows.
-        Run `x` to browse every command.
-      '';
-    };
+    # Styled text rendered beneath the header (theme fg role). The text is
+    # configuration-derived: options/motd.nix supplies the project-aware module
+    # default, and motd.nix supplies the welcome line for direct consumers.
+    # Only presentation defaults belong here.
+    # { text, foreground, background, bold, italic, faint }
+    description = {};
 
     # Terminal hyperlinks rendered beneath the description.
     # Item: { label; url; }

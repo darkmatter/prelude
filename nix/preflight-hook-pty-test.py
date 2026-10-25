@@ -5,19 +5,22 @@ Two activation paths can run in one prompt-enabled `nix develop`: the consumer
 shellHook evaluates preflight, then Prelude's setup hook sources the same init.
 That same-shell re-entry must not render a second banner. Direnv evaluates
 `.envrc` non-interactively and later hands its exports to an interactive shell;
-those separate shells deliberately do not coordinate through exported state.
+the loader shell's render is the one the developer sees, so the init records
+it as PRELUDE_MOTD_SHOWN and the interactive handoff loads the runtime
+without painting the banner again.
 
 Stage 1 emulates prompt-enabled `nix develop`: an interactive Bash evaluates
 preflight, skips the guarded setup-hook source, then evaluates preflight again.
 The two explicit invocations must each render, while the automatic source stays
 quiet.
 Stage 2 emulates nix-direnv: a non-interactive shell with DIRENV_IN_ENVRC set
-sources the init from the cached shellHook. It must render once without
-exporting private Prelude coordination variables.
+sources the init from the cached shellHook. It must render once, export no
+private Prelude coordination variables, and record the render as
+PRELUDE_MOTD_SHOWN keyed by the init path.
 Stage 3 emulates the shell direnv hands off to: an interactive Bash on a PTY with
-that captured environment runs the `prelude hook` trampoline. It must render the
-banner once when the init loads, then stay quiet on the next ordinary prompt
-because the hook tracks the loaded PRELUDE_INIT path.
+that captured environment runs the `prelude hook` trampoline. The envrc render
+already greeted the developer, so hook activation and the next ordinary prompt
+must stay quiet — while a deliberate re-source of the init still renders.
 Stage 4 emulates a prompt runtime attaching while init is still running. An
 already-installed trampoline must recognize that init and avoid a second render.
 
@@ -165,11 +168,22 @@ def envrc_stage(
     private_exports = sorted(name for name in exported if name.startswith("_PRELUDE_"))
     if private_exports:
         fail(f"envrc stage exported private coordination state: {', '.join(private_exports)}")
+    if exported.get("PRELUDE_MOTD_SHOWN") != init:
+        fail(
+            "envrc stage did not record its render as PRELUDE_MOTD_SHOWN=<init>: "
+            f"{exported.get('PRELUDE_MOTD_SHOWN')!r}"
+        )
     return exported
 
 
-def interactive_stage(bash: str, hook: str, init: str, env: dict[str, str]) -> bytes:
-    """Run an interactive Bash with the `prelude hook` trampoline installed."""
+def interactive_stage(
+    bash: str, hook: str, init: str, env: dict[str, str]
+) -> tuple[bytes, bytes]:
+    """Run an interactive Bash with the `prelude hook` trampoline installed.
+
+    Returns (automatic, deliberate): output from hook activation plus one
+    ordinary prompt, then output from deliberately re-sourcing the init.
+    """
     stage_env = dict(env, PRELUDE_INIT=init, PS1="pflt$ ")
 
     pid, master = pty.fork()
@@ -182,15 +196,19 @@ def interactive_stage(bash: str, hook: str, init: str, env: dict[str, str]) -> b
         read_until_idle(master, 6.0)
         # Sourcing the hook appends _prelude_hook to PROMPT_COMMAND, and Bash
         # prints the next prompt as soon as the source returns. Capture that
-        # activation plus one ordinary prompt to prove the hook does not source
-        # the same PRELUDE_INIT path repeatedly.
+        # activation plus one ordinary prompt: the envrc shell already
+        # rendered, so neither may paint the banner again.
         os.write(master, f". {hook}\n".encode())
-        output = bytearray(read_until_idle(master, 15.0))
+        automatic = bytearray(read_until_idle(master, 15.0))
         os.write(master, b"\n")
-        output += read_until_idle(master, 15.0)
+        automatic += read_until_idle(master, 15.0)
+        # The suppression is a one-shot handoff, not a mute: deliberately
+        # re-sourcing the init is an explicit reprint and must render.
+        os.write(master, f". {init}\n".encode())
+        deliberate = read_until_idle(master, 15.0)
         os.write(master, b"exit\n")
         read_until_idle(master, 6.0)
-        return bytes(output)
+        return bytes(automatic), deliberate
     finally:
         terminate(pid, master)
 
@@ -248,12 +266,20 @@ def main() -> None:
     env = base_env(command_path, os.path.join(os.environ.get("TMPDIR", "/tmp"), "preflight-home"))
     same_shell_stage(bash, snippet, init, env, sentinel_text)
     exported = envrc_stage(bash, init, env, sentinel_text)
-    interactive = interactive_stage(bash, hook, init, exported)
-    render_count = interactive.count(sentinel_text.encode())
+    automatic, deliberate = interactive_stage(bash, hook, init, exported)
+    render_count = automatic.count(sentinel_text.encode())
+    if render_count != 0:
+        fail(
+            f"interactive hook re-rendered the MOTD {render_count} times after the "
+            "envrc render; expected the handoff to stay quiet",
+            automatic,
+        )
+    render_count = deliberate.count(sentinel_text.encode())
     if render_count != 1:
         fail(
-            f"interactive hook rendered the MOTD {render_count} times; expected exactly once",
-            interactive,
+            f"deliberate init re-source rendered the MOTD {render_count} times; "
+            "expected exactly once",
+            deliberate,
         )
     reentrant_init_stage(bash, runtime_init, hook, env, sentinel_text)
 

@@ -19,12 +19,26 @@ esac
 _prelude_init_show_motd() {
   [ -n "${_PRELUDE_MOTD-}" ] || return 0
   [ -z "${PRELUDE_INIT_QUIET:-}" ] || return 0
+  # The prompt trampoline sets this when the loader that exported this
+  # environment already rendered the banner for this activation (see the
+  # PRELUDE_MOTD_SHOWN export below): install the runtime without
+  # painting it a second time.
+  [ -z "${_PRELUDE_MOTD_HANDOFF-}" ] || return 0
 
   if [ -n "${DIRENV_IN_ENVRC-}" ] && [ -z "${PRELUDE_WORKSPACE_ACTIVE-}" ] &&
     { [ -n "${_PRELUDE_WORKSPACE-}" ] || [ "${_PRELUDE_PROMPT_ENABLED-0}" = 1 ]; }; then
     "$_PRELUDE_MOTD" --devshell-hint >&2 || return 0
   else
     "$_PRELUDE_MOTD" >&2 || return 0
+  fi
+
+  # A loader shell (.envrc under direnv) is not the shell the developer
+  # types into, but its render is the one they see. Record it in the
+  # exported environment, keyed by init path, so the interactive
+  # handoff — the `prelude hook` trampoline sourcing this same init at
+  # the first prompt — does not paint the banner again on top of it.
+  if [ -n "${DIRENV_IN_ENVRC-}" ] && [ -n "${PRELUDE_INIT-}" ]; then
+    export PRELUDE_MOTD_SHOWN=$PRELUDE_INIT
   fi
 }
 

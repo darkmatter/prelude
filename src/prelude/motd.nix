@@ -124,7 +124,19 @@ config: let
   margin = plib.resolveSpacing (d.motd.margin // (m.margin or {}));
   padding = plib.resolveSpacing (d.motd.padding // (m.padding or {}));
 
-  descriptionIn = plib.textDefaults // d.motd.description // (m.description or {});
+  # Direct mkMotd consumers do not pass through the option layer, so give them
+  # the universal welcome line when they omit `description.text`. The option
+  # layer supplies the richer component-aware copy for module consumers; an
+  # explicit empty string still hides the description in both paths.
+  descriptionInput = m.description or {};
+  descriptionIn =
+    plib.textDefaults
+    // d.motd.description
+    // (
+      if descriptionInput ? text
+      then descriptionInput
+      else descriptionInput // {text = d.motdWelcome project;}
+    );
   descriptionBg = splitBg (descriptionIn.background or null);
   descriptionDefaults = plib.withRole pal "fg" descriptionIn;
   description =
