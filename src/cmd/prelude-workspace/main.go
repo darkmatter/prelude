@@ -39,6 +39,7 @@ func main() {
 		fmt.Fprintln(flag.CommandLine.Output(), "File/argument completion also stays in Readline; a later Enter runs the completed command in the main shell. Key hints match the command menu: bold accent keycaps, muted labels, and right-aligned status; only keycaps, the unlocked badge, and the viewer pill have a background.")
 		fmt.Fprintln(flag.CommandLine.Output(), "Generated Starship retains its original right-side styling: Alt + [m] motd [x] menu [d] docs. The footer shows ^P layout while a window is open and an always-on ⌥ + pill for Alt+w and Alt+Tab.")
 		fmt.Fprintln(flag.CommandLine.Output(), "Menu panes use x --embedded: transparent outer canvas, with themed menu panel backgrounds and highlights retained.")
+		fmt.Fprintln(flag.CommandLine.Output(), "The mouse is captured only while a visible child requests tracking; otherwise the outer terminal owns it for native drag-select. Alternate-scroll is disabled for the session so the wheel cannot become Bash history keys, and restored on exit.")
 	}
 	flag.Parse()
 	if flag.NArg() != 0 {
@@ -95,8 +96,12 @@ func run(starship bool) (code int, err error) {
 		case <-done:
 		}
 	}()
-	if _, err := program.Run(); err != nil {
-		return 1, fmt.Errorf("host terminal: %w", err)
+	_, runErr := program.Run()
+	// Bubble Tea has restored the outer terminal; re-enable the alternate
+	// scroll mode Init disabled so the wheel scrolls the outer shell again.
+	fmt.Fprint(os.Stdout, restoreAltScroll)
+	if runErr != nil {
+		return 1, fmt.Errorf("host terminal: %w", runErr)
 	}
 	if h.err != nil {
 		return 1, h.err

@@ -110,11 +110,19 @@ func (h *host) close() error {
 	return err
 }
 
+// disableAltScroll turns off the outer terminal's alternate-scroll mode for
+// the whole session. While no child tracks the mouse the host does not
+// capture it either, so without this a wheel tick on the alternate screen
+// would arrive as Up/Down and Bash would read it as history. run restores
+// the mode after Bubble Tea restores the terminal.
+const disableAltScroll = "\x1b[?1007l"
+const restoreAltScroll = "\x1b[?1007h"
+
 func (h *host) Init() tea.Cmd {
 	if h.child == nil {
 		return nil
 	}
-	return h.child.nextOutput
+	return tea.Batch(h.child.nextOutput, tea.Raw(disableAltScroll))
 }
 
 func (h *host) fail(err error) tea.Cmd {
@@ -375,13 +383,7 @@ func (h *host) update(message tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.PasteMsg:
 		h.leader, h.quoted, h.notice = false, false, ""
 		if h.paneFocused() {
-			if cmd := h.followPane(); cmd != nil {
-				return h, cmd
-			}
 			return h, h.forwardPane(h.pane.terminal.Paste(message.Content))
-		}
-		if cmd := h.followShell(); cmd != nil {
-			return h, cmd
 		}
 		data, err := h.terminal.Paste(message.Content)
 		if err == nil {

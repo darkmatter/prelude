@@ -33,8 +33,7 @@ type terminalFrame struct {
 	CursorBlink   bool
 	Title         string
 	AltScreen     bool
-	MouseTracking bool
-	Scrolled      bool // viewport shows history; cursor stays on the live screen
+	MouseMode     int // child's DEC mouse mode: 0, 1000, 1002, or 1003
 }
 
 // The host event loop exclusively owns this adapter; snapshots and returned bytes
@@ -147,29 +146,6 @@ func (t *terminal) Resize(cols, rows int) error {
 	return terminalResult("resize", C.bridge_resize(t.native, C.uint16_t(cols), C.uint16_t(rows)))
 }
 
-// Scroll moves the viewport through retained history. Positive delta moves
-// toward the live screen; the native terminal clamps at both ends. The bool
-// reports whether the viewport moved, so callers repaint only when needed.
-func (t *terminal) Scroll(delta int) (bool, error) {
-	if err := t.open(); err != nil {
-		return false, err
-	}
-	var moved C.bool
-	err := terminalResult("scroll", C.bridge_scroll(t.native, C.intptr_t(delta), C.bool(false), &moved))
-	return bool(moved), err
-}
-
-// ScrollBottom returns the viewport to the active screen. Typing calls this so
-// input always resumes following output, as in any scrolled-back terminal.
-func (t *terminal) ScrollBottom() (bool, error) {
-	if err := t.open(); err != nil {
-		return false, err
-	}
-	var moved C.bool
-	err := terminalResult("scroll bottom", C.bridge_scroll(t.native, 0, C.bool(true), &moved))
-	return bool(moved), err
-}
-
 // An unset color inherits the outer terminal's defaults; it is not black.
 // Keeping nil distinct from explicit RGB avoids repainting the shell as chrome.
 func terminalColor(value C.bridge_color) color.Color {
@@ -195,8 +171,8 @@ func (t *terminal) Snapshot() (terminalFrame, error) {
 		CursorX: int(native.cursor_x), CursorY: int(native.cursor_y),
 		CursorVisible: bool(native.cursor_visible), CursorStyle: int(native.cursor_style),
 		CursorBlink: bool(native.cursor_blink), AltScreen: bool(native.alt_screen),
-		MouseTracking: bool(native.mouse_tracking), Scrolled: bool(native.scrolled),
-		Title: string(unsafe.Slice((*byte)(unsafe.Pointer(native.title.ptr)), int(native.title.len))),
+		MouseMode: int(native.mouse_mode),
+		Title:     string(unsafe.Slice((*byte)(unsafe.Pointer(native.title.ptr)), int(native.title.len))),
 	}
 	frame.Cells = make([]uv.Cell, frame.Cols*frame.Rows)
 	cells := unsafe.Slice(native.cells, len(frame.Cells))

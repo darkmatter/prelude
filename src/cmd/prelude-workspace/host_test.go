@@ -206,7 +206,7 @@ func TestHostViewProtectsFooterAndRestoresHiddenPane(t *testing.T) {
 	h.frame.Cells[2] = uv.Cell{Content: "e\u0301", Width: 1}
 	h.frame.CursorX, h.frame.CursorY = 33, 3
 	h.frame.CursorStyle, h.frame.CursorBlink = 1, true
-	h.frame.Title, h.frame.MouseTracking = "child title", true
+	h.frame.Title, h.frame.MouseMode = "child title", 1003
 	original := h.View()
 	lines := strings.Split(ansi.Strip(original.Content), "\n")
 	if len(lines) != h.rows || !strings.HasPrefix(lines[0], "界e\u0301") {
@@ -627,7 +627,7 @@ func TestHostRoutesFocusMouseAndShowsTerminalErrors(t *testing.T) {
 	h.Update(tea.PasteMsg{Content: command})
 	spikeKey(h, tea.KeyEnter, 0)
 	awaitSpike(t, h, "child mouse/focus modes", func() bool {
-		return h.frame.MouseTracking && strings.Contains(spikeFrameText(h.frame), "ROUTING_READY") && h.prompt.phase == "running"
+		return h.frame.MouseMode == 1003 && strings.Contains(spikeFrameText(h.frame), "ROUTING_READY") && h.prompt.phase == "running"
 	})
 	h.Update(tea.BlurMsg{})
 	h.Update(tea.MouseClickMsg{X: 1, Y: h.rows - 1, Button: tea.MouseLeft})
@@ -635,10 +635,10 @@ func TestHostRoutesFocusMouseAndShowsTerminalErrors(t *testing.T) {
 	awaitSpike(t, h, "focus and shell mouse bytes (not footer mouse)", func() bool {
 		return h.prompt.ready && strings.Contains(spikeFrameText(h.frame), `ROUTE:$'\E[O':$'\E[<0;2;2M'`)
 	})
-	// The host keeps cell motion even after the child disables tracking: the
-	// wheel belongs to the viewport, not to Bash history.
-	if h.View().MouseMode != tea.MouseModeCellMotion {
-		t.Fatalf("mouse mode = %v, want cell motion after the child disabled tracking", h.View().MouseMode)
+	// Capture ends with the child's tracking: the outer terminal owns the
+	// mouse again for native selection.
+	if h.View().MouseMode != tea.MouseModeNone {
+		t.Fatalf("mouse mode = %v, want none after the child disabled tracking", h.View().MouseMode)
 	}
 	h.terminal.Close()
 	spikeKey(h, tea.KeyEnter, 0)

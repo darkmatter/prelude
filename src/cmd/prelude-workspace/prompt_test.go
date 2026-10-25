@@ -142,26 +142,6 @@ func TestPromptSemanticBoundaryForColoredMultilineWidePrompt(t *testing.T) {
 	}
 }
 
-func TestPromptRecapturesAfterMarkerWhileScrolled(t *testing.T) {
-	engine := ghosttyTestTerminal(t, 80, 7)
-	ghosttyWrite(t, engine, workspacePrompt+"x go:")
-	live := ghosttySnapshot(t, engine)
-	scrolled := live
-	scrolled.Scrolled = true
-
-	var state promptState
-	state.mark(promptMarker{kind: 'B'}, scrolled)
-	if state.anchor != -1 {
-		t.Fatalf("scrolled marker captured a live-screen anchor: %+v", state)
-	}
-	// Output can keep arriving while the user reads history; the first
-	// live snapshot must restore the semantic input boundary.
-	state.observe(live)
-	if want := live.CursorY*live.Cols + live.CursorX; state.anchor != want {
-		t.Fatalf("anchor = %d, want %d after returning to the live screen", state.anchor, want)
-	}
-}
-
 func TestPromptSparseAndRightEdgeBoundariesStayUnknown(t *testing.T) {
 	var state promptState
 	state.mark(promptMarker{kind: 'B'}, terminalFrame{})

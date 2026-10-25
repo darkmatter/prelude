@@ -266,6 +266,9 @@ static bridge_color resolve_color(GhosttyStyleColor color, const GhosttyColorRgb
     }
 }
 
+/* Defined below bridge_key; snapshots need it for the child's mouse mode. */
+static GhosttyResult mode_get(bridge_terminal *t, GhosttyMode mode, bool *out);
+
 GhosttyResult bridge_snapshot(bridge_terminal *t, bridge_frame *out) {
     /* This pinned library's incremental render cache misses appended combining
        marks after a prior update, even with DIRTY_FULL. The native grid retains
@@ -283,7 +286,14 @@ GhosttyResult bridge_snapshot(bridge_terminal *t, bridge_frame *out) {
     GhosttyTerminalScreen screen;
     GhosttyRenderStateCursorVisualStyle cursor_style;
     TRY(ghostty_terminal_get(t->terminal, GHOSTTY_TERMINAL_DATA_ACTIVE_SCREEN, &screen));
-    TRY(ghostty_terminal_get(t->terminal, GHOSTTY_TERMINAL_DATA_MOUSE_TRACKING, &out->mouse_tracking));
+    {
+        bool any = false, button = false, normal = false, x10 = false;
+        TRY(mode_get(t, GHOSTTY_MODE_ANY_MOUSE, &any));
+        TRY(mode_get(t, GHOSTTY_MODE_BUTTON_MOUSE, &button));
+        TRY(mode_get(t, GHOSTTY_MODE_NORMAL_MOUSE, &normal));
+        TRY(mode_get(t, GHOSTTY_MODE_X10_MOUSE, &x10));
+        out->mouse_mode = any ? 1003 : button ? 1002 : (normal || x10) ? 1000 : 0;
+    }
     TRY(ghostty_terminal_get(t->terminal, GHOSTTY_TERMINAL_DATA_TITLE, &out->title));
     TRY(ghostty_terminal_get(t->terminal, GHOSTTY_TERMINAL_DATA_CURSOR_X, &out->cursor_x));
     TRY(ghostty_terminal_get(t->terminal, GHOSTTY_TERMINAL_DATA_CURSOR_Y, &out->cursor_y));
@@ -291,12 +301,6 @@ GhosttyResult bridge_snapshot(bridge_terminal *t, bridge_frame *out) {
     TRY(ghostty_render_state_get(t->render, GHOSTTY_RENDER_STATE_DATA_CURSOR_BLINKING, &out->cursor_blink));
     TRY(ghostty_render_state_get(t->render, GHOSTTY_RENDER_STATE_DATA_CURSOR_VISUAL_STYLE, &cursor_style));
     out->alt_screen = screen == GHOSTTY_TERMINAL_SCREEN_ALTERNATE;
-    /* Cursor coordinates stay live-screen based while the viewport shows
-       history; report that split so callers can hide/retarget the cursor.
-       VIEWPORT_ACTIVE avoids the scrollbar geometry computation per frame. */
-    bool viewport_active = true;
-    if (ghostty_terminal_get(t->terminal, GHOSTTY_TERMINAL_DATA_VIEWPORT_ACTIVE, &viewport_active) == GHOSTTY_SUCCESS)
-        out->scrolled = !viewport_active;
     out->cursor_style = cursor_style == GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BAR ? 1 :
                         cursor_style == GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_UNDERLINE ? 2 : 0;
     GhosttyColorRgb palette[256];
@@ -444,20 +448,4 @@ GhosttyResult bridge_mouse(bridge_terminal *t, GhosttyMouseAction action,
     ghostty_mouse_event_free(event);
     if (r == GHOSTTY_SUCCESS) *out = (bridge_bytes){.data = t->encoded, .len = written};
     return r;
-}
-
-GhosttyResult bridge_scroll(bridge_terminal *t, intptr_t delta, bool bottom, bool *moved) {
-    /* The viewport is terminal state, not a Go-side offset: keeping it native
-       means the render state, resize reflow, and scrollbar clamp agree. */
-    GhosttyTerminalScrollbar before = {0}, after = {0};
-    bool measured = ghostty_terminal_get(t->terminal, GHOSTTY_TERMINAL_DATA_SCROLLBAR, &before) == GHOSTTY_SUCCESS;
-    GhosttyTerminalScrollViewport behavior = {
-        .tag = bottom ? GHOSTTY_SCROLL_VIEWPORT_BOTTOM : GHOSTTY_SCROLL_VIEWPORT_DELTA,
-    };
-    behavior.value.delta = delta;
-    ghostty_terminal_scroll_viewport(t->terminal, behavior);
-    if (measured)
-        measured = ghostty_terminal_get(t->terminal, GHOSTTY_TERMINAL_DATA_SCROLLBAR, &after) == GHOSTTY_SUCCESS;
-    *moved = measured && before.offset != after.offset;
-    return GHOSTTY_SUCCESS;
 }
