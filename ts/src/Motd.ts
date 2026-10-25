@@ -253,10 +253,15 @@ function buildConfig(options: Options): Config {
   const headerBackground = splitHeaderBackground(header.background);
   const card = splitBackground(options.background ?? d.background, palette);
 
+  const project = options.project ?? basename(process.cwd());
   const description = merge(
     merge({ text: "", foreground: null, background: null, bold: false, italic: false, faint: false }, d.description),
     options.description,
   ) as StyledText;
+  // `mkMotd` fills this when no text is set; an explicit `""` still hides it.
+  if (options.description?.text === undefined) {
+    description.text = `You are in the ${project} devshell, which contains everything you need to develop.`;
+  }
   const descriptionBackground = splitBackground(description.background, palette);
 
   const status = sortOrdered(header.status as Readonly<Record<string, StatusItem>>)
@@ -301,7 +306,7 @@ function buildConfig(options: Options): Config {
   if (maxWidth !== null && !Number.isInteger(maxWidth)) throw new Error("prelude: motd maxWidth must be an integer or null");
 
   return {
-    project: options.project ?? basename(process.cwd()),
+    project,
     title: title.text ?? "",
     titleAlign: oneOf("title.align", title.align, ["left", "center", "right"]),
     colorProfile: resolveColorProfile(options.colorProfile),

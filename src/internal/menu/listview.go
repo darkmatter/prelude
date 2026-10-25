@@ -6,6 +6,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"prelude/pkg/ui"
 )
@@ -20,8 +21,9 @@ import (
 // passes them to Sync; ListView does not reach back into the root.
 type ListView struct {
 	st       styles
-	inner    int // framed body width (set via WithSize)
-	height   int // configured viewport height from the last Sync
+	inner    int    // framed body width (set via WithSize)
+	height   int    // configured body height from the last Sync
+	header   string // pinned expanded detail header; empty in list mode
 	viewport viewport.Model
 }
 
@@ -66,16 +68,16 @@ func (l *ListView) WithSize(inner int) *ListView {
 // "no commands match %q" message); frame provides Paint/Blank for the panel
 // rails.
 func (l *ListView) Sync(flat []Task, matches []int, sel int, expanded bool, height int, filter string, frame Frame) *ListView {
-	lines, selLine, selEnd := l.renderRows(flat, matches, sel, expanded, height, filter, frame)
-
-	// Expanded menus grow past the configured height so the full disclosure
-	// stays on screen — same contract as the pre-viewport implementation.
-	targetH := height
-	if expanded {
-		targetH = max(targetH, len(lines))
+	if expanded && len(matches) > 0 {
+		return l.syncExpanded(flat, matches, sel, height, frame)
 	}
-	// Viewport height padding is unstyled. Fill short lists with panel rows so
-	// the body background and side rails continue all the way to the footer.
+
+	l.header = ""
+	lines, selLine, selEnd := l.renderRows(flat, matches, sel, height, filter, frame)
+
+	// The list never grows the panel: padding rows use the panel style and
+	// renderRows has already filled its own inset where needed.
+	targetH := height
 	for len(lines) < targetH {
 		lines = append(lines, frame.Blank())
 	}
@@ -83,9 +85,26 @@ func (l *ListView) Sync(flat []Task, matches []int, sel int, expanded bool, heig
 	l.viewport.SetHeight(max(targetH, 1))
 	l.viewport.SetWidth(max(l.inner+2, 1))
 	l.viewport.SetContentLines(lines)
-	// Reveal the whole selected command when it fits, or its first screenful.
+	// Reveal the selected command when it fits, or its first screenful.
 	l.viewport.EnsureVisible(min(selEnd, selLine+targetH-1), 0, 0)
 	l.viewport.EnsureVisible(selLine, 0, 0)
+	return l
+}
+
+// syncExpanded pins the detail header above a viewport that contains only the
+// inset content. Up/Down and the mouse wheel therefore scroll details without
+// moving the command title off screen. The header deliberately has no
+// selection bar: the downward caret is the only cue that this row is open.
+func (l *ListView) syncExpanded(flat []Task, matches []int, sel int, height int, frame Frame) *ListView {
+	sel = min(max(sel, 0), len(matches)-1)
+	t := flat[matches[sel]]
+	detailH := max(height-1, 0)
+	l.header = l.renderExpandedHeader(t, frame)
+	l.height = height
+	l.viewport.SetHeight(detailH)
+	l.viewport.SetWidth(max(l.inner+2, 1))
+	l.viewport.SetContentLines(l.renderDetails(t, detailH))
+	l.viewport.SetYOffset(0)
 	return l
 }
 
@@ -96,10 +115,26 @@ func (l *ListView) Update(msg tea.Msg) (*ListView, tea.Cmd) {
 	return l, cmd
 }
 
-// View returns the viewport's visible window. Pure: it does not recompute or
-// mutate state.
+// ScrollUp moves the expanded detail content up without moving its header.
+func (l *ListView) ScrollUp(n int) {
+	l.viewport.ScrollUp(n)
+}
+
+// ScrollDown moves the expanded detail content down without moving its header.
+func (l *ListView) ScrollDown(n int) {
+	l.viewport.ScrollDown(n)
+}
+
+// View returns the pinned detail header followed by the viewport's visible
+// window. Pure: it does not recompute or mutate state.
 func (l ListView) View() string {
-	return l.viewport.View()
+	if l.header == "" {
+		return l.viewport.View()
+	}
+	if l.viewport.Height() == 0 {
+		return l.header
+	}
+	return l.header + "\n" + l.viewport.View()
 }
 
 // Height returns the configured list height (not the content length). The root
@@ -114,7 +149,7 @@ func (l ListView) Height() int {
 // renderRows builds the full grouped result list (not yet windowed). Geometry
 // comes from l.inner, styles from l.st, and root-owned state from the
 // parameters. Returns the lines and the selected command's first/last line indices.
-func (l *ListView) renderRows(flat []Task, matches []int, sel int, expanded bool, height int, filter string, frame Frame) ([]string, int, int) {
+func (l *ListView) renderRows(flat []Task, matches []int, sel int, height int, filter string, frame Frame) ([]string, int, int) {
 	inner := l.inner
 	h := height
 
@@ -132,7 +167,7 @@ func (l *ListView) renderRows(flat []Task, matches []int, sel int, expanded bool
 
 	nameW := 4
 	for _, t := range flat {
-		nameW = max(nameW, lipgloss.Width(t.displayName()))
+		nameW = max(nameW, lipgloss.Width(t.rowName()))
 	}
 	nameW += 2
 
@@ -159,15 +194,13 @@ func (l *ListView) renderRows(flat []Task, matches []int, sel int, expanded bool
 		if active {
 			selEnd = len(lines) - 1
 		}
-		if active && expanded {
-			lines = append(lines, l.renderDetails(t)...)
-		}
 	}
 	lines = append(lines, frame.Blank())
 	return lines, selLine, selEnd
 }
 
-// renderRow wraps a command's description into individually framed rows.
+// renderRow draws one command on exactly one terminal row. Expanded mode uses
+// renderExpandedHeader instead, so a row never wraps or grows the selection.
 func (l *ListView) renderRow(t Task, active bool, nameW int, frame Frame) []string {
 	st := l.st
 	filler, nameStyle, descStyle := st.sp, st.sFg, st.sMuted
@@ -186,36 +219,41 @@ func (l *ListView) renderRow(t Task, active bool, nameW int, frame Frame) []stri
 	}
 
 	prefix := filler.PaddingLeft(padX-1).Render("") + caretCol +
-		nameStyle.Bold(true).Width(nameW).Render(t.displayName()) + filler.Render(" ")
+		nameStyle.Bold(true).Width(nameW).Render(t.rowName()) + filler.Render(" ")
 	tail := chip + filler.PaddingRight(padX).Render("")
 	indentW := lipgloss.Width(prefix)
-	wrapW := l.inner - indentW - lipgloss.Width(tail) - 1
+	wrapW := max(l.inner-indentW-lipgloss.Width(tail)-1, 1)
 
-	var rows []string
-	for i, text := range ui.WrapText(t.Description, wrapW) {
-		left := filler.Width(indentW).Render("")
-		right := ""
-		if i == 0 {
-			left, right = prefix, tail
-		}
-		line := ui.PlaceRight(l.inner, left+descStyle.Render(text), right, filler)
-		rows = append(rows, frame.Paint(line, filler))
-	}
-	return rows
+	// Control whitespace would break the one-row contract; descriptions are
+	// summaries, so a row treats it as space and clips the overflow.
+	text := ansi.Truncate(oneLine.Replace(t.Description), wrapW, "…")
+	line := ui.PlaceRight(l.inner, prefix+descStyle.Render(text), tail, filler)
+	return []string{frame.Paint(line, filler)}
+}
+
+// renderExpandedHeader draws the pinned detail-page title. It intentionally
+// drops the selection bar, inline description, and keycap: the downward caret
+// is the only row cue, and the inset below carries the full command detail.
+func (l *ListView) renderExpandedHeader(t Task, frame Frame) string {
+	st := l.st
+	filler := st.sp
+	left := filler.PaddingLeft(padX-1).Render("") +
+		st.sAccent2.Bold(true).Width(2).Render("▼") +
+		st.sFg.Bold(true).Render(t.rowName())
+	return frame.Paint(ui.PlaceRight(l.inner, left, "", filler), filler)
 }
 
 // renderDetails draws the expanded panel on the darker bg inset, framed with
-// the same side rails as the picker so the disclosure stays aligned. Ported
-// verbatim from the former model.renderDetails in view_list.go; note that this
-// uses styles.frame (a lipgloss.Style) for the inset rails, not the Frame
-// struct — it needs no frame param.
-func (l *ListView) renderDetails(t Task) []string {
+// the same side rails as the picker. It fills the body below the pinned
+// header: short disclosures pad with inset rows and longer ones scroll.
+func (l *ListView) renderDetails(t Task, height int) []string {
 	st := l.st
 	inner := l.inner
 	insetSp := st.windowUI.Fill()
 	// Align disclosure content with the caret column of the item rows.
 	detailIndent := padX - 1
 	indent := insetSp.PaddingLeft(detailIndent).Render("")
+	wrapW := max(inner-detailIndent-padX, 1)
 
 	paintInset := func(content string) string {
 		panel := insetSp.Width(inner).MaxWidth(inner).Render(content)
@@ -224,12 +262,19 @@ func (l *ListView) renderDetails(t Task) []string {
 
 	var out []string
 	out = append(out, paintInset(""))
+	if t.Description != "" {
+		for _, line := range ui.WrapText(t.Description, wrapW) {
+			out = append(out, paintInset(indent+st.inset(st.pal.Fg).Render(line)))
+		}
+	}
 	if t.Details != "" {
-		wrapW := inner - detailIndent - padX
+		if t.Description != "" {
+			out = append(out, paintInset(""))
+		}
 		for _, line := range ui.WrapText(t.Details, wrapW) {
 			out = append(out, paintInset(indent+st.inset(st.pal.Muted).Render(line)))
 		}
-	} else {
+	} else if t.Description == "" {
 		out = append(out, paintInset(indent+st.inset(st.pal.Dim).Italic(true).Render("no extended description")))
 	}
 	if t.Usage != "" {
@@ -245,5 +290,10 @@ func (l *ListView) renderDetails(t Task) []string {
 			st.inset(st.pal.Muted).Render(hidden.noun+" "+hidden.name)))
 	}
 	out = append(out, paintInset(""))
+	// Fill unused body rows with the inset rather than the outer panel so the
+	// detail view reads as one surface all the way to the status row.
+	for len(out) < height {
+		out = append(out, paintInset(""))
+	}
 	return out
 }

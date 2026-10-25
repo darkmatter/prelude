@@ -121,6 +121,16 @@ func (t Task) displayName() string {
 	return t.Name
 }
 
+// rowName is the interactive label for t. A task with children gets a
+// trailing slash so a container reads as a folder even when it is also
+// runnable. The slash is display-only and never part of the invocation.
+func (t Task) rowName() string {
+	if len(t.Children) > 0 {
+		return t.displayName() + "/"
+	}
+	return t.displayName()
+}
+
 // isContainer reports whether choosing t opens its subcommand picker instead
 // of running it: a task with children and nothing of its own to run, or a just
 // module. A task with children and its own Run is a runnable parent, which

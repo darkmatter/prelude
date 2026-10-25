@@ -65,6 +65,26 @@ in {
         description = "The root the packages this configuration publishes (`prelude`, `prelude-menu`, `prelude-workspace`) are bound to: they read project files from it and run commands in it, so `nix run github:org/repo#prelude-menu` shows that repo's menu wherever it runs. `prelude-shell` ignores it: the devshell works in your checkout. With `lib.evalModule`, set it to your flake's `self`.";
       };
 
+      typescript.entrypoint = lib.mkOption {
+        type = lib.types.nullOr (lib.types.addCheck lib.types.str (path:
+          path
+          != ""
+          && !lib.hasPrefix "/" path
+          && lib.all (part: part != ".." && part != "") (lib.splitString "/" path)));
+        default = null;
+        example = "prelude.ts";
+        description = ''
+          Project-relative Bun entrypoint that owns the command catalogue for
+          `x` and `menu` when `prelude.menu.enable` is true. The entrypoint calls
+          `Prelude.make({ dispatcher: "x", ... }).main()`. The devshell finds
+          the nearest ancestor containing this file and runs there; published
+          packages run in `prelude.root`. Bun is provided, but project dependencies
+          must already be available (no automatic install). Nix command wrappers
+          and catalogue completion are omitted in this mode. Other Nix surfaces,
+          including the MOTD, remain independently configured.
+        '';
+      };
+
       commands = lib.mkOption {
         type = lib.types.attrsOf t.commandType;
         default = defaults.commands;

@@ -7,7 +7,10 @@ import (
 func (m model) updateList(msg tea.KeyPressMsg) (model, tea.Cmd) {
 	switch msg.String() {
 	case "down", "ctrl+n":
-		m.expanded = false
+		if m.expanded {
+			m.list.ScrollDown(1)
+			return m, nil
+		}
 		if n := len(m.matches); n > 0 {
 			m.sel = (m.sel + 1) % n
 		}
@@ -15,16 +18,30 @@ func (m model) updateList(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		return m, nil
 
 	case "up", "ctrl+p":
-		m.expanded = false
+		if m.expanded {
+			m.list.ScrollUp(1)
+			return m, nil
+		}
 		if n := len(m.matches); n > 0 {
 			m.sel = (m.sel - 1 + n) % n
 		}
 		m.syncList()
 		return m, nil
 
-	case "tab":
-		m.expanded = !m.expanded
-		m.syncList()
+	case "left":
+		// A subcommand picker is a group: at the start of its query, left
+		// backs out one level. Anywhere else it falls through to the prompt
+		// so it still moves the text cursor.
+		if m.sub() != nil && m.prompt.AtStart() {
+			m.exitSubMode()
+			return m, nil
+		}
+
+	case "tab", "shift+tab":
+		if m.expanded || m.selectedHasDetails() {
+			m.expanded = !m.expanded
+			m.syncList()
+		}
 		return m, nil
 
 	case "enter":
