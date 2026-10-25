@@ -204,14 +204,15 @@ handled.
   An occupied pending slot is never replaced. There is no MOTD window or Ctrl+P ?
   chord.
 
-- One Prelude pane exists at a time. Opening menu/docs focuses it. Clicks in the
-  shell or an interactive pane move focus. The wheel scrolls the band under the
-  pointer through its retained history; typing or pasting snaps that band back
-  to the live screen. A child that requests mouse tracking receives wheel events
-  itself, as in any terminal. A full-screen child that does not track the mouse
-  (the menu, `less`, `man`) instead receives the Up/Down key the
-  outer terminal used to send. Mouse reporting is always on so the host can claim
-  the wheel; use Shift+drag for the outer terminal's own text selection.
+- One Prelude pane exists at a time. Opening menu/docs focuses it. The mouse
+  is captured only while a visible child requests mouse tracking, mirroring
+  that child's mode; then clicks in the shell or an interactive pane move
+  focus and events reach the child under the pointer, as in any terminal.
+  Otherwise the outer terminal owns the mouse, so native drag-select and
+  copy work directly. The host disables the outer terminal's alternate-scroll
+  mode for the session (restoring it on exit) so wheel ticks cannot turn
+  into Up/Down history keys in Bash. There is no host wheel scrollback of
+  shell history; use the outer terminal or the child program to page.
 
 - Each pane has its own PTY and Ghostty engine. Moving/resizing reflows the
   terminal and delivers SIGWINCH without restarting the child. Placement is
@@ -414,8 +415,8 @@ verification.
   or Tab cycling.
 
 - One Prelude pane only: no tabs, Process Compose, session daemon, scrollbar,
-  paging keys, or transcript search. The native engines retain scrollback for
-  reflow and for wheel scrolling.
+  paging keys, transcript search, or host wheel scrollback. The native
+  engines retain scrollback only for reflow.
 
 - Mode-2027 width negotiation is not synchronized between the native engine and
   the outer renderer. Variation-selector and ZWJ emoji can therefore disagree

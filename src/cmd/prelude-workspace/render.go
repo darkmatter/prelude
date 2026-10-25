@@ -91,15 +91,23 @@ func (h *host) View() tea.View {
 	view := tea.NewView(buffer.Render())
 	view.AltScreen, view.ReportFocus = true, true
 	view.WindowTitle = displayText(h.frame.Title)
-	// Capture the wheel even when neither child tracks the mouse. Left to the
-	// outer terminal, a wheel tick becomes Up/Down on the alternate screen,
-	// which Bash reads as history. Cell motion covers clicks, drags, and the
-	// wheel; a child that asked for any-motion still gets the richer mode.
-	// The outer terminal no longer owns highlight-to-copy; Shift+drag selects.
-	view.MouseMode = tea.MouseModeCellMotion
-	if (!layout.Shell.Empty() && h.frame.MouseTracking) ||
-		(!layout.Body.Empty() && h.currentPane(h.pane) && h.pane.frame.MouseTracking) {
+	// Mirror the strongest mouse mode a visible child requested. With no
+	// tracking child the outer terminal owns the mouse (native drag-select);
+	// Init disabled its alternate-scroll so the wheel cannot become Up/Down
+	// history keys meanwhile. 1000 and 1002 both map to cell motion: the
+	// Ghostty encoder drops events the child's own mode did not ask for.
+	mouseMode := 0
+	if !layout.Shell.Empty() {
+		mouseMode = max(mouseMode, h.frame.MouseMode)
+	}
+	if !layout.Body.Empty() && h.currentPane(h.pane) {
+		mouseMode = max(mouseMode, h.pane.frame.MouseMode)
+	}
+	switch {
+	case mouseMode >= 1003:
 		view.MouseMode = tea.MouseModeAllMotion
+	case mouseMode != 0:
+		view.MouseMode = tea.MouseModeCellMotion
 	}
 	frame, cursorArea := h.frame, layout.Shell
 	paneFocused := h.paneFocused()
@@ -111,9 +119,7 @@ func (h *host) View() tea.View {
 	}
 	x, y := frame.CursorX+cursorArea.Min.X, frame.CursorY+cursorArea.Min.Y
 	point := image.Pt(x, y)
-	// The native cursor stays on the live screen while the viewport shows
-	// history, so drawing it would land on unrelated scrollback content.
-	if h.terminalFocused && !frame.Scrolled && frame.CursorVisible && point.In(cursorArea) &&
+	if h.terminalFocused && frame.CursorVisible && point.In(cursorArea) &&
 		(paneFocused || !point.In(layout.Panel)) {
 		view.Cursor = tea.NewCursor(x, y)
 		switch frame.CursorStyle {

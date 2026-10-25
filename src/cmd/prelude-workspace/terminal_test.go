@@ -193,53 +193,6 @@ func TestGhosttyResizeReflowAndAlternateScreen(t *testing.T) {
 	}
 }
 
-func TestGhosttyScrollViewportMovesThroughHistory(t *testing.T) {
-	term := ghosttyTestTerminal(t, 20, 4)
-	ghosttyWrite(t, term, "\x1b[2J\x1b[Hone\r\ntwo\r\nthree\r\nfour\r\nfive\r\nsix")
-	live := ghosttySnapshot(t, term)
-	if live.Scrolled {
-		t.Fatal("live screen reported as scrolled")
-	}
-	if strings.Contains(spikeFrameText(live), "one") || !strings.Contains(spikeFrameText(live), "six") {
-		t.Fatalf("setup did not scroll one into history: %q", spikeFrameText(live))
-	}
-	// A wheel notch down at the live screen must not claim a redraw.
-	if moved, err := term.Scroll(wheelScrollLines); err != nil || moved {
-		t.Fatalf("scroll at the bottom = %v, %v; want no movement", moved, err)
-	}
-
-	moved, err := term.Scroll(-wheelScrollLines)
-	if err != nil || !moved {
-		t.Fatalf("scroll up = %v, %v; want movement", moved, err)
-	}
-	scrolledFrame := ghosttySnapshot(t, term)
-	if !scrolledFrame.Scrolled {
-		t.Fatal("scrolled viewport did not report Scrolled")
-	}
-	if scrolled := spikeFrameText(scrolledFrame); !strings.Contains(scrolled, "one") {
-		t.Fatalf("scrollback top is unreachable: %q", scrolled)
-	}
-	// Output arriving while the user reads history must not yank the viewport.
-	ghosttyWrite(t, term, "\r\nseven")
-	if still := ghosttySnapshot(t, term); !still.Scrolled ||
-		spikeFrameText(still) != spikeFrameText(scrolledFrame) {
-		t.Fatalf("new output moved a scrolled viewport: %q", spikeFrameText(still))
-	}
-
-	moved, err = term.ScrollBottom()
-	if err != nil || !moved {
-		t.Fatalf("scroll bottom = %v, %v; want movement", moved, err)
-	}
-	// The live screen advanced while the viewport was parked in history.
-	if got := spikeFrameText(ghosttySnapshot(t, term)); !strings.Contains(got, "seven") ||
-		strings.Contains(got, "three") {
-		t.Fatalf("live screen not restored: %q", got)
-	}
-	if moved, err := term.ScrollBottom(); err != nil || moved {
-		t.Fatalf("bottom scroll at the bottom = %v, %v; want no movement", moved, err)
-	}
-}
-
 func TestGhosttyRepliesCursorAndCapabilities(t *testing.T) {
 	term := ghosttyTestTerminal(t, 10, 4)
 	frame := ghosttySnapshot(t, term)
@@ -257,7 +210,7 @@ func TestGhosttyRepliesCursorAndCapabilities(t *testing.T) {
 	ghosttyWrite(t, term, "\x1b[6 q\x1b[?25l\x1b[?1000h")
 	frame = ghosttySnapshot(t, term)
 	if frame.CursorX != 2 || frame.CursorY != 1 || frame.CursorVisible ||
-		frame.CursorStyle != 1 || frame.CursorBlink || !frame.MouseTracking {
+		frame.CursorStyle != 1 || frame.CursorBlink || frame.MouseMode != 1000 {
 		t.Fatalf("cursor/mouse state = %+v", frame)
 	}
 	ghosttyWrite(t, term, "\x1b[3 q\x1b[?25h")

@@ -628,8 +628,8 @@ func TestFrontendPaneInputLifecycleAndStaleEvents(t *testing.T) {
 	spikeKey(h, 'H', 0)
 	frontendAlt(h, 'w')
 	if h.paneVisible || h.focusPane || h.leader || h.pane != p || !h.currentPane(p) || !reflect.DeepEqual(before, p.frame) ||
-		h.View().MouseMode != tea.MouseModeCellMotion {
-		t.Fatal("Alt+W must retain the live image/reader and return input to Bash while the host keeps the wheel")
+		h.View().MouseMode != tea.MouseModeNone {
+		t.Fatal("Alt+W must retain the live image/reader and return input to Bash; with the tracking pane hidden the outer terminal owns the mouse")
 	}
 	assertSpikeFooter(t, h, spikeFooterKeyText(spikeHiddenKeys), spikeClosedPill())
 	awaitFrontend(t, h, "hidden pane continues absorbing child output", func() bool {
@@ -949,7 +949,7 @@ func TestFrontendFocusReportingMouseTargetsAndOffsets(t *testing.T) {
 	h.Update(tea.PasteMsg{Content: fmt.Sprintf("%q", filepath.Join(dir, "x"))})
 	spikeKey(h, tea.KeyEnter, 0)
 	awaitSpike(t, h, "main raw reader ready", func() bool {
-		return h.prompt.phase == "running" && h.frame.MouseTracking && strings.Contains(spikeFrameText(h.frame), "MENU_READY")
+		return h.prompt.phase == "running" && h.frame.MouseMode != 0 && strings.Contains(spikeFrameText(h.frame), "MENU_READY")
 	})
 	spikeKey(h, 'g', tea.ModCtrl)
 	spikeKey(h, 'p', tea.ModCtrl)
