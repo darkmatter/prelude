@@ -1,7 +1,8 @@
-// Prelude workspace: an isolated interactive Bash, a protected footer, and a real
-// borderless Prelude docs/menu window that can be shown or hidden. --noprofile
-// --rcfile skips user shell rc files; INPUTRC and HISTFILE are also isolated.
-// Devshell tools and exported functions are inherited. The engine is VT-only.
+// Prelude workspace: an interactive Bash with a private rc, a protected
+// footer, and a real borderless Prelude docs/menu window that can be shown
+// or hidden. --noprofile --rcfile skips user shell rc files (ble.sh stays
+// out); the user's inputrc and history file still apply. Devshell tools and
+// exported functions are inherited. The engine is VT-only.
 //
 // Output: children -> PTYs -> Ghostty -> Go-owned cells -> workspace frame.
 // Input: outer terminal -> Bubble Tea -> focused Ghostty encoder -> child PTY.
@@ -26,7 +27,7 @@ import (
 func main() {
 	starship := flag.Bool("starship", true, "use real Starship in private Bash (Bash >=4.4); --starship=false selects the fixed prelude $ prompt")
 	flag.Usage = func() {
-		fmt.Fprintln(flag.CommandLine.Output(), "prelude-workspace: an isolated interactive Bash workspace (no user rc/inputrc/history file).")
+		fmt.Fprintln(flag.CommandLine.Output(), "prelude-workspace: an interactive Bash workspace (private rc; your ~/.inputrc and history file apply, ~/.bashrc does not).")
 		flag.PrintDefaults()
 		fmt.Fprintln(flag.CommandLine.Output(), "Alt+m prints MOTD in the main shell; Alt+x toggles the menu; Alt+d toggles docs; Alt+w shows/hides the current window; Alt+Tab switches focus between Bash and a live window.")
 		fmt.Fprintln(flag.CommandLine.Output(), "Ctrl+] next / Ctrl+[ previous layout (legacy fallback Ctrl+\\); floating -> left -> right -> top -> bottom -> floating.")
@@ -40,6 +41,7 @@ func main() {
 		fmt.Fprintln(flag.CommandLine.Output(), "Generated Starship retains its original right-side styling: Alt + [m] motd [x] menu [d] docs. The footer shows ^P layout while a window is open and an always-on ⌥ + pill for Alt+w and Alt+Tab.")
 		fmt.Fprintln(flag.CommandLine.Output(), "Menu panes use x --embedded: transparent outer canvas, with themed menu panel backgrounds and highlights retained.")
 		fmt.Fprintln(flag.CommandLine.Output(), "The mouse is captured only while a visible child requests tracking; otherwise the outer terminal owns it for native drag-select. Alternate-scroll is disabled for the session so the wheel cannot become Bash history keys, and restored on exit.")
+		fmt.Fprintln(flag.CommandLine.Output(), "Children keep your TERM when its terminfo entry resolves here; otherwise they get TERM=xterm-256color, which the inner renderer implements.")
 	}
 	flag.Parse()
 	if flag.NArg() != 0 {

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -162,8 +163,11 @@ func startPTY(command string, args []string, cols, rows int, env []string, rc st
 
 // Keep project tools/configuration, but let the private rc own interactive
 // startup and prompt state instead of inheriting a parent's shell setup.
+// The user's own readline and history setup is not shell-hook state, so it
+// passes through untouched: an inherited INPUTRC/HISTFILE is kept, and when
+// they are absent Bash falls back to ~/.inputrc and ~/.bash_history.
 func shellEnvironment(env []string) []string {
-	result := make([]string, 0, len(env)+3)
+	result := make([]string, 0, len(env)+1)
 	for _, entry := range env {
 		name, _, _ := strings.Cut(entry, "=")
 		// Exported project functions remain available, but inherited shell-hook
@@ -177,7 +181,7 @@ func shellEnvironment(env []string) []string {
 			continue
 		}
 		switch name {
-		case "TERM", "INPUTRC", "BASH_ENV", "ENV", "PROMPT_COMMAND", "PS0", "PS1", "PS2", "HISTFILE",
+		case "TERM", "BASH_ENV", "ENV", "PROMPT_COMMAND", "PS0", "PS1", "PS2",
 			"bash_preexec_imported", "preexec_functions", "precmd_functions", "starship_precmd_user_func",
 			"starship_preexec_user_func", "STARSHIP_PROMPT_COMMAND", "STARSHIP_DEBUG_TRAP", "STARSHIP_START_TIME",
 			"STARSHIP_END_TIME", "STARSHIP_DURATION", "STARSHIP_CMD_STATUS", "STARSHIP_PIPE_STATUS",
@@ -186,7 +190,81 @@ func shellEnvironment(env []string) []string {
 		}
 		result = append(result, entry)
 	}
-	return append(result, "TERM=xterm-256color", "INPUTRC=/dev/null", "HISTFILE=/dev/null")
+	return append(result, "TERM="+childTERM(env))
+}
+
+const fallbackTERM = "xterm-256color"
+
+// childTERM keeps the user's outer TERM for the programs Bash runs (less,
+// vim, tput consult terminfo by that name), but only when its terminfo entry
+// actually resolves in this environment. A name like xterm-kitty whose
+// terminfo lives only on the outer host would otherwise leave every curses
+// child failing with "unknown terminal"; the inner libghostty-vt renderer
+// implements xterm-256color well, so that is the fallback. "dumb"/"unknown"
+// resolve but describe no capabilities, so they fall back too.
+func childTERM(env []string) string {
+	term := environmentValue(env, "TERM")
+	if validTERMName(term) && terminfoResolvable(term, env) {
+		return term
+	}
+	return fallbackTERM
+}
+
+func validTERMName(term string) bool {
+	if term == "" || term == "dumb" || term == "unknown" {
+		return false
+	}
+	for i, r := range term {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case (r == '-' || r == '.' || r == '_' || r == '+') && i > 0:
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// terminfoResolvable mirrors the ncurses search: a compiled entry file under
+// one of the terminfo directories, or failing that (hashed databases and
+// other layouts only infocmp knows) a successful infocmp lookup.
+func terminfoResolvable(term string, env []string) bool {
+	for _, dir := range terminfoDirs(env) {
+		for _, sub := range []string{term[:1], fmt.Sprintf("%02x", term[0])} {
+			if st, err := os.Stat(filepath.Join(dir, sub, term)); err == nil && !st.IsDir() {
+				return true
+			}
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "infocmp", term)
+	cmd.Env = env
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	return cmd.Run() == nil
+}
+
+func terminfoDirs(env []string) []string {
+	defaults := []string{"/etc/terminfo", "/lib/terminfo", "/usr/share/terminfo",
+		"/run/current-system/sw/share/terminfo"}
+	var dirs []string
+	if v := environmentValue(env, "TERMINFO"); v != "" {
+		dirs = append(dirs, v)
+	}
+	if home := environmentValue(env, "HOME"); home != "" {
+		dirs = append(dirs, filepath.Join(home, ".terminfo"))
+	}
+	if v := environmentValue(env, "TERMINFO_DIRS"); v != "" {
+		for _, dir := range strings.Split(v, ":") {
+			if dir == "" { // An empty element means the system default list.
+				dirs = append(dirs, defaults...)
+			} else {
+				dirs = append(dirs, dir)
+			}
+		}
+	}
+	return append(dirs, defaults...)
 }
 
 func (s *shellProcess) read() {

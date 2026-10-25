@@ -278,7 +278,12 @@ func newSpikeTestHost(t *testing.T, extraEnv ...string) *host {
 		locale = "en_US.UTF-8"
 	}
 	t.Setenv("LC_ALL", locale)
-	h, err := newHost(84, 12, append(os.Environ(), extraEnv...), false)
+	// Pin the setup a user's real HOME would otherwise leak into the fixture:
+	// their inputrc could rebind keys and their history file would collect
+	// test commands. Product code honours both; tests must not.
+	pinned := []string{"TERM=xterm-256color", "INPUTRC=/dev/null",
+		"HISTFILE=" + filepath.Join(t.TempDir(), "history")}
+	h, err := newHost(84, 12, append(append(os.Environ(), pinned...), extraEnv...), false)
 	if err != nil {
 		t.Fatal(err)
 	}
