@@ -77,12 +77,54 @@ _prelude_complete_path() {
     "$((${#typed[@]} - _prelude_catalogue_match_words))"
 }
 
+# Plain Readline splits words at ':' (COMP_WORDBREAKS), so `x go:t` arrives
+# as COMP_WORDS=(x go : t) and colon catalogue keys could never match. Merge
+# the colon-joined tokens back into logical words in _prelude_words /
+# _prelude_cword for matching, without mutating the global COMP_WORDBREAKS.
+# _prelude_trim_colon_replies then strips the text up to the last ':' from
+# each candidate (bash-completion's __ltrim_colon_completions technique), so
+# Readline inserts only the remainder after the ':' already on the line.
+_prelude_merge_colon_words() {
+  _prelude_words=()
+  _prelude_cword=0
+  local i merge=0
+  for ((i = 0; i < ${#COMP_WORDS[@]}; i++)); do
+    if ((merge)); then
+      _prelude_words[${#_prelude_words[@]} - 1]+=${COMP_WORDS[i]}
+      merge=0
+    elif [[ ${COMP_WORDS[i]} == : && ${#_prelude_words[@]} -gt 0 ]]; then
+      _prelude_words[${#_prelude_words[@]} - 1]+=":"
+      merge=1
+    else
+      _prelude_words+=("${COMP_WORDS[i]}")
+    fi
+    if ((i == COMP_CWORD)); then
+      _prelude_cword=$((${#_prelude_words[@]} - 1))
+    fi
+  done
+}
+
+_prelude_trim_colon_replies() {
+  local cur=$1 colon_prefix i
+  [[ $cur == *:* && $COMP_WORDBREAKS == *:* ]] || return 0
+  colon_prefix=${cur%"${cur##*:}"}
+  for ((i = 0; i < ${#COMPREPLY[@]}; i++)); do
+    COMPREPLY[i]=${COMPREPLY[i]#"$colon_prefix"}
+  done
+}
+
 _prelude_complete_x() {
+  local -a _prelude_words
+  local _prelude_cword
+  _prelude_merge_colon_words
+  local -a COMP_WORDS=("${_prelude_words[@]}")
+  local COMP_CWORD=$_prelude_cword
   local _prelude_complete_prefix=${COMP_WORDS[COMP_CWORD]-}
   local _prelude_complete_used_ble
   COMPREPLY=()
   _prelude_complete_path 1 1
   [ -z "$_prelude_complete_used_ble" ] || bleopt complete_menu_style=desc
+  [ -n "$_prelude_complete_used_ble" ] || _prelude_trim_colon_replies "$_prelude_complete_prefix"
   compopt -o nosort 2>/dev/null || true
 }
 
@@ -118,11 +160,17 @@ _prelude_complete_initial() {
 # A direct command (`db`) completes like `x db`: its own name is the first
 # word of the path.
 _prelude_complete_direct() {
+  local -a _prelude_words
+  local _prelude_cword
+  _prelude_merge_colon_words
+  local -a COMP_WORDS=("${_prelude_words[@]}")
+  local COMP_CWORD=$_prelude_cword
   local _prelude_complete_prefix=${COMP_WORDS[COMP_CWORD]-}
   local _prelude_complete_used_ble
   COMPREPLY=()
   _prelude_complete_path 0 0
   [ -z "$_prelude_complete_used_ble" ] || bleopt complete_menu_style=desc
+  [ -n "$_prelude_complete_used_ble" ] || _prelude_trim_colon_replies "$_prelude_complete_prefix"
   compopt -o nosort 2>/dev/null || true
 }
 

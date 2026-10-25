@@ -149,6 +149,34 @@ func TestGhosttyCompletionInitBinarySmoke(t *testing.T) {
 						input("x build")
 						s.send("\x15x build .#prelude-d\t")
 						input("x build .#prelude-docs")
+						// Colon keys complete natively: Readline splits COMP_WORDS at
+						// ':', and completion.bash rejoins them for matching, then
+						// trims the colon prefix from each reply. The marker keeps
+						// the listing check from matching the earlier full listing.
+						s.send("\x15printf 'COLON_LIST_MARKER\\n'\r")
+						s.await("marker before colon listing", func(f smokeFrame) bool {
+							return f.hasLine("COLON_LIST_MARKER") && f.hasInput(mode.prompt, "") && f.footer() == smokeBaseFooter
+						})
+						s.send("x go:\t")
+						s.await("single Tab after x go: lists colon keys natively", func(f smokeFrame) bool {
+							row := f.promptRow(mode.prompt)
+							if row <= 0 || !f.hasInput(mode.prompt, "x go:") || f.footer() != smokeBaseFooter {
+								return false
+							}
+							marker := -1
+							for i := range row {
+								if strings.Contains(f.rows[i], "COLON_LIST_MARKER") {
+									marker = i
+								}
+							}
+							if marker < 0 {
+								return false
+							}
+							text := strings.Join(f.rows[marker+1:row], "\n")
+							return strings.Contains(text, "test") && strings.Contains(text, "vet")
+						})
+						s.send("\x15x go:t\t")
+						input("x go:test")
 						// docs is a menu/dispatcher built-in, not a generated catalogue
 						// completion key. Dispatch it normally after completing x keys.
 						s.send("\x15x docs")
