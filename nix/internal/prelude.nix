@@ -10,6 +10,8 @@
   lib,
   ...
 }: let
+  project = "prelude";
+
   # Side-eval Prelude's public options so docs generation does not close over
   # the live flake-parts option tree (cycles / noise). Same modules as docs-sync.
   preludeOptionsEval = lib.evalModules {
@@ -27,7 +29,7 @@ in {
   prelude = {
     theme = "minted";
     colorProfile = "truecolor";
-    project = "prelude";
+    inherit project;
 
     prompt.enable = true;
     workspace.enable = true;
@@ -90,7 +92,7 @@ in {
       ];
     };
     commands."prelude:wizard" = {
-      description = "run the interactive setup wizard to choose a title, theme, and command catalogue, then write a consumer's Prelude sidecar without replacing flake.nix";
+      description = "run the interactive setup wizard ";
       exec = "nix run . -- wizard";
       group = "prelude";
       motd = 0;
@@ -155,19 +157,19 @@ in {
     };
 
     commands."prelude:workspace" = {
-      description = "launch a Bash workspace with Prelude keyboard chords, movable menu and docs panes, and an optional Starship prompt";
+      description = "launch a Bash workspace with Prelude keyboard chords, movable menu and docs panes, and the themed Starship prompt";
       exec = "prelude-workspace";
       group = "prelude";
       details = ''
         Open an isolated Bash with a movable Prelude menu or docs pane. Alt+X toggles the command menu; Ctrl+] cycles pane layouts so you can inspect description wrapping at different widths.
-        The fixed `prelude $` prompt is the default. Enable --starship to use the themed Prelude prompt and its navigation keymap instead.
+        The themed Prelude Starship prompt and its navigation keymap are the default; bare `prelude` opens the same workspace. Enable --starship=false for the fixed `prelude $` prompt instead.
       '';
-      usage = "x prelude:workspace [--starship]";
-      examples = ["x prelude:workspace --starship"];
+      usage = "x prelude:workspace [--starship=false]";
+      examples = ["x prelude:workspace --starship=false"];
       args = [
         {
-          token = "--starship";
-          description = "Use the themed Prelude Starship prompt instead of the fixed `prelude $` prompt, preserving its navigation keymap while the command menu and docs panes move between floating and split layouts.";
+          token = "--starship=false";
+          description = "Use the fixed `prelude $` prompt instead of the themed Prelude Starship prompt; the command menu and docs panes still move between floating and split layouts.";
           boolean = true;
         }
       ];
@@ -257,10 +259,6 @@ in {
         };
       };
 
-      description.text = ''
-        You are inside Prelude's own devshell — the banner, menu, docs, and prompt around you are built by this repo from `prelude.nix`, the same way a downstream project would. Run `x` to browse every command, or `docs` for the guides — including how to set up Prelude in your own repo.
-      '';
-
       env = [];
 
       # Commands shown in Getting Started are selected via `commands.<name>.motd`
@@ -307,7 +305,9 @@ in {
           ];
           description = "run the Go unit tests";
         }
-        // {group = "go";};
+        // {
+          group = "go";
+        };
       "go:vet" =
         self.lib.fromPkg pkgs.go {
           arguments = [
@@ -318,7 +318,9 @@ in {
           ];
           description = "run Go static analysis";
         }
-        // {group = "go";};
+        // {
+          group = "go";
+        };
       # TypeScript API (ts/). The devshell's PRELUDE_LIB lets the FFI tests
       # drive the real Go surfaces; `bun test` itself needs no install.
       "ts:test" =
@@ -330,14 +332,18 @@ in {
           ];
           description = "run the TypeScript API tests";
         }
-        // {group = "ts";};
+        // {
+          group = "ts";
+        };
       "ts:typecheck" =
         self.lib.mkCommand {
           # `--cwd=ts`, not `--cwd ts`: bun run misreads the spaced form.
           command = "bun --cwd=ts install --frozen-lockfile && bun --cwd=ts run typecheck";
           description = "type-check the TypeScript API, including its type tests";
         }
-        // {group = "ts";};
+        // {
+          group = "ts";
+        };
       "ts:sync" = {
         description = "regenerate the TypeScript API's themes, defaults, and fixtures";
         exec = "ts-sync";

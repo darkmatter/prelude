@@ -34,6 +34,7 @@
   evaluated = preludeLib.evalModule pkgs {
     prelude = {
       project = baseNameOf root;
+      workspace.enable = false;
       docs = {
         rootReadme =
           if hasReadme

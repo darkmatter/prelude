@@ -232,8 +232,8 @@ def enter(session: HookPTY, fixture: dict, log: Path, count: int, mark: int):
     calls = launches(log)
     session.require(len(calls) == count, f"workspace launched more than {count} times: {entries}")
     call = calls[-1]
-    expected = ["--starship"] if fixture["promptEnabled"] else []
-    session.require(call["argv"] == expected, f"automatic Starship arguments: {call}")
+    expected = [] if fixture["promptEnabled"] else ["--starship=false"]
+    session.require(call["argv"] == expected, f"automatic prompt arguments: {call}")
     session.require(call["init"] == fixture["init"], f"loader applied the wrong init: {call}")
     session.require(call["active"] == "1", f"public wrapper did not mark its child active: {call}")
     session.require(call["tty"] == [True, True, True] and call["foreground"],
@@ -323,7 +323,7 @@ def loader_hint(bash: str, fixture: dict, full_shell: bool):
         env["PRELUDE_INIT"] = fixture["init"]
         env.pop("PRELUDE_INIT_QUIET")
         hint = b"You're using the cached devshell"
-        notice = ("You're using the cached devshell, which fails to reproduce some features."
+        notice = ("You're using the cached devshell, which fails to reproduce some features. "
                   "Run nix develop for the full devshell.")
         cases = [
             ({}, 0),
@@ -459,13 +459,13 @@ def manual_flags(bash: str, fixtures: list[dict]):
             directory = Path(temp)
             env = environment(fixture, directory, bash)
             log = Path(env["PRELUDE_TEST_LAUNCH_LOG"])
-            for arguments in ([], ["--starship"]):
+            for arguments in ([], ["--starship=false"]):
                 result = subprocess.run([fixture["launcher"], *arguments], input="exit-sentinel\n",
                                         text=True, capture_output=True, env=env, timeout=5, check=False)
                 assert result.returncode == 37, (arguments, result)
                 call = launches(log)[-1]
                 assert call["argv"] == arguments and call["active"] == "1", call
-    print("PASS manual workspace flags: bare launch stays bare; --starship is forwarded in both consumers", flush=True)
+    print("PASS manual workspace flags: bare launch stays bare; --starship=false is forwarded in both consumers", flush=True)
 
 
 def real_workspace(bash: str, fixture: dict):
@@ -485,7 +485,7 @@ def real_workspace(bash: str, fixture: dict):
                 # Pyte stores combining characters as NFC. Match its cells,
                 # but still require every character at the newest full prompt.
                 expected = unicodedata.normalize("NFC", "╰─ " + input_text).rstrip()
-                return (row is not None and "LOCKED" in rows[-1] and "Ctrl+P" in rows[-1]
+                return (row is not None and "^P" not in rows[-1] and "\ue0b2 w viewer \ue0b0" in rows[-1]
                         and legend in rows[row - 2] and rows[row - 1].rstrip() == "│"
                         and rows[row].rstrip() == expected)
 
@@ -511,16 +511,18 @@ def real_workspace(bash: str, fixture: dict):
             parked = "echo PUBLIC-PARKED-界é"
             session.send(parked)
             session.wait(lambda: primary_prompt(parked), "parked Unicode input at primary prompt")
-            session.send("\x10x")
+            session.send("\x1bx")
             session.wait(lambda: f"{fixture['project']} — command menu" in "\n".join(session.screen.display)
                          and f"{fixture['name']}-task" in "\n".join(session.screen.display)
-                         and "menu | floating | focus:pane | running" in session.screen.display[-1],
+                         and "^P layout" in session.screen.display[-1]
+                         and "\ue0b2 w hide \ue0b0 menu \ue0b3 ⇥ shell \ue0b0" in session.screen.display[-1],
                          "actual consumer Menu on automatic workspace")
-            session.send("\x10d")
+            session.send("\x1bd")
             session.wait(lambda: f"{fixture['name']} documentation sentinel" in "\n".join(session.screen.display)
-                         and "docs | floating | focus:pane | running" in session.screen.display[-1],
+                         and "^P layout" in session.screen.display[-1]
+                         and "\ue0b2 w hide \ue0b0 docs \ue0b3 ⇥ shell \ue0b0" in session.screen.display[-1],
                          "actual consumer Docs on automatic workspace")
-            session.send("\x10t")
+            session.send("\x1bw")
             session.wait(lambda: primary_prompt(parked), "same primary prompt/input after hiding Docs")
             session.require("documentation sentinel" not in "\n".join(session.screen.display),
                             "hidden Docs still paints over primary prompt")

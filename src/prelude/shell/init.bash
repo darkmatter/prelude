@@ -78,10 +78,12 @@ if [ -n "${_PRELUDE_WORKSPACE-}" ]; then
     # Stamp before entry: returning from the child must not reopen it next prompt.
     _PRELUDE_INIT_LOADED=$PRELUDE_INIT
   fi
+  # Starship is the workspace default; consumers who leave the themed prompt
+  # disabled keep the fixed prompt on automatic entry.
   if [ "${_PRELUDE_WORKSPACE_STARSHIP-0}" = 1 ]; then
-    "$_PRELUDE_WORKSPACE" --starship || :
-  else
     "$_PRELUDE_WORKSPACE" || :
+  else
+    "$_PRELUDE_WORKSPACE" --starship=false || :
   fi
   return 0
 fi
