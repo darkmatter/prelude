@@ -1305,14 +1305,9 @@ string
 
 *Default:*
 
-````nix
-''
-  You are inside the ACME example devshell — the out-of-the-box Prelude
-  welcome banner. Set `prelude.project`, rewrite the tagline and this
-  description, and replace `prelude.commands` with your real workflows.
-  Run `x` to browse every command.
-''
-````
+```nix
+"You are in the acme devshell, which contains everything you need to develop."
+```
 
 
 
@@ -3759,11 +3754,47 @@ one of “amber”, “apathy”, “gruvbox”, “minted”, “mono”, “no
 
 
 
+## prelude\.typescript\.entrypoint
+
+
+
+Project-relative Bun entrypoint that owns the command catalogue for
+` x ` and ` menu ` when ` prelude.menu.enable ` is true\. The entrypoint calls
+` Prelude.make({ dispatcher: "x", ... }).main() `\. The devshell finds
+the nearest ancestor containing this file and runs there; published
+packages run in ` prelude.root `\. Bun is provided, but project dependencies
+must already be available (no automatic install)\. Nix command wrappers
+and catalogue completion are omitted in this mode\. Other Nix surfaces,
+including the MOTD, remain independently configured\.
+
+
+
+*Type:*
+null or string
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+
+
+*Example:*
+
+```nix
+"prelude.ts"
+```
+
+
+
 ## prelude\.workspace\.enable
 
 
 
-Whether to enable the Bash workspace (` packages.prelude-workspace ` and ` x prelude:workspace `)\.
+Whether to enable the Bash workspace (` packages.prelude-workspace `, bare ` prelude `, and ` x prelude:workspace `)\.
 Requires ` prelude.menu.enable `, ` prelude.motd.enable `, and non-empty
 ` prelude.docs.pages `; it does not implicitly enable those components\.
 Interactive ` nix develop ` sources generated project init and enters the
@@ -3776,9 +3807,11 @@ Each init is stamped before launch, so exit or failure does not immediately
 reopen it; leaving/reentering the devshell or a changed init permits reentry\.
 Noninteractive, envrc, lorri, zsh, and non-TTY contexts never auto-launch it;
 ` PRELUDE_WORKSPACE_ACTIVE ` prevents child recursion\. Workspace mode skips
-legacy BLE initialization\. Automatic Starship follows ` prelude.prompt.enable `;
-manual ` x prelude:workspace ` and ` prelude-workspace --starship ` remain supported,
-with ` --starship ` independent of ` prelude.prompt.enable `
+legacy BLE initialization\. The workspace uses Starship by default; automatic
+entry passes ` --starship=false ` (the fixed ` prelude $ ` prompt) when
+` prelude.prompt.enable ` is off\. Manual launches (bare ` prelude `,
+` x prelude:workspace `, ` prelude-workspace `) use Starship unless given
+` --starship=false `
 \.
 
 
@@ -3791,7 +3824,7 @@ boolean
 *Default:*
 
 ```nix
-false
+true
 ```
 
 

@@ -22,6 +22,9 @@ generated project init then enters the enabled workspace in the foreground in
 Bash with a TTY. No extra Prelude Bash rc hook is required. Automatic Starship
 follows `prelude.prompt.enable`. Exit or failure does not immediately reopen the
 workspace; leaving/reentering the devshell or a changed init permits reentry.
-Manual `x prelude:workspace` and `prelude-workspace --starship` remain available.
+Bare `prelude` opens the workspace manually (Starship by default;
+`prelude --starship=false` for the fixed prompt), including from a
+direnv-loaded shell without `nix develop`; `x prelude:workspace` and
+`prelude-workspace` remain equivalent.
 See the [workspace guide](https://github.com/darkmatter/prelude/blob/main/docs/guides/workspace.md)
 for launch guards, controls, and optional public hook handoffs.

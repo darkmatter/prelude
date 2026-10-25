@@ -2,8 +2,8 @@
 
 A real interactive Bash and movable Prelude docs/menu window rendered
 inside the current terminal through libghostty-vt's C API and Prelude's existing
-Bubble Tea/Ultraviolet stack. Consumer integration is opt-in through
-`prelude.workspace.enable`, which defaults to `false`. When enabled, interactive
+Bubble Tea/Ultraviolet stack. Consumer integration is controlled through
+`prelude.workspace.enable`, which defaults to `true`. When enabled, interactive
 `nix develop` sources generated project init and enters `prelude-workspace` in
 the foreground in Bash with a TTY. Direnv entry remains lightweight. Manual
 launches remain available.
@@ -17,14 +17,14 @@ existing dependencies.
 
 ## Enable in consumers
 
-Both `flakeModules.default` and `lib.evalModule` support the same opt-in setting.
-Add it to the `prelude.nix` sidecar used by either install path, alongside the
-required surfaces (keep your existing Docs pages if you already have them):
+Both `flakeModules.default` and `lib.evalModule` enable the workspace by default.
+Configure the required surfaces in the `prelude.nix` sidecar used by either
+install path (keep your existing Docs pages if you already have them):
 
 ```nix
 {
   prelude = {
-    workspace.enable = true;
+
     menu.enable = true;
     motd.enable = true;
     docs.pages = [ { text = ./README.md; } ];
@@ -32,13 +32,14 @@ required surfaces (keep your existing Docs pages if you already have them):
 }
 ```
 
-Enabling the workspace does not implicitly enable its surfaces. Evaluation
+Set `prelude.workspace.enable = false` to opt out. Enabling the workspace does not implicitly enable its surfaces. Evaluation
 assertions require `prelude.menu.enable = true`, `prelude.motd.enable = true`,
 and non-empty `prelude.docs.pages`; failures identify the missing prerequisite
 and advise enabling it or disabling the workspace. `prelude.prompt.enable` is
 not required. Automatic workspace entry uses Starship when that option is `true`
-and the fixed `prelude $ ` prompt otherwise. Manual `--starship` launches use the
-consumer's prompt settings even when `prelude.prompt.enable = false`.
+and the fixed `prelude $ ` prompt otherwise (passing `--starship=false`). Manual
+launches default to Starship and use the consumer's prompt settings even when
+`prelude.prompt.enable = false`; `--starship=false` gives the fixed prompt.
 
 When enabled, both entrypoints export `packages.prelude-workspace` and bundle the
 active launcher in `prelude-shell`. Keep using `prelude-shell` in your devshell
@@ -84,15 +85,21 @@ reopening it at the next prompt. Leaving and reentering the devshell, or
 receiving a changed init, permits automatic entry again through an eligible
 interactive init.
 
-Automatic entry follows `prelude.prompt.enable` for Starship. You can still
-launch manually, including reopening after exit or failure:
+Automatic entry follows `prelude.prompt.enable` for Starship. The primary
+manual entry is bare `prelude`, which opens the workspace when
+`prelude.workspace.enable` is true (the default); `prelude workspace` is the
+explicit form and `prelude help` lists subcommands. You can launch manually,
+including reopening after exit or failure:
 
 ```sh
-x prelude:workspace             # fixed prelude $ prompt
-prelude-workspace --starship    # Starship even when prelude.prompt.enable = false
+prelude                         # Starship by default, even when prelude.prompt.enable = false
+prelude --starship=false        # fixed prelude $ prompt
 ```
 
-Both commands use the current checkout's menu through the active launcher in
+`x prelude:workspace` and `prelude-workspace` remain equivalent. In a shell
+where direnv has loaded the devshell environment (`use flake`), `prelude`
+opens the full workspace without `nix develop`, adding only one shell level.
+All use the current checkout's menu through the active launcher in
 `prelude-shell`, rather than a menu bound to a published source snapshot.
 
 The launcher supplies Starship and derives its prompt from the consumer's
@@ -110,8 +117,13 @@ repository), launch it directly; the `path:` form also includes unstaged new fil
 
 ```sh
 nix run path:.#prelude-workspace
-nix run path:.#prelude-workspace -- --starship
+nix run path:.#prelude-workspace -- --starship=false
+nix run path:.#prelude            # dispatcher form; bare `prelude` opens the workspace
 ```
+
+For Prelude's own published workspace, `nix run github:darkmatter/prelude`
+does the same. For consumers, `nix run .#prelude` opens their published
+workspace, the same as `nix run .#prelude-workspace`.
 
 Unlike the devshell launcher, the published package honors `prelude.root` and
 uses the consumer's published Menu. `flakeModules.default` sets that root to
@@ -137,28 +149,25 @@ not the caller's checkout.
 ## Controls
 
 **Alt+M** reprints MOTD in the main shell, **Alt+X** toggles the command menu,
-and **Alt+D** toggles docs. The Starship prompt retains the navigation keymap.
+**Alt+D** toggles docs, **Alt+W** shows/hides the current window (opening the
+menu if none exists), and **Alt+Tab** switches input focus between Bash and a
+live interactive window. The Starship prompt retains the navigation keymap.
 
-**Ctrl+P** unlocks one Prelude command: press it, release it, then press a letter
-below. The separate footer highlights **UNLOCKED** while awaiting that command,
-then returns to **LOCKED**. Esc or Ctrl+P again locks without an action. This is
-a one-command mode, so menu filter text and shell input remain ordinary typing.
+**Ctrl+P** unlocks layout commands while a window is open; with no window it
+reaches Bash as usual. The footer's **^P layout** badge fills with accent and
+stays unlocked across these commands, so you can cycle layouts repeatedly.
+Esc or Ctrl+P again locks.
+While unlocked, other keys are consumed with a hint rather than reaching Bash or
+the pane; Alt+M/X/D/W/Tab and Ctrl+G lock before they act.
 
-| Chord | Action |
-| -------------------- | ----------------------------------------------------------- |
-| **Alt+M / Ctrl+P m** | Reprint MOTD in the main shell, preserving parked input |
-| **Alt+X / Ctrl+P x** | Show/hide the real `x` command menu |
-| **Alt+D** | Show/hide the real `docs` viewer |
-| **Ctrl+P t** | Show/hide the current window; open the menu if none exists |
-| **Ctrl+P d** | Show/hide the real `docs` viewer |
-| **Ctrl+P v** | Cycle to the next layout (same as Ctrl+\]) |
-| **Ctrl+P Tab** | Switch input focus between Bash and a live interactive pane |
-| **Ctrl+P c** | Close the pane/process, rather than just hiding it |
-| **Ctrl+P Esc** | Cancel the pending leader |
-| **Ctrl+P Ctrl+P** | Lock without an action |
+| Key (unlocked) | Action |
+| -------------- | ----------------------------------------------------------- |
+| **\]** / **\[** | Move to the next / previous layout |
+| **Tab** | Switch focus, for desktops that take Alt+Tab themselves |
+| **Esc** | Lock (Ctrl+P also locks) |
 
-**Ctrl+\]** moves to the next layout and **Ctrl+\[** to the previous one, without
-a leader. The cycle is **floating → left → right → top → bottom → floating**;
+**Ctrl+\]** moves to the next layout and **Ctrl+\[** to the previous one without
+unlocking. The cycle is **floating → left → right → top → bottom → floating**;
 the four split positions describe the Prelude pane, with Bash on the other side.
 
 Ctrl+\[ requires enhanced keyboard input: legacy terminals send the same byte
@@ -185,11 +194,11 @@ handled.
 
 - Only docs and the command menu use the window. **MOTD prints once on entry,
   before the first prompt**, as normal main-shell output in both fixed-prompt
-  and `--starship` modes. Startup invokes normal `motd` (not `--pure`), letting
+  and Starship modes. Startup invokes normal `motd` (not `--pure`), letting
   Preflight update Cache as needed before Render. A failed or missing command
   prints a warning but does not prevent the shell from starting. Commands,
   redraws, resizes, and pane actions do not replay it; run `motd` manually to
-  reprint it. Alt+M (or unlocked `m`) also reprints it through the private main-shell
+  reprint it. Alt+M also reprints it through the private main-shell
   Readline handoff: an open pane is hidden but retained, the parked line/point/mark
   return afterward, and a busy/PS2 shell queues it until the next primary prompt.
   An occupied pending slot is never replaced. There is no MOTD window or Ctrl+P ?
@@ -219,16 +228,17 @@ handled.
   underlying shell text rather than showing two overlapping text layers.
   Hiding restores the live shell underneath.
 
-- Ctrl+P t or repeating the current running surface's Alt shortcut shows/hides it without
+- Unlocked `t` or repeating the current running surface's Alt shortcut shows/hides it without
   restarting its process. Hidden panes keep their terminal, navigation/filter
   state, and output reader; they continue receiving output but no keyboard input.
   Bash uses the full available area while the window is hidden.
 
-- Choosing a different surface replaces the current child. Ctrl+P c explicitly
-  closes it. Placement is remembered across hiding, switching, and closing.
+- Choosing a different surface replaces the current child; quitting it (for
+  example Esc or `q` in the menu or docs) closes it. Placement is remembered
+  across hiding, switching, and closing.
 
 - An exited docs pane or failed pane keeps its final image/status and returns
-  focus to Bash. Ctrl+P t shows/hides that image; repeating its surface shortcut
+  focus to Bash. Unlocked `t` shows/hides that image; repeating its surface shortcut
   starts a fresh child. A successful menu selection or cancellation closes the
   picker instead of leaving a dead menu image.
 
@@ -249,21 +259,38 @@ handled.
 
 - Tiny windows hide the pane and suspend its input/resizing, retaining the
   child and terminal state. Focus returns to Bash and stays there when the
-  pane becomes visible again; use Ctrl+P Tab to refocus it.
+  pane becomes visible again; use Tab while unlocked to refocus it.
 
 The cursor starts as a **blinking bar** and Bash restores it whenever a primary
 or continuation prompt appears, including with Starship. Child applications can
 still change its style or hide it while they are running.
 
 The Starship navigation keymap stays on the prompt. The protected bottom row
-is the command-mode footer: **LOCKED · Ctrl+P unlock** normally, and a highlighted
-**UNLOCKED** badge followed by available commands after Ctrl+P. It uses the command
-menu's padded keycaps, muted labels, and compact spacing. Pane state and notices
-align on the right. The unlocked badge is bold with the theme's `success`
-background and `bg` foreground; it does not paint the canvas.
+is the command-mode footer. Its left side is empty until a window opens; then
+a **^P layout** badge joins the key and what it unlocks. After Ctrl+P the badge
+fills, followed by `[ ]` labelled with a placement strip `▣ ◧ ◨ ⬒ ⬓`
+(floating, left, right, top, bottom; the current one in `accent`) and `Esc lock`. It uses the command
+menu's padded keycaps, muted labels, and compact spacing. On terminals at least
+8 rows tall, a blank row separates it from Bash and panes; neither can draw
+there, and Bash's PTY is sized to stop above it. The unlocked badge is
+bold with the theme's `accent` background and `bg` foreground; it does not
+paint the canvas.
 
-Mode hints are the same for generated, fixed, and custom prompts. Selecting a
-command relocks automatically, preserving normal shell and menu input. While completion is open,
+The right side is an always-on powerline pill after `⌥ +`; each segment names an
+Option/Alt key and what it cycles. With no window on screen the pill is a single
+dimmed `w viewer` chip with the `w` key in bold `accent2`, like the `^P` keycap. With
+a window shown, the `w hide` chip is filled with the theme's `accent` and the pill
+adds both input targets, e.g. `w hide ▸ docs ◂ ⇥ shell`: the target receiving
+keys is bold `accent` text, the thin muted divider between the two points at
+it, and `⇥` marks the one Alt+Tab reaches. Showing a window
+focuses it. When the window's process stops, `exited N` or `error` precede the
+pill in regular text, and a failure (error or nonzero exit) turns the window's
+segment `error` red (the `viewer` label, while hidden). The pill's caps are Nerd Font powerline glyphs, as in the generated prompt.
+Without an `accent` color the `w hide` chip is shown in reverse video instead.
+
+Mode hints are the same for generated, fixed, and custom prompts. Command mode
+stays unlocked until Esc or Ctrl+P, keeping the strip and pill visible.
+While completion is open,
 that same row shows Tab/Shift+Tab/Enter/Esc hints; the chooser adds no second footer.
 The diagnostic `prompt | last:… | input:…` bar and its input/exit bookkeeping
 are removed. Bash still owns Readline edits, history, and command status.
@@ -271,16 +298,19 @@ are removed. Bash still owns Readline edits, history, and command status.
 
 The footer and completion use the menu's resolved palette from
 `PRELUDE_MENU_CONFIG`, supplied by the launcher and workspace devshell. Keycaps use
-bold `accent2` on `bg`, labels use `muted`, selection uses `accent`, and running
-pane status, notices, and failures use `success`/`warning`/`error`. Only the
-keycaps paint a background; the canvas and completion candidates remain transparent. Theme and palette overrides in `prelude.nix` therefore apply to
+bold `accent2` on `bg`, labels and separators use `muted`, status values use
+`fg`, and the current layout uses `accent`. Notices and queued commands use
+`warning`; failures keep `fg` text and mark themselves with an `error` element
+(the pill segment, or a dot after a host error). Only the
+keycaps, the unlocked badge, and the viewer pill paint a background; the canvas and completion candidates remain transparent. Theme and palette overrides in `prelude.nix` therefore apply to
 this chrome as well as the menu. The palette is read once at startup; an explicitly
 empty `PRELUDE_MENU_CONFIG` inherits terminal-default colors.
 
 Try parking a half-written command in Bash, opening docs with Alt+D, hiding it
-with Ctrl+P t,
+with Alt+D again,
 and finishing the command in Bash. Show docs again to resume where you left off,
-then try all five placements in both directions. Hiding, resizing, or moving the
+then press `]` and `[` while unlocked to try all five placements in both
+directions. Hiding, resizing, or moving the
 pane should preserve both children and their input state.
 
 ## Catalogue completion
@@ -297,7 +327,7 @@ completion chooser below the prompt** when multiple commands match. **Tab** and
 **Shift+Tab** cycle the highlighted item; **Enter** inserts the completion without
 executing it, and **Esc** dismisses the chooser without changing the line. A single
 match inserts immediately. A later Enter runs the completed command normally in
-the main shell. This chooser is separate from the full Alt+X / Ctrl+P x command picker.
+the main shell. This chooser is separate from the full Alt+X command picker.
 Descriptions align in a padded column measured in terminal cells. The chooser
 and the single hints footer inherit the terminal background; selection uses the
 configured accent and a bold `>` marker rather than a background fill.
@@ -332,9 +362,10 @@ The chooser opens on Tab, not automatically on every typed character.
 
 ## Starship
 
-Automatic workspace entry uses Starship when `prelude.prompt.enable = true`;
-manual `--starship` launches remain available independently of that option.
-`--starship` loads the installed full Bash integration, not a simulated prompt.
+Automatic workspace entry uses Starship when `prelude.prompt.enable = true`
+and passes `--starship=false` otherwise; manual launches default to Starship
+independently of that option, with `--starship=false` for the fixed prompt.
+Starship mode loads the installed full Bash integration, not a simulated prompt.
 Bash still owns readline, history, completion, signals, and job control; ble.sh
 and user shell rc files are not loaded. The packaged Bash is modern enough for
 Starship's PS0 timer (Bash 4.4 or newer).
@@ -393,8 +424,8 @@ verification.
 
 - This starts an isolated Bash with a private rc, no user rc/inputrc and no
   persistent history file. Automatic entry uses `prelude.prompt.enable` to choose
-  Starship or the fixed `prelude $ ` prompt; manual launches use the fixed prompt
-  unless passed `--starship`. It inherits devshell tools and environment
+  Starship or the fixed `prelude $ ` prompt; manual launches default to Starship
+  unless passed `--starship=false`. It inherits devshell tools and environment
   but isolates inherited shell-hook framework state. OSC133 hooks supply prompt
   lifecycle; this is not arbitrary-shell integration. Surface wrappers inherit
   the host environment directly.
@@ -435,7 +466,7 @@ verification.
 
 ## Code map
 
-- [`src/prelude/options/workspace.nix`](../../src/prelude/options/workspace.nix): the opt-in public setting.
+- [`src/prelude/options/workspace.nix`](../../src/prelude/options/workspace.nix): the default-enabled public setting.
 - [`src/prelude/packages.nix`](../../src/prelude/packages.nix): prerequisite assertions,
   consumer surface binding, checkout/published launchers, and shell bundling.
 - [`src/prelude/workspace.nix`](../../src/prelude/workspace.nix): shared native build,

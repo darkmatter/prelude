@@ -17,7 +17,7 @@ Inside the development shell:
 x          # interactive command picker / catalogue dispatcher
 docs       # Markdown reference viewer
 hello      # package-backed example command
-x prelude:workspace --starship  # manually reopen the consumer-configured workspace
+prelude    # manually reopen the consumer-configured workspace (Starship by default)
 ```
 
 This example enables the workspace and prompt. With `.envrc` set to `use flake`,
@@ -28,7 +28,7 @@ in the foreground in Bash with a TTY, with Starship because
 `prelude.prompt.enable = true`. No extra Prelude Bash rc hook is required.
 MOTD prints in the workspace's main Bash. Exit or failure does not immediately
 reopen the workspace; leaving/reentering the devshell or a changed init permits
-automatic entry again. Manual launches remain available. See the
+automatic entry again. Manual launches remain available: `prelude --starship=false` gives the fixed prompt, and in a direnv-loaded shell `prelude` opens the full workspace without `nix develop`. See the
 [workspace guide](../../docs/guides/workspace.md) for launch guards and optional
 public hook handoffs.
 
@@ -48,7 +48,7 @@ Its declared `github:darkmatter/prelude` input works without the local
 ## What it demonstrates
 
 - Importing `prelude.flakeModules.default` with flake-parts.
-- Enabling the MOTD, command menu, Markdown docs viewer, Starship prompt, and opt-in workspace.
+- Enabling the MOTD, command menu, Markdown docs viewer, Starship prompt, and default-enabled workspace.
 - Configuring status, environment probes, project commands, and recipes.
 - Keeping canonical `packages`, `apps`, and `checks` as ordinary let bindings.
 - Adapting one package with `prelude.lib.fromPkg` without duplicating its executable or runtime closure.

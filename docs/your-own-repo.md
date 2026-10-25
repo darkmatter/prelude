@@ -172,10 +172,13 @@ direnv hook and `.envrc` as `use flake` for lightweight entry, then run interact
 `nix develop` for the full devshell. With `prelude.workspace.enable = true`, its
 generated project init enters `prelude-workspace` in the foreground in Bash with
 a TTY. Workspace mode skips legacy BLE initialization, and automatic Starship
-follows `prelude.prompt.enable`. The public `prelude hook bash` remains optional
+follows `prelude.prompt.enable` (passing `--starship=false` when false). The public `prelude hook bash` remains optional
 for already-configured interactive handoffs after direnv; it is not an onboarding
-requirement. Manual `x prelude:workspace` and `prelude-workspace --starship` remain
-available. See the [workspace guide](guides/workspace.md) for launch guards and
+requirement. Bare `prelude` opens the workspace manually (Starship by default;
+`prelude --starship=false` for the fixed prompt; `prelude help` lists
+subcommands); `x prelude:workspace` and `prelude-workspace` remain equivalent.
+In a direnv-loaded shell, `prelude` opens the full workspace without
+`nix develop`. See the [workspace guide](guides/workspace.md) for launch guards and
 reentry behavior.
 
 Never `export -f` in a devshell `shellHook`. Bash stores an exported function

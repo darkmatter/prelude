@@ -18,7 +18,7 @@ invent synonyms.
 | `nix/internal/` | This repo's MOTD/menu/docs identity, imported by `prelude.nix` |
 | `src/prelude/` | flake-parts module, `lib.evalModule`, the package builder both share, options, shell init, fonts |
 | `src/cmd/` | Go mains (`motd`, `menu`, `docs`, `title`, `prompt-status`, VT host, `libprelude`) |
-| `src/cmd/prelude-workspace/` | Opt-in Bash workspace; independent Go/C module using libghostty-vt |
+| `src/cmd/prelude-workspace/` | Default-enabled Bash workspace; independent Go/C module using libghostty-vt |
 | `src/prelude/workspace.nix` | Workspace package and dedicated devshell builder |
 | `src/internal/` | Go surface implementations (MOTD, menu, docs, wizard) |
 | `src/pkg/` | Shared Go (palette, manual viewer, UI primitives) |
@@ -38,7 +38,7 @@ lightweight environment and MOTD entry. The catalogue is the public interface:
 
 ```sh
 x                 # interactive picker
-x prelude:workspace --starship  # manual workspace with the themed prompt
+prelude           # open the workspace; Starship by default
 x go:test         # Go unit tests → go test -C src ./...
 x go:vet          # go vet -C src ./...
 x fmt             # format Nix sources
@@ -64,7 +64,8 @@ part of the name (`x go:test`), and groups come only from `group`.
 - **Catalogue:** `prelude.commands` is the Nix-side whole. Import Justfile /
   `package.json` / flake apps; do not write generated entries back to source.
   Existing tools own the canonical invocation (`go test`, `nix flake check`).
-- **Workspace:** consumers opt in with `prelude.workspace.enable`. Interactive
+- **Workspace:** `prelude.workspace.enable` defaults to `true`; consumers opt out
+  with `prelude.workspace.enable = false`. Interactive
   `nix develop` sources generated project init and enters `prelude-workspace` in
   the foreground in Bash with a TTY, with the full footer and catalogue completion.
   `.envrc` stays `use flake`: `cd` + direnv provides the lightweight environment,
@@ -75,11 +76,14 @@ part of the name (`x go:test`), and groups come only from `group`.
   changed init permits reentry. Never auto-launch from noninteractive, envrc,
   lorri, zsh, or non-TTY contexts; `PRELUDE_WORKSPACE_ACTIVE` prevents child
   recursion. Workspace mode skips legacy BLE initialization. Automatic Starship
-  follows `prelude.prompt.enable`; manual `x prelude:workspace` /
-  `prelude-workspace --starship` remain supported. Both entrypoints build consumer
+  follows `prelude.prompt.enable` (passing `--starship=false` when false); manual
+  launches (`prelude`, `x prelude:workspace`, `prelude-workspace`) default to
+  Starship regardless, with `--starship=false` for the fixed prompt. In a
+  direnv-loaded shell, `prelude` opens the full workspace without `nix develop`.
+  Both entrypoints build consumer
   Config through `packages.nix`: the shell uses the checkout Menu, the published
   workspace honors `prelude.root`. Native compilation is Config-independent;
-  disabled consumers exclude its renderer. The repo opts in for dogfooding.
+  disabled consumers exclude its renderer. The repo dogfoods the enabled workspace.
   Its independent Go module and tooling remain separate from the main module.
   See [`docs/guides/workspace.md`](docs/guides/workspace.md).
 - **Activation:** `eval "$(prelude-preflight)"` is the only shellHook line.

@@ -29,8 +29,8 @@ Everything is a `prelude.*` option, validated at build time.
 - **`prelude.prompt.enable`** — themed Starship config at `packages.prelude-prompt`;
   themes an existing Starship prompt under direnv and selects Starship for
   automatic workspace entry through interactive `nix develop`.
-- **`prelude.workspace.enable`** — opt-in foreground workspace entry from generated
-  project init in interactive `nix develop` (Bash with a TTY; default: `false`).
+- **`prelude.workspace.enable`** — default-enabled foreground workspace entry from generated
+  project init in interactive `nix develop` (Bash with a TTY; default: `true`).
   `.envrc` stays `use flake` for the lightweight environment, MOTD, and existing
   Starship theming; the full footer and catalogue completion come with the
   interactive devshell. No extra Prelude Bash rc hook is required. Manual launches

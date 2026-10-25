@@ -12,7 +12,7 @@ required.
 
 - Run `x` to search Prelude's built-in navigation and the configured project commands.
 - Run `docs` to browse these pages.
-- Run `x prelude:workspace --starship` to reopen the workspace manually after exit.
+- Run `prelude` to reopen the workspace manually after exit (Starship by default; `prelude --starship=false` for the fixed prompt).
 - Run `hello` to execute the example application.
 - Run `nix flake check` to build the example check.
 

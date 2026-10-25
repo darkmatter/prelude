@@ -24,6 +24,19 @@ Besides `x`, each declared top-level command whose name has no `:` is a thin
 PATH wrapper around `x`, so `test` and `db migrate` run bare. Nothing else is
 added to `PATH`: no synthetic aliases such as `go-test`.
 
+### TypeScript-owned catalogue
+
+With `prelude.menu.enable = true` and
+`prelude.typescript.entrypoint = "prelude.ts"`, `x` launches the project's Bun
+entrypoint instead of the Nix catalogue. The entrypoint calls
+`Prelude.make({ dispatcher: "x", commands: ... }).main()`: the picker and direct
+invocation still share one catalogue, including function commands. `menu` opens
+that same picker without arguments. Nix command PATH wrappers and catalogue
+completion are omitted rather than advertising commands this app cannot run.
+Other Nix surfaces remain independently configured. See the
+[TypeScript integration](../../ts/README.md#use-the-devshells-x) for root and
+dependency requirements.
+
 ## The key is the public identity
 
 A command key is globally unique and is also its public `x` name. No separate
@@ -42,8 +55,10 @@ public invocation: x db migrate
 ```
 
 Keys nest as deep as you need (`"db seed users"`). The menu shows the parent as
-one row; Enter opens its subcommands, and Backspace on an empty search goes
-back. Search still finds a subcommand from the top.
+one row with a display-only trailing slash (`db/`) so a container reads as a
+folder; Enter or Right opens its subcommands, and Backspace on an empty search
+or Left at the start of the search goes back. Search still finds a subcommand
+from the top.
 
 A parent that only its subcommands declare opens them and does nothing else.
 Declare the parent to give it a description, a group, or a command of its own:
@@ -101,7 +116,7 @@ that is already declared, the declaration keeps it (see
 The tool that owns a workflow also owns its underlying invocation:
 
 | Catalogue key | Canonical invocation |
-| ------------- | -------------------- |
+| ------------- | --------------------- |
 | `test` | `bun run test` |
 | `check` | `just check` |
 | `deploy` | `nix run .#deploy` |
