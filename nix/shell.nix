@@ -1,56 +1,79 @@
-# Dogfood devshell: explicitly compose Prelude's generated packages with the
-# project-specific tools and hooks.
-#
-# Prelude supplies the `x` and `docs` commands. The project only adds `r`
-# as a local convenience for replacing the current shell.
+# Dogfood runtime environment. Package builders and the dedicated native
+# workspace shell keep their normal stdenv; this shell loads tools explicitly.
 {
   pkgs,
+  lib,
   config,
   docsAutomation,
   previews,
   typescript,
   ...
-}:
-pkgs.mkShell {
+}: let
   packages =
     [
       config.packages.prelude-shell
-      # Repository dogfood only; consumer examples intentionally omit it.
       config.packages.prelude-title-previews
       docsAutomation.record
       docsAutomation.sync
       previews
       typescript.sync
+      # These are still Nix's wrapped native tools. Skipping their setup hooks
+      # avoids exporting build metadata; their built-in libc paths still work.
+      pkgs.stdenv.cc
+      pkgs.stdenv.cc.bintools
     ]
     ++ (with pkgs; [
+      bashInteractive
+      git
+      nix
+      curl
+      pkg-config
       shellcheck
       nixfmt
-    ]);
-  # The TypeScript API (ts/) loads the Go surfaces from this library; its FFI
-  # tests and examples run only when it is set.
-  PRELUDE_LIB = typescript.libraryPath;
-  # DIRENV_LOG_FORMAT is deliberately not set here. A devshell variable lands in
-  # the environment direnv is *producing*, which is too late to affect the
-  # `direnv export` process already logging that load. Silencing direnv is a
-  # per-user direnv.toml concern; see docs/welcome.md.
-  shellHook = ''
-    r() { exec nix develop "$@"; }
-
-    # Starship re-resolves this path on every prompt render.
-    export STARSHIP_CONFIG=${config.packages.prelude-prompt}
-    # `config.packages.prelude-shell` appends its idempotent, current-shell init after
-    # this hook. It bundles every enabled component (MOTD, menu, docs, portal),
-    # putting those commands on PATH without pulling repository-only previews or
-    # examples in.
-    #
-    # `r` is deliberately a plain function and never `export -f`ed. Exporting a
-    # function stores it as the environment variable `BASH_FUNC_r%%`, and a
-    # `BASH_VERSION` guard cannot prevent that: the guard runs inside the Nix
-    # builder, which is always Bash, never the user's shell. Loaders that
-    # capture the environment (lorri, direnv) then replay that name into
-    # whatever shell the user runs, and zsh rejects `%` in a variable name.
-    # Shell-specific setup belongs in `prelude hook`, which runs where $SHELL
-    # is actually meaningful.
-    eval "$(prelude hook $(basename $SHELL))"
+    ])
+    ++ pkgs.stdenvNoCC.initialPath;
+  # Select executable outputs from the authored packages. Reading normalized
+  # mkShell.nativeBuildInputs instead can select a library output (ShellCheck).
+  commandPath = lib.makeBinPath (lib.unique packages);
+  bash = lib.getExe pkgs.bashInteractive;
+  setup = pkgs.writeTextDir "setup" ''
+    : "''${outputs:=out}"
+    runHook() { eval "$shellHook"; }
   '';
-}
+  # A buildable output roots all tools and activation artifacts against GC.
+  profile = pkgs.writeText "prelude-devshell-packages" (
+    lib.concatMapStringsSep "\n" toString (packages ++ [pkgs.cacert typescript.libraryPath])
+  );
+in
+  builtins.derivation {
+    name = "prelude-devshell";
+    system = pkgs.stdenv.hostPlatform.system;
+    builder = bash;
+    args = ["-c" "${pkgs.coreutils}/bin/ln -s ${profile} $out"];
+    stdenv = setup;
+    # Nix itself needs mktemp before shellHook, including in a pure shell.
+    # nix develop / nix-direnv append the caller's PATH when loading this value.
+    PATH = commandPath;
+    shellHook = ''
+      unset NIX_BUILD_TOP NIX_BUILD_CORES NIX_STORE
+      unset TEMP TEMPDIR TMP TMPDIR builder out outputs stdenv system dontAddDisableDepTrack
+      case "''${SHELL-}" in
+        ""|/noshell|/sbin/nologin) export SHELL=${bash} ;;
+      esac
+
+      # Explicit runtime configuration replaces the compiler/build setup hooks.
+      export PRELUDE_LIB=${typescript.libraryPath}
+      export SSL_CERT_FILE="''${SSL_CERT_FILE:-${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt}"
+      export NIX_SSL_CERT_FILE="''${NIX_SSL_CERT_FILE:-$SSL_CERT_FILE}"
+      . ${config.packages.prelude-shell}/nix-support/setup-hook
+      # The package setup hook appends activation to shellHook for mkShell.
+      # We own activation here, so discard that exported build-time string.
+      unset shellHook
+
+      # Plain function: exporting it creates BASH_FUNC_r%% and breaks zsh.
+      r() { exec nix develop "$@"; }
+      if [ "''${_PRELUDE_INIT_LOADED-}" != "$PRELUDE_INIT" ]; then
+        . "$PRELUDE_INIT"
+      fi
+    '';
+  }
