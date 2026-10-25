@@ -29,7 +29,6 @@
     configuration.prelude = {
       project = "workspace-${name}";
       inherit root theme;
-      workspace.enable = true;
       menu = {
         enable = true;
         just.enable = true;
@@ -90,9 +89,17 @@
       prelude = {
         project = "workspace-disabled";
         root = a.root;
+        workspace.enable = false;
       };
     }
-    {prelude = (removeAttrs a.configuration.prelude ["workspace"]) // {prompt.enable = false;};}
+    {
+      prelude =
+        a.configuration.prelude
+        // {
+          workspace.enable = false;
+          prompt.enable = false;
+        };
+    }
   ];
   disabled = map (evaluate pkgs) disabledConfigurations;
   poisonPkgs = pkgs // {libghostty-vt = throw "disabled workspace evaluated libghostty-vt";};
@@ -302,7 +309,7 @@ in {
     '';
 
   workspace-disabled-closures = assert lib.assertMsg (!(localFlake.lib.evalModule poisonPkgs (builtins.head disabledConfigurations)).config.prelude.workspace.enable)
-  "workspace activation must default to false";
+  "workspace activation must support explicit opt-out";
   assert lib.assertMsg (lib.all (evaluated:
     isDisabled evaluated.viaFunction
     && isDisabled evaluated.viaModule

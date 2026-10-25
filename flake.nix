@@ -30,6 +30,7 @@
 # Entry points:
 #
 #   nix develop .        # devshell greeted by our own motd; `x` inside
+#   nix run .            # our Bash workspace, like bare `prelude` inside
 #   nix run . -- wizard  # fragmentless, single Prelude app dispatcher
 #   nix run .#previews / .#examples   # repository-only development apps
 #   nix flake check      # build + render smoke tests
@@ -66,6 +67,7 @@
         };
         preludeLib = import ./nix/lib.nix {lib = inputs.nixpkgs.lib;};
       in {
+        debug = true;
         systems = [
           "x86_64-linux"
           "aarch64-linux"

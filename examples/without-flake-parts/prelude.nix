@@ -10,8 +10,8 @@
     project = "without-flake-parts";
     motd.enable = true;
     menu.enable = true;
-    # Opt in to the workspace; docs.pages below supplies its documentation.
-    # workspace.enable = true;
+    # The workspace is enabled by default; docs.pages below supplies its documentation.
+    # workspace.enable = false;
 
     commands.hello = {
       description = "greet from a package";

@@ -440,7 +440,11 @@
       name = "prelude";
       runtimeInputs = [pkgs.coreutils] ++ lib.optionals embedDependencies ownSurfaces;
       text = ''
-        command="''${1:-help}"
+        command="''${1:-${
+          if cfg.workspace.enable
+          then "workspace"
+          else "help"
+        }}"
         if [ "$#" -gt 0 ]; then
           shift
         fi
@@ -451,7 +455,7 @@
         usage: prelude <command> [args...]
 
         Commands:
-          hook           print the shell hook to add to your shell rc file
+        ${lib.optionalString cfg.workspace.enable "  workspace      open the Bash workspace (the default with no command)\n"}  hook           print the shell hook to add to your shell rc file
           preflight      print activation code for a custom shellHook
           wizard         generate a Prelude project configuration
           title          choose and render a MOTD title
@@ -462,6 +466,15 @@
         ${lib.optionalString cfg.portal.enable "  portal         launch an app, with live health lights\n  portal-web     the same launcher as a local web page"}
         EOF
             ;;
+        ${lib.optionalString cfg.workspace.enable ''
+          workspace)
+            exec ${target publishedWorkspace.package "prelude-workspace"} "$@"
+            ;;
+          # Bare `prelude` is the workspace, so a leading flag belongs to it.
+          -*)
+            exec ${target publishedWorkspace.package "prelude-workspace"} "$command" "$@"
+            ;;
+        ''}
           hook)
             # Resolve the dialect here, in the user's shell, rather than at
             # build time: a Nix builder is always Bash, so a build-time guess
@@ -606,8 +619,8 @@
     inherit pkgs lib menuPkg docsPkg motdPkg completionInit;
     normalPromptConfig = promptPkg;
     # Prompt presets remain available even when prompt activation is disabled.
-    # Automatic entry passes --starship iff cfg.prompt.enable; manual entry
-    # keeps its existing opt-in flag.
+    # Starship is the workspace default; automatic entry passes
+    # --starship=false only when cfg.prompt.enable is off.
     promptConfig =
       (promptPreset {
         prefix = "Alt +";
