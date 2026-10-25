@@ -422,8 +422,10 @@ verification.
   in width. Coverage verifies CJK, single emoji, and composed/decomposed accents,
   not complete outer-terminal capability parity.
 
-- Graphics are disabled and clipboard integration is omitted. The native
-  engine's built-in terminfo-query table is not fully filtered for this host.
+- Graphics are disabled. Clipboard sets (OSC 52) from the shell and pane are
+  forwarded to the outer terminal (standard, selection, and primary targets);
+  clipboard read queries are never answered. The native engine's built-in
+  terminfo-query table is not fully filtered for this host.
   Pixel mouse reporting cannot be encoded without pixel geometry; other
   unsupported inputs fail explicitly. Outer-terminal input/display capabilities
   remain the ceiling.

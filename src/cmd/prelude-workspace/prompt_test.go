@@ -89,7 +89,7 @@ func feedPromptTest(t *testing.T, engine *terminal, state *promptState, parser *
 	t.Helper()
 	from := 0
 	for _, marker := range parser.scan([]byte(data)) {
-		if _, err := engine.Write([]byte(data[from:marker.end])); err != nil {
+		if _, _, err := engine.Write([]byte(data[from:marker.end])); err != nil {
 			t.Fatal(err)
 		}
 		frame, err := engine.Snapshot()
@@ -99,7 +99,7 @@ func feedPromptTest(t *testing.T, engine *terminal, state *promptState, parser *
 		state.mark(marker, frame)
 		from = marker.end
 	}
-	if _, err := engine.Write([]byte(data[from:])); err != nil {
+	if _, _, err := engine.Write([]byte(data[from:])); err != nil {
 		t.Fatal(err)
 	}
 	frame, err := engine.Snapshot()

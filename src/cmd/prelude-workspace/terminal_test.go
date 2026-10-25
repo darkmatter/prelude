@@ -22,7 +22,7 @@ func ghosttyTestTerminal(t *testing.T, cols, rows int) *terminal {
 
 func ghosttyWrite(t *testing.T, term *terminal, text string) []byte {
 	t.Helper()
-	replies, err := term.Write([]byte(text))
+	replies, _, err := term.Write([]byte(text))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +247,7 @@ func TestGhosttyRepliesCursorAndCapabilities(t *testing.T) {
 		t.Fatalf("initial cursor must be a blinking bar: %+v", frame)
 	}
 	replies := ghosttyWrite(t, term, "\x1b[2;3H\x1b[5n\x1b[6n\x1b[18t\x1b[14t\x1b[16t\x1b[c")
-	want := "\x1b[0n\x1b[2;3R\x1b[8;4;10t\x1b[4;0;0t\x1b[6;0;0t\x1b[?62;22c"
+	want := "\x1b[0n\x1b[2;3R\x1b[8;4;10t\x1b[4;0;0t\x1b[6;0;0t\x1b[?62;22;52c"
 	if string(replies) != want {
 		t.Fatalf("replies = %q, want %q", replies, want)
 	}
@@ -365,10 +365,31 @@ func TestGhosttyGeometryAndClose(t *testing.T) {
 	}
 	term.Close()
 	term.Close()
-	if _, err := term.Write(nil); err == nil {
+	if _, _, err := term.Write(nil); err == nil {
 		t.Fatal("write after close succeeded")
 	}
 	if _, err := term.Snapshot(); err == nil {
 		t.Fatal("snapshot after close succeeded")
+	}
+}
+
+func TestGhosttyClipboardWrite(t *testing.T) {
+	term := ghosttyTestTerminal(t, 10, 4)
+	// OSC 52 set ("hi" base64) reaches the host as a decoded clipboard write.
+	if _, clips, err := term.Write([]byte("\x1b]52;c;aGk=\a")); err != nil {
+		t.Fatal(err)
+	} else if len(clips) != 1 || clips[0].target != clipboardStandard || clips[0].text != "hi" {
+		t.Fatalf("clipboard writes = %+v, want one standard %q", clips, "hi")
+	}
+	if _, clips, err := term.Write([]byte("\x1b]52;p;aGk=\x1b\\")); err != nil {
+		t.Fatal(err)
+	} else if len(clips) != 1 || clips[0].target != clipboardPrimary || clips[0].text != "hi" {
+		t.Fatalf("clipboard writes = %+v, want one primary %q", clips, "hi")
+	}
+	// A clipboard read query must stay unanswered: no reply, no write.
+	if replies, clips, err := term.Write([]byte("\x1b]52;c;?\a")); err != nil {
+		t.Fatal(err)
+	} else if len(replies) != 0 || len(clips) != 0 {
+		t.Fatalf("clipboard read produced replies=%q writes=%+v", replies, clips)
 	}
 }

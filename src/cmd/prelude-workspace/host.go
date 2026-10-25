@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // host is the UI-loop owner of native terminal state and its derived snapshot.
@@ -46,6 +47,9 @@ type host struct {
 	paneError       error
 	notice          string
 	terminalFocused bool
+	// Clipboard sets decoded while absorbing child output; Update drains them
+	// into commands for the outer terminal on every return path.
+	pendingClipboard []clipboardWrite
 }
 
 // The child cannot address the footer: its PTY and emulator stop above it.
@@ -152,7 +156,8 @@ func (h *host) absorb(data []byte) error {
 		if from == to {
 			return nil
 		}
-		replies, err := h.terminal.Write(data[from:to])
+		replies, clips, err := h.terminal.Write(data[from:to])
+		h.queueClipboard(clips)
 		from = to
 		if err != nil {
 			return fmt.Errorf("libghostty-vt output: %w", err)
@@ -200,7 +205,8 @@ func (h *host) resizeWorkspace() error {
 			}
 		}
 		// Resize can queue native mode-2048 replies even without output.
-		replies, err := h.terminal.Write(nil)
+		replies, clips, err := h.terminal.Write(nil)
+		h.queueClipboard(clips)
 		if err != nil {
 			return fmt.Errorf("libghostty-vt resize replies: %w", err)
 		}
@@ -220,11 +226,55 @@ func (h *host) resizeWorkspace() error {
 		if err := p.resize(layout.Body.Dx(), layout.Body.Dy()); err != nil {
 			h.failPane(err)
 		}
+		h.collectPaneClipboard()
 	}
 	return h.err
 }
 
+func (h *host) queueClipboard(clips []clipboardWrite) {
+	h.pendingClipboard = append(h.pendingClipboard, clips...)
+}
+
+// collectPaneClipboard moves the pane's decoded clipboard sets into the host
+// queue; the pane has no outer-terminal channel of its own.
+func (h *host) collectPaneClipboard() {
+	if p := h.pane; p != nil {
+		h.queueClipboard(p.clipboard)
+		p.clipboard = nil
+	}
+}
+
+func (w clipboardWrite) cmd() tea.Cmd {
+	switch w.target {
+	case clipboardPrimary:
+		return tea.SetPrimaryClipboard(w.text)
+	case clipboardSelection:
+		// Bubbletea has no selection-clipboard command; emit OSC 52 directly.
+		return tea.Raw(ansi.SetClipboard('s', w.text))
+	default:
+		return tea.SetClipboard(w.text)
+	}
+}
+
+// Update wraps update so clipboard sets queued while absorbing output are
+// forwarded to the outer terminal no matter which path handled the message.
 func (h *host) Update(message tea.Msg) (tea.Model, tea.Cmd) {
+	model, cmd := h.update(message)
+	if len(h.pendingClipboard) == 0 {
+		return model, cmd
+	}
+	cmds := make([]tea.Cmd, 0, len(h.pendingClipboard)+1)
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+	for _, clip := range h.pendingClipboard {
+		cmds = append(cmds, clip.cmd())
+	}
+	h.pendingClipboard = nil
+	return model, tea.Batch(cmds...)
+}
+
+func (h *host) update(message tea.Msg) (tea.Model, tea.Cmd) {
 	if h.err != nil || h.closed {
 		return h, nil
 	}
@@ -262,6 +312,7 @@ func (h *host) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			if err := p.absorb(message.output.data); err != nil {
 				return h, h.failPane(err)
 			}
+			h.collectPaneClipboard()
 		}
 		if err := message.output.err; err != nil {
 			if !errors.Is(err, io.EOF) && !errors.Is(err, syscall.EIO) {
