@@ -35,21 +35,19 @@ type hostFailureMsg struct{ err error }
 // Only the reader and waiter run in the background. Neither has access to the
 // engine. One queued chunk plus one pending read command bounds noisy output.
 type shellProcess struct {
-	cmd                 *exec.Cmd
-	ptmx                *os.File
-	rc                  string
-	commandFile         string // private source file owned by the main Bash lifecycle
-	completionFile      string // private readline query responses
-	completionApplyFile string // separate edit requests/acknowledgements
-	output              chan outputMsg
-	stop                chan struct{}
-	readerDone          chan struct{}
-	exited              chan struct{}
-	waitErr             error     // published by closing exited
-	exitedAt            time.Time // published by closing exited
-	tailDrained         bool      // owned by the sequential nextOutput commands
-	stopOnce            sync.Once
-	closeErr            error
+	cmd         *exec.Cmd
+	ptmx        *os.File
+	rc          string
+	commandFile string // private source file owned by the main Bash lifecycle
+	output      chan outputMsg
+	stop        chan struct{}
+	readerDone  chan struct{}
+	exited      chan struct{}
+	waitErr     error     // published by closing exited
+	exitedAt    time.Time // published by closing exited
+	tailDrained bool      // owned by the sequential nextOutput commands
+	stopOnce    sync.Once
+	closeErr    error
 }
 
 // startBash gives readline and foreground programs a real controlling terminal,
@@ -97,35 +95,7 @@ fi
 			_ = os.Remove(commandFile.Name())
 		}
 	}()
-	completionFile, err := os.CreateTemp("", "prelude-ghostty-completion-*")
-	if err != nil {
-		return nil, fmt.Errorf("private Bash completion file: %w", err)
-	}
-	if err := completionFile.Close(); err != nil {
-		_ = os.Remove(completionFile.Name())
-		return nil, err
-	}
-	defer func() {
-		if !started {
-			_ = os.Remove(completionFile.Name())
-		}
-	}()
-	completionApplyFile, err := os.CreateTemp("", "prelude-ghostty-completion-apply-*")
-	if err != nil {
-		return nil, fmt.Errorf("private Bash completion apply file: %w", err)
-	}
-	if err := completionApplyFile.Close(); err != nil {
-		_ = os.Remove(completionApplyFile.Name())
-		return nil, err
-	}
-	defer func() {
-		if !started {
-			_ = os.Remove(completionApplyFile.Name())
-		}
-	}()
-	content = "__prelude_ghostty_completion_apply_file=" + shellQuote(completionApplyFile.Name()) + "\n" +
-		"__prelude_ghostty_command_file=" + shellQuote(commandFile.Name()) + "\n" +
-		"__prelude_ghostty_completion_file=" + shellQuote(completionFile.Name()) + "\n" + content
+	content = "__prelude_ghostty_command_file=" + shellQuote(commandFile.Name()) + "\n" + content
 	rc, err := os.CreateTemp("", "prelude-ghostty-*.bashrc")
 	if err != nil {
 		return nil, fmt.Errorf("private Bash rc: %w", err)
@@ -140,7 +110,7 @@ fi
 	if err != nil {
 		return nil, err
 	}
-	s.commandFile, s.completionFile, s.completionApplyFile, started = commandFile.Name(), completionFile.Name(), completionApplyFile.Name(), true
+	s.commandFile, started = commandFile.Name(), true
 	return s, nil
 }
 
@@ -416,7 +386,7 @@ func (s *shellProcess) close() error {
 		case <-time.After(closeGrace):
 			s.closeErr = errors.Join(s.closeErr, fmt.Errorf("PTY reader did not stop"))
 		}
-		for _, path := range []string{s.rc, s.commandFile, s.completionFile, s.completionApplyFile} {
+		for _, path := range []string{s.rc, s.commandFile} {
 			if path != "" {
 				if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 					s.closeErr = errors.Join(s.closeErr, fmt.Errorf("remove private Bash file: %w", err))

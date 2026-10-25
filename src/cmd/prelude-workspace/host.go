@@ -14,17 +14,13 @@ import (
 // Background workers publish bytes/exit results; Update mutates the engines and
 // View composes Go-owned cells without calling back into Ghostty.
 type host struct {
-	child                 *shellProcess
-	terminal              *terminal
-	cols                  int
-	rows                  int
-	frame                 terminalFrame
-	parser                promptParser
-	prompt                promptState
-	completion            *completionState
-	completionWanted      bool
-	lastCompletionQueryID int
-	nextCompletionApplyID int
+	child    *shellProcess
+	terminal *terminal
+	cols     int
+	rows     int
+	frame    terminalFrame
+	parser   promptParser
+	prompt   promptState
 
 	pendingCommand          string
 	restoreInput            bool
@@ -142,14 +138,6 @@ func (h *host) snapshot() error {
 	}
 	h.frame = frame
 	h.prompt.observe(frame)
-	if h.completionVisible() && h.layout().Completion.Empty() {
-		if h.prompt.anchor < 0 {
-			h.completion.phase = completionRedraw // Readline callbacks can temporarily clear PS1.
-		} else {
-			h.dismissCompletion() // Real geometry changes cannot leave an invisible choice active.
-		}
-	}
-	h.completionRedrawReady()
 	return nil
 }
 
@@ -159,13 +147,11 @@ func (h *host) snapshot() error {
 // observes; no bytes are removed from the stream sent to Ghostty.
 func (h *host) absorb(data []byte) error {
 	from := 0
-	completionReply, completionApplyReply := 0, 0
 
 	write := func(to int) error {
 		if from == to {
 			return nil
 		}
-		h.prompt.promptOutput(data[from:to])
 		replies, err := h.terminal.Write(data[from:to])
 		from = to
 		if err != nil {
@@ -186,17 +172,7 @@ func (h *host) absorb(data []byte) error {
 			}
 		}
 		h.prompt.mark(marker, frame)
-
 		h.menuPromptMarker(marker)
-		if marker.kind == 'C' && h.completion != nil {
-
-			h.completion = nil // no readline reply can belong to a foreground job
-		}
-		if marker.kind == 'Q' {
-			completionReply = max(completionReply, marker.sequence)
-		} else if marker.kind == 'R' {
-			completionApplyReply = max(completionApplyReply, marker.sequence)
-		}
 	}
 	if err := write(len(data)); err != nil {
 		return err
@@ -206,18 +182,6 @@ func (h *host) absorb(data []byte) error {
 	}
 	// A later C or continuation A in this same batch can invalidate an earlier
 	// B. Only the final stream state may dispatch or restore readline input.
-
-	if completionReply > 0 {
-		if err := h.completionReply(completionReply); err != nil {
-			return err
-		}
-	}
-	if completionApplyReply > 0 {
-		if err := h.completionApplyReply(completionApplyReply); err != nil {
-			return err
-		}
-	}
-
 	return h.menuPromptReady()
 }
 
@@ -348,9 +312,6 @@ func (h *host) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return h, nil
 		}
 		h.cols, h.rows = cols, rows
-		if h.completionVisible() && h.layout().Completion.Empty() {
-			h.dismissCompletion()
-		}
 		wasPane := h.focusPane
 		if err := h.resizeWorkspace(); err != nil {
 			return h, h.fail(err)
@@ -361,9 +322,6 @@ func (h *host) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return h, h.keyInput(message)
 	case tea.PasteMsg:
-		if err := h.closeCompletion(); err != nil {
-			return h, h.fail(err)
-		}
 		h.leader, h.quoted, h.notice = false, false, ""
 		if h.paneFocused() {
 			if cmd := h.followPane(); cmd != nil {
@@ -383,9 +341,6 @@ func (h *host) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		h.terminalFocused = true
 		return h, h.syncFocus()
 	case tea.BlurMsg:
-		if err := h.closeCompletion(); err != nil {
-			return h, h.fail(err)
-		}
 		h.terminalFocused, h.leader, h.quoted = false, false, false
 		return h, h.syncFocus()
 	case tea.MouseMsg:

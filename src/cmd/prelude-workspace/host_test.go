@@ -40,7 +40,7 @@ func spikeFrameText(frame terminalFrame) string {
 func spikeInput(h *host) string {
 	frame, prompt := h.frame, &h.prompt
 	if !prompt.ready || frame.AltScreen || frame.Cols < 1 || prompt.anchor < 0 ||
-		prompt.anchorCols != frame.Cols || !prompt.promptAt(frame, prompt.anchor) {
+		prompt.anchorCols != frame.Cols {
 		return "(input not visible)"
 	}
 	cursor := frame.CursorY*frame.Cols + frame.CursorX
@@ -321,7 +321,7 @@ func awaitSpike(t *testing.T, h *host, what string, check func() bool) {
 			}
 			t.Fatalf("Bash exited before %s: code=%d\n%s", what, h.code, spikeFrameText(h.frame))
 		case <-timer.C:
-			t.Fatalf("waiting for %s: phase=%q ready=%t anchor=%d anchorCols=%d promptRows=%d measuredCols=%d input=%q footer=%q\n%s", what, h.prompt.phase, h.prompt.ready, h.prompt.anchor, h.prompt.anchorCols, h.prompt.promptRows, h.prompt.promptRowsCols, spikeInput(h), h.footer(), spikeFrameText(h.frame))
+			t.Fatalf("waiting for %s: phase=%q ready=%t anchor=%d anchorCols=%d input=%q footer=%q\n%s", what, h.prompt.phase, h.prompt.ready, h.prompt.anchor, h.prompt.anchorCols, spikeInput(h), h.footer(), spikeFrameText(h.frame))
 		}
 	}
 }

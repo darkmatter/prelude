@@ -4,9 +4,6 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
-	"unicode/utf8"
-
-	"github.com/charmbracelet/x/ansi"
 )
 
 // The fixed prompt remains the default; neither prompt mode uses it as an
@@ -35,6 +32,7 @@ PS2='\[\e[5 q\e]133;A;$((__prelude_ghostty_primary_prompt=0))\a\]... '
 PROMPT_COMMAND=''
 HISTFILE=/dev/null
 builtin bind 'set enable-bracketed-paste on'
+builtin bind 'set show-all-if-ambiguous on'
 # Entry output belongs to the main shell, before either prompt mode's hooks.
 # A failed banner must not prevent the user from getting an interactive prompt.
 if ! command motd; then
@@ -47,7 +45,7 @@ if [[ -n ${PRELUDE_COMPLETION_INIT-} ]]; then
         builtin printf '%s\n' 'prelude-workspace: completion init failed; continuing with the shell' >&2
     fi
 fi
-` + bashSelectionRC + bashCompletionRC
+` + bashSelectionRC
 
 // The fixed prompt's DEBUG guard emits C once per submitted command line, not
 // once per simple command/pipeline stage. Starship uses its own PS0 instead.
@@ -67,8 +65,7 @@ __prelude_ghostty_prompt() {
 }
 __prelude_ghostty_preexec() {
     if [[ $__prelude_ghostty_at_prompt == 1 && $BASH_COMMAND != __prelude_ghostty_prompt &&
-          $BASH_COMMAND != __prelude_ghostty_load_command && $BASH_COMMAND != __prelude_ghostty_restore_input &&
-          $BASH_COMMAND != __prelude_ghostty_completion_* ]]; then
+          $BASH_COMMAND != __prelude_ghostty_load_command && $BASH_COMMAND != __prelude_ghostty_restore_input ]]; then
         __prelude_ghostty_at_prompt=0
         __prelude_ghostty_primary_prompt=0
         builtin printf '\e]133;C\a'
@@ -101,10 +98,9 @@ PS0+=$'\e]133;C;''$((__prelude_ghostty_primary_prompt=0))'$'\a'
 `
 
 type promptMarker struct {
-	end      int // exclusive byte offset in this output chunk
-	kind     byte
-	status   int
-	sequence int
+	end    int // exclusive byte offset in this output chunk
+	kind   byte
+	status int
 }
 
 // This is only a bounded OSC133 observer, not a terminal emulator. All bytes,
@@ -137,11 +133,8 @@ func (p *promptParser) scan(data []byte) []promptMarker {
 						marker.status = code
 					}
 				}
-				if (marker.kind == 'Q' || marker.kind == 'R') && len(parts) >= 3 {
-					marker.sequence, _ = strconv.Atoi(parts[2])
-				}
-				// L/Q/R are private readline load/query/apply acknowledgements.
-				if strings.ContainsRune("ABCDLQR", rune(marker.kind)) {
+				// L is a private readline load acknowledgement.
+				if strings.ContainsRune("ABCDL", rune(marker.kind)) {
 					markers = append(markers, marker)
 				}
 			}
@@ -198,142 +191,23 @@ func (p *promptParser) scan(data []byte) []promptMarker {
 	return markers
 }
 
-// Shell markers own the lifecycle and input boundary. Retain only the prompt
-// geometry needed to place completion, never a mirrored editable buffer.
+// Shell markers own the lifecycle. anchor is the editable-input position at
+// OSC133 B on the live screen; it is a display boundary only, never a
+// mirrored editable buffer. It is invalidated rather than relocated when
+// geometry changes, and recaptured at the next B.
 type promptState struct {
 	phase string
 	ready bool
 
 	anchor         int // editable-input position at OSC133 B, before echoed input
 	anchorCols     int
-	fingerprint    []promptCell
-	wholeTail      bool
 	pendingCapture bool // B arrived while scrolled; retry on the live screen
-	promptRows     int  // persistent display height, not retained PS1 source
-	promptRowsCols int  // measured width; zero means the layout is unknown
-
-	promptBytes       []byte // temporary A..B capture
-	promptStartColumn int
-	promptStartCols   int
-	promptCollecting  bool
-	promptOverflow    bool
-}
-
-// Only display geometry and the rendered prompt tail survive B, never another
-// editable buffer. Styles are irrelevant to relocation; cells preserve grapheme
-// widths, including wide continuations. Huge/sparse prompts fail closed.
-const (
-	promptFingerprintCells = 256
-	promptFingerprintBytes = 4096
-)
-
-type promptCell struct {
-	content string
-	width   int
-}
-
-// Called before each PTY slice reaches Ghostty. mark(A) starts the capture;
-// mark(B) measures it against that exact stream boundary and discards the bytes.
-func (p *promptState) promptOutput(data []byte) {
-	if !p.promptCollecting || p.promptOverflow || len(data) == 0 {
-		return
-	}
-	if len(data) > promptFingerprintBytes-len(p.promptBytes) {
-		p.promptBytes, p.promptOverflow = nil, true
-		return
-	}
-	if p.promptBytes == nil {
-		p.promptBytes = make([]byte, 0, promptFingerprintBytes)
-	}
-	p.promptBytes = append(p.promptBytes, data...)
-}
-
-// This measures only linear output, not a second terminal model. Anything that
-// could reposition/erase cells or render non-text fails closed to the viewport.
-func (p *promptState) renderedPromptRows(frame terminalFrame) (rows, measuredCols int) {
-	if !p.promptCollecting || p.promptOverflow || frame.AltScreen || frame.Cols < 1 || frame.Rows < 1 ||
-		p.promptStartCols != frame.Cols || p.promptStartColumn < 0 ||
-		p.promptStartColumn >= frame.Cols-1 || !utf8.Valid(p.promptBytes) {
-		return frame.Rows, 0
-	}
-	data := string(p.promptBytes)
-	for remaining := data; len(remaining) > 0; {
-		sequence, _, n, state := ansi.DecodeSequence(remaining, 0, nil)
-		if n < 1 || state != ansi.NormalState {
-			return frame.Rows, 0
-		}
-		remaining = remaining[n:]
-		if sequence[0] != '\x1b' {
-			continue
-		}
-		switch {
-		case strings.HasPrefix(sequence, "\x1b[") && strings.HasSuffix(sequence, "m") &&
-			strings.Trim(sequence[2:len(sequence)-1], "0123456789;:") == "":
-			// SGR changes styling, never geometry.
-		case strings.HasPrefix(sequence, "\x1b]"):
-			body := strings.TrimPrefix(sequence, "\x1b]")
-			if strings.HasSuffix(body, "\a") {
-				body = strings.TrimSuffix(body, "\a")
-			} else if strings.HasSuffix(body, "\x1b\\") {
-				body = strings.TrimSuffix(body, "\x1b\\")
-			} else {
-				return frame.Rows, 0
-			}
-			command, _, _ := strings.Cut(body, ";")
-			code, err := strconv.Atoi(command)
-			if err != nil {
-				return frame.Rows, 0
-			}
-			switch code {
-			case 0, 1, 2, 7, 8, 133: // titles, cwd, hyperlinks, shell markers
-			default:
-				return frame.Rows, 0 // other OSCs can render images or change layout
-			}
-		default:
-			return frame.Rows, 0
-		}
-	}
-
-	rows, column := 1, p.promptStartColumn
-	// Strip first so styling/hyperlinks cannot split a combining/emoji cluster.
-	for text := ansi.Strip(data); len(text) > 0; {
-		cluster, width := ansi.FirstGraphemeCluster(text, ansi.GraphemeWidth)
-		if len(cluster) == 0 {
-			return frame.Rows, 0
-		}
-		text = text[len(cluster):]
-		switch cluster {
-		case "\r":
-			column = 0
-		case "\r\n":
-			rows, column = rows+1, 0
-		case "\n":
-			rows++
-			column = min(column, frame.Cols-1)
-		case "\x00", "\a":
-		default:
-			if strings.ContainsFunc(cluster, unicode.IsControl) || width < 1 || width > frame.Cols {
-				return frame.Rows, 0
-			}
-			// A filled last cell wraps only on the next printable cluster. A
-			// wide cluster that cannot fit wraps before it is drawn, not within.
-			if column+width > frame.Cols {
-				rows, column = rows+1, 0
-			}
-			column += width
-		}
-	}
-	if frame.CursorX != min(column, frame.Cols-1) {
-		return frame.Rows, 0 // display widths/modes did not match the native frame
-	}
-	return rows, frame.Cols
 }
 
 func (p *promptState) capture(frame terminalFrame) {
 	p.pendingCapture = false
 	p.anchor = frame.CursorY*frame.Cols + frame.CursorX
 	p.anchorCols = frame.Cols
-	p.fingerprint, p.wholeTail = nil, false
 	if frame.Scrolled {
 		// Cursor coordinates describe the live screen, not these history
 		// cells. Retry on the first live snapshot within the same lifecycle.
@@ -344,63 +218,23 @@ func (p *promptState) capture(frame terminalFrame) {
 	// cannot distinguish B before that cell from B after filling the row.
 	if frame.AltScreen || frame.Cols < 1 || frame.CursorX == frame.Cols-1 || p.anchor < 0 || p.anchor > len(frame.Cells) {
 		p.anchor = -1
-		return
 	}
-	start := p.anchor - frame.CursorX
-	bounded := max(start, p.anchor-promptFingerprintCells)
-	bytes := 0
-	for i := p.anchor - 1; i >= bounded; i-- {
-		bytes += len(frame.Cells[i].Content)
-		if bytes > promptFingerprintBytes {
-			bounded = i + 1
-			break
-		}
-	}
-	// Do not begin a fingerprint in the continuation of a wide grapheme.
-	for bounded < p.anchor && frame.Cells[bounded].Width == 0 {
-		bounded++
-	}
-	for _, cell := range frame.Cells[bounded:p.anchor] {
-		p.fingerprint = append(p.fingerprint, promptCell{cell.Content, cell.Width})
-	}
-	p.wholeTail = bounded == start
 }
 
 func (p *promptState) mark(marker promptMarker, frame terminalFrame) {
 	switch marker.kind {
 	case 'A':
 		p.phase, p.ready, p.anchor, p.pendingCapture = "prompt", false, -1, false
-		p.promptBytes, p.promptCollecting, p.promptOverflow = nil, true, frame.AltScreen
-		p.promptStartColumn, p.promptStartCols = frame.CursorX, frame.Cols
 	case 'B':
-		// Readline can redisplay only the final PS1 line, repeating B without
-		// A. Keep full-prompt geometry only within the same lifecycle/width;
-		// an unknown layout must continue using the current viewport height.
-		if p.promptCollecting {
-			p.promptRows, p.promptRowsCols = p.renderedPromptRows(frame)
-		} else if !p.ready || frame.AltScreen || p.promptRowsCols < 1 || p.promptRowsCols != frame.Cols {
-			p.promptRows, p.promptRowsCols = frame.Rows, 0
-		}
-		// This exact stream boundary, not the prompt's text/byte length, is
-		// authoritative. The fingerprint only relocates it after a redraw.
 		p.phase, p.ready = "prompt", true
 		p.capture(frame)
-		p.observe(frame)
 	case 'C':
 		p.phase, p.ready, p.pendingCapture = "running", false, false
 	case 'D':
 		p.phase, p.ready, p.pendingCapture = "prompt", false, false
-
-	}
-	if marker.kind == 'B' || marker.kind == 'C' || marker.kind == 'D' {
-		p.promptBytes, p.promptCollecting, p.promptOverflow = nil, false, false
-		p.promptStartColumn, p.promptStartCols = 0, 0
 	}
 }
 
-// Relocate the semantic input boundary after native scroll/reflow/redraw. The
-// adapter has no scrollback/wrap metadata, so an off-screen or clipped prompt
-// tail is unknown and completion must wait for a readable redraw.
 func (p *promptState) observe(frame terminalFrame) {
 	if !p.ready {
 		return
@@ -416,37 +250,10 @@ func (p *promptState) observe(frame terminalFrame) {
 	if p.pendingCapture {
 		p.capture(frame)
 	}
-	cursor := frame.CursorY*frame.Cols + frame.CursorX
-	anchor := p.anchor
-	if p.anchorCols != frame.Cols || anchor > cursor || !p.promptAt(frame, anchor) {
-		anchor = -1
-		// Prefer a still-valid semantic anchor over identical text in input.
-		// Only a complete tail starting at column zero can be relocated with
-		// this viewport-only adapter. Select the latest match before cursor.
-		if p.wholeTail && len(p.fingerprint) > 0 {
-			for i := 0; i+len(p.fingerprint) <= cursor; i += frame.Cols {
-				candidate := i + len(p.fingerprint)
-				if p.promptAt(frame, candidate) {
-					anchor = candidate
-				}
-			}
-		}
+	if p.anchorCols != frame.Cols || p.anchor > frame.CursorY*frame.Cols+frame.CursorX {
+		p.anchor = -1
 	}
-	p.anchor, p.anchorCols = anchor, frame.Cols
-}
-
-func (p *promptState) promptAt(frame terminalFrame, input int) bool {
-	start := input - len(p.fingerprint)
-	if len(p.fingerprint) == 0 || start < 0 || input > len(frame.Cells) {
-		return false
-	}
-	for i, want := range p.fingerprint {
-		cell := frame.Cells[start+i]
-		if cell.Width != want.width || cell.Content != want.content {
-			return false
-		}
-	}
-	return true
+	p.anchorCols = frame.Cols
 }
 
 // Command text and OSC titles are display data, not host escape sequences.

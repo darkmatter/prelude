@@ -55,7 +55,6 @@ type smokeKeyHint struct {
 var smokeNavigationKeys = []smokeKeyHint{}
 var smokeWindowKeys = []smokeKeyHint{{"^P", "layout", true, false}}
 var smokeLeaderWindowKeys = []smokeKeyHint{{"^P", "layout", true, true}, {"[ ]", "▣ ◧ ◨ ⬒ ⬓", false, false}, {"Esc", "lock", false, false}}
-var smokeCompletionKeys = []smokeKeyHint{{"Tab", "next", false, false}, {"Shift+Tab", "prev", false, false}, {"Enter", "accept", false, false}, {"Esc", "dismiss", false, false}}
 var smokePaneKeys = smokeWindowKeys
 
 type smokeFooterSpan struct {

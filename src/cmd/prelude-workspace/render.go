@@ -74,50 +74,14 @@ func (h *host) drawPane(buffer *uv.ScreenBuffer, layout workspaceLayout) {
 	}
 }
 
-func (h *host) drawCompletion(buffer *uv.ScreenBuffer, layout workspaceLayout) {
-	if !h.completionVisible() {
-		return
-	}
-	area := h.completionArea(layout)
-	if area.Empty() {
-		return
-	}
-	c := h.completion
-	rows := area.Dy()
-	offset := min(max(0, c.selected-rows+1), max(0, len(c.snapshot.candidates)-rows))
-	nameWidth := 0
-	for _, choice := range c.snapshot.candidates {
-		nameWidth = max(nameWidth, ansi.StringWidth(displayText(choice.name)))
-	}
-	buffer.FillArea(&uv.EmptyCell, area)
-	for row := 0; row < rows && offset+row < len(c.snapshot.candidates); row++ {
-		index := offset + row
-		choice := c.snapshot.candidates[index]
-		prefix, style := "  ", uv.Style{Fg: h.palette.Fg}
-		if index == c.selected {
-			prefix = "> "
-			style.Fg = h.palette.Accent
-			style.Attrs |= uv.AttrBold
-		}
-		name := displayText(choice.name)
-		text := prefix + name
-		if choice.description != "" {
-			text += strings.Repeat(" ", nameWidth-ansi.StringWidth(name)+2) + displayText(choice.description)
-		}
-		drawStyledText(buffer, text, area.Min.X, area.Min.Y+row, area.Dx(), style)
-	}
-
-}
-
 // View paints a disposable frame; it never edits either native snapshot. Hiding
 // the pane therefore reveals the current shell, not an old saved underlay.
 func (h *host) View() tea.View {
 	layout := h.layout()
 	buffer := uv.NewScreenBuffer(h.cols, h.rows)
 	buffer.Fill(&uv.EmptyCell)
-	drawFrameRows(&buffer, h.frame, layout.Shell, layout.ShellScroll)
+	drawFrame(&buffer, h.frame, layout.Shell)
 	h.drawPane(&buffer, layout)
-	h.drawCompletion(&buffer, layout)
 	if layout.FooterY >= 0 {
 		h.drawFooter(&buffer, layout.FooterY)
 	}
@@ -146,9 +110,6 @@ func (h *host) View() tea.View {
 		}
 	}
 	x, y := frame.CursorX+cursorArea.Min.X, frame.CursorY+cursorArea.Min.Y
-	if !paneFocused {
-		y -= layout.ShellScroll
-	}
 	point := image.Pt(x, y)
 	// The native cursor stays on the live screen while the viewport shows
 	// history, so drawing it would land on unrelated scrollback content.

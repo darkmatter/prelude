@@ -290,19 +290,17 @@ Without an `accent` color the `w hide` chip is shown in reverse video instead.
 
 Mode hints are the same for generated, fixed, and custom prompts. Command mode
 stays unlocked until Esc or Ctrl+P, keeping the strip and pill visible.
-While completion is open,
-that same row shows Tab/Shift+Tab/Enter/Esc hints; the chooser adds no second footer.
 The diagnostic `prompt | last:… | input:…` bar and its input/exit bookkeeping
 are removed. Bash still owns Readline edits, history, and command status.
 `clear` cannot erase the host's hints row.
 
-The footer and completion use the menu's resolved palette from
+The footer uses the menu's resolved palette from
 `PRELUDE_MENU_CONFIG`, supplied by the launcher and workspace devshell. Keycaps use
 bold `accent2` on `bg`, labels and separators use `muted`, status values use
 `fg`, and the current layout uses `accent`. Notices and queued commands use
 `warning`; failures keep `fg` text and mark themselves with an `error` element
 (the pill segment, or a dot after a host error). Only the
-keycaps, the unlocked badge, and the viewer pill paint a background; the canvas and completion candidates remain transparent. Theme and palette overrides in `prelude.nix` therefore apply to
+keycaps, the unlocked badge, and the viewer pill paint a background; the canvas remains transparent. Theme and palette overrides in `prelude.nix` therefore apply to
 this chrome as well as the menu. The palette is read once at startup; an explicitly
 empty `PRELUDE_MENU_CONFIG` inherits terminal-default colors.
 
@@ -319,35 +317,15 @@ The launcher and workspace devshell supply `PRELUDE_COMPLETION_INIT`, a generate
 completion-only Bash init. The private rc sources it automatically before the
 first prompt in both prompt modes. It loads the canonical command catalogue and
 existing completion functions, registering declared argument candidates, direct
-commands, and Just completion where enabled. Ordinary file/function and argument
-completion remains Bash's responsibility.
+commands, and Just completion where enabled.
 
-At a primary prompt, `x<Tab>` or `x <key-prefix><Tab>` opens a **host-rendered
-completion chooser below the prompt** when multiple commands match. **Tab** and
-**Shift+Tab** cycle the highlighted item; **Enter** inserts the completion without
-executing it, and **Esc** dismisses the chooser without changing the line. A single
-match inserts immediately. A later Enter runs the completed command normally in
-the main shell. This chooser is separate from the full Alt+X command picker.
-Descriptions align in a padded column measured in terminal cells. The chooser
-and the single hints footer inherit the terminal background; selection uses the
-configured accent and a bold `>` marker rather than a background fill.
-
-Candidates are not printed into Bash's terminal or scrollback. Completion is a
-rendering-only overlay: Bash's PTY and Ghostty's native screen keep their full
-geometry, with no completion-triggered resize or SIGWINCH. Blank space below the
-prompt is used directly; otherwise the host temporarily shifts the displayed
-viewport upward, cropping earlier output while preserving the full visible
-multiline prompt and wrapped input. The cursor and mouse coordinates follow that
-projection. Candidate rows shrink to fit, and the chooser is suppressed when no
-safe space remains or the input boundary is unknown. Closing it restores the
-unshifted live screen. Existing footer/sidebar geometry stays unchanged.
-
-Bash supplies its actual line, point, and mark through
-private, bounded records; accepted edits compare that snapshot before replacing
-readline input. Query generations and separate apply acknowledgements reject late
-responses. Readline expands real Tab internally, so foreground programs receive
-ordinary Tab and PS2 keeps native completion. Editing, paste, focus/layout changes,
-or quoted keys dismiss or invalidate the chooser. The popup is keyboard-only.
+Tab goes straight to Bash: there is no host completion chooser or overlay.
+Readline owns every completion — catalogue keys after `x`, declared argument
+candidates, and ordinary file/function completion alike. A single match inserts
+immediately; the private rc sets `show-all-if-ambiguous on`, so ambiguous
+matches list on the first Tab in Bash's own output. A later Enter runs the
+completed command normally in the main shell. The full command picker remains
+Alt+X. Foreground programs and PS2 receive ordinary Tab untouched.
 
 This completion-only init does not run full `prelude-init`, load ble.sh or the
 general bash-completion framework, or reprint MOTD. A missing or failing init
@@ -355,10 +333,10 @@ prints a warning but leaves the shell usable.
 An unset or empty `PRELUDE_COMPLETION_INIT` skips catalogue initialization; the
 launcher respects an explicit override.
 
-The workspace's chooser handles full colon-containing key prefixes, including
-`x go:t<Tab>`. Outside the workspace, the completion-only init still provides ordinary
-Readline completion; its existing colon-tokenization limitation is unchanged.
-The chooser opens on Tab, not automatically on every typed character.
+Readline tokenizes the current word at `:`, so colon-containing key prefixes
+such as `x go:t<Tab>` offer nothing; list the full catalogue with `x <Tab>`
+or type colon keys in full. This is the same limitation the completion-only
+init has always had outside the workspace.
 
 ## Starship
 
@@ -372,10 +350,9 @@ Starship's PS0 timer (Bash 4.4 or newer).
 
 OSC133 wraps the generated PS1 and is appended to the existing PS0 timer.
 Starship's precmd runs first so exit status, pipeline status, and command timing
-are preserved. Completion anchors input at OSC133 B, then relocates that boundary
-using a bounded rendered prompt-tail fingerprint—not the literal prompt text or
-a second input buffer. Only the boundary and prompt height are retained; the host
-no longer reconstructs editable input or mirrors Bash's exit status in a footer.
+are preserved. The host tracks only the OSC133 prompt lifecycle (and the
+editable-input boundary at B) for menu/MOTD handoff; it does not reconstruct
+editable input or mirror Bash's exit status in a footer.
 Color and multiline prompts can therefore be used without hardcoding `prelude $ `.
 
 The isolated Ultraviolet pin is `b2b0f8d1567b`: wide/drift-prone rows repaint
@@ -430,10 +407,10 @@ verification.
   lifecycle; this is not arbitrary-shell integration. Surface wrappers inherit
   the host environment directly.
 
-- Completion needs a visible, unambiguous input boundary. Off-screen, empty,
-  clipped, or ambiguous right-edge prompt boundaries suppress it until a readable
-  redraw. Fingerprints retain at most 256 cells / 4 KiB; they identify prompt
-  geometry, not a complete command model.
+- Catalogue completion is plain Bash Readline completion, colon tokenization
+  included: `x go:<Tab>` offers nothing because Readline splits the current
+  word at `:`. Complete from the full key listing (`x <Tab>`) or type colon
+  keys (`go:test`) in full.
 
 - One Prelude pane only: no tabs, Process Compose, session daemon, scrollbar,
   paging keys, or transcript search. The native engines retain scrollback for
@@ -480,8 +457,7 @@ verification.
   and visible-input observation.
 - [`selection.go`](../../src/cmd/prelude-workspace/selection.go): picker-result handoff, primary-prompt queueing, and private
   readline bindings that preserve parked input.
-- [`completion.go`](../../src/cmd/prelude-workspace/completion.go) / [`completion_bash.go`](../../src/cmd/prelude-workspace/completion_bash.go): host completion choices and the private
-  snapshot/edit transport; [`render.go`](../../src/cmd/prelude-workspace/render.go) draws the chooser, not the child terminal.
+- [`render.go`](../../src/cmd/prelude-workspace/render.go) draws only the child terminals and footer; completion candidates are Bash's own output, never a host overlay.
 - [`terminal.go`](../../src/cmd/prelude-workspace/terminal.go) / [`bridge.c`](../../src/cmd/prelude-workspace/bridge.c) / [`bridge.h`](../../src/cmd/prelude-workspace/bridge.h): native engine and Go-owned snapshots.
 
 The C bridge owns native buffers and callbacks; the host event loop exclusively

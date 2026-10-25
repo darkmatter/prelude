@@ -18,7 +18,6 @@ import (
 var spikeNavigationKeys = []keyHint{}
 var spikeWindowKeys = []keyHint{lockedBadge}
 var spikeLeaderWindowKeys = []keyHint{unlockedBadge, layoutKeys, {key: "Esc", text: "lock"}}
-var spikeCompletionKeys = []keyHint{{key: "Tab", text: "next"}, {key: "Shift+Tab", text: "prev"}, {key: "Enter", text: "accept"}, {key: "Esc", text: "dismiss"}}
 var spikeHiddenKeys = spikeNavigationKeys
 
 func writeChromeConfig(t *testing.T, content string) string {
@@ -119,7 +118,7 @@ func TestChromePaletteHostView(t *testing.T) {
 				t.Fatalf("host startup palette = %+v, want %+v", h.palette, tc.want)
 			}
 			if path != "" {
-				// Later views and completion must use the startup snapshot, not reread.
+				// Later views must use the startup snapshot, not reread.
 				if err := os.WriteFile(path, []byte("invalid after startup"), 0o600); err != nil {
 					t.Fatal(err)
 				}
@@ -134,37 +133,6 @@ func TestChromePaletteHostView(t *testing.T) {
 			h.err = errors.New("theme failure")
 			assertChromeFooter(t, h, nil, "error: theme failure ●")
 			h.err = nil
-			h.Update(tea.PasteMsg{Content: "x go:"})
-			awaitSpike(t, h, "completion prefix", func() bool { return spikeInput(h) == "x go:" })
-			spikeKey(h, tea.KeyTab, 0)
-			awaitSpike(t, h, "themed command candidates", func() bool { return h.completionVisible() || h.notice != "" })
-			if !h.completionVisible() {
-				t.Fatalf("completion was suppressed: notice=%q ready=%t anchor=%d cursor=%d,%d frame=%dx%d", h.notice, h.prompt.ready, h.prompt.anchor, h.frame.CursorX, h.frame.CursorY, h.frame.Cols, h.frame.Rows)
-			}
-			screen, lines := assertChromeFooter(t, h, spikeCompletionKeys, "")
-			if strings.Count(strings.Join(lines, "\n"), completionHint) != 1 {
-				t.Fatal("completion hints must appear only on the protected last row")
-			}
-			area := h.layout().Completion
-			c := h.completion
-			if area.Empty() || len(c.snapshot.candidates) < 2 || area.Max.Y > h.rows-1 {
-				t.Fatalf("candidates must fit above the footer: area=%v candidates=%d", area, len(c.snapshot.candidates))
-			}
-			for row := range min(area.Dy(), len(c.snapshot.candidates)) {
-				selected := row == c.selected
-				fg := tc.want.Fg
-				if selected {
-					fg = tc.want.Accent
-				}
-				assertChromeColor(t, screen.CellAt(area.Min.X+2, area.Min.Y+row).Style.Fg, fg)
-				for x := area.Min.X; x < area.Max.X; x++ {
-					cell := screen.CellAt(x, area.Min.Y+row)
-					if cell.Style.Bg != nil || strings.TrimSpace(cell.Content) != "" && (cell.Style.Attrs&uv.AttrBold != 0) != selected {
-						t.Fatalf("candidate must be transparent, with only the selection bold: %+v", cell)
-					}
-				}
-			}
-			spikeKey(h, tea.KeyEscape, 0)
 			spikeKey(h, 'u', tea.ModCtrl)
 			h.Update(tea.PasteMsg{Content: `printf '\033[999;1HCHROME-CHILD-OUTPUT\033[H'`})
 			spikeKey(h, tea.KeyEnter, 0)

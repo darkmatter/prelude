@@ -64,19 +64,16 @@ Workspace and project commands (the workspace entry is built in when enabled;
   Menu selections close the picker and run in the main Bash, preserving parked
   readline input; if Bash is busy or at PS2, one selection waits for the next
   primary prompt. Catalogue-aware completion loads automatically without ble.sh.
-  `x<Tab>` opens a host-rendered chooser below the prompt: Tab/Shift+Tab cycle,
-  Enter inserts without running, Esc dismisses; single matches insert directly.
-  A later Enter runs the completed command. File/argument completion stays in
-  Readline. Key hints use the command menu's padded bold keycaps, muted labels,
+  Tab goes straight to Bash Readline, which completes catalogue keys after `x`
+  natively: single matches insert directly and ambiguous matches list on the
+  first Tab. A later Enter runs the completed command. Key hints use the command menu's padded bold keycaps, muted labels,
   and right-aligned status, ending in an always-on `⌥ +` powerline pill: a dim
   `w viewer` chip while no window shows, then a filled `w hide` chip plus the window and `shell`, with the
   focused one in bold accent, a thin muted divider pointing at it, and `⇥` on the one Alt+Tab reaches; the closed `w` key is bold `accent2` like `^P`. Only keycaps, the active
   mode badge, and that pill paint a background. Starship keeps its original bracketed keymap on the right with
   `Alt + [m] motd · [x] menu · [d] docs`. The left side of the footer is empty until a window opens, then shows `^P layout`
-  in all prompt modes; completion keys still use that one protected bottom row. Completion is rendering-only: it preserves
-  Bash's PTY size and the full visible Starship prompt, shifting the displayed
-  viewport only when space below the prompt is insufficient. Automatic entry uses
-  Starship when `prelude.prompt.enable = true`, otherwise the fixed `prelude $ `
+  in all prompt modes. Automatic entry uses Starship when
+  `prelude.prompt.enable = true`, otherwise the fixed `prelude $ `
   prompt (passing `--starship=false`). Manual launches default to Starship even
   when `prelude.prompt.enable = false`; `prelude --starship=false` gives the fixed prompt. In a direnv-loaded shell, `prelude` opens the full workspace without `nix develop`.
   The published package honors `prelude.root` (`lib.evalModule` users set
