@@ -20,6 +20,11 @@
 
   '';
   menuConfig = menuPkg.menuConfig;
+  # Inside the workspace the MOTD card prints at the top without clearing or
+  # filling the screen, so the first prompt follows it. The launcher, the
+  # dedicated devshell, and the check all point the private Bash's `motd` at
+  # this variant; the plain-shell greeting is unchanged.
+  motdWorkspaceConfig = motdPkg.workspaceConfigFile;
   runtime = [
     pkgs.bashInteractive
     pkgs.starship
@@ -63,6 +68,7 @@
         PRELUDE_GHOSTTY_TEST_STARSHIP_CONFIG = promptConfig;
         PRELUDE_COMPLETION_INIT = completionInit;
         PRELUDE_MENU_CONFIG = menuConfig;
+        PRELUDE_MOTD_CONFIG = motdWorkspaceConfig;
       };
     doCheck = true;
     checkFlags = ["-count=1"];
@@ -77,7 +83,8 @@
         --run ${lib.escapeShellArg promptInit} \
         --set PRELUDE_WORKSPACE_ACTIVE 1 \
         --set PRELUDE_COMPLETION_INIT ${completionInit} \
-        --set PRELUDE_MENU_CONFIG ${menuConfig}
+        --set PRELUDE_MENU_CONFIG ${menuConfig} \
+        --set PRELUDE_MOTD_CONFIG ${motdWorkspaceConfig}
     '';
     passthru = {inherit native promptConfig promptInit;};
     meta = {
@@ -100,6 +107,7 @@ in {
 
     PRELUDE_COMPLETION_INIT = completionInit;
     PRELUDE_MENU_CONFIG = menuConfig;
+    PRELUDE_MOTD_CONFIG = motdWorkspaceConfig;
     shellHook = promptInit;
   };
 }

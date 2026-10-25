@@ -121,13 +121,16 @@ func TestGhosttyLeaderBinarySmoke(t *testing.T) {
 
 		// Keep the real normal MOTD/Preflight integration here, not in the
 		// unrelated fixtures. Start large enough to retain its whole banner.
+		// The workspace MOTD variant does not clear/fill the screen, so the
+		// first prompt follows the card instead of parking on the bottom row.
 		const motdIdentity = "Devshell UI for Nix flakes"
 		const menuIdentity = "prelude — command menu"
 		s := startSmokeOuterPTYSize(t, binary, smokeEnvironment(t.TempDir()), 120, 60, fixedPromptFlag)
 		s.await("actual configured startup MOTD before first prompt", func(f smokeFrame) bool {
 			text := strings.Join(f.rows, "\n")
 			return strings.Contains(text, motdIdentity) && strings.Contains(text, "You are in the prelude devshell") &&
-				!strings.Contains(text, "MOTD_SHELL:") && f.hasInput("prelude $", "") && f.footer() == smokeBaseFooter
+				!strings.Contains(text, "MOTD_SHELL:") && f.hasInput("prelude $", "") && f.footer() == smokeBaseFooter &&
+				f.promptRow("prelude $") >= 0 && f.promptRow("prelude $") < len(f.rows)-10
 		})
 		s.resize(120, 42)
 		s.await("larger outer terminal", func(f smokeFrame) bool { return f.cols == 120 && len(f.rows) == 42 && f.hasLine("prelude $") })

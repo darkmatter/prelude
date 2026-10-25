@@ -125,6 +125,7 @@
     paths = [motdBin] ++ lib.optionals (!cfg.menu.enable) shortcutWrappers;
     passthru = {
       componentRoot = motdBin;
+      inherit (motdBin) workspaceConfigFile;
       inherit motdRenderConfig;
       commandNames = map (command: command.name) selectedMotdCommands;
       commandInvocations = map (command: command.command) selectedMotdCommands;
