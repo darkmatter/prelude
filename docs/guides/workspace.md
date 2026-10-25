@@ -333,10 +333,12 @@ prints a warning but leaves the shell usable.
 An unset or empty `PRELUDE_COMPLETION_INIT` skips catalogue initialization; the
 launcher respects an explicit override.
 
-Readline tokenizes the current word at `:`, so colon-containing key prefixes
-such as `x go:t<Tab>` offer nothing; list the full catalogue with `x <Tab>`
-or type colon keys in full. This is the same limitation the completion-only
-init has always had outside the workspace.
+Colon keys complete too, in the workspace and in plain shells using the
+completion-only init: `x go:t<Tab>` completes to `x go:test`, and
+`x go:<Tab>` lists the matching keys. (Readline splits the current word
+at `:`; the completion function rejoins the pieces for matching and
+returns each candidate relative to the last `:` so insertion lands
+correctly, without changing `COMP_WORDBREAKS`.)
 
 ## Starship
 
@@ -407,10 +409,9 @@ verification.
   lifecycle; this is not arbitrary-shell integration. Surface wrappers inherit
   the host environment directly.
 
-- Catalogue completion is plain Bash Readline completion, colon tokenization
-  included: `x go:<Tab>` offers nothing because Readline splits the current
-  word at `:`. Complete from the full key listing (`x <Tab>`) or type colon
-  keys (`go:test`) in full.
+- Catalogue completion is plain Bash Readline completion: candidates are
+  Bash's own listing in scrollback, with no chooser, description column,
+  or Tab cycling.
 
 - One Prelude pane only: no tabs, Process Compose, session daemon, scrollbar,
   paging keys, or transcript search. The native engines retain scrollback for
