@@ -215,15 +215,16 @@ builtin printf 'ALTM_MOTD:%%s\n' "$calls"`, log, ttyLog, log))
 					return f.hasLine("ALTM_FOREGROUND_READY") && f.hasInput(mode.prompt, "altm_foreground")
 				})
 				s.send("\x1bm")
-				s.await("Alt+M queues rather than injecting into foreground input", func(f smokeFrame) bool { return f.hasPaneFooter(smokeClosedPill() + " command queued") })
+				s.await("Alt+M drops with a notice rather than injecting into foreground input", func(f smokeFrame) bool { return f.hasPaneFooter("Shell busy; command not run " + smokeClosedPill()) })
 				assertMotdCalls(t, log, 3)
 				if data, err := os.ReadFile(foregroundLog); !os.IsNotExist(err) {
 					t.Fatalf("Alt+M injected foreground bytes before user input: %q, %v", data, err)
 				}
 				s.send("only-user-input\r")
-				s.await("queued foreground MOTD runs after the next primary prompt", func(f smokeFrame) bool {
-					return f.hasLine("ALTM_MOTD:4") && f.hasLine("ALTM_FOREGROUND_DONE") && f.hasInput(mode.prompt, "") && f.hasPaneFooter(smokeClosedPill())
+				s.await("foreground finishes and the dropped MOTD stays dropped", func(f smokeFrame) bool {
+					return f.hasLine("ALTM_FOREGROUND_DONE") && f.hasInput(mode.prompt, "") && f.hasPaneFooter(smokeClosedPill())
 				})
+				assertMotdCalls(t, log, 3)
 				if data, err := os.ReadFile(foregroundLog); err != nil || string(data) != "only-user-input" {
 					t.Fatalf("foreground reader received shortcut bytes: %q, %v", data, err)
 				}
@@ -234,25 +235,25 @@ builtin printf 'ALTM_MOTD:%%s\n' "$calls"`, log, ttyLog, log))
 				s.send("for motd_item in one; do\r")
 				s.await("PS2 owns unfinished shell command", func(f smokeFrame) bool { return f.hasLine(ps2) })
 				s.send("\x1bm")
-				s.await("Alt+M safely queues at PS2", func(f smokeFrame) bool {
-					return f.hasLine(ps2) && f.hasPaneFooter(smokeClosedPill()+" command queued")
+				s.await("Alt+M drops with a notice at PS2", func(f smokeFrame) bool {
+					return f.hasLine(ps2) && f.hasPaneFooter("Shell busy; command not run "+smokeClosedPill())
 				})
-				assertMotdCalls(t, log, 4)
+				assertMotdCalls(t, log, 3)
 				s.send("printf 'ALTM_PS2_BODY:%s\\n' \"$motd_item\"\r")
 				s.await("PS2 body remains an ordinary unfinished command", func(f smokeFrame) bool {
 					return f.hasLine(ps2) && strings.Contains(strings.Join(f.rows, "\n"), "printf 'ALTM_PS2_BODY:")
 				})
-				assertMotdCalls(t, log, 4)
+				assertMotdCalls(t, log, 3)
 				s.send("done\r")
-				s.await("queued PS2 MOTD waits until the loop really completes", func(f smokeFrame) bool {
-					return f.hasLine("ALTM_PS2_BODY:one") && f.hasLine("ALTM_MOTD:5") && f.hasInput(mode.prompt, "") && f.hasPaneFooter(smokeClosedPill())
+				s.await("loop completes and the dropped PS2 MOTD stays dropped", func(f smokeFrame) bool {
+					return f.hasLine("ALTM_PS2_BODY:one") && f.hasInput(mode.prompt, "") && f.hasPaneFooter(smokeClosedPill())
 				})
-				assertMotdCalls(t, log, 5)
+				assertMotdCalls(t, log, 3)
 				wantTTY, err := os.ReadFile(mainTTY)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if got, err := os.ReadFile(ttyLog); err != nil || string(got) != strings.Repeat(string(wantTTY), 5) {
+				if got, err := os.ReadFile(ttyLog); err != nil || string(got) != strings.Repeat(string(wantTTY), 3) {
 					t.Fatalf("every MOTD must use the main Bash PTY, not a pane: got %q, main %q, err=%v", got, wantTTY, err)
 				}
 				s.await("hidden pane leaves main shell undisturbed", func(f smokeFrame) bool {

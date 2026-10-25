@@ -226,46 +226,44 @@ exit 37
 				return f.hasLine("FOREGROUND_READY") && f.hasInput(mode.prompt, "handoff_foreground") && f.footer() == smokeBaseFooter
 			})
 			selectCommand()
-			s.await("busy shell queues the result and closes menu", func(f smokeFrame) bool {
-				return f.hasLine("FOREGROUND_READY") && menuClosed(f) && f.hasFooter(smokeNavigationKeys, smokeClosedPill()+" command queued")
+			s.await("busy shell drops the result with a notice and closes menu", func(f smokeFrame) bool {
+				return f.hasLine("FOREGROUND_READY") && menuClosed(f) && f.hasFooter(smokeNavigationKeys, "Shell busy; command not run "+smokeClosedPill())
 			})
 			calls(1)
 			if data, err := os.ReadFile(foregroundLog); !os.IsNotExist(err) {
 				t.Fatalf("handoff injected bytes into foreground read before user input: %q, %v", data, err)
 			}
 			s.send("only-user-input\r")
-			running(2)
+			s.await("foreground finishes and the dropped selection stays dropped", func(f smokeFrame) bool {
+				return f.hasLine("FOREGROUND_BYTES:only-user-input") && f.hasInput(mode.prompt, "") && f.footer() == smokeBaseFooter
+			})
+			calls(1)
 			data, err := os.ReadFile(foregroundLog)
 			if err != nil || string(data) != "only-user-input\x00" {
 				t.Fatalf("foreground application received command bytes: %q, %v\n%s", data, err, s.diagnostics())
 			}
-			s.send("busy-selection\r")
-			completed("", "busy-selection")
 
 			s.send("for handoff_item in one; do\r")
 			s.await("secondary PS2 prompt", func(f smokeFrame) bool { return f.hasLine(mode.ps2) })
 			selectCommand()
-			s.await("PS2 queues selection instead of accepting the source as a loop body", func(f smokeFrame) bool {
-				return f.hasLine(mode.ps2) && menuClosed(f) && f.hasFooter(smokeNavigationKeys, smokeClosedPill()+" command queued")
+			s.await("PS2 drops selection instead of accepting the source as a loop body", func(f smokeFrame) bool {
+				return f.hasLine(mode.ps2) && menuClosed(f) && f.hasFooter(smokeNavigationKeys, "Shell busy; command not run "+smokeClosedPill())
 			})
-			calls(2)
+			calls(1)
 			s.send("printf 'PS2_BODY:%s\\n' \"$handoff_item\"\r")
 			s.await("ordinary loop body still awaits done at PS2", func(f smokeFrame) bool {
 				text := strings.Join(f.rows, "\n")
 				if strings.Contains(text, mode.ps2+" builtin source ") {
-					t.Fatalf("menu selection injected its loader at PS2 instead of waiting for a completed primary prompt; footer=%q\n%s", f.footer(), text)
+					t.Fatalf("menu selection injected its loader at PS2 instead of being dropped; footer=%q\n%s", f.footer(), text)
 				}
 				return f.hasLine(mode.ps2) && strings.Contains(text, "printf 'PS2_BODY:")
 			})
-			calls(2)
+			calls(1)
 			s.send("done\r")
-			running(3)
-			if !s.frame().hasLine("PS2_BODY:one") {
-				t.Fatalf("queued selection displaced the unfinished shell command\n%s", s.diagnostics())
-			}
-			s.send("ps2-selection\r")
-			completed("", "ps2-selection")
-			calls(3)
+			s.await("loop completes and the dropped PS2 selection stays dropped", func(f smokeFrame) bool {
+				return f.hasLine("PS2_BODY:one") && f.hasInput(mode.prompt, "") && f.footer() == smokeBaseFooter
+			})
+			calls(1)
 			s.send("exit 0\r")
 			s.expectExit(0)
 		})

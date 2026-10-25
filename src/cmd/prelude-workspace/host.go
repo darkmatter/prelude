@@ -23,12 +23,15 @@ type host struct {
 	parser   promptParser
 	prompt   promptState
 
-	pendingCommand          string
 	restoreInput            bool
 	menuCommandAcknowledged bool
 	menuCommandFinished     bool
-	shellAcceptPending      bool
-	shellCommandFinished    bool
+
+	// Last focus state actually delivered (non-empty bytes) to each child;
+	// the known flags start false so the first syncFocus establishes both.
+	shellFocusSent, shellFocusKnown bool
+	paneFocusSent, paneFocusKnown   bool
+	paneFocusOwner                  *pane
 
 	quoted bool
 	closed bool
@@ -194,7 +197,7 @@ func (h *host) absorb(data []byte) error {
 		return err
 	}
 	// A later C or continuation A in this same batch can invalidate an earlier
-	// B. Only the final stream state may dispatch or restore readline input.
+	// B. Only the final stream state may restore readline input.
 	return h.menuPromptReady()
 }
 
@@ -355,7 +358,7 @@ func (h *host) update(message tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			cmd := h.closePane()
 			if h.err == nil {
-				h.queueMenuCommand(command)
+				h.dispatchMenuCommand(command)
 			}
 			return h, cmd
 		}
@@ -385,11 +388,7 @@ func (h *host) update(message tea.Msg) (tea.Model, tea.Cmd) {
 		if h.paneFocused() {
 			return h, h.forwardPane(h.pane.terminal.Paste(message.Content))
 		}
-		data, err := h.terminal.Paste(message.Content)
-		if err == nil {
-			h.noteShellInput(data, false)
-		}
-		return h, h.forward(data, err)
+		return h, h.forward(h.terminal.Paste(message.Content))
 	case tea.FocusMsg:
 		h.terminalFocused = true
 		return h, h.syncFocus()

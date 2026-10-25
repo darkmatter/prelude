@@ -51,110 +51,79 @@ func TestHostSelectionPTYHelper(t *testing.T) {
 	}
 }
 
-// Drive only the pane's actual process events, retaining any pending Bash
-// output. This controls the event ordering without faking a successful exit.
-func finishHostMenuWithoutShellOutput(t *testing.T, h *host) {
-	t.Helper()
-	p := h.pane
-	if p == nil {
-		t.Fatal("no menu pane to finish")
+func TestHostMenuSelectionDroppedWhileForegroundRuns(t *testing.T) {
+	frontendTools(t)
+	dir := t.TempDir()
+	ready, input, selected := filepath.Join(dir, "foreground.ready"), filepath.Join(dir, "foreground.input"), filepath.Join(dir, "selection.calls")
+	t.Setenv("GHOSTTY_HOST_SELECTION_READY", ready)
+	t.Setenv("GHOSTTY_HOST_SELECTION_INPUT", input)
+	t.Setenv("GHOSTTY_FRONTEND_SELECTION", fmt.Sprintf("builtin printf 'selected\\n' >> %q; builtin printf 'RACE_SELECTED\\n'; false; builtin printf 'RACE_SELECTED_STATUS:%%s\\n' \"$?\"; false\n", selected))
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Fatal(err)
 	}
-	timer := time.NewTimer(5 * time.Second)
-	defer timer.Stop()
-	for h.pane == p {
-		if h.err != nil || h.paneError != nil {
-			t.Fatalf("menu result: host=%v pane=%v", h.err, h.paneError)
-		}
-		select {
-		case msg := <-p.process.output:
-			h.Update(paneOutputMsg{pane: p, output: msg})
-		case <-p.process.exited:
-			if msg := p.nextOutput(); msg != nil {
-				h.Update(msg)
+	binary, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrapper := fmt.Sprintf("#!%s -p\nexport GHOSTTY_HOST_SELECTION_READER=1\nexec %q -test.run=^TestHostSelectionPTYHelper$\n", bash, binary)
+	if err := os.WriteFile(filepath.Join(dir, "race-foreground"), []byte(wrapper), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	awaitFile := func(path string) []byte {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			data, err := os.ReadFile(path)
+			if err == nil {
+				return data
 			}
-		case <-timer.C:
-			t.Fatalf("waiting for real menu result; footer=%q", h.footer())
+			if !os.IsNotExist(err) || time.Now().After(deadline) {
+				t.Fatalf("waiting for %s: %v", filepath.Base(path), err)
+			}
+			time.Sleep(outputPace)
 		}
 	}
-	if h.err != nil || h.pane != nil || h.paneError != nil {
-		t.Fatalf("menu result did not close cleanly: host=%v pane=%v error=%v", h.err, h.pane, h.paneError)
+
+	h := newSpikeTestHost(t)
+	h.Update(tea.PasteMsg{Content: "race-foreground"})
+	awaitSpike(t, h, "foreground command in readline", func() bool { return spikeInput(h) == "race-foreground" })
+	spikeKey(h, tea.KeyEnter, 0)
+	awaitSpike(t, h, "foreground job owns the PTY and the host absorbed OSC133 C", func() bool {
+		_, err := os.Stat(ready)
+		return err == nil && h.prompt.phase == "running" && !h.prompt.ready
+	})
+	frontendAlt(h, 'x')
+	awaitFrontendReady(t, h, "MENU")
+	spikeKey(h, tea.KeyEnter, 0)
+	awaitFrontend(t, h, "picker result closes the menu while Bash is busy", func() bool { return h.pane == nil })
+	if h.notice != "Shell busy; command not run" {
+		t.Fatalf("busy selection was not dropped with a notice: notice=%q", h.notice)
+	}
+	if _, err := os.Stat(selected); !os.IsNotExist(err) {
+		t.Fatalf("busy selection ran instead of being dropped: %v", err)
+	}
+	const userInput = "only-user-input"
+	for _, key := range userInput {
+		spikeKey(h, key, 0)
+	}
+	spikeKey(h, tea.KeyEnter, 0)
+	if got := string(awaitFile(input)); got != userInput {
+		t.Fatalf("menu handoff injected command bytes into the foreground PTY: got %q, want %q", got, userInput)
+	}
+	awaitSpike(t, h, "real primary prompt after the foreground job", func() bool {
+		return h.prompt.ready && spikeInput(h) == ""
+	})
+	if _, err := os.Stat(selected); !os.IsNotExist(err) {
+		t.Fatalf("dropped selection ran at the primary prompt: %v", err)
+	}
+	if strings.Contains(spikeFrameText(h.frame), "RACE_SELECTED") {
+		t.Fatal("dropped selection produced output at the primary prompt")
 	}
 }
 
-func TestHostMenuSelectionSubmissionRaces(t *testing.T) {
-	for _, name := range []string{"AcceptLineBeforeCommandOutput", "PromptEndBeforeCommandStartInOneBatch"} {
-		t.Run(name, func(t *testing.T) {
-			frontendTools(t)
-			dir := t.TempDir()
-			ready, input, selected := filepath.Join(dir, "foreground.ready"), filepath.Join(dir, "foreground.input"), filepath.Join(dir, "selection.calls")
-			t.Setenv("GHOSTTY_HOST_SELECTION_READY", ready)
-			t.Setenv("GHOSTTY_HOST_SELECTION_INPUT", input)
-			t.Setenv("GHOSTTY_FRONTEND_SELECTION", fmt.Sprintf("builtin printf 'selected\\n' >> %q; builtin printf 'RACE_SELECTED\\n'; false; builtin printf 'RACE_SELECTED_STATUS:%%s\\n' \"$?\"; false\n", selected))
-			bash, err := exec.LookPath("bash")
-			if err != nil {
-				t.Fatal(err)
-			}
-			binary, err := os.Executable()
-			if err != nil {
-				t.Fatal(err)
-			}
-			wrapper := fmt.Sprintf("#!%s -p\nexport GHOSTTY_HOST_SELECTION_READER=1\nexec %q -test.run=^TestHostSelectionPTYHelper$\n", bash, binary)
-			if err := os.WriteFile(filepath.Join(dir, "race-foreground"), []byte(wrapper), 0o700); err != nil {
-				t.Fatal(err)
-			}
-			t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
-			awaitFile := func(path string) []byte {
-				t.Helper()
-				deadline := time.Now().Add(5 * time.Second)
-				for {
-					data, err := os.ReadFile(path)
-					if err == nil {
-						return data
-					}
-					if !os.IsNotExist(err) || time.Now().After(deadline) {
-						t.Fatalf("waiting for %s: %v", filepath.Base(path), err)
-					}
-					time.Sleep(outputPace)
-				}
-			}
-
-			h := newSpikeTestHost(t)
-			h.Update(tea.PasteMsg{Content: "race-foreground"})
-			awaitSpike(t, h, "foreground command in readline", func() bool { return spikeInput(h) == "race-foreground" })
-			frontendAlt(h, 'x')
-			awaitFrontendReady(t, h, "MENU")
-			frontendChord(h, tea.KeyTab)
-			spikeKey(h, 'p', tea.ModCtrl)
-			spikeKey(h, tea.KeyEnter, 0)
-			awaitFile(ready)
-
-			frontendChord(h, tea.KeyTab)
-			spikeKey(h, 'p', tea.ModCtrl)
-			spikeKey(h, tea.KeyEnter, 0)
-			finishHostMenuWithoutShellOutput(t, h)
-
-			if name == "PromptEndBeforeCommandStartInOneBatch" {
-				// Replay a coalesced PTY batch: D permits a new command, but the
-				// later C invalidates B. No handoff may run between its markers.
-				h.Update(outputMsg{data: []byte("\x1b]133;D;0\a\x1b]133;A\aprelude $ \x1b]133;B\a\x1b]133;C\a")})
-			}
-			const userInput = "only-user-input"
-			for _, key := range userInput {
-				spikeKey(h, key, 0)
-			}
-			spikeKey(h, tea.KeyEnter, 0)
-			if got := string(awaitFile(input)); got != userInput {
-				t.Fatalf("menu handoff injected command bytes into the foreground PTY: got %q, want %q", got, userInput)
-			}
-			awaitSpike(t, h, "queued selection completes after the real primary prompt", func() bool {
-				return h.prompt.ready && spikeInput(h) == "" &&
-					strings.Contains(spikeFrameText(h.frame), "RACE_SELECTED_STATUS:1")
-			})
-			if got := string(awaitFile(selected)); got != "selected\n" {
-				t.Fatalf("queued selection ran more than once: %q", got)
-			}
-		})
-	}
+func TestHostMenuSelectionAtPrompt(t *testing.T) {
 
 	t.Run("QuotedEnterKeepsParkedInput", func(t *testing.T) {
 		frontendTools(t)

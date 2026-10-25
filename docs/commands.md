@@ -62,8 +62,8 @@ Workspace and project commands (the workspace entry is built in when enabled;
   fallback for previous layout. Normal `motd` prints once on entry before the
   first prompt, as main-shell output, not a pane; a startup failure is nonfatal.
   Menu selections close the picker and run in the main Bash, preserving parked
-  readline input; if Bash is busy or at PS2, one selection waits for the next
-  primary prompt. Catalogue-aware completion loads automatically without ble.sh.
+  readline input; if Bash is busy or at PS2, the selection is dropped with a
+  footer notice and never runs later. Catalogue-aware completion loads automatically without ble.sh.
   Tab goes straight to Bash Readline, which completes catalogue keys after `x`
   natively: single matches insert directly and ambiguous matches list on the
   first Tab. A later Enter runs the completed command. Key hints use the command menu's padded bold keycaps, muted labels,

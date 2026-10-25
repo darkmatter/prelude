@@ -128,9 +128,6 @@ func (h *host) footerContent() ([]keyHint, []statusSpan) {
 		groups = append(groups, state)
 	}
 	groups = append(groups, h.viewerPill(open))
-	if h.pendingCommand != "" {
-		groups = append(groups, []statusSpan{{text: "command queued", fg: h.palette.Warning}})
-	}
 	var spans []statusSpan
 	for i, group := range groups {
 		if i > 0 {

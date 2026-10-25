@@ -82,7 +82,7 @@ func spikeShellStatus(t *testing.T, h *host, want int) {
 	awaitSpike(t, h, "real Bash status output", func() bool {
 		var err error
 		output, err = os.ReadFile(path)
-		return err == nil && h.prompt.ready && !h.shellAcceptPending && spikeInput(h) == ""
+		return err == nil && h.prompt.ready && spikeInput(h) == ""
 	})
 	if got := string(output); got != fmt.Sprintf("%d\n", want) {
 		t.Fatalf("Bash status output = %q, want %d", got, want)
@@ -184,13 +184,13 @@ func TestHostFooterKeepsOperationalHintsInProtectedRow(t *testing.T) {
 			t.Fatalf("closed pill viewer label must be muted, not bold/accent: %+v", span)
 		}
 	}
-	h.notice, h.pendingCommand = "Fixture notice", "echo queued"
-	assertChromeFooter(t, h, spikeNavigationKeys, "Fixture notice "+spikeClosedPill()+" command queued")
+	h.notice = "Fixture notice"
+	assertChromeFooter(t, h, spikeNavigationKeys, "Fixture notice "+spikeClosedPill())
 	layout := h.layout()
 	rows := strings.Split(ansi.Strip(h.View().Content), "\n")
 	if strings.TrimSpace(strings.Join(rows[:layout.FooterY], "")) != "" ||
 		layout.Shell.Dx() != h.frame.Cols || layout.Shell.Dy() != h.frame.Rows {
-		t.Fatalf("notice/queue content escaped the single protected footer or changed native geometry: layout=%+v rows=%q", layout, rows)
+		t.Fatalf("notice content escaped the single protected footer or changed native geometry: layout=%+v rows=%q", layout, rows)
 	}
 }
 
