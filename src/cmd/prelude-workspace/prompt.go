@@ -10,9 +10,11 @@ import (
 // input anchor. OSC133 B supplies the editable-input boundary.
 const workspacePrompt = "prelude $ "
 
-// No user rc, inputrc, or persistent history. In particular, do not unset or
-// assign readonly Bash environment variables such as SHELLOPTS or BASHOPTS.
-// Disabling inherited errexit/nounset/functrace keeps the hooks self-contained.
+// No user rc (ble.sh and friends stay out), but the user's inputrc and the
+// default history file apply as in any interactive Bash. In particular, do
+// not unset or assign readonly Bash environment variables such as SHELLOPTS
+// or BASHOPTS. Disabling inherited errexit/nounset/functrace keeps the
+// hooks self-contained.
 //
 // OSC133 lifecycle: A = prompt begins, B = editable input begins,
 // C = command starts, D = command finishes with its exit status.
@@ -30,7 +32,7 @@ PS1=''
 # A secondary prompt is not a safe place to submit a menu command.
 PS2='\[\e[5 q\e]133;A;$((__prelude_ghostty_primary_prompt=0))\a\]... '
 PROMPT_COMMAND=''
-HISTFILE=/dev/null
+builtin shopt -s histappend
 builtin bind 'set enable-bracketed-paste on'
 builtin bind 'set show-all-if-ambiguous on'
 # Entry output belongs to the main shell, before either prompt mode's hooks.

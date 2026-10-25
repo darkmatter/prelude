@@ -402,11 +402,18 @@ verification.
 
 ## Intentional limits
 
-- This starts an isolated Bash with a private rc, no user rc/inputrc and no
-  persistent history file. Automatic entry uses `prelude.prompt.enable` to choose
+- This starts Bash with a private rc: no user rc runs (so ble.sh stays out),
+  but your `~/.inputrc` (or `$INPUTRC`) and history file (`$HISTFILE`, else
+  `~/.bash_history`, appended via `histappend`) apply as in any interactive
+  Bash. Automatic entry uses `prelude.prompt.enable` to choose
   Starship or the fixed `prelude $ ` prompt; manual launches default to Starship
   unless passed `--starship=false`. It inherits devshell tools and environment
-  but isolates inherited shell-hook framework state. OSC133 hooks supply prompt
+  but isolates inherited shell-hook framework state. Children keep your outer
+  `TERM` when its terminfo entry resolves in this environment (checked against
+  the terminfo directories and `infocmp`); otherwise they get
+  `TERM=xterm-256color`, which the inner renderer implements — an
+  unresolvable name such as `xterm-kitty` without installed terminfo would
+  leave `less`/`vim`/`tput` failing with "unknown terminal". OSC133 hooks supply prompt
   lifecycle; this is not arbitrary-shell integration. Surface wrappers inherit
   the host environment directly.
 

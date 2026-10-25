@@ -492,7 +492,7 @@ func smokeEnvironment(home string) []string {
 		}
 		switch name {
 		case "HOME", "TERM", "LANG", "LANGUAGE", "NO_COLOR", "CLICOLOR", "CLICOLOR_FORCE",
-			"SHELLOPTS", "BASHOPTS", "HISTCONTROL", "HISTIGNORE", "HISTSIZE",
+			"SHELLOPTS", "BASHOPTS", "HISTCONTROL", "HISTIGNORE", "HISTSIZE", "HISTFILE", "INPUTRC",
 			"BASH_ENV", "ENV", "SSH_CLIENT", "SSH_CONNECTION", "XDG_CACHE_HOME", "PRELUDE_MOTD_PURE":
 			continue
 		}

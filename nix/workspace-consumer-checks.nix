@@ -302,7 +302,7 @@ in {
             cat "$TMPDIR/${fixture.name}-app-workspace-help" >&2
             exit 1
           fi
-          grep -F 'prelude-workspace: an isolated interactive Bash workspace' "$TMPDIR/${fixture.name}-app-workspace-help"
+          grep -F 'prelude-workspace: an interactive Bash workspace' "$TMPDIR/${fixture.name}-app-workspace-help"
         '')
         fixtures}
       touch "$out"
