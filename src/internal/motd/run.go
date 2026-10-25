@@ -11,7 +11,9 @@ import (
 )
 
 // Run is the binary entry point. The Nix wrapper passes the config with
-// --config; PRELUDE_MOTD_CONFIG supplies it when the binary runs unwrapped.
+// --config, defaulting to PRELUDE_MOTD_CONFIG when set (the workspace
+// launcher points it at a no-clear variant); the variable also supplies
+// the config when the binary runs unwrapped.
 //
 // Flow (E1): Preflight-if-needed → pure Render. Flags:
 //

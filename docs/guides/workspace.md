@@ -194,7 +194,12 @@ handled.
 
 - Only docs and the command menu use the window. **MOTD prints once on entry,
   before the first prompt**, as normal main-shell output in both fixed-prompt
-  and Starship modes. Startup invokes normal `motd` (not `--pure`), letting
+  and Starship modes. Inside the workspace the launcher points `motd` at a
+  variant of the evaluated MOTD config with `clearScreen` off, so the card
+  prints at the top without clearing or filling the screen and the first
+  prompt follows it directly (the card is top-aligned here rather than
+  vertically centered). The plain-shell/direnv greeting keeps the configured
+  `clearScreen` behaviour. Startup invokes normal `motd` (not `--pure`), letting
   Preflight update Cache as needed before Render. A failed or missing command
   prints a warning but does not prevent the shell from starting. Commands,
   redraws, resizes, and pane actions do not replay it; run `motd` manually to

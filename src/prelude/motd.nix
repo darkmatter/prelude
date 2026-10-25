@@ -188,72 +188,80 @@ config: let
     then ""
     else toString value;
 
-  configFile = writeText "prelude-motd.json" (
-    builtins.toJSON {
-      inherit
-        project
-        title
-        titleAlign
-        colorProfile
-        margin
-        env
-        commands
-        recipes
-        shortcuts
-        ;
+  configJSON = {
+    inherit
+      project
+      title
+      titleAlign
+      colorProfile
+      margin
+      env
+      commands
+      recipes
+      shortcuts
+      ;
 
-      palette = pal;
-      background = jsonColor background;
-      inherit backgroundRelative backgroundBlend backgroundBlendSet;
-      border = m.border;
-      clearScreen = m.clearScreen;
-      align = m.align;
-      verticalAlign = m.verticalAlign;
-      inherit padding;
-      header = {
-        inherit
-          (header)
-          titleStyle
-          tagline
-          subtitle
-          taglineLayout
-          taglineAlign
-          statusHintLayout
-          statusHintLinks
-          status
-          backgroundRelative
-          backgroundRaised
-          ;
-        background = jsonColor header.background;
-      };
-      description = {
-        inherit
-          (description)
-          text
-          bold
-          italic
-          faint
-          backgroundRelative
-          ;
-        tips = description.tips or [];
-        foreground = jsonColor description.foreground;
-        background = jsonColor description.background;
-      };
-      links = m.links;
-      inherit gettingStarted;
-      width =
-        if m.fullscreen or false
-        then 0
-        else if m.width == "full"
-        then 0
-        else m.width;
-      maxWidth =
-        if m.fullscreen or false
-        then 0
-        else if m.maxWidth == null
-        then 0
-        else m.maxWidth;
-    }
+    palette = pal;
+    background = jsonColor background;
+    inherit backgroundRelative backgroundBlend backgroundBlendSet;
+    border = m.border;
+    clearScreen = m.clearScreen;
+    align = m.align;
+    verticalAlign = m.verticalAlign;
+    inherit padding;
+    header = {
+      inherit
+        (header)
+        titleStyle
+        tagline
+        subtitle
+        taglineLayout
+        taglineAlign
+        statusHintLayout
+        statusHintLinks
+        status
+        backgroundRelative
+        backgroundRaised
+        ;
+      background = jsonColor header.background;
+    };
+    description = {
+      inherit
+        (description)
+        text
+        bold
+        italic
+        faint
+        backgroundRelative
+        ;
+      tips = description.tips or [];
+      foreground = jsonColor description.foreground;
+      background = jsonColor description.background;
+    };
+    links = m.links;
+    inherit gettingStarted;
+    width =
+      if m.fullscreen or false
+      then 0
+      else if m.width == "full"
+      then 0
+      else m.width;
+    maxWidth =
+      if m.fullscreen or false
+      then 0
+      else if m.maxWidth == null
+      then 0
+      else m.maxWidth;
+  };
+
+  configFile = writeText "prelude-motd.json" (builtins.toJSON configJSON);
+
+  # Workspace variant: the card prints at the top of the workspace's shell
+  # instead of clearing/filling the screen, so the first prompt follows it.
+  # The workspace launcher points PRELUDE_MOTD_CONFIG at this file; the
+  # plain-shell greeting keeps the configured clearScreen behaviour.
+  workspaceConfigFile = writeText "prelude-motd-workspace.json" (
+    builtins.toJSON (configJSON // {clearScreen = false;})
   );
 
   # Config-independent: the module's MOTD and every demo share this build.
@@ -323,10 +331,12 @@ in
   ) "motd: maxWidth must be an integer or null";
     writeShellApplication {
       name = "motd";
+      # PRELUDE_MOTD_CONFIG wins over the baked-in config so hosts (the
+      # workspace launcher) can substitute a variant of the same config.
       text = ''
-        exec ${lib.getExe renderer} --config ${configFile} "$@"
+        exec ${lib.getExe renderer} --config "''${PRELUDE_MOTD_CONFIG:-${configFile}}" "$@"
       '';
-      passthru = {inherit configFile renderer;};
+      passthru = {inherit configFile workspaceConfigFile renderer;};
       meta = {
         inherit (renderer.meta) description;
         mainProgram = "motd";
