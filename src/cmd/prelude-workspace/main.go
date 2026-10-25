@@ -35,10 +35,9 @@ func main() {
 		fmt.Fprintln(flag.CommandLine.Output(), "Alt+x/Alt+d/Alt+w/Alt+Tab act without restarting a live pane, and lock command mode. Menu selection closes the picker and runs in the main Bash, preserving parked readline input.")
 		fmt.Fprintln(flag.CommandLine.Output(), "With normal Bash prompt markers, a busy/secondary-prompt selection waits for the next primary prompt; see docs/guides/workspace.md for the OSC133 trust limitation.")
 		fmt.Fprintln(flag.CommandLine.Output(), "Normal motd prints once before the first prompt; Alt+m reprints it in the main shell, preserving parked input and waiting if Bash is busy or at PS2. MOTD never uses a pane.")
-		fmt.Fprintln(flag.CommandLine.Output(), "The Nix launcher supplies completion-only Bash init without ble.sh. x<Tab> opens a chooser below the prompt; Tab/Shift+Tab cycle, Enter inserts without running, Esc dismisses. Single matches insert directly.")
-		fmt.Fprintln(flag.CommandLine.Output(), "File/argument completion stays in Readline; a later Enter runs the completed command in the main shell. Key hints match the command menu: bold accent keycaps, muted labels, and right-aligned status; only keycaps, the unlocked badge, and the viewer pill have a background.")
+		fmt.Fprintln(flag.CommandLine.Output(), "The Nix launcher supplies completion-only Bash init without ble.sh. Tab goes straight to Bash Readline: catalogue keys complete natively after x, single matches insert directly, and ambiguous matches list on the first Tab.")
+		fmt.Fprintln(flag.CommandLine.Output(), "File/argument completion also stays in Readline; a later Enter runs the completed command in the main shell. Key hints match the command menu: bold accent keycaps, muted labels, and right-aligned status; only keycaps, the unlocked badge, and the viewer pill have a background.")
 		fmt.Fprintln(flag.CommandLine.Output(), "Generated Starship retains its original right-side styling: Alt + [m] motd [x] menu [d] docs. The footer shows ^P layout while a window is open and an always-on ⌥ + pill for Alt+w and Alt+Tab.")
-		fmt.Fprintln(flag.CommandLine.Output(), "Completion is a rendering-only overlay: no Bash PTY resize; the displayed viewport shifts only when needed to preserve the full prompt above the chooser.")
 		fmt.Fprintln(flag.CommandLine.Output(), "Menu panes use x --embedded: transparent outer canvas, with themed menu panel backgrounds and highlights retained.")
 	}
 	flag.Parse()

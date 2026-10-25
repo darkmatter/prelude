@@ -75,7 +75,6 @@ func (p *pane) selectedCommand() (string, error) {
 // MOTD remains main-shell output. Reuse the private Readline handoff so a
 // shortcut cannot overwrite parked input or leak a command into a foreground job.
 func (h *host) showMotd() tea.Cmd {
-	h.dismissCompletion()
 	if h.pendingCommand != "" {
 		h.notice = "A command is already waiting for Bash; MOTD not queued"
 		return nil

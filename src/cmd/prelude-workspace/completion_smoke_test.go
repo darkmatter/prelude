@@ -113,7 +113,7 @@ func TestGhosttyCompletionInitBinarySmoke(t *testing.T) {
 					input := func(want string) {
 						t.Helper()
 						s.await("real readline completion: "+want, func(f smokeFrame) bool {
-							return !smokeCompletionVisible(f) && f.footer() == smokeBaseFooter && f.hasInput(mode.prompt, want)
+							return f.footer() == smokeBaseFooter && f.hasInput(mode.prompt, want)
 						})
 					}
 					s.send("cat completion-f\t")
@@ -130,27 +130,25 @@ func TestGhosttyCompletionInitBinarySmoke(t *testing.T) {
 					})
 
 					if generated {
-						// One outer-PTY write keeps both Tabs queued while the first
-						// completion callback is still in flight. Native Bash must
-						// display its ambiguous filename list, not lose the second Tab.
-						s.send("cat ambiguous-\t\t")
-						s.await("rapid double-Tab preserves native ambiguous filename listing", func(f smokeFrame) bool {
+						// show-all-if-ambiguous: one Tab lists ambiguous matches natively.
+						s.send("cat ambiguous-\t")
+						s.await("single Tab lists native ambiguous filenames", func(f smokeFrame) bool {
 							text := strings.Join(f.rows[:len(f.rows)-1], "\n")
 							return strings.Contains(text, "ambiguous-alpha") && strings.Contains(text, "ambiguous-beta") &&
-								!smokeCompletionVisible(f) && f.hasInput(mode.prompt, "cat ambiguous-") && f.footer() == smokeBaseFooter
+								f.hasInput(mode.prompt, "cat ambiguous-") && f.footer() == smokeBaseFooter
 						})
-						s.send("\x15")
-						exerciseSmokeCompletionPopup(s, mode.prompt)
-						s.send("x\t")
-						awaitSmokeCompletion(s, mode.prompt, "x")
-						s.send("\x1b")
-						awaitSmokeCompletionInput(s, mode.prompt, "x")
+						s.send("\x15x \t")
+						s.await("single Tab after x lists catalogue keys natively", func(f smokeFrame) bool {
+							text := strings.Join(f.rows[:len(f.rows)-1], "\n")
+							return strings.Contains(text, "fmt") && strings.Contains(text, "build") &&
+								f.hasInput(mode.prompt, "x") && f.footer() == smokeBaseFooter
+						})
+						s.send("\x15x fm\t")
+						input("x fmt")
 						s.send("\x15x bu\t")
-						acceptSmokeCompletion(s, mode.prompt, "x build")
+						input("x build")
 						s.send("\x15x build .#prelude-d\t")
 						input("x build .#prelude-docs")
-						s.send("\x15x go:t\t")
-						acceptSmokeCompletion(s, mode.prompt, "x go:test")
 						// docs is a menu/dispatcher built-in, not a generated catalogue
 						// completion key. Dispatch it normally after completing x keys.
 						s.send("\x15x docs")
@@ -159,7 +157,7 @@ func TestGhosttyCompletionInitBinarySmoke(t *testing.T) {
 						s.await("ordinary x dispatch still executes after completion", func(f smokeFrame) bool {
 							text := strings.Join(f.rows[:len(f.rows)-1], "\n")
 							return strings.Contains(text, "PAGES") && strings.Contains(text, "DOCS") &&
-								f.footer() == smokeBaseFooter && !smokeCompletionVisible(f) && strings.Contains(f.footer(), "w viewer")
+								f.footer() == smokeBaseFooter && strings.Contains(f.footer(), "w viewer")
 						})
 						s.send("q")
 						s.await("actual x/docs returns to the original shell footer", func(f smokeFrame) bool {
@@ -198,7 +196,7 @@ func TestGhosttyCompletionInitBinarySmoke(t *testing.T) {
 						s.await("selected docs runs in main without a menu pane", func(f smokeFrame) bool {
 							text := strings.Join(f.rows[:len(f.rows)-1], "\n")
 							return strings.Contains(text, "PAGES") && strings.Contains(text, "DOCS") &&
-								f.footer() == smokeBaseFooter && !smokeCompletionVisible(f) && strings.Contains(f.footer(), "w viewer")
+								f.footer() == smokeBaseFooter && strings.Contains(f.footer(), "w viewer")
 						})
 						s.send("q")
 						s.await("completion and menu handoff preserve parked readline input", func(f smokeFrame) bool {

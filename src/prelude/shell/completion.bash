@@ -88,7 +88,7 @@ _prelude_complete_x() {
 
 # Initial-word completion (`complete -I`): when the cursor is still on the `x`
 # command word with no trailing space, show the top-level commands as
-# `x <name>` candidates so a single Tab reveals the chooser instead of falling
+# `x <name>` candidates so a single Tab lists the catalogue instead of falling
 # through to PATH command-name completion. `noquote` keeps the intentional
 # space literal so a selected entry inserts as `x <name>` (two words), not a
 # single quoted token. Any other command word is left untouched by returning

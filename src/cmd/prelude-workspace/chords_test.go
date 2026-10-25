@@ -239,8 +239,11 @@ func TestFrontendLeaderConsumesOnlyPrefixedChords(t *testing.T) {
 	cycle := func(key rune, wants []placement) {
 		for _, want := range wants {
 			frontendLeader(h, key)
-			if !h.leader || h.placement != want || h.pane != p || spikeInput(h) != "" || h.notice != "" {
-				t.Fatalf("unlocked %q placement cycle: got=%s want=%s leader=%t input=%q notice=%q", key, h.placement, want, h.leader, spikeInput(h), h.notice)
+			// The PTY resize makes Bash redraw; the input boundary is only
+			// known again once that redraw's prompt marker arrives.
+			awaitSpike(t, h, "redraw after placement cycle", func() bool { return spikeInput(h) == "" })
+			if !h.leader || h.placement != want || h.pane != p || h.notice != "" {
+				t.Fatalf("unlocked %q placement cycle: got=%s want=%s leader=%t notice=%q", key, h.placement, want, h.leader, h.notice)
 			}
 		}
 	}
@@ -257,7 +260,8 @@ func TestFrontendLeaderConsumesOnlyPrefixedChords(t *testing.T) {
 	}{{'[', placementBottom}, {'\\', placementTop}, {']', placementBottom}, {']', placementFloating}} {
 		spikeKey(h, 'p', tea.ModCtrl)
 		spikeKey(h, step.key, tea.ModCtrl)
-		if !h.leader || h.placement != step.want || h.pane != p || spikeInput(h) != "" {
+		awaitSpike(t, h, "redraw after direct layout key", func() bool { return spikeInput(h) == "" })
+		if !h.leader || h.placement != step.want || h.pane != p {
 			t.Fatalf("direct layout key must keep command mode unlocked without reaching Bash: key=%q placement=%s leader=%t", step.key, h.placement, h.leader)
 		}
 		spikeKey(h, 'p', tea.ModCtrl)
@@ -1020,78 +1024,6 @@ func TestFrontendFocusReportingMouseTargetsAndOffsets(t *testing.T) {
 	frontendAlt(h, 'w')
 	if h.leader || !h.paneFocused() {
 		t.Fatal("showing a healthy interactive pane did not restore focus")
-	}
-}
-
-func TestFrontendCompletionAlignsDescriptionsWithoutBackground(t *testing.T) {
-	h := &host{cols: 80, rows: 14, frame: spikeFrame(80, shellRows(14)), terminalFocused: true,
-		palette: chromePalette{
-			Fg:      color.RGBA{20, 40, 60, 255},
-			Bg:      color.RGBA{5, 10, 15, 255},
-			Muted:   color.RGBA{35, 55, 75, 255},
-			Accent:  color.RGBA{80, 100, 120, 255},
-			Accent2: color.RGBA{140, 160, 180, 255},
-		},
-	}
-	h.frame.CursorX, h.frame.CursorY = len(workspacePrompt)+1, 1
-	h.prompt = promptState{phase: "prompt", ready: true, anchor: 80 + len(workspacePrompt), anchorCols: 80, promptRows: 1, promptRowsCols: 80}
-	h.completion = &completionState{
-		phase: completionPopup,
-		snapshot: completionSnapshot{candidates: []completionCandidate{
-			{name: "dev", description: "First description"},
-			{name: "界:dev", description: "Second description"},
-			{name: "long:command", description: "Third description"},
-		}},
-	}
-	for i := range h.frame.Cells {
-		h.frame.Cells[i] = uv.Cell{Content: " ", Width: 1, Style: uv.Style{Bg: color.RGBA{100, 30, 40, 255}}}
-	}
-	for x, char := range workspacePrompt + "x" {
-		h.frame.Cells[h.frame.Cols+x].Content = string(char)
-	}
-	layout := h.layout()
-	area := h.completionArea(layout)
-	if area.Dy() != 3 || area.Min.Y != h.frame.CursorY+1 || layout.FooterY != h.rows-1 ||
-		layout.Shell.Dx() != h.frame.Cols || layout.Shell.Dy() != h.frame.Rows {
-		t.Fatalf("candidate-only completion changed the prompt/native/footer geometry: %+v", layout)
-	}
-	view := h.View()
-	lines := strings.Split(ansi.Strip(view.Content), "\n")
-	if len(lines) != h.rows || strings.Count(ansi.Strip(view.Content), completionHint) != 1 ||
-		strings.TrimSpace(lines[layout.FooterY]) != completionHint || strings.Contains(strings.Join(lines[:layout.FooterY], "\n"), completionHint) {
-		t.Fatalf("completion hint must appear only in the single protected footer, not beneath candidates: %q", lines)
-	}
-	outer := vt.NewEmulator(h.cols, h.rows)
-	defer outer.Close()
-	if _, err := outer.Write([]byte(strings.ReplaceAll(h.View().Content, "\n", "\r\n"))); err != nil {
-		t.Fatal(err)
-	}
-	column := area.Min.X + 2 + ansi.StringWidth("long:command") + 2
-	for row, first := range []string{"F", "S", "T"} {
-		fg := h.palette.Fg
-		if row == 0 {
-			fg = h.palette.Accent
-		}
-		if cell := outer.CellAt(column, area.Min.Y+row); cell == nil || cell.Content != first || cell.Style.Fg == nil ||
-			color.RGBAModel.Convert(cell.Style.Fg) != color.RGBAModel.Convert(fg) {
-			t.Fatalf("description on row %d lost alignment or its palette color at column %d: %+v", row, column, cell)
-		}
-	}
-	for y := area.Min.Y; y < area.Max.Y; y++ {
-		for x := area.Min.X; x < area.Max.X; x++ {
-			if cell := outer.CellAt(x, y); cell != nil && cell.Style.Bg != nil {
-				t.Fatalf("completion cell %d,%d imposed a background: %+v", x, y, cell)
-			}
-		}
-	}
-	if cell := outer.CellAt(area.Min.X, area.Min.Y); cell == nil || cell.Content != ">" || cell.Style.Attrs&uv.AttrBold == 0 ||
-		cell.Style.Fg == nil || color.RGBAModel.Convert(cell.Style.Fg) != color.RGBAModel.Convert(h.palette.Accent) {
-		t.Fatalf("selection must retain its marker, bold emphasis, and palette accent: %+v", cell)
-	}
-	assertChromeFooterCells(t, outer, h, spikeCompletionKeys, nil)
-	if cell := outer.CellAt(area.Min.X, area.Max.Y); cell == nil || cell.Style.Bg == nil ||
-		color.RGBAModel.Convert(cell.Style.Bg) != (color.RGBA{100, 30, 40, 255}) {
-		t.Fatalf("completion painted a second footer over the native row below its candidates: %+v", cell)
 	}
 }
 

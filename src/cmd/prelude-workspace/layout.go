@@ -77,12 +77,10 @@ func (p placement) prev() placement {
 }
 
 type workspaceLayout struct {
-	Shell       uv.Rectangle
-	Panel       uv.Rectangle
-	Body        uv.Rectangle
-	Completion  uv.Rectangle
-	ShellScroll int // display-only native row offset; never a PTY size change
-	FooterY     int
+	Shell   uv.Rectangle
+	Panel   uv.Rectangle
+	Body    uv.Rectangle
+	FooterY int
 }
 
 // computeLayout keeps the footer outside both panes. Body fills the borderless

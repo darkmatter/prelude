@@ -14,11 +14,10 @@ import (
 const wheelScrollLines = 3
 
 func (h *host) layout() workspaceLayout {
-	return h.completionLayout(computeLayout(h.cols, h.rows, h.placement, h.paneVisible && h.surface != surfaceNone))
+	return computeLayout(h.cols, h.rows, h.placement, h.paneVisible && h.surface != surfaceNone)
 }
 
 func (h *host) setPlacement(where placement) tea.Cmd {
-	h.dismissCompletion()
 	h.placement = where
 	h.notice = ""
 	wasPane := h.focusPane
@@ -96,7 +95,6 @@ func (h *host) syncFocus() tea.Cmd {
 // Hiding only changes composition and focus. The current pane keeps its PTY,
 // engine, and output reader, so showing it restores its live state, not a restart.
 func (h *host) togglePane() tea.Cmd {
-	h.dismissCompletion()
 	if h.surface == surfaceNone {
 		return h.chooseSurface(surfaceMenu)
 	}
@@ -110,7 +108,6 @@ func (h *host) togglePane() tea.Cmd {
 }
 
 func (h *host) closePane() tea.Cmd {
-	h.dismissCompletion()
 	p := h.pane
 	h.pane, h.surface, h.paneError = nil, surfaceNone, nil
 	h.leader = false // Layout commands need a window.
@@ -127,9 +124,6 @@ func (h *host) closePane() tea.Cmd {
 }
 
 func (h *host) chooseSurface(kind surfaceKind) tea.Cmd {
-	if err := h.closeCompletion(); err != nil {
-		return h.fail(err)
-	}
 	if kind == surfaceMenu && h.pendingCommand != "" {
 		h.notice = "A menu command is waiting for the next Bash prompt"
 		return nil
@@ -249,9 +243,6 @@ func (h *host) keyInput(message tea.KeyPressMsg) tea.Cmd {
 			if !h.windowOpen() {
 				break
 			}
-			if err := h.closeCompletion(); err != nil {
-				return h.fail(err)
-			}
 			h.leader, h.notice = true, ""
 			return nil
 
@@ -260,13 +251,6 @@ func (h *host) keyInput(message tea.KeyPressMsg) tea.Cmd {
 		}
 	}
 	h.notice = ""
-	if !quoted && !h.paneFocused() {
-		if handled, cmd := h.completionKey(message); handled {
-			return cmd
-		}
-	} else if err := h.closeCompletion(); err != nil {
-		return h.fail(err)
-	}
 	// Ordinary keys and Ctrl+G belong to the focused child outside command mode.
 	if h.paneFocused() {
 		if cmd := h.followPane(); cmd != nil {
@@ -277,7 +261,6 @@ func (h *host) keyInput(message tea.KeyPressMsg) tea.Cmd {
 	if cmd := h.followShell(); cmd != nil {
 		return cmd
 	}
-	h.completionWanted = !quoted && message.String() == "tab"
 	data, err := h.terminal.Key(message.Key())
 	if err == nil {
 		h.noteShellInput(data, quoted)
@@ -421,19 +404,12 @@ func localMouse(message tea.MouseMsg, x, y int) tea.MouseMsg {
 func (h *host) mouseInput(message tea.MouseMsg) tea.Cmd {
 	mouse := message.Mouse()
 	point, layout := image.Pt(mouse.X, mouse.Y), h.layout()
-	if point.In(h.completionArea(layout)) {
-		return nil // The completion chooser is keyboard-only.
-	}
 	_, clicked := message.(tea.MouseClickMsg)
 	if point.In(layout.Panel) {
 		if !point.In(layout.Body) || !h.paneInteractive() {
 			return nil // borders, static/final images, and hidden panes are not input
 		}
 		if clicked && !h.focusPane {
-			if err := h.closeCompletion(); err != nil {
-				return h.fail(err)
-			}
-			layout = h.layout()
 			h.focusPane = true
 			if cmd := h.syncFocus(); cmd != nil {
 				return cmd
@@ -460,7 +436,7 @@ func (h *host) mouseInput(message tea.MouseMsg) tea.Cmd {
 			return h.wheelShell(delta)
 		}
 
-		nativeY := mouse.Y - layout.Shell.Min.Y + layout.ShellScroll
+		nativeY := mouse.Y - layout.Shell.Min.Y
 		if nativeY >= h.frame.Rows {
 			return nil
 		}

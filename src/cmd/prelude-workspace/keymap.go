@@ -43,10 +43,6 @@ func placementStrip() string {
 	return strings.Join(glyphs, " ")
 }
 
-var completionKeys = []keyHint{{key: "Tab", text: "next"}, {key: "Shift+Tab", text: "prev"}, {key: "Enter", text: "accept"}, {key: "Esc", text: "dismiss"}}
-
-var completionHint = strings.TrimSpace(keyHintsText(completionKeys))
-
 func (k keyHint) keycap() string {
 	if k.badge {
 		return " " + k.key + " " + k.text + " "
@@ -121,8 +117,6 @@ func (h *host) footerContent() ([]keyHint, []statusSpan) {
 	switch {
 	case h.leader && open:
 		hints = leaderWindowKeys
-	case h.completionVisible():
-		return completionKeys, nil
 	case open:
 		hints = windowKeys
 	}
