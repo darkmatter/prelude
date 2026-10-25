@@ -23,6 +23,15 @@
   mkTitle = import ./title-generator.nix;
   mkTitlePreviews = import ./title-previews.nix;
   mkMenu = import ./menu.nix;
+  typescriptEnabled = cfg.menu.enable && cfg.typescript.entrypoint != null;
+  mkTypescriptMenu = root:
+    import ./typescript-menu.nix {inherit lib pkgs;} {
+      inherit root;
+      inherit (cfg) project colorProfile;
+      palette = plib.resolvePalette cfg.theme cfg.palette;
+      entrypoint = cfg.typescript.entrypoint;
+      runtimePackages = commandRuntimePackages;
+    };
   mkPortal = import ./portal.nix;
   mkDocs = import ./docs.nix;
   mkPrompt = import ./prompt.nix;
@@ -141,7 +150,10 @@
       inherit commands;
       groupOrder = sortCfg.groups;
     };
-  menuBin = mkMenu deps menuRenderConfig;
+  menuBin =
+    if typescriptEnabled
+    then mkTypescriptMenu null
+    else mkMenu deps menuRenderConfig;
 
   portalPkg = mkPortal deps (generatorConfig cfg.portal);
 
@@ -182,7 +194,10 @@
   # declared `db` lets `db migrate` run bare. A root containing `:`
   # (`go:test`) and a parent only its subcommands declare (`go` for
   # `"go test"`) stay reachable through `x`, so neither shadows a real tool.
-  wrappedCommandEntries = lib.filter (entry: entry.onPath && needsWrapper entry) commandNodes;
+  wrappedCommandEntries =
+    if typescriptEnabled
+    then []
+    else lib.filter (entry: entry.onPath && needsWrapper entry) commandNodes;
   commandWrappers = let
     wrapped = wrappedCommandEntries;
     xBin = lib.getExe' menuBin "x";
@@ -274,16 +289,25 @@
     passthru = {
       componentRoot = menuBin;
       inherit
-        commandNames
         commandWrappers
         commandRuntimePackages
         shortcutAliases
         shortcutWrappers
         menuRenderConfig
         ;
+      commandNames =
+        if typescriptEnabled
+        then []
+        else commandNames;
       menuConfig = menuBin.configFile;
-      commandInvocations = map (entry: entry.invocation) commandEntries;
-      xInvocations = map (entry: entry.xInvocation) commandEntries;
+      commandInvocations =
+        if typescriptEnabled
+        then []
+        else map (entry: entry.invocation) commandEntries;
+      xInvocations =
+        if typescriptEnabled
+        then []
+        else map (entry: entry.xInvocation) commandEntries;
       commandWrapperNames = map (entry: entry.name) wrappedCommandEntries;
     };
     meta = {
@@ -299,6 +323,8 @@
   publishedMenuBin =
     if cfg.root == null
     then menuBin
+    else if typescriptEnabled
+    then mkTypescriptMenu cfg.root
     else
       mkMenu deps (menuRenderConfig
         // {
@@ -531,12 +557,15 @@
       navigation = internalShortcuts;
       # Parents only their subcommands declare are shell commands too, so
       # completion and the status row see the whole tree.
-      commandEntries = allCommandNodes;
+      commandEntries =
+        if typescriptEnabled
+        then []
+        else allCommandNodes;
       # `just <TAB>` uses just's own completion when recipes are imported.
-      justImport = cfg.menu.just.enable;
+      justImport = !typescriptEnabled && cfg.menu.just.enable;
       # `x <TAB>` offers the entries the menu imports at runtime, read
       # from the menu itself, so its candidates stay dispatchable.
-      runtimeImports = cfg.menu.just.enable || cfg.menu.scripts.enable;
+      runtimeImports = !typescriptEnabled && (cfg.menu.just.enable || cfg.menu.scripts.enable);
       motdCommand =
         if cfg.motd.enable
         then "motd"

@@ -48,9 +48,9 @@ func TestEmbeddedMenuView(t *testing.T) {
 		keys  []tea.KeyPressMsg
 		texts []string
 	}{
-		{name: "list", texts: []string{"command menu", "~/test", "check", "navigate", "details", "ready"}},
+		{name: "list", texts: []string{"command menu", "~/test", "check", "navigate", "expand", "ready"}},
 		{name: "details", keys: []tea.KeyPressMsg{{Code: tea.KeyTab}}, texts: []string{
-			"Start the development service.", "$ x dev", "example ❯ x dev --watch",
+			"▼ dev", "Start the development service.", "$ x dev", "example ❯ x dev --watch", "scroll", "collapse",
 		}},
 		{name: "empty-filter", keys: []tea.KeyPressMsg{
 			{Code: 'z', Text: "z"}, {Code: 'z', Text: "z"}, {Code: 'z', Text: "z"}, {Code: 'z', Text: "z"},
@@ -66,12 +66,24 @@ func TestEmbeddedMenuView(t *testing.T) {
 			plain, embedded := menus[0].View(), menus[1].View()
 			cells := assertEmbeddedMenuPanel(t, plain, embedded)
 			assertMenuTextColors(t, cells, "command menu", chrome, muted)
-			assertMenuTextColors(t, cells, "navigate", chrome, muted)
+			hint := "navigate"
+			if stage.name == "details" {
+				hint = "scroll"
+			}
+			assertMenuTextColors(t, cells, hint, chrome, muted)
 			if stage.name != "empty-filter" {
-				assertMenuTextColors(t, cells, "dev", accent, selectionFg)
+				if stage.name == "details" {
+					// The pinned header intentionally drops the selection bar.
+					assertMenuTextColors(t, cells, "dev", menus[0].st.bodyColor, lipgloss.Color(string(cfg.Palette.Fg)))
+				} else {
+					assertMenuTextColors(t, cells, "dev", accent, selectionFg)
+				}
 				assertLastRowScript(t, menus[1], "bun run dev")
 			}
 			if stage.name == "details" {
+				// The summary repeats above the body, one step brighter, so the
+				// two sections do not run together.
+				assertMenuTextColors(t, cells, "Start the service", lipgloss.Color(string(cfg.Palette.Bg)), lipgloss.Color(string(cfg.Palette.Fg)))
 				assertMenuTextColors(t, cells, "Start the development service.", lipgloss.Color(string(cfg.Palette.Bg)), muted)
 			}
 			for _, text := range stage.texts {

@@ -33,6 +33,50 @@ directly, and `./main.ts --list` prints every command.
 [`examples/typescript/`](../examples/typescript/) is a complete app with a MOTD,
 docs, and a single-file build.
 
+## Use the devshell's `x`
+
+In a Nix consumer, let TypeScript own the catalogue behind `x`:
+
+```nix
+prelude.menu.enable = true;
+prelude.typescript.entrypoint = "prelude.ts";
+```
+
+```ts
+// prelude.ts
+import { Command, Prelude } from "@drkmttr/prelude";
+
+await Prelude.make({
+  project: "acme",
+  dispatcher: "x",
+  commands: {
+    hello: Command.make({
+      description: "say hello",
+      run: () => console.log("hello"),
+    }),
+  },
+}).main();
+```
+
+Install your project dependencies with `bun install`, then enter the devshell:
+`x` opens this app's picker, `x hello` calls its function, and `x --list` lists
+its catalogue. `menu` opens the same picker and rejects command-line arguments.
+Bun is supplied by the launcher; it never installs dependencies automatically.
+
+The entrypoint is a **relative string**, not a Nix path literal. In the devshell,
+`x` finds the nearest ancestor containing that file and runs in that directory,
+so it works from nested directories and immediately sees checkout edits.
+Published `prelude-menu` and `prelude` packages instead use `prelude.root` and
+run there. That root must contain a runnable app and its dependencies; a flake
+source without `node_modules` does not automatically become a bundled Bun app.
+
+TypeScript owns this menu exclusively: Nix commands and menu imports are not
+merged into it. Configure imports through `Prelude.make({ menu: { just, scripts }, ... })` instead. Nix-generated command PATH wrappers and catalogue completion
+are omitted in this mode. Nix MOTD, docs, and activation remain independently
+configured; enabling a TypeScript entrypoint does not replace them. The npm-only
+integration remains executable through `bun prelude.ts`; this option wires the
+Nix-provided `x`, not a global npm command.
+
 ## Install
 
 ```sh
@@ -52,7 +96,7 @@ Surfaces are built with `make`, and a module's main type shares its name
 (`Command.Command`, `Menu.Menu`).
 
 | Module | Use |
-| --------- | ---------------------------------------------------------------- |
+| --------- | -------------------------------------------------------------------- |
 | `Prelude` | `make(options)`: one app with commands, and optionally MOTD and docs |
 | `Command` | `make(definition)`: a command; `is(value)`; `Any` for records |
 | `Menu` | `make(options)`: the picker and command line over commands |

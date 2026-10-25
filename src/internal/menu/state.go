@@ -60,6 +60,17 @@ func (m *model) exitArgMode() {
 	m.syncList()
 }
 
+// selectedHasDetails reports whether the selected row has a detail page to
+// toggle. Description counts because the expanded view reveals its full text.
+func (m model) selectedHasDetails() bool {
+	if len(m.matches) == 0 {
+		return false
+	}
+	t := m.flat[m.matches[m.sel]]
+	return t.Description != "" || t.Details != "" || t.Usage != "" ||
+		len(t.Examples) > 0 || len(t.hides) > 0
+}
+
 // sub returns the parent whose subcommands the list shows, nil at the root.
 func (m model) sub() *Task {
 	if len(m.pickers) == 0 {

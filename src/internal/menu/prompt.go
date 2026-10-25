@@ -116,6 +116,9 @@ func (p Prompt) WithPlaceholder(s string) Prompt { p.input.Placeholder = s; retu
 // WithValue replaces the input text, returning a copy.
 func (p Prompt) WithValue(s string) Prompt { p.input.SetValue(s); return p }
 
+// AtStart reports whether the cursor sits before the first character.
+func (p Prompt) AtStart() bool { return p.input.Position() == 0 }
+
 // AtEnd reports whether the cursor sits after the last character.
 func (p Prompt) AtEnd() bool { return p.input.Position() >= len([]rune(p.input.Value())) }
 

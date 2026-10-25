@@ -323,6 +323,49 @@ func TestNestedPickersPushAndPopOneLevel(t *testing.T) {
 	}
 }
 
+func TestLeftArrowLeavesSubcommandPickerAtQueryStart(t *testing.T) {
+	cfg := testMenuConfig(subcommandTestTasks()...)
+	m := newModel(cfg, newStyles(cfg, false), nil)
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter}) // db
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyDown})  // seed
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter}) // into seed
+	if path := pickerPath(m); !slices.Equal(path, []string{"db", "db seed"}) {
+		t.Fatalf("pickers = %v, want db then db seed", path)
+	}
+
+	// At the start of an empty query, left backs out one group level.
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyLeft})
+	if path := pickerPath(m); !slices.Equal(path, []string{"db"}) || selectedName(m) != "db seed" || m.promptCtx != "db" {
+		t.Fatalf("left at query start: pickers %v, selected %q, context %q", path, selectedName(m), m.promptCtx)
+	}
+
+	// With text before the cursor, left is an ordinary cursor move.
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyRight}) // reopen seed
+	m.prompt = m.prompt.WithValue("order")
+	if path := pickerPath(m); !slices.Equal(path, []string{"db", "db seed"}) {
+		t.Fatalf("reopened seed pickers = %v", path)
+	}
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyLeft})
+	if path := pickerPath(m); !slices.Equal(path, []string{"db", "db seed"}) || m.prompt.Value() != "order" {
+		t.Fatalf("left mid-query: pickers %v, query %q", path, m.prompt.Value())
+	}
+	if m.prompt.AtStart() {
+		t.Fatal("left mid-query should move the cursor, not jump to the start")
+	}
+
+	// Once the cursor reaches the start, another left leaves the picker.
+	for i := 1; i < len([]rune("order")); i++ {
+		m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyLeft})
+	}
+	if !m.prompt.AtStart() {
+		t.Fatalf("cursor did not reach the start: %q", m.prompt.Value())
+	}
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyLeft})
+	if path := pickerPath(m); !slices.Equal(path, []string{"db"}) || selectedName(m) != "db seed" {
+		t.Fatalf("left at query start: pickers %v, selected %q", path, selectedName(m))
+	}
+}
+
 func TestRunnableParentRunsOnEnterAndOpensOnRight(t *testing.T) {
 	cfg := testMenuConfig(subcommandTestTasks()...)
 	m := newModel(cfg, newStyles(cfg, false), nil)

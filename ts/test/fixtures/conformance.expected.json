@@ -897,6 +897,86 @@
       "titleAlign": "center",
       "verticalAlign": "center",
       "width": 0
+    },
+    "welcome": {
+      "align": "center",
+      "background": "",
+      "backgroundBlend": 0,
+      "backgroundBlendSet": false,
+      "backgroundRelative": 0,
+      "border": false,
+      "clearScreen": true,
+      "colorProfile": "truecolor",
+      "commands": [],
+      "description": {
+        "background": "",
+        "backgroundRelative": 0,
+        "bold": true,
+        "faint": false,
+        "foreground": "#979db5",
+        "italic": false,
+        "text": "You are in the fixture devshell, which contains everything you need to develop.",
+        "tips": []
+      },
+      "env": [],
+      "gettingStarted": {
+        "commandsLabel": "commands",
+        "examplesLabel": "examples",
+        "heading": "Getting Started"
+      },
+      "header": {
+        "background": "",
+        "backgroundRaised": false,
+        "backgroundRelative": 0,
+        "status": [],
+        "statusHintLayout": "inline",
+        "statusHintLinks": [],
+        "subtitle": null,
+        "tagline": "",
+        "taglineAlign": "left",
+        "taglineLayout": "stack",
+        "titleStyle": "spine"
+      },
+      "links": [],
+      "margin": {
+        "bottom": 2,
+        "left": 4,
+        "minHeight": 40,
+        "right": 4,
+        "top": 2
+      },
+      "maxWidth": 80,
+      "padding": {
+        "bottom": 4,
+        "left": 6,
+        "minHeight": 0,
+        "right": 6,
+        "top": 4
+      },
+      "palette": {
+        "accent": "#f2cdcd",
+        "accent2": "#CC99FF",
+        "accentBorder": "#3e4441",
+        "bg": "#0c0c13",
+        "border": "#1d1d2f",
+        "dim": "#4a5085",
+        "error": "#ee848e",
+        "fg": "#979db5",
+        "info": "#89b4fa",
+        "muted": "#6a6c85",
+        "secondary": "#24243f",
+        "selectionFg": "#0c0c13",
+        "success": "#b7ce99",
+        "surface": "#161623",
+        "warning": "#f2c17d"
+      },
+      "project": "fixture",
+      "recipes": [],
+      "shortcuts": [],
+      "title": "",
+      "titleAlign": "center",
+      "verticalAlign": "center",
+      "width": 0
     }
   }
 }
