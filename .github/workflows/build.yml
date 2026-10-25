@@ -4,7 +4,13 @@ on:
   push:
 jobs:
   tests:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - ubuntu-latest
+          - [self-hosted, macos-latest]
+    runs-on: ${{ matrix.runner }}
     steps:
     - uses: actions/checkout@v4
     - uses: cachix/install-nix-action@v31
@@ -13,12 +19,26 @@ jobs:
         name: darkmatter
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - run: nix flake check
-    - run: nix develop . -c echo OK
+    - name: Enter the devshell without host tools
+      run: |
+        nix develop . --ignore-environment --keep HOME -c bash -eu <<'BASH'
+          test -f "$PRELUDE_LIB"
+          test -z "${PRELUDE_WORKSPACE_ACTIVE-}"
+          x --list
+          cc --version
+          pkg-config --version
+        BASH
   typescript:
     # The npm package in ts/, as adhere's CI checks its own: typecheck, test
     # against a freshly built libprelude, then install the packed package and
     # load it.
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - ubuntu-latest
+          - [self-hosted, macos-latest]
+    runs-on: ${{ matrix.runner }}
     defaults:
       run:
         working-directory: ts
@@ -33,6 +53,6 @@ jobs:
         bun-version: "1.4.2"
     - run: bun install --frozen-lockfile
     - run: bun run typecheck
-    - run: bun scripts/npm-package.ts library linux-x64
+    - run: bun scripts/npm-package.ts library
     - run: bun run test
     - run: bun scripts/npm-package.ts smoke

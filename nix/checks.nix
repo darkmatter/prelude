@@ -105,6 +105,11 @@
     '';
 in {
   inherit
+    (import ./typescript-dispatch-checks.nix {inherit pkgs lib localFlake;})
+    typescript-dispatch
+    typescript-dispatch-config
+    ;
+  inherit
     (workspaceConsumerChecks)
     workspace-consumer-contract
     workspace-consumer-wrappers
@@ -1195,11 +1200,12 @@ in {
     '';
 
   # The banner has two loader contexts for one environment: direnv's
-  # non-interactive .envrc and `prelude hook` in an interactive prompt. Separate
-  # loader shells render independently; the hook's PRELUDE_INIT-path guard
-  # prevents ordinary prompts from repeatedly sourcing the same init. A sentinel
-  # MOTD with the prompt disabled keeps this about loader behavior rather than
-  # ble.sh, Starship, or this repo's banner.
+  # non-interactive .envrc and `prelude hook` in an interactive prompt. The
+  # envrc render is the greeting; it exports PRELUDE_MOTD_SHOWN so the hook
+  # handoff loads the same init without painting it again, and the hook's
+  # PRELUDE_INIT-path guard prevents ordinary prompts from repeatedly
+  # sourcing it. A sentinel MOTD with the prompt disabled keeps this about
+  # loader behavior rather than ble.sh, Starship, or this repo's banner.
   preflight-hook-handoff = let
     backdrop = internalLib.resolveBackdropPalette "prelude" {};
     sentinel = pkgs.writeShellApplication {
@@ -1263,6 +1269,94 @@ in {
     fi
     touch "$out"
   '';
+
+  devshell-basics = let
+    shell = config.devShells.default;
+    activation = pkgs.writeText "prelude-devshell-activation.bash" shell.shellHook;
+    smoke = pkgs.writeText "prelude-devshell-basics.bash" ''
+      set -euo pipefail
+      . ${activation}
+      first_path=$PATH
+      . ${activation}
+      test "$PATH" = "$first_path"
+      test "$SHELL" = ${lib.getExe pkgs.bashInteractive}
+      test -f "$PRELUDE_LIB"
+      test -f "$PRELUDE_INIT"
+      test -f "$PRELUDE_MENU_CONFIG"
+      test -f "$PRELUDE_COMPLETION_INIT"
+      test -f "$STARSHIP_CONFIG"
+      test -f "$SSL_CERT_FILE"
+      test "$NIX_SSL_CERT_FILE" = "$SSL_CERT_FILE"
+      test -z "''${PRELUDE_WORKSPACE_ACTIVE-}"
+
+      for tool in bash sh git nix go bun make cc c++ ar ld pkg-config curl \
+          tar gzip patch diff sed grep awk find mktemp shellcheck nixfmt x docs motd; do
+        command -v "$tool" >/dev/null || { echo "missing devshell tool: $tool" >&2; exit 1; }
+      done
+      if env | grep -E '^(BASH_FUNC_|buildInputs=|nativeBuildInputs=|shellHook=|stdenv=|NIX_CC=)'; then
+        echo 'build metadata leaked from the runtime shell' >&2
+        exit 1
+      fi
+      shellcheck --version >/dev/null
+      nix --version >/dev/null
+      x --list > catalogue
+      grep -q 'go:test' catalogue
+
+      git init -q repository
+      git -C repository status --porcelain
+      printf 'all:\n\t@printf make-ok > make-result\n' > Makefile
+      make
+      test "$(cat make-result)" = make-ok
+
+      cat > native.c <<'EOF'
+      #include <stdio.h>
+      #include <stdlib.h>
+      int main(void) { void *p = malloc(8); if (!p) return 1; free(p); puts("c-ok"); }
+      EOF
+      cc native.c -o native
+      test "$(./native)" = c-ok
+      cat > native.cpp <<'EOF'
+      #include <iostream>
+      #include <vector>
+      int main() { std::vector<int> v{1, 2, 3}; std::cout << v.size(); }
+      EOF
+      c++ native.cpp -o native-cpp
+      test "$(./native-cpp)" = 3
+
+      # Native dependencies remain explicit in this runtime shell. Verify that
+      # pkg-config flags reach the wrapped compiler and produce a runnable ELF
+      # or Mach-O binary, rather than only testing libc's built-in search paths.
+      cat > zlib.c <<'EOF'
+      #include <zlib.h>
+      int main(void) { return zlibVersion()[0] == '1' ? 0 : 1; }
+      EOF
+      flags=$(PKG_CONFIG_PATH=${lib.getDev pkgs.zlib}/lib/pkgconfig:${lib.getDev pkgs.zlib}/share/pkgconfig pkg-config --cflags --libs zlib)
+      cc zlib.c $flags -o zlib-check
+      ./zlib-check
+
+      mkdir cgo-smoke
+      cd cgo-smoke
+      printf 'module devshell-smoke\n\ngo 1.26\n' > go.mod
+      cat > main.go <<'EOF'
+      package main
+      // #include <stdlib.h>
+      import "C"
+      import "fmt"
+      func main() { fmt.Println(C.abs(-7)) }
+      EOF
+      CGO_ENABLED=1 go build -o cgo-smoke .
+      test "$(./cgo-smoke)" = 7
+    '';
+  in
+    pkgs.runCommand "devshell-basics" {} ''
+      mkdir -p home work
+      cd work
+      ${pkgs.coreutils}/bin/env -i \
+        HOME="$PWD/../home" PATH=${lib.escapeShellArg shell.PATH} \
+        SHELL=/noshell PRELUDE_INIT_QUIET=1 \
+        ${lib.getExe pkgs.bashInteractive} --noprofile --norc ${smoke}
+      touch "$out"
+    '';
 
   title-previews = pkgs.runCommand "title-previews" {} ''
     ${lib.getExe config.packages.prelude-title-previews} "choose me" > "$out"
@@ -1980,6 +2074,7 @@ in {
         imports = [fixtureModule];
         prelude = {
           project = "fixture";
+          workspace.enable = false;
           prompt = {
             enable = true;
             inherit localServer;
