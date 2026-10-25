@@ -128,7 +128,7 @@ func TestGhosttyStarshipBinarySmoke(t *testing.T) {
 			"BASH_FUNC_bleopt%%=() { builtin printf 'INHERITED_HOOK_RAN\\n'; }",
 			"BASH_FUNC__ble_version%%=() { return 0; }",
 			"BASH_FUNC_spike_tool%%=() { builtin printf 'PROJECT_TOOLS_OK\\n'; }")
-		s := startSmokeOuterPTYEnv(t, binary, env, "--starship")
+		s := startSmokeOuterPTYEnv(t, binary, env)
 		first := s.await("colored multiline/wide Starship and hint footer", func(f smokeFrame) bool {
 			return f.alt && f.starshipStatus("", "status:0", false) && f.footer() == smokeBaseFooter
 		})
@@ -260,9 +260,9 @@ func TestGhosttyStarshipBinarySmoke(t *testing.T) {
 		parked := "echo parked-界"
 		for _, surface := range []struct{ key, kind string }{{"x", "menu"}, {"d", "docs"}} {
 			before := s.frame()
-			s.send("\x10" + surface.key)
+			s.send("\x1b" + surface.key)
 			shown := s.await("Starship input parked behind "+surface.kind, func(f smokeFrame) bool {
-				return f.panel(surface.kind) && f.hasPaneFooter(surface.kind+" | floating | focus:pane | running")
+				return f.panel(surface.kind) && f.hasPaneFooter(f.paneFooterStatus(surface.kind, "")) && f.pillFocusesPane()
 			})
 			marker := "LEADER_" + strings.ToUpper(surface.kind) + ":"
 			var identity string
@@ -278,49 +278,48 @@ func TestGhosttyStarshipBinarySmoke(t *testing.T) {
 			if identity == "" {
 				t.Fatalf("pane PID marker missing after first paint: %s", s.diagnostics())
 			}
-			s.send("N\x10" + surface.key)
+			s.send("N\x1b" + surface.key)
 			s.await("hide restores exact parked Starship screen", func(f smokeFrame) bool {
 				return strings.Join(f.rows[:len(f.rows)-1], "\n") == strings.Join(before.rows[:len(before.rows)-1], "\n") &&
-					f.starshipInput(parked) && f.hasPaneFooter(surface.kind+" hidden | running")
+					f.starshipInput(parked) && f.hasPaneFooter(smokeClosedPill())
 			})
 			s.send("-h")
 			parked += "-h"
 			s.await("hidden pane leaves Bash editable", func(f smokeFrame) bool {
-				return f.starshipInput(parked) && f.hasPaneFooter(surface.kind+" hidden | running")
+				return f.starshipInput(parked) && f.hasPaneFooter(smokeClosedPill())
 			})
-			s.send("\x10" + surface.key)
+			s.send("\x1b" + surface.key)
 			s.await("show retains same pane PID and input", func(f smokeFrame) bool {
 				return strings.Contains(strings.Join(f.rows, "\n"), identity) && strings.Contains(strings.Join(f.rows, "\n"), "BYTES:4e") &&
-					f.hasPaneFooter(surface.kind+" | floating | focus:pane | running")
+					f.hasPaneFooter(f.paneFooterStatus(surface.kind, "")) && f.pillFocusesPane()
 			})
 			if surface.kind == "menu" {
 				s.send("\x1d")
 				s.await("docking reflows parked Starship without taking its input", func(f smokeFrame) bool {
-					shell := image.Rect(f.cols/2, 0, f.cols, len(f.rows)-1)
-					pane := image.Rect(0, 0, f.cols/2, len(f.rows)-1)
-					return f.hasPaneFooter("Placement: left | menu | left | focus:pane | running") &&
+					shell := image.Rect(f.cols/2, 0, f.cols, shellRows(len(f.rows)))
+					pane := image.Rect(0, 0, f.cols/2, shellRows(len(f.rows)))
+					return f.hasPaneFooter(f.paneFooterStatus("menu", "")) && f.pillFocusesPane() &&
 						f.hasInputAfter(shell, "❯", parked) && strings.TrimSpace(f.textAt(0, 0, pane.Dx())) == identity &&
 						strings.Contains(leaderSmokeBody(f, pane), "BYTES:4e")
 				})
 				s.send("\x1c")
 				s.await("undocking restores full wide Starship prompt and parked input", func(f smokeFrame) bool {
-					return f.hasPaneFooter("Placement: floating | menu | floating | focus:pane | running") &&
+					return f.hasPaneFooter(f.paneFooterStatus("menu", "")) && f.pillFocusesPane() &&
 						f.hasInput("界❯", parked) && f.panel("menu") && strings.Contains(strings.Join(f.rows, "\n"), identity) &&
 						strings.Contains(strings.Join(f.rows, "\n"), "BYTES:4e")
 				})
 			}
-			s.send("\x10c")
-			s.await("pane close retains full wide Starship prompt and parked input", func(f smokeFrame) bool {
-				return f.footer() == smokeBaseFooter && !f.panel(surface.kind) && f.hasInput("界❯", parked)
+			s.send("\x1b" + surface.key)
+			s.await("hidden pane retains full wide Starship prompt and parked input", func(f smokeFrame) bool {
+				return f.hasPaneFooter(smokeClosedPill()) && !f.panel(surface.kind) && f.hasInput("界❯", parked)
 			})
-			starshipSmokeInput(s, parked)
 		}
 		// Execution proves this edit landed at the restored caret, without
 		// imposing a new decorative-glyph/renderer contract on the input check.
 		parked += "-caret"
 		s.send("-caret\r")
 		s.await("parked input and restored caret still execute in Bash", func(f smokeFrame) bool {
-			return f.hasLine(strings.TrimPrefix(parked, "echo ")) && f.starshipStatus("", "status:0", false) && f.footer() == smokeBaseFooter
+			return f.hasLine(strings.TrimPrefix(parked, "echo ")) && f.starshipStatus("", "status:0", false) && f.hasPaneFooter(smokeClosedPill())
 		})
 		s.traceMu.Lock()
 		poisonRan := strings.Contains(string(s.output), "INHERITED_HOOK_RAN")
@@ -342,60 +341,55 @@ func TestGhosttyStarshipBinarySmoke(t *testing.T) {
 			t.Fatal("generated Prelude Starship config:", err)
 		}
 		t.Setenv("STARSHIP_CONFIG", config)
-		s := startSmokeOuterPTYSize(t, binary, smokeEnvironment(t.TempDir()), 160, 28, "--starship")
-		first := s.await("generated prompt restores bracketed Alt + m MOTD/x menu/d docs with LOCKED footer", func(f smokeFrame) bool {
-			return f.generatedPromptKeymap() && f.hasInput("╰─", "") && f.hasFooter(smokeNavigationKeys, "")
+		s := startSmokeOuterPTYSize(t, binary, smokeEnvironment(t.TempDir()), 160, 28)
+		first := s.await("generated prompt restores bracketed Alt + m MOTD/x menu/d docs with pill-only footer", func(f smokeFrame) bool {
+			return f.generatedPromptKeymap() && f.hasInput("╰─", "") && f.hasFooter(smokeNavigationKeys, smokeClosedPill())
 		})
-		assertSmokeFooterTheme(t, first, smokeNavigationKeys, "")
+		assertSmokeFooterTheme(t, first, smokeNavigationKeys, smokeClosedPill())
 		assertGeneratedPromptStyle(s, first)
 		s.send("echo prelude-界")
-		s.await("Prelude prompt editable input boundary with LOCKED footer", func(f smokeFrame) bool {
-			return f.hasInput("╰─", "echo prelude-界") && f.hasFooter(smokeNavigationKeys, "")
+		s.await("Prelude prompt editable input boundary with pill-only footer", func(f smokeFrame) bool {
+			return f.hasInput("╰─", "echo prelude-界") && f.hasFooter(smokeNavigationKeys, smokeClosedPill())
 		})
-		s.send("\x10")
-		leader := s.await("generated prompt prefix shows the expanded host keymap", func(f smokeFrame) bool {
-			return f.hasFooter(smokeLeaderKeys, "") && f.hasInput("╰─", "echo prelude-界")
-		})
-		assertSmokeFooterTheme(t, leader, smokeLeaderKeys, "")
-		s.send("x")
-		menu := s.await("generated prompt Ctrl+P x opens the menu and locks command mode", func(f smokeFrame) bool {
-			return f.panel("menu") && f.hasPaneFooter("menu | floating | focus:pane | running")
+		s.send("\x1bx")
+		menu := s.await("generated prompt Alt+x opens the menu and locks command mode", func(f smokeFrame) bool {
+			return f.panel("menu") && f.hasPaneFooter(f.paneFooterStatus("menu", "")) && f.pillFocusesPane()
 		})
 		body := image.Rect(30, 2, 130, 24)
 		menuIdentity := strings.TrimSpace(menu.textAt(body.Min.X, body.Min.Y, body.Dx()))
-		s.send("\x10t")
-		s.await("Ctrl+P t hides the generated prompt's retained menu", func(f smokeFrame) bool {
-			return !f.panel("menu") && f.hasPaneFooter("menu hidden | running") && f.hasInput("╰─", "echo prelude-界")
+		s.send("\x1bx")
+		s.await("Alt+x hides the generated prompt's retained menu", func(f smokeFrame) bool {
+			return !f.panel("menu") && f.hasPaneFooter(smokeClosedPill()) && f.hasInput("╰─", "echo prelude-界")
 		})
 		s.send("\x1bx")
 		s.await("Alt+x restores the same menu process", func(f smokeFrame) bool {
 			return f.panel("menu") && strings.TrimSpace(f.textAt(body.Min.X, body.Min.Y, body.Dx())) == menuIdentity &&
-				f.hasPaneFooter("menu | floating | focus:pane | running")
+				f.hasPaneFooter(f.paneFooterStatus("menu", "")) && f.pillFocusesPane()
 		})
-		s.send("\x10c")
-		s.await("closing generated menu restores LOCKED footer and exact parked input", func(f smokeFrame) bool {
-			return f.hasFooter(smokeNavigationKeys, "") && f.hasInput("╰─", "echo prelude-界")
+		s.send("\x1bx")
+		s.await("hiding generated menu retains exact parked input", func(f smokeFrame) bool {
+			return f.hasPaneFooter(smokeClosedPill()) && f.hasInput("╰─", "echo prelude-界")
 		})
 		s.send("\x1bd")
 		s.await("generated prompt Alt+d opens docs", func(f smokeFrame) bool {
-			return f.panel("docs") && f.hasPaneFooter("docs | floating | focus:pane | running")
+			return f.panel("docs") && f.hasPaneFooter(f.paneFooterStatus("docs", "")) && f.pillFocusesPane()
 		})
-		s.send("\x10c")
-		s.await("closing generated docs retains only command-lock footer", func(f smokeFrame) bool {
-			return f.hasFooter(smokeNavigationKeys, "") && f.hasInput("╰─", "echo prelude-界")
+		s.send("\x1bd")
+		s.await("hiding generated docs retains exact parked input", func(f smokeFrame) bool {
+			return f.hasPaneFooter(smokeClosedPill()) && f.hasInput("╰─", "echo prelude-界")
 		})
 		s.send("\r")
 		s.await("Prelude Starship command output", func(f smokeFrame) bool {
-			return f.hasLine("prelude-界") && f.hasInput("╰─", "") && f.hasFooter(smokeNavigationKeys, "")
+			return f.hasLine("prelude-界") && f.hasInput("╰─", "") && f.hasPaneFooter(smokeClosedPill())
 		})
 		s.send("\x1b[A")
 		s.await("Prelude Starship history recall", func(f smokeFrame) bool {
-			return f.hasInput("╰─", "echo prelude-界") && f.hasFooter(smokeNavigationKeys, "")
+			return f.hasInput("╰─", "echo prelude-界") && f.hasPaneFooter(smokeClosedPill())
 		})
 		s.resize(70, 12)
 		s.send("\x0c")
-		s.await("Prelude Powerline reflow/redraw retains input and LOCKED footer", func(f smokeFrame) bool {
-			return f.cols == 70 && f.hasInput("╰─", "echo prelude-界") && f.hasFooter(smokeNavigationKeys, "")
+		s.await("Prelude Powerline reflow/redraw retains input and hidden-footer", func(f smokeFrame) bool {
+			return f.cols == 70 && f.hasInput("╰─", "echo prelude-界") && f.hasPaneFooter(smokeClosedPill())
 		})
 		s.send("\x15exit 0\r")
 		s.expectExit(0)
@@ -414,24 +408,24 @@ func TestGhosttyStarshipBinarySmoke(t *testing.T) {
 			name, config, prompt string
 			args                 []string
 		}{
-			{"GeneratedPreset", config, "╰─", []string{"--starship"}},
-			{"CustomOwner", custom, "custom❯", []string{"--starship"}},
-			{"FixedPrompt", config, "prelude $", nil},
+			{"GeneratedPreset", config, "╰─", nil},
+			{"CustomOwner", custom, "custom❯", nil},
+			{"FixedPrompt", config, "prelude $", []string{fixedPromptFlag}},
 		} {
 			t.Run(mode.name, func(t *testing.T) {
 				isolatedMotd(t)
 				env := append(smokeEnvironment(t.TempDir()), "STARSHIP_CONFIG="+mode.config)
 				s := startSmokeOuterPTYSize(t, binary, env, 160, 28, mode.args...)
-				first := s.await("every prompt mode retains LOCKED command footer", func(f smokeFrame) bool {
-					return f.hasInput(mode.prompt, "") && f.hasFooter(smokeNavigationKeys, "")
+				first := s.await("every prompt mode retains the pill-only footer", func(f smokeFrame) bool {
+					return f.hasInput(mode.prompt, "") && f.hasFooter(smokeNavigationKeys, smokeClosedPill())
 				})
 				if mode.name == "CustomOwner" && !first.hasLine("CUSTOM-OWNER ? x d") {
 					t.Fatalf("custom Starship config/aliases were overwritten\n%s", s.diagnostics())
 				}
-				assertSmokeFooterTheme(t, first, smokeNavigationKeys, "")
+				assertSmokeFooterTheme(t, first, smokeNavigationKeys, smokeClosedPill())
 				s.send("echo marker-fallback\r")
-				s.await("LOCKED footer survives a real shell command", func(f smokeFrame) bool {
-					return f.hasLine("marker-fallback") && f.hasInput(mode.prompt, "") && f.hasFooter(smokeNavigationKeys, "")
+				s.await("pill-only footer survives a real shell command", func(f smokeFrame) bool {
+					return f.hasLine("marker-fallback") && f.hasInput(mode.prompt, "") && f.hasFooter(smokeNavigationKeys, smokeClosedPill())
 				})
 				s.send("exit 0\r")
 				s.expectExit(0)
@@ -449,13 +443,13 @@ func TestGhosttyStarshipBinarySmoke(t *testing.T) {
 			t.Fatal(err)
 		}
 		env := append(smokeEnvironment(t.TempDir()), "PATH="+dir)
-		s := startSmokeOuterPTYEnv(t, binary, env, "--starship")
+		s := startSmokeOuterPTYEnv(t, binary, env)
 		s.expectExit(1)
 		s.traceMu.Lock()
 		output := string(s.output)
 		s.traceMu.Unlock()
-		if !strings.Contains(output, "--starship needs Starship on PATH") || !strings.Contains(output, "nix develop path:.#workspace") {
-			t.Fatalf("missing Starship did not explain how to start the workspace: %q", output)
+		if !strings.Contains(output, "starship is not on PATH") || !strings.Contains(output, "nix develop path:.#workspace") || !strings.Contains(output, "--starship=false") {
+			t.Fatalf("missing Starship did not explain how to start the workspace or select the fixed prompt: %q", output)
 		}
 	})
 }

@@ -20,7 +20,7 @@ func (h *host) layout() workspaceLayout {
 func (h *host) setPlacement(where placement) tea.Cmd {
 	h.dismissCompletion()
 	h.placement = where
-	h.notice = "Placement: " + where.String()
+	h.notice = ""
 	wasPane := h.focusPane
 	if err := h.resizeWorkspace(); err != nil {
 		return h.fail(err)
@@ -113,6 +113,7 @@ func (h *host) closePane() tea.Cmd {
 	h.dismissCompletion()
 	p := h.pane
 	h.pane, h.surface, h.paneError = nil, surfaceNone, nil
+	h.leader = false // Layout commands need a window.
 	h.paneVisible, h.focusPane, h.notice = false, false, ""
 	if p != nil {
 		if err := p.close(); err != nil {
@@ -190,6 +191,10 @@ func (h *host) keyInput(message tea.KeyPressMsg) tea.Cmd {
 	h.quoted = false
 	if !quoted {
 		key := message.Key()
+		if message.String() == "alt+tab" {
+			h.leader = false
+			return h.toggleFocus()
+		}
 		if key.Mod&tea.ModAlt != 0 {
 			key.Mod &^= tea.ModAlt
 			switch strings.ToLower(chordText(key)) {
@@ -202,58 +207,48 @@ func (h *host) keyInput(message tea.KeyPressMsg) tea.Cmd {
 			case "d":
 				h.leader = false
 				return h.chooseSurface(surfaceDocs)
+			case "w":
+				h.leader = false
+				return h.togglePane()
 			}
 		}
 		// Legacy Ctrl+[ arrives as Esc, so only a distinct enhanced key can
 		// cycle backward. Ctrl+\ is unambiguous on legacy terminals too.
+		// Layout keys leave command mode as it was.
 		switch message.String() {
-
 		case "ctrl+]":
-			h.leader = false
 			return h.setPlacement(h.placement.next())
 		case "ctrl+[", "ctrl+\\":
-			h.leader = false
 			return h.setPlacement(h.placement.prev())
 		}
 		if message.String() == "ctrl+g" {
 			h.leader = false // Child-owned even while command mode was unlocked.
 		}
+		// Unlocked command mode persists across its commands, so layouts can be
+		// cycled and the window toggled repeatedly; only Esc or Ctrl+P lock.
 		if h.leader {
-			h.leader = false
 			switch message.String() {
-			case "ctrl+p":
-				return nil
-			case "esc":
+			case "ctrl+p", "esc":
+				h.leader = false
 				return nil
 			case "tab":
-				if !h.paneInteractive() {
-					h.focusPane = false
-					h.notice = "No live interactive pane to focus; Alt+x menu or Alt+d docs"
-					return h.syncFocus()
-				}
-				h.focusPane = !h.focusPane
-				return h.syncFocus()
+				return h.toggleFocus()
 			}
 			switch chordText(message.Key()) {
-			case "m":
-				return h.showMotd()
-			case "x":
-				return h.chooseSurface(surfaceMenu)
-			case "d":
-				return h.chooseSurface(surfaceDocs)
-
-			case "t":
-				return h.togglePane()
-			case "v":
+			case "]":
 				return h.setPlacement(h.placement.next())
-			case "c":
-				return h.closePane()
+			case "[":
+				return h.setPlacement(h.placement.prev())
 			}
-			h.notice = fmt.Sprintf("Unknown Ctrl+P chord %q; %s", message.String(), leaderHints)
+			h.notice = fmt.Sprintf("Unknown key %q; Esc locks", message.String())
 			return nil
 		}
 		switch message.String() {
 		case "ctrl+p":
+			// Layout commands need a window; otherwise Ctrl+P stays Readline's.
+			if !h.windowOpen() {
+				break
+			}
 			if err := h.closeCompletion(); err != nil {
 				return h.fail(err)
 			}
@@ -288,6 +283,17 @@ func (h *host) keyInput(message tea.KeyPressMsg) tea.Cmd {
 		h.noteShellInput(data, quoted)
 	}
 	return h.forward(data, err)
+}
+
+// toggleFocus moves input between Bash and a live interactive pane.
+func (h *host) toggleFocus() tea.Cmd {
+	if !h.paneInteractive() {
+		h.focusPane = false
+		h.notice = "No live interactive pane to focus; Alt+x menu or Alt+d docs"
+		return h.syncFocus()
+	}
+	h.focusPane = !h.focusPane
+	return h.syncFocus()
 }
 
 // wheelDelta is a vertical wheel notch in viewport lines, negative upward.

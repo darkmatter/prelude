@@ -30,7 +30,7 @@ func TestGhosttySignalBinarySmoke(t *testing.T) {
 			leaderSmokeTools(t)
 			privateDir := t.TempDir()
 			t.Setenv("TMPDIR", privateDir)
-			s := startSmokeOuterPTY(t, binary)
+			s := startSmokeOuterPTY(t, binary, fixedPromptFlag)
 			s.await("initial shell and footer", func(f smokeFrame) bool {
 				return f.alt && f.footer() == smokeBaseFooter && f.hasInput("prelude $", "")
 			})
@@ -39,9 +39,9 @@ func TestGhosttySignalBinarySmoke(t *testing.T) {
 			s.await("foreground process waiting for input", func(f smokeFrame) bool {
 				return f.hasLine("SIGNAL_FOREGROUND_READY")
 			})
-			s.send("\x10x")
+			s.send("\x1bx")
 			s.await("active menu pane over the foreground process", func(f smokeFrame) bool {
-				return f.panel("menu") && f.hasPaneFooter("menu | floating | focus:pane | running")
+				return f.panel("menu") && f.hasPaneFooter(f.paneFooterStatus("menu", "")) && f.pillFocusesPane()
 			})
 			files, err := os.ReadDir(privateDir)
 			if err != nil || len(files) == 0 {

@@ -32,8 +32,8 @@ func TestGhosttyMenuSelectionBinarySmoke(t *testing.T) {
 		prompt string
 		ps2    string
 	}{
-		{"Fixed", nil, strings.TrimSpace(workspacePrompt), "..."},
-		{"Starship", []string{"--starship"}, "界❯", "∙"},
+		{"Fixed", []string{fixedPromptFlag}, strings.TrimSpace(workspacePrompt), "..."},
+		{"Starship", nil, "界❯", "∙"},
 	} {
 		t.Run(mode.name, func(t *testing.T) {
 			isolatedMotd(t)
@@ -120,10 +120,10 @@ exit 37
 			}
 			open := func() {
 				t.Helper()
-				s.send("\x10x")
+				s.send("\x1bx")
 				s.await("real x picker usable", func(f smokeFrame) bool {
 					return strings.Contains(strings.Join(f.rows, "\n"), "handoff — command menu") &&
-						f.hasPaneFooter("menu | floating | focus:pane | running")
+						f.hasPaneFooter(f.paneFooterStatus("menu", "")) && f.pillFocusesPane()
 				})
 			}
 			selectCommand := func() {
@@ -142,7 +142,7 @@ exit 37
 			menuClosed := func(f smokeFrame) bool {
 				text := strings.Join(f.rows, "\n")
 				return !strings.Contains(text, "handoff — command menu") &&
-					!strings.Contains(text, "handoff handoff — enter arguments") && !strings.Contains(f.footer(), " | menu")
+					!strings.Contains(text, "handoff handoff — enter arguments") && strings.Contains(f.footer(), "w viewer")
 			}
 			running := func(want int) {
 				t.Helper()
@@ -227,7 +227,7 @@ exit 37
 			})
 			selectCommand()
 			s.await("busy shell queues the result and closes menu", func(f smokeFrame) bool {
-				return f.hasLine("FOREGROUND_READY") && menuClosed(f) && f.hasFooter(smokeNavigationKeys, "command queued")
+				return f.hasLine("FOREGROUND_READY") && menuClosed(f) && f.hasFooter(smokeNavigationKeys, smokeClosedPill()+" command queued")
 			})
 			calls(1)
 			if data, err := os.ReadFile(foregroundLog); !os.IsNotExist(err) {
@@ -246,7 +246,7 @@ exit 37
 			s.await("secondary PS2 prompt", func(f smokeFrame) bool { return f.hasLine(mode.ps2) })
 			selectCommand()
 			s.await("PS2 queues selection instead of accepting the source as a loop body", func(f smokeFrame) bool {
-				return f.hasLine(mode.ps2) && menuClosed(f) && f.hasFooter(smokeNavigationKeys, "command queued")
+				return f.hasLine(mode.ps2) && menuClosed(f) && f.hasFooter(smokeNavigationKeys, smokeClosedPill()+" command queued")
 			})
 			calls(2)
 			s.send("printf 'PS2_BODY:%s\\n' \"$handoff_item\"\r")

@@ -15,12 +15,10 @@ import (
 	"github.com/charmbracelet/x/vt"
 )
 
-var spikeNavigationKeys = []keyHint{{"LOCKED", ""}, {"Ctrl+P", "unlock"}}
-var spikeLeaderKeys = []keyHint{
-	{"UNLOCKED", ""}, {"m", "motd"}, {"x", "menu"}, {"d", "docs"}, {"t", "window"},
-	{"Tab", "focus"}, {"v", "layout"}, {"c", "close"}, {"Esc", "lock"}, {"Ctrl+P", "lock"},
-}
-var spikeCompletionKeys = []keyHint{{"Tab", "next"}, {"Shift+Tab", "prev"}, {"Enter", "accept"}, {"Esc", "dismiss"}}
+var spikeNavigationKeys = []keyHint{}
+var spikeWindowKeys = []keyHint{lockedBadge}
+var spikeLeaderWindowKeys = []keyHint{unlockedBadge, layoutKeys, {key: "Esc", text: "lock"}}
+var spikeCompletionKeys = []keyHint{{key: "Tab", text: "next"}, {key: "Shift+Tab", text: "prev"}, {key: "Enter", text: "accept"}, {key: "Esc", text: "dismiss"}}
 var spikeHiddenKeys = spikeNavigationKeys
 
 func writeChromeConfig(t *testing.T, content string) string {
@@ -126,20 +124,16 @@ func TestChromePaletteHostView(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			assertChromeFooter(t, h, spikeNavigationKeys, "", nil)
-			h.leader = true
-			assertChromeFooter(t, h, spikeLeaderKeys[:7], "", nil)
-			h.leader = false
+			assertChromeFooter(t, h, spikeNavigationKeys, spikeClosedPill())
 			h.notice = "theme notice"
-			assertChromeFooter(t, h, spikeNavigationKeys, "theme notice", tc.want.Warning)
+			assertChromeFooter(t, h, spikeNavigationKeys, "theme notice "+spikeClosedPill())
 			h.notice = ""
 			h.pendingCommand = "echo queued"
-			assertChromeFooter(t, h, spikeNavigationKeys, "command queued", tc.want.Warning)
+			assertChromeFooter(t, h, spikeNavigationKeys, spikeClosedPill()+" command queued")
 			h.pendingCommand = ""
 			h.err = errors.New("theme failure")
-			assertChromeFooter(t, h, nil, "error: theme failure", tc.want.Error)
+			assertChromeFooter(t, h, nil, "error: theme failure ●")
 			h.err = nil
-
 			h.Update(tea.PasteMsg{Content: "x go:"})
 			awaitSpike(t, h, "completion prefix", func() bool { return spikeInput(h) == "x go:" })
 			spikeKey(h, tea.KeyTab, 0)
@@ -147,7 +141,7 @@ func TestChromePaletteHostView(t *testing.T) {
 			if !h.completionVisible() {
 				t.Fatalf("completion was suppressed: notice=%q ready=%t anchor=%d cursor=%d,%d frame=%dx%d", h.notice, h.prompt.ready, h.prompt.anchor, h.frame.CursorX, h.frame.CursorY, h.frame.Cols, h.frame.Rows)
 			}
-			screen, lines := assertChromeFooter(t, h, spikeCompletionKeys, "", nil)
+			screen, lines := assertChromeFooter(t, h, spikeCompletionKeys, "")
 			if strings.Count(strings.Join(lines, "\n"), completionHint) != 1 {
 				t.Fatal("completion hints must appear only on the protected last row")
 			}
@@ -178,7 +172,7 @@ func TestChromePaletteHostView(t *testing.T) {
 				lastRow := strings.Split(spikeFrameText(h.frame), "\n")[h.frame.Rows-1]
 				return h.prompt.ready && strings.HasPrefix(lastRow, "CHROME-CHILD-OUTPUT")
 			})
-			assertChromeFooter(t, h, spikeNavigationKeys, "", nil)
+			assertChromeFooter(t, h, spikeNavigationKeys, spikeClosedPill())
 		})
 	}
 }
@@ -190,7 +184,7 @@ func assertChromeColor(t *testing.T, got, want color.Color) {
 	}
 }
 
-func assertChromeFooter(t *testing.T, h *host, hints []keyHint, status string, fg color.Color) (*vt.Emulator, []string) {
+func assertChromeFooter(t *testing.T, h *host, hints []keyHint, status string) (*vt.Emulator, []string) {
 	t.Helper()
 	assertSpikeFooter(t, h, spikeFooterKeyText(hints), status)
 	view := h.View()
@@ -200,8 +194,8 @@ func assertChromeFooter(t *testing.T, h *host, hints []keyHint, status string, f
 	if _, err := screen.Write([]byte(strings.ReplaceAll(view.Content, "\n", "\r\n"))); err != nil {
 		t.Fatal(err)
 	}
-	assertChromeFooterCells(t, screen, h, hints, status, fg)
-	for y := 0; y < h.rows-1; y++ {
+	assertChromeFooterCells(t, screen, h, hints, spikeStatusSpans(h, status))
+	for y := range h.rows - 1 {
 		for x := range h.cols {
 			if cell := screen.CellAt(x, y); cell == nil || cell.Style.Bg != nil {
 				t.Fatalf("keycap palette leaked a backdrop into the native canvas/candidates at %d,%d: %+v", x, y, cell)
@@ -211,7 +205,27 @@ func assertChromeFooter(t *testing.T, h *host, hints []keyHint, status string, f
 	return screen, lines
 }
 
-func assertChromeFooterCells(t *testing.T, screen *vt.Emulator, h *host, hints []keyHint, status string, fg color.Color) {
+// spikeStatusSpans returns the host's own status spans trimmed to the text
+// the footer layout actually drew, so cell assertions check that drawFooter
+// paints exactly those spans (colors, bold, reverse) at the right cells.
+func spikeStatusSpans(h *host, status string) []statusSpan {
+	_, spans, drawn, _ := h.footerLayout()
+	var out []statusSpan
+	remaining := ansi.StringWidth(drawn)
+	for _, span := range spans {
+		if remaining <= 0 {
+			break
+		}
+		if w := ansi.StringWidth(span.text); w > remaining {
+			span.text = ansi.Truncate(span.text, remaining, "")
+		}
+		remaining -= ansi.StringWidth(span.text)
+		out = append(out, span)
+	}
+	return out
+}
+
+func assertChromeFooterCells(t *testing.T, screen *vt.Emulator, h *host, hints []keyHint, spans []statusSpan) {
 	t.Helper()
 	caps := make([]bool, h.cols)
 	x, y := 2, h.rows-1
@@ -220,11 +234,10 @@ func assertChromeFooterCells(t *testing.T, screen *vt.Emulator, h *host, hints [
 			x += 2
 		}
 		keyFG, keyBG := h.palette.Accent2, h.palette.Bg
-		switch hint.key {
-		case "LOCKED":
-			keyFG = h.palette.Muted
-		case "UNLOCKED":
-			keyFG, keyBG = h.palette.Bg, h.palette.Success
+		modeFG, modeBG := h.palette.Muted, h.palette.Bg
+		if hint.badge && hint.active {
+			keyFG, keyBG = h.palette.Bg, h.palette.Accent
+			modeFG, modeBG = keyFG, keyBG
 		}
 		for _, char := range " " + hint.key + " " {
 			cell := screen.CellAt(x, y)
@@ -235,6 +248,36 @@ func assertChromeFooterCells(t *testing.T, screen *vt.Emulator, h *host, hints [
 			assertChromeColor(t, cell.Style.Bg, keyBG)
 			caps[x] = true
 			x++
+		}
+		if hint.badge {
+			for _, char := range hint.text + " " {
+				cell := screen.CellAt(x, y)
+				if cell == nil || cell.Content != string(char) || cell.Style.Attrs != uv.AttrBold {
+					t.Fatalf("badge mode glyph/style at %d,%d = %+v, want %q bold", x, y, cell, char)
+				}
+				assertChromeColor(t, cell.Style.Fg, modeFG)
+				assertChromeColor(t, cell.Style.Bg, modeBG)
+				caps[x] = true
+				x++
+			}
+			continue
+		}
+		if hint == layoutKeys {
+			for _, where := range placements {
+				fg, attrs := h.palette.Muted, uint8(0)
+				if where == h.placement {
+					fg, attrs = h.palette.Accent, uv.AttrBold
+				}
+				for _, char := range " " + where.glyph() {
+					cell := screen.CellAt(x, y)
+					if cell == nil || cell.Content != string(char) || cell.Style.Bg != nil || cell.Style.Attrs != attrs {
+						t.Fatalf("layout strip glyph/style at %d,%d = %+v, want %q attrs=%d without a background", x, y, cell, char, attrs)
+					}
+					assertChromeColor(t, cell.Style.Fg, fg)
+					x++
+				}
+			}
+			continue
 		}
 		if hint.text == "" {
 			continue
@@ -248,18 +291,30 @@ func assertChromeFooterCells(t *testing.T, screen *vt.Emulator, h *host, hints [
 			x++
 		}
 	}
-	for x := range h.cols {
-		if cell := screen.CellAt(x, y); cell == nil || !caps[x] && cell.Style.Bg != nil {
-			t.Fatalf("footer background escaped the padded keycaps at %d,%d: %+v", x, y, cell)
+	painted := make([]bool, h.cols)
+	statusX := h.cols - 2 - ansi.StringWidth(spansText(spans))
+	for _, span := range spans {
+		var attrs uint8
+		if span.bold {
+			attrs = uv.AttrBold
+		}
+		if span.reverse {
+			attrs |= uv.AttrReverse
+		}
+		for _, char := range span.text {
+			cell := screen.CellAt(statusX, y)
+			if cell == nil || cell.Content != string(char) || cell.Style.Attrs != attrs {
+				t.Fatalf("right-aligned status at %d,%d = %+v, want %q attrs=%d", statusX, y, cell, char, attrs)
+			}
+			assertChromeColor(t, cell.Style.Fg, span.fg)
+			assertChromeColor(t, cell.Style.Bg, span.bg)
+			painted[statusX] = span.bg != nil
+			statusX++
 		}
 	}
-	statusX := h.cols - 2 - ansi.StringWidth(status)
-	for _, char := range status {
-		cell := screen.CellAt(statusX, y)
-		if cell == nil || cell.Content != string(char) || cell.Style.Bg != nil || cell.Style.Attrs != uv.AttrBold {
-			t.Fatalf("right-aligned status at %d,%d = %+v, want %q bold without a background", statusX, y, cell, char)
+	for x := range h.cols {
+		if cell := screen.CellAt(x, y); cell == nil || !caps[x] && !painted[x] && cell.Style.Bg != nil {
+			t.Fatalf("footer background escaped the padded keycaps at %d,%d: %+v", x, y, cell)
 		}
-		assertChromeColor(t, cell.Style.Fg, fg)
-		statusX++
 	}
 }

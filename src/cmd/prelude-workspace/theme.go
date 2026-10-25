@@ -14,6 +14,7 @@ import (
 type chromePalette struct {
 	Fg      color.Color
 	Bg      color.Color
+	Surface color.Color
 	Success color.Color
 	Muted   color.Color
 	Accent  color.Color
@@ -49,6 +50,7 @@ func loadChromePalette(env []string) (chromePalette, error) {
 	}{
 		{"fg", &palette.Fg},
 		{"bg", &palette.Bg},
+		{"surface", &palette.Surface},
 		{"success", &palette.Success},
 		{"muted", &palette.Muted},
 		{"accent", &palette.Accent},

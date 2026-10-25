@@ -26,13 +26,15 @@ import (
 	"golang.org/x/term"
 )
 
+// Starship is the binary default, so fixed-prompt fixtures must opt out.
+const fixedPromptFlag = "--starship=false"
+
 const (
-	ghosttySmokeCols  = 90
-	ghosttySmokeRows  = 24
-	smokeWait         = 10 * time.Second
-	smokeJoin         = 2 * time.Second
-	smokeBaseFooter   = "LOCKED    Ctrl+P  unlock"
-	smokeLeaderFooter = "UNLOCKED    m  motd   x  menu   d  docs   t  window   Tab  focus   v  layout   c  close   Esc  lock   Ctrl+P  lock"
+	ghosttySmokeCols = 90
+	ghosttySmokeRows = 24
+	smokeWait        = 10 * time.Second
+	smokeJoin        = 2 * time.Second
+	smokeBaseFooter  = "⌥ + " + pillLeftCap + " w viewer " + pillRightCap
 )
 
 type smokeCell struct {
@@ -45,13 +47,16 @@ type smokeFooterStyle struct {
 	attrs  uint8
 }
 
-type smokeKeyHint struct{ key, label string }
+type smokeKeyHint struct {
+	key, label    string
+	badge, active bool
+}
 
-var smokeNavigationKeys = []smokeKeyHint{{"LOCKED", ""}, {"Ctrl+P", "unlock"}}
-var smokeLeaderKeys = []smokeKeyHint{{"UNLOCKED", ""}, {"m", "motd"}, {"x", "menu"}, {"d", "docs"}, {"t", "window"}, {"Tab", "focus"}, {"v", "layout"}, {"c", "close"}, {"Esc", "lock"}, {"Ctrl+P", "lock"}}
-var smokeCompletionKeys = []smokeKeyHint{{"Tab", "next"}, {"Shift+Tab", "prev"}, {"Enter", "accept"}, {"Esc", "dismiss"}}
-var smokePaneKeys = smokeNavigationKeys
-var smokeHiddenKeys = smokeNavigationKeys
+var smokeNavigationKeys = []smokeKeyHint{}
+var smokeWindowKeys = []smokeKeyHint{{"^P", "layout", true, false}}
+var smokeLeaderWindowKeys = []smokeKeyHint{{"^P", "layout", true, true}, {"[ ]", "▣ ◧ ◨ ⬒ ⬓", false, false}, {"Esc", "lock", false, false}}
+var smokeCompletionKeys = []smokeKeyHint{{"Tab", "next", false, false}, {"Shift+Tab", "prev", false, false}, {"Enter", "accept", false, false}, {"Esc", "dismiss", false, false}}
+var smokePaneKeys = smokeWindowKeys
 
 type smokeFooterSpan struct {
 	x, width int
@@ -59,7 +64,7 @@ type smokeFooterSpan struct {
 }
 
 type smokeKeymapPalette struct {
-	key, label, bg, success, status color.Color
+	key, label, bg, accent, fg, muted, warning, err, dot, surface color.Color
 }
 
 type smokeFrame struct {
@@ -78,7 +83,11 @@ func (f smokeFrame) textAt(x, y, width int) string {
 	return text.String()
 }
 
-func (f smokeFrame) footer() string { return strings.TrimSpace(f.rows[len(f.rows)-1]) }
+// footer returns the footer row with runs of padding collapsed, so base
+// comparisons do not depend on the terminal width.
+func (f smokeFrame) footer() string {
+	return strings.Join(strings.Fields(f.rows[len(f.rows)-1]), " ")
+}
 
 // Assert the public two-column layout: whole padded hint pairs on the left,
 // status two cells from the right edge, and a two-cell gap between them.
@@ -95,8 +104,11 @@ func smokeFooterLayout(cols int, hints []smokeKeyHint, status string) (string, [
 		if i > 0 {
 			gap = 2
 		}
-		key, label := " "+hint.key+" ", ""
-		if hint.label != "" {
+		key := " " + hint.key + " "
+		label := ""
+		if hint.badge {
+			label = hint.label + " "
+		} else if hint.label != "" {
 			label = " " + hint.label
 		}
 		keyWidth, labelWidth := ansi.StringWidth(key), ansi.StringWidth(label)
@@ -105,15 +117,17 @@ func smokeFooterLayout(cols int, hints []smokeKeyHint, status string) (string, [
 		}
 		text += strings.Repeat(" ", gap) + key + label
 		x += gap
-		role := "key"
-		if hint.key == "LOCKED" {
-			role = "locked"
-		} else if hint.key == "UNLOCKED" {
-			role = "unlocked"
+		keyRole, labelRole := "key", "label"
+		if hint.badge && !hint.active {
+			keyRole, labelRole = "lockedkey", "lockedmode"
+		} else if hint.badge {
+			keyRole, labelRole = "unlockedkey", "unlockedmode"
+		} else if hint.key == "[ ]" {
+			labelRole = "strip"
 		}
-		spans = append(spans, smokeFooterSpan{x, keyWidth, role})
+		spans = append(spans, smokeFooterSpan{x, keyWidth, keyRole})
 		if labelWidth > 0 {
-			spans = append(spans, smokeFooterSpan{x + keyWidth, labelWidth, "label"})
+			spans = append(spans, smokeFooterSpan{x + keyWidth, labelWidth, labelRole})
 		}
 		x += keyWidth + labelWidth
 	}
@@ -132,15 +146,61 @@ func (f smokeFrame) hasFooter(hints []smokeKeyHint, status string) bool {
 }
 
 func (f smokeFrame) hasPaneFooter(status string) bool {
-	hints := smokePaneKeys
-	if strings.Contains(status, " hidden | ") {
-		hints = smokeHiddenKeys
+	if strings.Contains(status, " w hide ") {
+		return f.hasFooter(smokePaneKeys, status)
 	}
-	return f.hasFooter(hints, status)
+	return f.hasFooter(smokeNavigationKeys, status)
+}
+
+// paneFooterStatus is the status while a window is shown: any pane-state
+// word ("exited 7", "resize to restore") precedes the pill. A stated pane
+// is not interactive, so neither side carries the ⇥ Alt+Tab marker; the
+// focus side follows the pill accent actually drawn. A failure fills the
+// viewer segment with error, so its dividers turn solid.
+func (f smokeFrame) paneFooterStatus(surface, state string) string {
+	pill := smokeOpenPill(surface, f.pillFocusesPane(), state == "")
+	if state == "error" || strings.HasPrefix(state, "exited ") && state != "exited 0" {
+		pill = strings.NewReplacer(pillThinDivider, pillDivider, pillThinLeftDivider, pillDivider).Replace(pill)
+	}
+	if state != "" {
+		return state + " " + pill
+	}
+	return pill
+}
+
+// pillFocusesPane reports whether the viewer-name segment is the focused
+// side: bold accent on surface, while the other side rests plain muted.
+func (f smokeFrame) pillFocusesPane() bool {
+	row := f.rows[len(f.rows)-1]
+	i := strings.Index(row, pillLeftCap)
+	shell := strings.Index(row, "shell")
+	if i < 0 || shell < 0 {
+		return false
+	}
+	nameX := ansi.StringWidth(row[:i]) + 1 + ansi.StringWidth(" w hide ") + 1 + 1
+	shellX := ansi.StringWidth(row[:shell])
+	if nameX >= len(f.footerStyles) || shellX >= len(f.footerStyles) {
+		return false
+	}
+	focused := func(s smokeFooterStyle) bool {
+		return s.attrs&uv.AttrBold != 0 && s.attrs&uv.AttrReverse == 0
+	}
+	return focused(f.footerStyles[nameX]) && !focused(f.footerStyles[shellX])
 }
 
 func smokeUnknownChordStatus(pane string) string {
-	return "Unknown Ctrl+P chord \"?\";    " + smokeLeaderFooter + " | " + pane
+	return `Unknown key "?"; Esc locks ` + pane
+}
+
+// footerStatus extracts the right-aligned status text from the drawn footer
+// row, given the hint keymap drawn on its left.
+func (f smokeFrame) footerStatus(hints []smokeKeyHint) string {
+	base, _ := smokeFooterLayout(f.cols, hints, "")
+	row := f.textAt(0, len(f.rows)-1, f.cols)
+	if !strings.HasPrefix(row, strings.TrimRight(base, " ")) {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(row, strings.TrimRight(base, " ")))
 }
 
 // Use the newest rendered prompt, never a submitted command in older history.
@@ -239,65 +299,109 @@ func smokeColor(c color.Color) color.Color {
 	return color.RGBAModel.Convert(c)
 }
 
+// assertSmokeFooterTheme checks the drawn footer's theme behaviour that
+// matters: keycaps and badges are bold with the palette's key colors
+// (the unlocked badge fills accent), labels stay plain muted, exactly one
+// layout-strip glyph is highlighted, the open pill accents exactly one
+// focus side, and the closed pill is drawn without any bold fill.
 func assertSmokeFooterTheme(t *testing.T, f smokeFrame, hints []smokeKeyHint, status string, want ...smokeKeymapPalette) {
 	t.Helper()
 	if !f.hasFooter(hints, status) {
 		t.Fatalf("footer keymap/status layout mismatch: %q", f.footer())
 	}
-	_, spans := smokeFooterLayout(f.cols, hints, status)
-	palette := smokeKeymapPalette{}
+	var palette *smokeKeymapPalette
 	if len(want) > 0 {
-		palette = want[0]
-	} else {
-		seen := map[string]bool{}
-		for _, span := range spans {
-			if seen[span.role] {
-				continue
+		palette = &want[0]
+	}
+	_, spans := smokeFooterLayout(f.cols, hints, status)
+	for _, span := range spans {
+		if span.role == "strip" {
+			bold := 0
+			for i := range placements {
+				if x := span.x + 1 + 2*i; x < len(f.footerStyles) && f.footerStyles[x].attrs&uv.AttrBold != 0 {
+					bold++
+				}
 			}
-			seen[span.role] = true
-			style := f.footerStyles[span.x]
+			if bold != 1 {
+				t.Fatalf("layout strip must highlight exactly the current placement glyph: %d bold in %q", bold, status)
+			}
+			continue
+		}
+		for x := span.x; x < span.x+span.width && x < len(f.footerStyles); x++ {
+			style := f.footerStyles[x]
+			check := func(fg, bg color.Color, bold bool) {
+				t.Helper()
+				if palette == nil {
+					if (style.attrs&uv.AttrBold != 0) != bold {
+						t.Fatalf("footer column %d (%s): attrs=%d, want bold=%t", x, span.role, style.attrs, bold)
+					}
+					return
+				}
+				wantAttrs := uint8(0)
+				if bold {
+					wantAttrs = uv.AttrBold
+				}
+				if smokeColor(style.fg) != smokeColor(fg) || smokeColor(style.bg) != smokeColor(bg) || style.attrs != wantAttrs {
+					t.Fatalf("footer column %d (%s): fg=%v bg=%v attrs=%d, want fg=%v bg=%v attrs=%d", x, span.role, smokeColor(style.fg), smokeColor(style.bg), style.attrs, smokeColor(fg), smokeColor(bg), wantAttrs)
+				}
+			}
 			switch span.role {
-			case "key":
-				palette.key, palette.bg = style.fg, style.bg
+			case "key", "lockedkey":
+				if palette != nil {
+					check(palette.key, palette.bg, true)
+				} else {
+					check(nil, nil, true)
+				}
+			case "lockedmode":
+				if palette != nil {
+					check(palette.label, palette.bg, true)
+				} else {
+					check(nil, nil, true)
+				}
+			case "unlockedkey", "unlockedmode":
+				if palette != nil {
+					check(palette.bg, palette.accent, true)
+				} else {
+					check(nil, nil, true)
+				}
 			case "label":
-				palette.label = style.fg
-			case "locked":
-				palette.label, palette.bg = style.fg, style.bg
-			case "unlocked":
-				palette.bg, palette.success = style.fg, style.bg
-			case "status":
-				palette.status = style.fg
+				if palette != nil {
+					check(palette.label, nil, false)
+				} else {
+					check(nil, nil, false)
+				}
 			}
 		}
 	}
-	for x, style := range f.footerStyles {
-		role := ""
-		for _, span := range spans {
-			if x >= span.x && x < span.x+span.width {
-				role = span.role
-				break
+	row := f.rows[len(f.rows)-1]
+	focused := func(s smokeFooterStyle) bool {
+		return s.attrs&uv.AttrBold != 0 && (palette == nil || smokeColor(s.fg) == smokeColor(palette.accent))
+	}
+	if strings.Contains(status, " w hide ") {
+		capAt := strings.Index(row, pillLeftCap)
+		shellAt := strings.Index(row, "shell")
+		if capAt < 0 || shellAt < 0 {
+			t.Fatalf("open pill missing from drawn footer: %q", f.footer())
+		}
+		nameX := ansi.StringWidth(row[:capAt]) + 1 + ansi.StringWidth(" w hide ") + 2
+		shellX := ansi.StringWidth(row[:shellAt])
+		if focused(f.footerStyles[nameX]) == focused(f.footerStyles[shellX]) {
+			t.Fatalf("open pill must accent exactly one focus side: name=%+v shell=%+v", f.footerStyles[nameX], f.footerStyles[shellX])
+		}
+	}
+	if strings.Contains(status, " w viewer ") {
+		start := ansi.StringWidth(row[:strings.Index(row, optionPrefix)])
+		wX := start + ansi.StringWidth(optionPrefix) + 1 // cap; " w" follows
+		for x := start; x < len(f.footerStyles); x++ {
+			if x == wX || x == wX+1 {
+				continue // the w key itself is bold accent on the segment fill
 			}
-		}
-		var fg, bg color.Color
-		var attrs uint8
-		switch role {
-		case "key":
-			fg, bg, attrs = palette.key, palette.bg, uv.AttrBold
-		case "label":
-			fg = palette.label
-		case "locked":
-			fg, bg, attrs = palette.label, palette.bg, uv.AttrBold
-		case "unlocked":
-			fg, bg, attrs = palette.bg, palette.success, uv.AttrBold
-		case "status":
-			fg, attrs = palette.status, uv.AttrBold
-		}
-		if smokeColor(style.bg) != smokeColor(bg) || style.attrs != attrs || smokeColor(style.fg) != smokeColor(fg) {
-			t.Fatalf("footer column %d (%s): fg=%v bg=%v attrs=%d, want fg=%v bg=%v attrs=%d", x, role, smokeColor(style.fg), smokeColor(style.bg), style.attrs, smokeColor(fg), smokeColor(bg), attrs)
+			if focused(f.footerStyles[x]) {
+				t.Fatalf("closed pill must stay dim, column %d is filled: %+v", x, f.footerStyles[x])
+			}
 		}
 	}
 }
-
 func (f smokeFrame) starshipStatus(input, status string, timed bool) bool {
 	y := f.promptRow("界❯")
 	if y < 2 || !f.hasInput("界❯", input) || f.rows[y-1] != "│" ||
@@ -307,11 +411,15 @@ func (f smokeFrame) starshipStatus(input, status string, timed bool) bool {
 	return !timed || strings.Contains(f.rows[y-2], "time:") && !strings.Contains(f.rows[y-2], "time:0ms")
 }
 
-func awaitSmokeStatus(s *smokeOuterPTY, prompt, label string, want int) {
+func awaitSmokeStatus(s *smokeOuterPTY, prompt, label string, want int, hiddenPane ...string) {
 	s.t.Helper()
 	// Query Bash itself; the host footer no longer exposes command exit status.
 	s.send(fmt.Sprintf("printf 'STATUS:%s:%%s\\n' \"$?\"\r", label))
 	s.await("shell exit status for "+label, func(f smokeFrame) bool {
+		if len(hiddenPane) > 0 {
+			return f.hasLine(fmt.Sprintf("STATUS:%s:%d", label, want)) && f.hasInput(prompt, "") &&
+				f.hasPaneFooter(hiddenPane[0])
+		}
 		return f.hasLine(fmt.Sprintf("STATUS:%s:%d", label, want)) && f.hasInput(prompt, "") && f.footer() == smokeBaseFooter
 	})
 }
@@ -737,11 +845,11 @@ func TestGhosttyBinarySmoke(t *testing.T) {
 
 	t.Run("ReadlineAndRetainedFloatingPane", func(t *testing.T) {
 		leaderSmokeTools(t)
-		s := startSmokeOuterPTY(t, binary)
+		s := startSmokeOuterPTY(t, binary, fixedPromptFlag)
 		first := s.await("initial shell and footer", func(f smokeFrame) bool {
 			return f.alt && f.footer() == smokeBaseFooter && f.hasInput("prelude $", "")
 		})
-		assertSmokeFooterTheme(t, first, smokeNavigationKeys, "")
+		assertSmokeFooterTheme(t, first, smokeNavigationKeys, smokeClosedPill())
 		s.send("echo typed-XY")
 		s.await("typed command in readline", func(f smokeFrame) bool {
 			return f.hasInput("prelude $", "echo typed-XY") && f.footer() == smokeBaseFooter
@@ -784,14 +892,14 @@ func TestGhosttyBinarySmoke(t *testing.T) {
 				t.Fatalf("composed Unicode cell at (%d,2) = %+v, want %+v\n%s", want.x, got, want.cell, s.diagnostics())
 			}
 		}
-		body := image.Rect(9, 2, 81, 21)
+		body := smokeLayoutBody(ghosttySmokeCols, ghosttySmokeRows, placementFloating)
 		s.send("\x1bx")
 		shown := s.await("Alt+x opens and focuses the real floating menu pane", func(f smokeFrame) bool {
 			return f.panel("menu") && strings.Contains(leaderSmokeBody(f, body), "LEADER_MENU:") &&
-				f.hasPaneFooter("menu | floating | focus:pane | running")
+				f.hasPaneFooter(f.paneFooterStatus("menu", "")) && f.pillFocusesPane()
 		})
-		assertSmokeFooterTheme(t, shown, smokePaneKeys, "menu | floating | focus:pane | running")
-		if text := leaderSmokeBody(shown, body); strings.ContainsAny(text, "┌┐└┘│─") || strings.Contains(text, " | floating |") || strings.Contains(text, "UNDERLAY-CONTENT") {
+		assertSmokeFooterTheme(t, shown, smokePaneKeys, shown.paneFooterStatus("menu", ""))
+		if text := leaderSmokeBody(shown, body); strings.ContainsAny(text, "┌┐└┘│─") || strings.Contains(text, smokeOpenPill("menu", true, true)) || strings.Contains(text, "UNDERLAY-CONTENT") {
 			t.Fatalf("borderless pane gained host chrome or leaked text through blank child cells: %q", text)
 		}
 		identity := strings.TrimSpace(shown.textAt(body.Min.X, body.Min.Y, body.Dx()))
@@ -801,92 +909,94 @@ func TestGhosttyBinarySmoke(t *testing.T) {
 		}
 		s.send("jk")
 		s.await("focused pane receives navigation instead of Bash", func(f smokeFrame) bool {
-			return strings.Contains(leaderSmokeBody(f, body), "BYTES:6a6b") && f.hasPaneFooter("menu | floating | focus:pane | running")
+			return strings.Contains(leaderSmokeBody(f, body), "BYTES:6a6b") && f.hasPaneFooter(f.paneFooterStatus("menu", ""))
 		})
-		s.send("\x10t")
+		s.send("\x1bx")
 		s.await("hide restores exact Unicode underlay without killing the menu", func(f smokeFrame) bool {
-			return f.hasPaneFooter("menu hidden | running") && syscall.Kill(pid, 0) == nil &&
+			return f.hasPaneFooter(smokeClosedPill()) && syscall.Kill(pid, 0) == nil &&
 				strings.Join(f.rows[:len(f.rows)-1], "\n") == strings.Join(before.rows[:len(before.rows)-1], "\n")
 		})
 		s.send("echo panel-live\r")
 		s.await("Bash remains usable while pane is hidden", func(f smokeFrame) bool {
-			return f.hasLine("panel-live") && f.hasInput("prelude $", "") && f.hasPaneFooter("menu hidden | running")
+			return f.hasLine("panel-live") && f.hasInput("prelude $", "") && f.hasPaneFooter(smokeClosedPill())
 		})
-		s.send("\x10tz")
+		s.send("\x1bwz")
 		s.await("show refocuses the same PID with retained navigation state", func(f smokeFrame) bool {
 			return f.panel("menu") && strings.TrimSpace(f.textAt(body.Min.X, body.Min.Y, body.Dx())) == identity &&
-				strings.Contains(leaderSmokeBody(f, body), "BYTES:6a6b7a") && strings.Contains(f.footer(), "focus:pane | running")
+				strings.Contains(leaderSmokeBody(f, body), "BYTES:6a6b7a") && strings.Contains(f.footer(), f.paneFooterStatus("menu", "")) && f.pillFocusesPane()
 		})
-		s.send("\x10t")
+		s.send("\x1bx")
 		s.await("hide reveals current shell output, not a saved underlay", func(f smokeFrame) bool {
 			return !f.panel("menu") && f.rows[11] == before.rows[11] && f.rows[2] == before.rows[2] && f.hasLine("panel-live") &&
-				f.hasInput("prelude $", "") && f.hasPaneFooter("menu hidden | running")
+				f.hasInput("prelude $", "") && f.hasPaneFooter(smokeClosedPill())
 		})
-		s.send("\x10c")
-		s.await("explicit close destroys the hidden pane and restores the base footer", func(f smokeFrame) bool {
-			return f.footer() == smokeBaseFooter && f.hasInput("prelude $", "") && errors.Is(syscall.Kill(pid, 0), syscall.ESRCH)
-		})
+		s.await("hidden pane stays live until host exit", func(f smokeFrame) bool { return syscall.Kill(pid, 0) == nil })
 		s.send("exit 0\r")
 		s.expectExit(0)
+		if err := syscall.Kill(pid, 0); !errors.Is(err, syscall.ESRCH) {
+			t.Fatalf("host exit did not reap the hidden menu: %v", err)
+		}
 	})
 
 	t.Run("ChildScreenIsolationResizeAndExitStatus", func(t *testing.T) {
 		leaderSmokeTools(t)
-		s := startSmokeOuterPTY(t, binary)
+		s := startSmokeOuterPTY(t, binary, fixedPromptFlag)
 		s.await("initial prompt and footer", func(f smokeFrame) bool { return f.hasInput("prelude $", "") && f.footer() == smokeBaseFooter })
 		s.send("smoke_paint\r")
 		s.await("original primary screen", func(f smokeFrame) bool {
 			return f.rows[2] == "VISIBLE:界é🙂END" && f.hasInput("prelude $", "") && f.footer() == smokeBaseFooter
 		})
-		s.send("\x10x\x10\t")
+		s.send("\x1bx\x10\t\x10")
 		s.await("visible menu leaves Bash focusable before destructive output", func(f smokeFrame) bool {
-			return f.panel("menu") && strings.Contains(f.footer(), "focus:shell | running")
+			return f.panel("menu") && strings.Contains(f.footer(), f.paneFooterStatus("menu", "")) && !f.pillFocusesPane()
 		})
 		s.send("smoke_screens\r")
-		const visibleRunning = "menu | floating | focus:shell | running"
-		const hiddenRunning = "menu hidden | running"
+		// The shell keeps focus while the menu runs; the pill text is theme-dependent.
+		visibleRunning := func(f smokeFrame) bool {
+			return f.hasPaneFooter(f.paneFooterStatus("menu", "")) && !f.pillFocusesPane()
+		}
+		hiddenRunning := smokeClosedPill()
 		s.await("child alternate screen without losing chrome", func(f smokeFrame) bool {
 			return f.rows[0] == "ALT-READY" && f.textAt(0, 2, 8) == "VISIBLE:" &&
-				f.rows[ghosttySmokeRows-2] == "CHILD-FOOTER-ATTACK" && f.panel("menu") && f.hasPaneFooter(visibleRunning)
+				f.rows[shellRows(ghosttySmokeRows)-1] == "CHILD-FOOTER-ATTACK" && f.panel("menu") && visibleRunning(f)
 		})
 		s.send("clear\r")
 		s.await("child clear cannot erase footer or real menu window", func(f smokeFrame) bool {
-			return f.rows[0] == "ALT-CLEARED" && f.textAt(0, 2, 8) == "VISIBLE:" && f.rows[ghosttySmokeRows-2] == "CHILD-CLEAR-ATTACK" &&
-				f.panel("menu") && strings.Contains(leaderSmokeBody(f, image.Rect(9, 2, 81, 21)), "LEADER_MENU:") && f.hasPaneFooter(visibleRunning)
+			return f.rows[0] == "ALT-CLEARED" && f.textAt(0, 2, 8) == "VISIBLE:" && f.rows[shellRows(ghosttySmokeRows)-1] == "CHILD-CLEAR-ATTACK" &&
+				f.panel("menu") && strings.Contains(leaderSmokeBody(f, smokeLayoutBody(ghosttySmokeCols, ghosttySmokeRows, placementFloating)), "LEADER_MENU:") && visibleRunning(f)
 		})
 		s.resize(104, 28)
 		s.await("resized composition retains the menu and moves chrome", func(f smokeFrame) bool {
-			if f.cols != 104 || len(f.rows) != 28 || !f.panel("menu") || !f.hasPaneFooter(visibleRunning) ||
+			if f.cols != 104 || len(f.rows) != 28 || !f.panel("menu") || !visibleRunning(f) ||
 				f.rows[0] != "ALT-CLEARED" || f.textAt(0, 2, 8) != "VISIBLE:" {
 				return false
 			}
 			for _, row := range f.rows[:len(f.rows)-1] {
-				if strings.Contains(row, smokeBaseFooter) || strings.Contains(row, visibleRunning) {
+				if strings.Contains(row, "^P layout") || strings.Contains(row, pillLeftCap) {
 					return false // no stale footer left at the old terminal height
 				}
 			}
 			return true
 		})
-		s.send("\x10t")
+		s.send("\x1bx")
 		s.await("hide exposes intact resized alternate screen beneath the menu", func(f smokeFrame) bool {
 			return !f.panel("menu") && f.rows[0] == "ALT-CLEARED" && f.rows[2] == "VISIBLE:界é🙂END" &&
-				f.rows[ghosttySmokeRows-2] == "CHILD-CLEAR-ATTACK" && strings.Contains(f.rows[11], "ALT-UNDERLAY") && f.hasPaneFooter(hiddenRunning)
+				f.rows[shellRows(ghosttySmokeRows)-1] == "CHILD-CLEAR-ATTACK" && strings.Contains(f.rows[11], "ALT-UNDERLAY") && f.hasPaneFooter(hiddenRunning)
 		})
 		s.send("size\r")
-		s.await("outer resize propagated to inner PTY minus footer", func(f smokeFrame) bool {
-			return f.rows[4] == "SIZE:27 104" && f.rows[0] == "ALT-CLEARED" && f.rows[2] == "VISIBLE:界é🙂END" && f.hasPaneFooter(hiddenRunning)
+		s.await("outer resize propagated to inner PTY at the usable height", func(f smokeFrame) bool {
+			return f.rows[4] == fmt.Sprintf("SIZE:%d 104", shellRows(28)) && f.rows[0] == "ALT-CLEARED" && f.rows[2] == "VISIBLE:界é🙂END" && f.hasPaneFooter(hiddenRunning)
 		})
-		s.send("\x10t\x10\treturn\r")
+		s.send("\x1bw\x10\t\x10return\r")
 		s.await("child leaves alternate screen with menu still visible", func(f smokeFrame) bool {
-			return f.rows[0] == "PRIMARY-RESTORED" && f.hasInput("prelude $", "") && f.panel("menu") && f.hasPaneFooter("menu | floating | focus:shell | running")
+			return f.rows[0] == "PRIMARY-RESTORED" && f.hasInput("prelude $", "") && f.panel("menu") && visibleRunning(f)
 		})
-		s.send("\x10t")
+		s.send("\x1bx")
 		s.await("hide reveals restored primary screen without stale alternate output", func(f smokeFrame) bool {
 			return !f.panel("menu") && f.rows[0] == "PRIMARY-RESTORED" && f.rows[2] == "VISIBLE:界é🙂END" &&
-				strings.Contains(f.rows[11], "PRIMARY-UNDERLAY") && f.rows[4] == "" && f.hasInput("prelude $", "") && f.hasPaneFooter("menu hidden | running")
+				strings.Contains(f.rows[11], "PRIMARY-UNDERLAY") && f.rows[4] == "" && f.hasInput("prelude $", "") && f.hasPaneFooter(smokeClosedPill())
 		})
-		s.send("\x10c")
-		s.await("close restores base footer on primary screen", func(f smokeFrame) bool { return f.hasInput("prelude $", "") && f.footer() == smokeBaseFooter })
+		s.await("hidden menu survives on the primary screen", func(f smokeFrame) bool { return f.hasInput("prelude $", "") })
 		s.send("exit 37\r")
 		s.expectExit(37)
 	})

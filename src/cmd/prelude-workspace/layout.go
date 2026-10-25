@@ -27,6 +27,25 @@ func (p placement) String() string {
 	}
 }
 
+// placements is the cycle order shown by the unlocked layout strip.
+var placements = [...]placement{placementFloating, placementLeft, placementRight, placementTop, placementBottom}
+
+// glyph is a one-cell picture of where the pane sits.
+func (p placement) glyph() string {
+	switch p {
+	case placementLeft:
+		return "◧"
+	case placementRight:
+		return "◨"
+	case placementTop:
+		return "⬒"
+	case placementBottom:
+		return "⬓"
+	default:
+		return "▣"
+	}
+}
+
 func (p placement) next() placement {
 	switch p {
 	case placementFloating:
@@ -72,7 +91,7 @@ type workspaceLayout struct {
 // Body is nonempty again.
 func computeLayout(cols, rows int, where placement, panelOpen bool) workspaceLayout {
 	cols, rows = max(cols, 1), max(rows, 1)
-	contentRows := max(rows-1, 1) // Same usable height as shellRows.
+	contentRows := shellRows(rows)
 	layout := workspaceLayout{
 		Shell:   uv.Rect(0, 0, cols, contentRows),
 		FooterY: -1,

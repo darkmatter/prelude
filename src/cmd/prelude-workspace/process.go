@@ -66,7 +66,7 @@ func startBash(cols, rows int, env []string, starship bool) (*shellProcess, erro
 	if starship {
 		path, err := exec.LookPath("starship")
 		if err != nil {
-			return nil, fmt.Errorf("--starship needs Starship on PATH; run in nix develop path:.#workspace or install Starship: %w", err)
+			return nil, fmt.Errorf("starship is not on PATH; run in nix develop path:.#workspace, install Starship, or pass --starship=false for the fixed prompt: %w", err)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -78,7 +78,7 @@ func startBash(cols, rows int, env []string, starship bool) (*shellProcess, erro
 			return nil, fmt.Errorf("initialize Starship for private Bash: %w (context: %v)", err, ctx.Err())
 		}
 		content = bashCommonRC + `if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) )); then
-    builtin printf '%s\n' 'prelude-workspace: --starship requires Bash >=4.4 (PS0 timing)' >&2
+    builtin printf '%s\n' 'prelude-workspace: Starship needs Bash >=4.4 (PS0 timing); pass --starship=false for the fixed prompt' >&2
     exit 1
 fi
 ` + string(script) + "\n" + bashStarshipRC

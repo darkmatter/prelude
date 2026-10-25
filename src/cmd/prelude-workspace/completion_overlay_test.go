@@ -149,14 +149,14 @@ func assertCompletionOverlay(t *testing.T, h *host, baseline terminalFrame, inpu
 				}
 			}
 		}
-	} else if footer, want := strings.TrimSpace(rows[layout.FooterY]), strings.TrimSpace(baseFooter); footer != want {
-		t.Fatalf("completion changed the base hint footer: %q, want %q", footer, want)
+	} else if footer := strings.Join(strings.Fields(rows[layout.FooterY]), " "); footer != smokeBaseFooter {
+		t.Fatalf("completion changed the base hint footer: %q, want %q", footer, smokeBaseFooter)
 	}
 	hints := spikeNavigationKeys
 	if popup {
 		hints = spikeCompletionKeys
 	}
-	assertChromeFooterCells(t, outer, h, hints, "", nil)
+	assertChromeFooterCells(t, outer, h, hints, spikeStatusSpans(h, ""))
 	// bind-x redisplay may normalize erased blank-cell styles. Its output is
 	// real Bash output; projection itself must still leave both full snapshots
 	// byte-for-byte intact across View, as checked above.

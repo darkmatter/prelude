@@ -88,12 +88,11 @@ func spikeShellStatus(t *testing.T, h *host, want int) {
 		t.Fatalf("Bash status output = %q, want %d", got, want)
 	}
 }
-
 func spikeFooterKeyText(hints []keyHint) string {
 	var groups []string
 	for _, hint := range hints {
-		group := " " + hint.key + " "
-		if hint.text != "" {
+		group := hint.keycap()
+		if !hint.badge && hint.text != "" {
 			group += " " + hint.text
 		}
 		groups = append(groups, group)
@@ -125,14 +124,68 @@ func assertSpikeFooter(t *testing.T, h *host, keys, status string) string {
 	return row
 }
 
+// spikeClosedPill is the always-on pill with no window shown: one dim chip
+// offering Alt+w.
+func spikeClosedPill() string {
+	return optionPrefix + pillLeftCap + " w viewer " + pillRightCap
+}
+
+// spikeOpenPill is the pill while a window is shown. The unfocused side is
+// prefixed ⇥ only when the pane is live enough for Alt+Tab to reach it. The
+// divider between the targets is thin and points at the focused one.
+func spikeOpenPill(surface string, paneFocused, interactive bool) string {
+	name, shell := surface, "shell"
+	if interactive {
+		if paneFocused {
+			shell = "⇥ " + shell
+		} else {
+			name = "⇥ " + name
+		}
+	}
+	pointer := pillThinDivider
+	if paneFocused {
+		pointer = pillThinLeftDivider
+	}
+	return optionPrefix + pillLeftCap + " w hide " + pillDivider + " " + name + " " + pointer + " " + shell + " " + pillRightCap
+}
+
+// Smoke frames have no host object; share the same pill text builders.
+func smokeClosedPill() string { return spikeClosedPill() }
+func smokeOpenPill(surface string, paneFocused, interactive bool) string {
+	return spikeOpenPill(surface, paneFocused, interactive)
+}
 func TestHostFooterKeepsOperationalHintsInProtectedRow(t *testing.T) {
-	h := &host{cols: 120, rows: 8, frame: spikeFrame(120, 7), terminalFocused: true}
+	h := &host{cols: 120, rows: 8, frame: spikeFrame(120, shellRows(8)), terminalFocused: true}
 	for _, phase := range []string{"", "prompt", "running", "exited"} {
 		h.prompt.phase, h.prompt.ready = phase, phase == "prompt"
-		assertSpikeFooter(t, h, "   LOCKED    Ctrl+P  unlock", "")
+		assertSpikeFooter(t, h, spikeFooterKeyText(spikeNavigationKeys), spikeClosedPill())
+	}
+	// The closed pill rests dim on surface; only its w key is bold Accent2.
+	_, spans := h.footerContent()
+	sawW := false
+	for _, span := range spans {
+		if span.text == " w" {
+			sawW = true
+			if !span.bold || span.fg != h.palette.Accent2 {
+				t.Fatalf("closed pill w key must be bold Accent2: %+v", span)
+			}
+		} else if span.bold {
+			t.Fatalf("closed pill span other than w must not be bold: %+v", span)
+		}
+		if span.bg != nil && span.bg != h.palette.Surface {
+			t.Fatalf("closed pill segment must rest on surface: %+v", span)
+		}
+	}
+	if !sawW {
+		t.Fatal("closed pill is missing its w key span")
+	}
+	for _, span := range spans {
+		if span.text == " viewer " && (span.bold || span.fg != h.palette.Muted) {
+			t.Fatalf("closed pill viewer label must be muted, not bold/accent: %+v", span)
+		}
 	}
 	h.notice, h.pendingCommand = "Fixture notice", "echo queued"
-	assertChromeFooter(t, h, spikeNavigationKeys, "Fixture notice | command queued", h.palette.Warning)
+	assertChromeFooter(t, h, spikeNavigationKeys, "Fixture notice "+spikeClosedPill()+" command queued")
 	layout := h.layout()
 	rows := strings.Split(ansi.Strip(h.View().Content), "\n")
 	if strings.TrimSpace(strings.Join(rows[:layout.FooterY], "")) != "" ||
@@ -142,7 +195,7 @@ func TestHostFooterKeepsOperationalHintsInProtectedRow(t *testing.T) {
 }
 
 func TestHostViewProtectsFooterAndRestoresHiddenPane(t *testing.T) {
-	h := &host{cols: 70, rows: 8, frame: spikeFrame(70, 7), surface: surfaceDocs, terminalFocused: true}
+	h := &host{cols: 70, rows: 8, frame: spikeFrame(70, shellRows(8)), surface: surfaceDocs, terminalFocused: true}
 	h.paneVisible = true
 	body := h.layout().Body
 	p := &pane{kind: surfaceDocs, frame: spikeFrame(body.Dx(), body.Dy())}
@@ -159,7 +212,7 @@ func TestHostViewProtectsFooterAndRestoresHiddenPane(t *testing.T) {
 	if len(lines) != h.rows || !strings.HasPrefix(lines[0], "界e\u0301") {
 		t.Fatalf("composed frame = %q", lines)
 	}
-	assertSpikeFooter(t, h, spikeFooterKeyText(spikeHiddenKeys), "docs hidden | running")
+	assertSpikeFooter(t, h, spikeFooterKeyText(spikeHiddenKeys), spikeClosedPill())
 	if original.Cursor == nil || original.Cursor.X != 33 || original.Cursor.Y != 3 || original.Cursor.Shape != tea.CursorBar || !original.Cursor.Blink {
 		t.Fatalf("cursor = %+v", original.Cursor)
 	}
@@ -171,13 +224,13 @@ func TestHostViewProtectsFooterAndRestoresHiddenPane(t *testing.T) {
 	shown := h.View()
 	shownLines := strings.Split(ansi.Strip(shown.Content), "\n")
 	if strings.TrimSpace(shownLines[body.Min.Y]) != "D" || shown.Cursor != nil ||
-		!strings.Contains(h.footer(), "docs | floating | focus:shell | running") {
+		!strings.Contains(h.footer(), spikeOpenPill("docs", false, false)) {
 		t.Fatalf("borderless docs did not begin at the panel origin, cover the shell cursor, or report footer status: %+v", shown)
 	}
-	if content := strings.Join(shownLines[:h.rows-1], "\n"); strings.Contains(content, "docs |") || strings.ContainsAny(content, "┌┐└┘│─") {
+	if content := strings.Join(shownLines[:h.rows-1], "\n"); strings.Contains(content, spikeOpenPill("docs", false, false)) || strings.ContainsAny(content, "┌┐└┘│─") {
 		t.Fatalf("host added a border/title strip outside the footer: %q", content)
 	}
-	assertSpikeFooter(t, h, spikeFooterKeyText(spikeNavigationKeys), "docs | floating | focus:shell | running")
+	assertSpikeFooter(t, h, spikeFooterKeyText(spikeWindowKeys), spikeOpenPill("docs", false, false))
 	if !reflect.DeepEqual(h.frame.Cells, cells) || !reflect.DeepEqual(p.frame.Cells, paneCells) {
 		t.Fatal("docs window changed a child snapshot")
 	}
@@ -185,7 +238,7 @@ func TestHostViewProtectsFooterAndRestoresHiddenPane(t *testing.T) {
 	if restored := h.View(); restored.Content != original.Content || !reflect.DeepEqual(restored.Cursor, original.Cursor) {
 		t.Fatal("hiding docs did not restore the exact shell screen and cursor")
 	}
-	assertSpikeFooter(t, h, spikeFooterKeyText(spikeHiddenKeys), "docs hidden | running")
+	assertSpikeFooter(t, h, spikeFooterKeyText(spikeHiddenKeys), spikeClosedPill())
 	if h.pane != p {
 		t.Fatal("hidden docs did not retain its pane and show hint")
 	}
@@ -325,7 +378,7 @@ func TestHostRealBashReadlineAndSemanticLifecycle(t *testing.T) {
 	if !h.paneVisible || !h.paneFocused() || h.placement != placementFloating {
 		t.Fatal("Alt+x did not open and focus the floating menu")
 	}
-	frontendChord(h, 't')
+	frontendAlt(h, 'w')
 	h.Update(tea.PasteMsg{Content: "echo 界"})
 	awaitSpike(t, h, "typing in Bash with the menu hidden", func() bool { return spikeInput(h) == "echo 界" })
 	spikeKey(h, 'v', tea.ModCtrl)
@@ -413,39 +466,51 @@ func TestHostLockFooterAcrossPromptModes(t *testing.T) {
 			})
 			awaitSpike(t, h, "editable prompt in locked mode", func() bool { return h.prompt.ready && spikeInput(h) == "" })
 			keys := spikeFooterKeyText(spikeNavigationKeys)
-			assertChromeFooter(t, h, spikeNavigationKeys, "", nil)
+			assertChromeFooter(t, h, spikeNavigationKeys, spikeClosedPill())
 			input := "echo locked-界é🙂"
 			h.Update(tea.PasteMsg{Content: input})
 			awaitSpike(t, h, "real editable input with locked footer", func() bool { return spikeInput(h) == input })
 			native := ghosttySnapshot(t, h.terminal)
 			view := h.View()
-			if frontendPTYSize(t, h.child) != [2]int{120, 15} || h.frame.Cols != 120 || h.frame.Rows != 15 ||
+			if frontendPTYSize(t, h.child) != [2]int{120, shellRows(h.rows)} || h.frame.Cols != 120 || h.frame.Rows != shellRows(h.rows) ||
 				view.Cursor == nil || view.Cursor.X != native.CursorX || view.Cursor.Y != native.CursorY {
 				t.Fatalf("locked footer changed real input/PTY/caret geometry: cursor=%+v\n%s", view.Cursor, ansi.Strip(view.Content))
 			}
+			frontendAlt(h, 'x')
+			awaitFrontendReady(t, h, "MENU")
+			frontendChord(h, tea.KeyTab)
+			spikeKey(h, 'p', tea.ModCtrl)
+			if h.leader || h.paneFocused() || spikeInput(h) != input {
+				t.Fatal("opening a window and focusing Bash changed native input or left command mode unlocked")
+			}
+			native = ghosttySnapshot(t, h.terminal)
+			openKeys := spikeFooterKeyText(spikeWindowKeys)
 			for _, cancel := range []rune{tea.KeyEscape, 'p'} {
 				spikeKey(h, 'p', tea.ModCtrl)
-				assertChromeFooter(t, h, spikeLeaderKeys, "", nil)
+				assertChromeFooter(t, h, spikeLeaderWindowKeys, spikeOpenPill("menu", false, true))
 				mod := tea.KeyMod(0)
 				if cancel == 'p' {
 					mod = tea.ModCtrl
 				}
 				spikeKey(h, cancel, mod)
-				assertSpikeFooter(t, h, keys, "")
+				assertSpikeFooter(t, h, openKeys, spikeOpenPill("menu", false, true))
 				if h.leader || spikeInput(h) != input || !reflect.DeepEqual(native, ghosttySnapshot(t, h.terminal)) {
 					t.Fatal("locking with Escape/Ctrl+P changed native input or the caret")
 				}
 			}
-			frontendChord(h, 'v')
-			if h.leader || h.placement != placementLeft {
-				t.Fatal("one unlocked layout action did not relock")
+			frontendChord(h, ']')
+			if !h.leader || h.placement != placementLeft {
+				t.Fatal("unlocked layout action must keep command mode unlocked")
 			}
-			assertSpikeFooter(t, h, keys, "Placement: left")
+			spikeKey(h, 'p', tea.ModCtrl)
+			frontendAlt(h, 'w')
+			assertSpikeFooter(t, h, keys, spikeClosedPill())
+			awaitSpike(t, h, "input survives hiding the window", func() bool { return spikeInput(h) == input })
 			spikeKey(h, 'm', 0)
 			awaitSpike(t, h, "next bare key returns to the child", func() bool { return spikeInput(h) == input+"m" })
-			assertSpikeFooter(t, h, keys, "")
+			assertSpikeFooter(t, h, keys, spikeClosedPill())
 			h.notice = "LOCK_NOTICE"
-			assertSpikeFooter(t, h, keys, "LOCK_NOTICE")
+			assertSpikeFooter(t, h, keys, "LOCK_NOTICE "+spikeClosedPill())
 		})
 	}
 }
@@ -473,25 +538,26 @@ func TestHostStarshipKeepsNativeWideInputAcrossPaneResize(t *testing.T) {
 	}
 	h.Update(tea.PasteMsg{Content: input})
 	awaitSpike(t, h, "native wide Starship input", visible)
-	frontendChord(h, 'x')
+	frontendAlt(h, 'x')
 	awaitFrontendReady(t, h, "MENU")
 	p := h.pane
 	spikeKey(h, ']', tea.ModCtrl)
 	frontendChord(h, tea.KeyTab)
+	spikeKey(h, 'p', tea.ModCtrl)
 	input += "-dock"
 	h.Update(tea.PasteMsg{Content: "-dock"})
 	awaitSpike(t, h, "docked native wide input remains editable", visible)
-	frontendChord(h, 't')
+	frontendAlt(h, 'w')
 	input += "-hide"
 	h.Update(tea.PasteMsg{Content: "-hide"})
 	awaitSpike(t, h, "hidden pane restores native wide prompt and input", visible)
-	frontendChord(h, 'x')
+	frontendAlt(h, 'x')
 	if h.pane != p || !h.paneFocused() {
 		t.Fatal("show replaced the pane or lost focus")
 	}
 	awaitSpike(t, h, "show preserves native wide Starship input after SIGWINCH", visible)
-	frontendChord(h, 'c')
-	awaitSpike(t, h, "close keeps native wide Starship input", visible)
+	frontendAlt(h, 'w')
+	awaitSpike(t, h, "hide keeps native wide Starship input", visible)
 }
 
 func TestHostRealPTYResizeExitAndCleanup(t *testing.T) {

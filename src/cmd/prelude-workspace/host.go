@@ -52,9 +52,18 @@ type host struct {
 	terminalFocused bool
 }
 
-// The child cannot address the footer: its PTY and emulator are both one row
-// shorter than the outer frame. At one row, View omits the footer instead.
-func shellRows(rows int) int { return max(rows-1, 1) }
+// The child cannot address the footer: its PTY and emulator stop above it.
+// From footerPaddingMinRows up, a blank row also separates the content from
+// the footer. At one row, View omits the footer instead.
+func shellRows(rows int) int {
+	if rows >= footerPaddingMinRows {
+		return rows - 2
+	}
+	return max(rows-1, 1)
+}
+
+// Below this height the padding row would cost more content than it is worth.
+const footerPaddingMinRows = 8
 
 func newHost(cols, rows int, env []string, starship bool) (*host, error) {
 	cols, rows = max(1, min(cols, 65535)), max(1, min(rows, 65535))

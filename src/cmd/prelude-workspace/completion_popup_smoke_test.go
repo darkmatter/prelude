@@ -13,7 +13,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-const smokeCompletionHint = "Tab  next   Shift+Tab  prev   Enter  accept   Esc  dismiss"
+const smokeCompletionHint = "Tab next Shift+Tab prev Enter accept Esc dismiss"
 
 func smokeCompletionVisible(f smokeFrame) bool {
 	return f.footer() == smokeCompletionHint
@@ -60,7 +60,13 @@ func smokeCompletionBounds(t *testing.T, f smokeFrame, prompt, input string) {
 	if promptRow < 0 || !f.hasInput(prompt, input) || key == "" || selectedRow <= promptRow || selectedRow >= len(f.rows)-1 {
 		t.Fatalf("completion candidates must be below the live prompt and above the protected footer: prompt=%d selected=%d key=%q\n%s", promptRow, selectedRow, key, strings.Join(f.rows, "\n"))
 	}
-	if f.footer() != smokeCompletionHint || strings.Count(strings.Join(f.rows, "\n"), smokeCompletionHint) != 1 {
+	hintRows := 0
+	for _, row := range f.rows {
+		if strings.Join(strings.Fields(row), " ") == smokeCompletionHint {
+			hintRows++
+		}
+	}
+	if f.footer() != smokeCompletionHint || hintRows != 1 {
 		t.Fatalf("completion hint must occupy only the single protected final row\n%s", strings.Join(f.rows, "\n"))
 	}
 	assertSmokeFooterTheme(t, f, smokeCompletionKeys, "")
@@ -207,7 +213,7 @@ func exerciseSmokeCompletionPopup(s *smokeOuterPTY, prompt string) {
 	awaitSmokeCompletion(s, prompt, "x go:")
 	s.send("\x1d")
 	s.await("layout change dismisses completion without changing input", func(f smokeFrame) bool {
-		return !smokeCompletionVisible(f) && f.hasInput(prompt, "x go:") && f.hasFooter(smokeNavigationKeys, "Placement: left")
+		return !smokeCompletionVisible(f) && f.hasInput(prompt, "x go:") && f.hasFooter(smokeNavigationKeys, smokeClosedPill())
 	})
 	s.send("\x1c") // Return left -> floating for the existing menu tests.
 	s.send("\x15x go:\t")
@@ -267,8 +273,8 @@ func exerciseSmokeCompletionPopup(s *smokeOuterPTY, prompt string) {
 	s.send("\x1b")
 	awaitSmokeCompletionInput(s, prompt, "x go:")
 	s.send("\x15printf 'POPUP_SIZE:'; stty size\r")
-	s.await("completion preserves the native PTY height minus the single footer", func(f smokeFrame) bool {
-		return f.hasLine(fmt.Sprintf("POPUP_SIZE:%d 80", tinyRows-1)) && f.hasInput(prompt, "") && f.footer() == smokeBaseFooter
+	s.await("completion preserves the native PTY height", func(f smokeFrame) bool {
+		return f.hasLine(fmt.Sprintf("POPUP_SIZE:%d 80", shellRows(tinyRows))) && f.hasInput(prompt, "") && f.footer() == smokeBaseFooter
 	})
 	s.resize(160, 40)
 	// Bash can redraw only PS1's tail during external reflow. A new primary
@@ -313,8 +319,8 @@ func TestGhosttyCompletionPopupOwnershipBinarySmoke(t *testing.T) {
 		name, prompt, ps2 string
 		args              []string
 	}{
-		{"Fixed", strings.TrimSpace(workspacePrompt), "...", nil},
-		{"Starship", "界❯", "∙", []string{"--starship"}},
+		{"Fixed", strings.TrimSpace(workspacePrompt), "...", []string{fixedPromptFlag}},
+		{"Starship", "界❯", "∙", nil},
 	} {
 		t.Run(mode.name, func(t *testing.T) {
 			dir, home := t.TempDir(), t.TempDir()
@@ -349,8 +355,10 @@ func TestGhosttyCompletionPopupOwnershipBinarySmoke(t *testing.T) {
 			first := s.await("initial prompt with canonical completion loaded", func(f smokeFrame) bool {
 				return f.hasInput(mode.prompt, "") && f.footer() == smokeBaseFooter
 			})
-			palette := smokeKeymapPalette{key: ansi.HexColor("#3388cc"), label: ansi.HexColor("#2468ac"), bg: ansi.HexColor("#010203"), success: ansi.HexColor("#39b878")}
-			assertSmokeFooterTheme(t, first, smokeNavigationKeys, "", palette)
+			palette := smokeKeymapPalette{key: ansi.HexColor("#3388cc"), label: ansi.HexColor("#2468ac"), bg: ansi.HexColor("#010203"),
+				accent: ansi.HexColor("#d46cb8"), fg: ansi.HexColor("#13579b"), muted: ansi.HexColor("#2468ac"),
+				warning: ansi.HexColor("#c98f12"), err: ansi.HexColor("#d43a5e"), dot: ansi.HexColor("#39b878")}
+			assertSmokeFooterTheme(t, first, smokeNavigationKeys, smokeClosedPill(), palette)
 			s.send("x\r")
 			s.await("foreground child owns input even though its submitted command was x", func(f smokeFrame) bool {
 				return f.hasLine("RACE_FOREGROUND_READY") && f.hasInput(mode.prompt, "x") && !smokeCompletionVisible(f) && f.footer() == smokeBaseFooter
@@ -380,29 +388,25 @@ func TestGhosttyCompletionPopupOwnershipBinarySmoke(t *testing.T) {
 			s.send("x go:\t")
 			popup := awaitSmokeCompletion(s, mode.prompt, "x go:")
 			assertSmokeFooterTheme(t, popup, smokeCompletionKeys, "", palette)
-			s.send("\x10")
-			leader := s.await("leader replaces completion hints on the same footer", func(f smokeFrame) bool {
-				return f.hasFooter(smokeLeaderKeys, "") && !smokeCompletionVisible(f)
-			})
-			assertSmokeFooterTheme(t, leader, smokeLeaderKeys, "", palette)
-			s.send("d")
+			s.send("\x1bd")
 			pane := s.await("opening a pane dismisses completion and transfers focus", func(f smokeFrame) bool {
-				return f.panel("docs") && !smokeCompletionVisible(f) && f.hasPaneFooter("docs | floating | focus:pane | running")
+				return f.panel("docs") && !smokeCompletionVisible(f) && f.hasPaneFooter(f.paneFooterStatus("docs", "")) && f.pillFocusesPane()
 			})
-			palette.status = ansi.HexColor("#39b878")
-			assertSmokeFooterTheme(t, pane, smokePaneKeys, "docs | floating | focus:pane | running", palette)
+			assertSmokeFooterTheme(t, pane, smokePaneKeys, pane.paneFooterStatus("docs", ""), palette)
 			s.send("\t\x1b[Z")
 			s.await("pane owns Tab and Shift+Tab bytes", func(f smokeFrame) bool {
 				return strings.Contains(strings.Join(f.rows, "\n"), "BYTES:091b5b5a") && !smokeCompletionVisible(f)
 			})
 			s.send("\x10?")
 			notice := s.await("notice uses the palette warning color on the protected footer", func(f smokeFrame) bool {
-				return f.hasPaneFooter(smokeUnknownChordStatus("docs | floating | focus:pane | running")) && f.panel("docs")
+				return f.hasFooter(smokeLeaderWindowKeys, smokeUnknownChordStatus(f.paneFooterStatus("docs", ""))) && f.panel("docs")
 			})
-			palette.status = ansi.HexColor("#c98f12")
-			assertSmokeFooterTheme(t, notice, smokePaneKeys, smokeUnknownChordStatus("docs | floating | focus:pane | running"), palette)
-			s.send("\x10c")
-			awaitSmokeCompletionInput(s, mode.prompt, "x go:")
+			assertSmokeFooterTheme(t, notice, smokeLeaderWindowKeys, smokeUnknownChordStatus(notice.paneFooterStatus("docs", "")), palette)
+			s.send("\x1bd")
+			s.await("hiding docs leaves editable completion input", func(f smokeFrame) bool {
+				return !smokeCompletionVisible(f) && f.hasInput(mode.prompt, "x go:") &&
+					f.hasPaneFooter(smokeClosedPill())
+			})
 			s.send("\x15exit 0\r")
 			s.expectExit(0)
 			assertMotdCalls(t, motdLog, 1)

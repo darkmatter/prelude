@@ -116,6 +116,16 @@ func frontendChord(h *host, code rune) tea.Cmd {
 	return cmd
 }
 
+func frontendAlt(h *host, code rune) tea.Cmd {
+	_, cmd := h.Update(tea.KeyPressMsg{Code: code, Mod: tea.ModAlt})
+	return cmd
+}
+
+func frontendLeader(h *host, code rune) tea.Cmd {
+	_, cmd := h.Update(tea.KeyPressMsg{Code: code})
+	return cmd
+}
+
 // The same UI loop receives both children's events; no goroutine touches native
 // state. Like the existing host fixtures, tests consume process channels directly
 // instead of launching Bubble Tea's renderer/commands.
@@ -167,22 +177,36 @@ func awaitFrontendReady(t *testing.T, h *host, label string) {
 }
 
 func TestFrontendLeaderConsumesOnlyPrefixedChords(t *testing.T) {
+	frontendTools(t)
 	h := newSpikeTestHost(t)
 	if !h.terminalFocused || h.placement != placementFloating || h.paneVisible || h.pane != nil {
 		t.Fatal("new host must start outer-focused with no visible pane in floating placement")
+	}
+	frontendAlt(h, 'x')
+	awaitFrontendReady(t, h, "MENU")
+	p := h.pane
+	frontendChord(h, tea.KeyTab)
+	spikeKey(h, 'p', tea.ModCtrl)
+	if h.leader || h.paneFocused() || !h.paneVisible {
+		t.Fatal("setup must leave the window open, Bash focused, and command mode locked")
 	}
 	for _, code := range "xd?" {
 		spikeKey(h, code, 0)
 	}
 	awaitSpike(t, h, "unprefixed surface keys in readline", func() bool { return spikeInput(h) == "xd?" })
 	spikeKey(h, 'p', tea.ModCtrl)
-	if !h.leader || !strings.Contains(ansi.Strip(h.View().Content), "UNLOCKED    m  motd   x  menu") {
-		t.Fatal("prefix was not consumed or its hints were hidden")
+	if !h.leader || !strings.Contains(ansi.Strip(h.View().Content), " ^P layout ") {
+		t.Fatal("prefix was not consumed or its badge was hidden")
+	}
+	spikeKey(h, 't', 0)
+	if !h.leader || !strings.Contains(h.notice, "Unknown key") {
+		t.Fatal("unlocked t must produce the unknown-key notice, not toggle a window")
 	}
 	spikeKey(h, 'z', 0)
-	if h.leader || !strings.Contains(h.notice, "Unknown Ctrl+P chord") || h.surface != surfaceNone {
-		t.Fatal("invalid chord must be consumed with useful guidance")
+	if !h.leader || !strings.Contains(h.notice, "Unknown key") || h.surface != surfaceMenu {
+		t.Fatal("invalid chord must be consumed with useful guidance and keep command mode unlocked")
 	}
+	spikeKey(h, 'p', tea.ModCtrl)
 	h.Update(tea.PasteMsg{Content: "-safe"})
 	awaitSpike(t, h, "invalid chord not injected", func() bool { return spikeInput(h) == "xd?-safe" })
 	spikeKey(h, 'p', tea.ModCtrl)
@@ -211,22 +235,140 @@ func TestFrontendLeaderConsumesOnlyPrefixedChords(t *testing.T) {
 	spikeKey(h, 'c', tea.ModCtrl)
 	awaitSpike(t, h, "normal Ctrl+C reaches Bash", func() bool { return h.prompt.ready && spikeInput(h) == "" })
 	spikeShellStatus(t, h, 130)
-	for _, want := range []placement{placementLeft, placementRight, placementTop, placementBottom, placementFloating} {
-		frontendChord(h, 'v')
-		if h.placement != want || h.pane != nil || !strings.Contains(h.notice, want.String()) {
-			t.Fatalf("closed-pane placement cycle: got=%s want=%s notice=%q", h.placement, want, h.notice)
+	spikeKey(h, 'p', tea.ModCtrl)
+	cycle := func(key rune, wants []placement) {
+		for _, want := range wants {
+			frontendLeader(h, key)
+			if !h.leader || h.placement != want || h.pane != p || spikeInput(h) != "" || h.notice != "" {
+				t.Fatalf("unlocked %q placement cycle: got=%s want=%s leader=%t input=%q notice=%q", key, h.placement, want, h.leader, spikeInput(h), h.notice)
+			}
 		}
 	}
+	cycle(']', []placement{placementLeft, placementRight, placementTop, placementBottom, placementFloating})
+	cycle('[', []placement{placementBottom, placementTop, placementRight, placementLeft, placementFloating})
+	if footer := h.footer(); !strings.Contains(footer, " ^P layout ") || !strings.Contains(footer, "[ ]") || !strings.Contains(footer, "▣ ◧ ◨ ⬒ ⬓") {
+		t.Fatalf("unlocked footer with a window must show the badge and layout strip: %q", footer)
+	}
+	assertLayoutStrip(t, h)
+	spikeKey(h, 'p', tea.ModCtrl)
 	for _, step := range []struct {
 		key  rune
 		want placement
 	}{{'[', placementBottom}, {'\\', placementTop}, {']', placementBottom}, {']', placementFloating}} {
 		spikeKey(h, 'p', tea.ModCtrl)
 		spikeKey(h, step.key, tea.ModCtrl)
-		if h.leader || h.placement != step.want || h.pane != nil || spikeInput(h) != "" {
-			t.Fatalf("direct layout key must cancel the prefix without reaching Bash: key=%q placement=%s leader=%t", step.key, h.placement, h.leader)
+		if !h.leader || h.placement != step.want || h.pane != p || spikeInput(h) != "" {
+			t.Fatalf("direct layout key must keep command mode unlocked without reaching Bash: key=%q placement=%s leader=%t", step.key, h.placement, h.leader)
 		}
+		spikeKey(h, 'p', tea.ModCtrl)
 	}
+}
+
+// Ctrl+P is Readline's previous-history until a window is open; only then
+// does it unlock layout commands instead of reaching Bash.
+func TestCtrlPWithoutWindowReachesBashWithWindowUnlocks(t *testing.T) {
+	frontendTools(t)
+	h := newSpikeTestHost(t)
+	h.Update(tea.PasteMsg{Content: "echo ctrlp-history"})
+	spikeKey(h, tea.KeyEnter, 0)
+	awaitSpike(t, h, "seeded Bash history", func() bool {
+		return h.prompt.ready && spikeInput(h) == "" && strings.Contains(spikeFrameText(h.frame), "ctrlp-history")
+	})
+	spikeKey(h, 'p', tea.ModCtrl)
+	if h.leader {
+		t.Fatal("Ctrl+P without a window must not unlock command mode")
+	}
+	awaitSpike(t, h, "Ctrl+P recalls previous history in Bash", func() bool { return spikeInput(h) == "echo ctrlp-history" })
+	spikeKey(h, 'c', tea.ModCtrl)
+	awaitSpike(t, h, "recalled line cancelled", func() bool { return h.prompt.ready && spikeInput(h) == "" })
+	frontendAlt(h, 'x')
+	awaitFrontendReady(t, h, "MENU")
+	spikeKey(h, 'p', tea.ModCtrl)
+	if !h.leader || spikeInput(h) != "" {
+		t.Fatalf("Ctrl+P with a window open must unlock without reaching Bash: leader=%t input=%q", h.leader, spikeInput(h))
+	}
+	spikeKey(h, 'p', tea.ModCtrl)
+	if h.leader || spikeInput(h) != "" {
+		t.Fatal("second Ctrl+P must lock without reaching Bash")
+	}
+}
+
+// assertLayoutStrip verifies the footer's unlocked layout hint: the "[ ]"
+// keycap in bold Accent2 on bg, then every placement glyph preceded by a
+// space, the current one bold in Accent and the rest plain muted, no bg.
+func assertLayoutStrip(t *testing.T, h *host) {
+	t.Helper()
+	if !h.leader || !h.windowOpen() {
+		t.Fatalf("strip needs an unlocked open window: leader=%t open=%t", h.leader, h.windowOpen())
+	}
+	view := h.View()
+	screen := vt.NewEmulator(h.cols, h.rows)
+	t.Cleanup(func() { screen.Close() })
+	if _, err := screen.Write([]byte(strings.ReplaceAll(view.Content, "\n", "\r\n"))); err != nil {
+		t.Fatal(err)
+	}
+	y := h.rows - 1
+	check := func(x int, want string, fg, bg color.Color, bold bool) {
+		t.Helper()
+		var attrs uint8
+		if bold {
+			attrs = uv.AttrBold
+		}
+		cell := screen.CellAt(x, y)
+		if cell == nil || cell.Content != want || cell.Style.Attrs != attrs {
+			t.Fatalf("layout strip cell at %d,%d = %+v, want %q attrs=%d", x, y, cell, want, attrs)
+		}
+		assertChromeColor(t, cell.Style.Fg, fg)
+		assertChromeColor(t, cell.Style.Bg, bg)
+	}
+	x := 2 + unlockedBadge.width() + 2
+	for _, ch := range " [ ] " {
+		check(x, string(ch), h.palette.Accent2, h.palette.Bg, true)
+		x++
+	}
+	for _, where := range placements {
+		fg, bold := h.palette.Muted, false
+		if where == h.placement {
+			fg, bold = h.palette.Accent, true
+		}
+		check(x, " ", fg, nil, bold)
+		check(x+1, where.glyph(), fg, nil, bold)
+		x += 2
+	}
+}
+
+func assertNoLayoutStrip(t *testing.T, h *host) {
+	t.Helper()
+	if footer := h.footer(); strings.Contains(footer, "[ ]") || strings.Contains(footer, "▣") {
+		t.Fatalf("layout strip must be absent from the footer: %q", footer)
+	}
+}
+
+// The footer layout strip shows only while layout commands are unlocked
+// with a window open; cycling moves its highlighted glyph.
+func TestLayoutStripOnlyWhileUnlockedWithWindow(t *testing.T) {
+	frontendTools(t)
+	h := newSpikeTestHost(t)
+	assertNoLayoutStrip(t, h)
+	frontendAlt(h, 'x')
+	awaitFrontendReady(t, h, "MENU")
+	assertNoLayoutStrip(t, h)
+	spikeKey(h, 'p', tea.ModCtrl)
+	if !h.leader || h.placement != placementFloating {
+		t.Fatalf("setup: leader=%t placement=%s", h.leader, h.placement)
+	}
+	assertLayoutStrip(t, h)
+	frontendLeader(h, ']')
+	if !h.leader || h.placement != placementLeft {
+		t.Fatalf("unlocked ] must cycle to left and stay unlocked: leader=%t placement=%s", h.leader, h.placement)
+	}
+	assertLayoutStrip(t, h)
+	spikeKey(h, 'p', tea.ModCtrl)
+	assertNoLayoutStrip(t, h)
+	frontendAlt(h, 'w')
+	h.leader = true
+	assertNoLayoutStrip(t, h)
+	h.leader = false
 }
 
 func TestFrontendAltActionsAndOneShotLocking(t *testing.T) {
@@ -266,20 +408,23 @@ func TestFrontendAltActionsAndOneShotLocking(t *testing.T) {
 			}
 			native := ghosttySnapshot(t, h.terminal)
 			spikeKey(h, 'p', tea.ModCtrl)
-			assertChromeFooter(t, h, spikeLeaderKeys[:7], "", nil)
-			spikeKey(h, 'p', tea.ModCtrl)
-			assertChromeFooter(t, h, spikeNavigationKeys, "", nil)
-			if h.leader || !reflect.DeepEqual(native, ghosttySnapshot(t, h.terminal)) {
-				t.Fatal("double Ctrl+P forwarded a literal key instead of locking")
+			if h.leader {
+				t.Fatal("Ctrl+P without a window must stay Readline's, not unlock")
 			}
-			spikeKey(h, 'p', tea.ModCtrl)
+			assertChromeFooter(t, h, spikeNavigationKeys, spikeClosedPill())
 			alt('x')
 			awaitFrontendReady(t, h, "MENU")
 			p := h.pane
 			if h.leader || !h.paneFocused() || !h.paneVisible || h.surface != surfaceMenu || spikeInput(h) != "mxd" {
 				t.Fatal("direct Alt+x failed to open/focus the menu and relock without changing Bash input")
 			}
-			assertChromeFooter(t, h, spikeNavigationKeys, "menu | floating | focus:pane | running", h.palette.Success)
+			assertChromeFooter(t, h, spikeWindowKeys, spikeOpenPill("menu", true, true))
+			spikeKey(h, 'p', tea.ModCtrl)
+			if !h.leader || !strings.Contains(h.footer(), "▣") || !strings.Contains(h.footer(), "[ ]") {
+				t.Fatalf("unlocked footer with a window must show layout hints and strip: %q", h.footer())
+			}
+			assertLayoutStrip(t, h)
+			spikeKey(h, 'p', tea.ModCtrl)
 			for _, code := range "mxd" {
 				spikeKey(h, code, 0)
 			}
@@ -293,12 +438,12 @@ func TestFrontendAltActionsAndOneShotLocking(t *testing.T) {
 			if h.pane != p || !h.paneFocused() || h.leader {
 				t.Fatal("Ctrl+V failed to escape the direct Alt binding")
 			}
-			frontendChord(h, 't')
+			frontendAlt(h, 'w')
 			if h.leader || h.pane != p || h.paneVisible || h.focusPane || p.closed ||
-				frontendPTYSize(t, h.child) != [2]int{84, 11} || !reflect.DeepEqual(native, ghosttySnapshot(t, h.terminal)) {
-				t.Fatal("one-shot t failed to hide the same pane while preserving native input/PTY/caret")
+				frontendPTYSize(t, h.child) != [2]int{h.cols, shellRows(h.rows)} || !reflect.DeepEqual(native, ghosttySnapshot(t, h.terminal)) {
+				t.Fatal("Alt+W failed to hide the same pane while preserving native input/PTY/caret")
 			}
-			frontendChord(h, 'x')
+			frontendAlt(h, 'x')
 			if h.leader || h.pane != p || !h.paneFocused() {
 				t.Fatal("one-shot x did not restore the hidden menu and relock")
 			}
@@ -314,19 +459,132 @@ func TestFrontendAltActionsAndOneShotLocking(t *testing.T) {
 				return h.prompt.ready && spikeInput(h) == "mxd" && strings.Count(spikeFrameText(h.frame), "MOTD_SHELL:") == 2
 			})
 			if h.leader || h.pane != docs || h.paneVisible || h.focusPane || docs.closed ||
-				frontendPTYSize(t, docs.process) != paneSize || frontendPTYSize(t, h.child) != [2]int{84, 11} ||
+				frontendPTYSize(t, docs.process) != paneSize || frontendPTYSize(t, h.child) != [2]int{h.cols, shellRows(h.rows)} ||
 				strings.Contains(spikeFrameText(docs.frame), "MOTD_SHELL:") {
 				t.Fatal("Alt+m destroyed/resized the hidden pane or sent MOTD to it instead of Bash")
 			}
-			assertSpikeFooter(t, h, spikeFooterKeyText(spikeNavigationKeys), "docs hidden | running")
+			assertSpikeFooter(t, h, spikeFooterKeyText(spikeNavigationKeys), spikeClosedPill())
 		})
 	}
+}
+
+func TestFrontendAltTabTogglesFocusAndLocks(t *testing.T) {
+	frontendTools(t)
+	h := newSpikeTestHost(t)
+	altTab := func() { spikeKey(h, tea.KeyTab, tea.ModAlt) }
+	spikeKey(h, 'p', tea.ModCtrl)
+	altTab()
+	if h.leader || h.focusPane || !strings.Contains(h.notice, "No live interactive pane") {
+		t.Fatalf("Alt+Tab with no live pane must lock and explain: leader=%t focus=%t notice=%q", h.leader, h.focusPane, h.notice)
+	}
+	frontendAlt(h, 'x')
+	awaitFrontendReady(t, h, "MENU")
+	if !h.paneFocused() {
+		t.Fatal("Alt+x must open the menu focused")
+	}
+	assertPillAccentSide(t, h, true)
+	spikeKey(h, 'p', tea.ModCtrl)
+	altTab()
+	if h.leader || h.focusPane || h.paneFocused() || !h.paneVisible {
+		t.Fatal("Alt+Tab must move focus to Bash, lock command mode, and keep the pane visible")
+	}
+	assertPillAccentSide(t, h, false)
+	altTab()
+	if h.leader || !h.paneFocused() {
+		t.Fatal("second Alt+Tab must return focus to the live pane")
+	}
+	assertPillAccentSide(t, h, true)
+}
+
+// assertPillAccentSide pins which focus-pill name the accent marks: the pill
+// is the only place footer focus is expressed, so the focused name must be
+// bold accent on surface while the other rests plain muted on surface.
+func assertPillAccentSide(t *testing.T, h *host, wantPane bool) {
+	t.Helper()
+	_, spans := h.footerContent()
+	var name, shell *statusSpan
+	for i := range spans {
+		switch {
+		case strings.Contains(spans[i].text, h.surface.String()):
+			name = &spans[i]
+		case strings.Contains(spans[i].text, "shell"):
+			shell = &spans[i]
+		}
+	}
+	if name == nil || shell == nil {
+		t.Fatalf("focus pill names not found in footer status: %+v", spans)
+	}
+	same := func(a, b color.Color) bool {
+		if a == nil || b == nil {
+			return a == b
+		}
+		return color.RGBAModel.Convert(a) == color.RGBAModel.Convert(b)
+	}
+	focused := func(span *statusSpan) bool {
+		return span.bold && !span.reverse && same(span.fg, h.palette.Accent) && same(span.bg, h.palette.Surface)
+	}
+	pair := []struct {
+		span *statusSpan
+		want bool
+	}{{name, wantPane}, {shell, !wantPane}}
+	for _, side := range pair {
+		if side.want {
+			if !focused(side.span) {
+				t.Fatalf("focused pill segment %+v must be bold accent on surface", *side.span)
+			}
+		} else {
+			if focused(side.span) {
+				t.Fatalf("unfocused pill segment %+v must not carry the accent", *side.span)
+			}
+			if h.paneInteractive() && !strings.Contains(side.span.text, "⇥") {
+				t.Fatalf("unfocused pill segment %+v must carry the Alt+Tab marker", *side.span)
+			}
+			if side.span.bg == nil || color.RGBAModel.Convert(side.span.bg) != color.RGBAModel.Convert(h.palette.Surface) {
+				t.Fatalf("unfocused pill segment %+v must sit on the surface fill", *side.span)
+			}
+		}
+	}
+}
+
+// assertPillErrorSegment checks a failed pane marks the pill red: its name
+// segment sits on the error fill (reverse video without an error color), or,
+// while hidden, the lone viewer label uses the error foreground.
+func assertPillErrorSegment(t *testing.T, h *host) {
+	t.Helper()
+	_, spans := h.footerContent()
+	if !h.paneVisible {
+		for _, span := range spans {
+			if span.text == " viewer " {
+				if span.fg != h.palette.Error {
+					t.Fatalf("hidden failure chip %+v must use the error foreground", span)
+				}
+				return
+			}
+		}
+		t.Fatalf("closed pill chip not found: %+v", spans)
+	}
+	for _, span := range spans {
+		if !strings.Contains(span.text, h.surface.String()) {
+			continue
+		}
+		if h.palette.Error == nil {
+			if !span.reverse {
+				t.Fatalf("failed pill segment %+v must reverse without an error color", span)
+			}
+			return
+		}
+		if span.bg == nil || color.RGBAModel.Convert(span.bg) != color.RGBAModel.Convert(h.palette.Error) {
+			t.Fatalf("failed pill segment %+v must sit on the error fill", span)
+		}
+		return
+	}
+	t.Fatalf("pill name segment not found: %+v", spans)
 }
 
 func TestFrontendPaneInputLifecycleAndStaleEvents(t *testing.T) {
 	frontendTools(t)
 	h := newSpikeTestHost(t)
-	frontendChord(h, 'x')
+	frontendAlt(h, 'x')
 	awaitFrontendReady(t, h, "MENU")
 	p := h.pane
 	if h.surface != surfaceMenu || !h.paneVisible || !h.paneFocused() || p.done || h.leader || h.placement != placementFloating {
@@ -352,6 +610,7 @@ func TestFrontendPaneInputLifecycleAndStaleEvents(t *testing.T) {
 	if h.surface != surfaceMenu || !h.paneVisible || !h.paneFocused() || h.leader || spikeInput(h) != "" {
 		t.Fatal("unprefixed/quoted pane input changed host state or leaked into Bash")
 	}
+	assertPillAccentSide(t, h, true)
 	spikeKey(h, 'p', tea.ModCtrl)
 	h.Update(tea.PasteMsg{Content: "A"})
 	awaitFrontend(t, h, "paste cancels leader and reaches focused pane", func() bool {
@@ -363,18 +622,18 @@ func TestFrontendPaneInputLifecycleAndStaleEvents(t *testing.T) {
 	before := p.frame
 	// Leave genuine child output queued across the hide, not a synthetic image.
 	spikeKey(h, 'H', 0)
-	frontendChord(h, 't')
+	frontendAlt(h, 'w')
 	if h.paneVisible || h.focusPane || h.leader || h.pane != p || !h.currentPane(p) || !reflect.DeepEqual(before, p.frame) ||
 		h.View().MouseMode != tea.MouseModeCellMotion {
-		t.Fatal("one-shot t must retain the live image/reader and return input to Bash while the host keeps the wheel")
+		t.Fatal("Alt+W must retain the live image/reader and return input to Bash while the host keeps the wheel")
 	}
-	assertSpikeFooter(t, h, spikeFooterKeyText(spikeHiddenKeys), "menu hidden | running")
+	assertSpikeFooter(t, h, spikeFooterKeyText(spikeHiddenKeys), spikeClosedPill())
 	awaitFrontend(t, h, "hidden pane continues absorbing child output", func() bool {
 		return strings.Contains(frontendCompactText(p.frame), fmt.Sprintf("INPUT:%x", received+"AH\x1b[O"))
 	})
 	h.Update(tea.PasteMsg{Content: "echo parked"})
 	awaitFrontend(t, h, "hidden pane sends paste to Bash", func() bool { return spikeInput(h) == "echo parked" })
-	frontendChord(h, 't')
+	frontendAlt(h, 'w')
 	spikeKey(h, 'a', 0)
 	awaitFrontend(t, h, "show restores input and navigation state in the same focused pane", func() bool {
 		return strings.Contains(frontendCompactText(p.frame), fmt.Sprintf("INPUT:%x", received+"AH\x1b[O\x1b[Ia"))
@@ -383,33 +642,52 @@ func TestFrontendPaneInputLifecycleAndStaleEvents(t *testing.T) {
 		t.Fatal("show replaced the pane or changed parked Bash input")
 	}
 	frontendChord(h, tea.KeyTab)
+	spikeKey(h, 'p', tea.ModCtrl)
 	h.Update(tea.PasteMsg{Content: "-tab"})
 	awaitFrontend(t, h, "focus toggle still sends paste to Bash", func() bool { return spikeInput(h) == "echo parked-tab" })
+	assertPillAccentSide(t, h, false)
 	frontendChord(h, tea.KeyTab)
+	assertPillAccentSide(t, h, true)
+	spikeKey(h, 'p', tea.ModCtrl)
 	spikeKey(h, 'q', 0)
 	awaitFrontend(t, h, "surface exit retained without quitting main shell", func() bool { return p.done })
 	if h.pane != p || p.closed || p.terminal.native == nil || p.exitCode != 7 || h.focusPane || h.paneError != nil || h.code != 0 {
 		t.Fatalf("finished pane state: pane=%+v focus=%v error=%v shellCode=%d", p, h.focusPane, h.paneError, h.code)
 	}
-	if !strings.Contains(ansi.Strip(h.View().Content), "exited:7") {
+	if !strings.Contains(ansi.Strip(h.View().Content), "exited 7") {
 		t.Fatal("retained pane's exit status is not visible")
 	}
 	final := p.frame
-	frontendChord(h, 't')
-	if h.paneVisible {
+	frontendAlt(h, 'w')
+	if h.paneVisible || h.leader {
 		t.Fatal("finished pane did not hide with its retained exit status")
 	}
-	assertSpikeFooter(t, h, spikeFooterKeyText(spikeHiddenKeys), "menu hidden | exited:7")
-	frontendChord(h, 't')
+	assertSpikeFooter(t, h, spikeFooterKeyText(spikeHiddenKeys), "exited 7 "+spikeClosedPill())
+	frontendAlt(h, 'w')
 	if h.pane != p || !h.paneVisible || h.focusPane || p.closed || !reflect.DeepEqual(final, p.frame) {
-		t.Fatal("one-shot t restarted or focused a finished pane instead of showing its final image")
+		t.Fatal("Alt+W restarted or focused a finished pane instead of showing its final image")
 	}
-	frontendChord(h, 'x')
+	frontendAlt(h, 'x')
 	if h.pane == nil || h.pane == p || !p.closed || !h.paneFocused() {
 		t.Fatal("same finished surface must restart, not toggle closed")
 	}
 	awaitFrontendReady(t, h, "MENU")
 	current := h.pane
+	// Alt+W mirrors unlocked t: it toggles this window and clears the leader.
+	spikeKey(h, 'p', tea.ModCtrl)
+	if !h.leader {
+		t.Fatal("Ctrl+P did not unlock for the Alt+W toggle")
+	}
+	frontendAlt(h, 'w')
+	if h.paneVisible || h.leader || h.pane != current {
+		t.Fatal("Alt+W did not hide the pane and clear the leader")
+	}
+	assertSpikeFooter(t, h, spikeFooterKeyText(spikeHiddenKeys), spikeClosedPill())
+	frontendAlt(h, 'w')
+	if !h.paneVisible || !h.paneFocused() || h.pane != current {
+		t.Fatal("Alt+W did not show the retained pane focused")
+	}
+	assertSpikeFooter(t, h, spikeFooterKeyText(spikeWindowKeys), spikeOpenPill("menu", true, true))
 	before = current.frame
 	for _, msg := range []tea.Msg{
 		paneOutputMsg{pane: p, output: outputMsg{data: []byte("STALE_IMAGE")}},
@@ -423,21 +701,19 @@ func TestFrontendPaneInputLifecycleAndStaleEvents(t *testing.T) {
 	if h.pane != current || h.paneError != nil || !reflect.DeepEqual(current.frame, before) {
 		t.Fatal("stale messages affected the replacement pane")
 	}
-	frontendChord(h, 'x')
+	frontendAlt(h, 'x')
 	if h.pane != current || h.paneVisible || current.closed || !h.currentPane(current) {
 		t.Fatal("same running surface must hide without destroying the pane")
 	}
-	frontendChord(h, 'c')
+	_ = h.closePane()
 	if h.pane != nil || h.surface != surfaceNone || h.paneVisible || !current.closed || h.focusPane || current.terminal.native != nil {
-		t.Fatal("close chord must destroy even a hidden pane")
+		t.Fatal("close cleanup must destroy even a hidden pane")
 	}
 	paneTestProcessClosed(t, current)
 	if _, cmd := h.Update(paneFailureMsg{pane: current, err: errors.New("late failure")}); cmd != nil || h.err != nil || h.paneError != nil {
 		t.Fatal("closed pane failure escaped into main-shell state")
 	}
-	if h.footer() != baseFooter {
-		t.Fatal("closing a pane did not restore the exact base footer")
-	}
+	assertSpikeFooter(t, h, spikeFooterKeyText(spikeNavigationKeys), spikeClosedPill())
 }
 
 func TestFrontendSameSurfaceChordsRetainHiddenPanes(t *testing.T) {
@@ -450,7 +726,7 @@ func TestFrontendSameSurfaceChordsRetainHiddenPanes(t *testing.T) {
 		kind  surfaceKind
 		label string
 	}{{'x', surfaceMenu, "MENU"}, {'d', surfaceDocs, "DOCS"}} {
-		frontendChord(h, surface.key)
+		frontendAlt(h, surface.key)
 		awaitFrontendReady(t, h, surface.label)
 		if previous != nil {
 			if !previous.closed || previous.terminal.native != nil {
@@ -464,14 +740,14 @@ func TestFrontendSameSurfaceChordsRetainHiddenPanes(t *testing.T) {
 		spikeKey(h, 'a', 0)
 		awaitFrontend(t, h, "pane input before hiding", func() bool { return strings.Contains(spikeFrameText(p.frame), "INPUT:61") })
 		before := p.frame
-		frontendChord(h, surface.key)
+		frontendAlt(h, surface.key)
 		if h.surface != surface.kind || h.pane != p || h.paneVisible || h.focusPane || !h.currentPane(p) ||
 			p.process != process || p.terminal != engine || engine.native != native || process.ptmx != ptmx || process.readerDone != reader || p.process.cmd.Process.Pid != pid ||
 			!reflect.DeepEqual(before, p.frame) || !h.layout().Body.Empty() || h.frame.Cols != h.cols || h.frame.Rows != shellRows(h.rows) ||
 			frontendPTYSize(t, h.child) != [2]int{h.cols, shellRows(h.rows)} {
 			t.Fatalf("same %s chord did not retain the pane and give Bash the full usable area", surface.kind)
 		}
-		assertSpikeFooter(t, h, spikeFooterKeyText(spikeHiddenKeys), surface.kind.String()+" hidden | running")
+		assertSpikeFooter(t, h, spikeFooterKeyText(spikeHiddenKeys), spikeClosedPill())
 		for _, done := range []<-chan struct{}{process.readerDone, process.exited, process.stop} {
 			select {
 			case <-done:
@@ -483,7 +759,7 @@ func TestFrontendSameSurfaceChordsRetainHiddenPanes(t *testing.T) {
 		awaitFrontend(t, h, "hidden pane routes input to Bash", func() bool { return spikeInput(h) == "stty size" })
 		spikeKey(h, tea.KeyEnter, 0)
 		awaitFrontend(t, h, "Bash runs at full size while pane is hidden", func() bool {
-			return h.prompt.ready && spikeInput(h) == "" && strings.Contains(spikeFrameText(h.frame), "11 84")
+			return h.prompt.ready && spikeInput(h) == "" && strings.Contains(spikeFrameText(h.frame), fmt.Sprintf("%d %d", shellRows(h.rows), h.cols))
 		})
 		hidden := p.frame
 		h.Update(tea.WindowSizeMsg{Width: 96, Height: 18})
@@ -491,7 +767,7 @@ func TestFrontendSameSurfaceChordsRetainHiddenPanes(t *testing.T) {
 		if h.paneVisible || !h.layout().Body.Empty() || !reflect.DeepEqual(hidden, p.frame) {
 			t.Fatal("resize restored an explicitly hidden pane or changed its saved geometry")
 		}
-		frontendChord(h, surface.key)
+		frontendAlt(h, surface.key)
 		spikeKey(h, 'b', 0)
 		awaitFrontend(t, h, "same surface restores input state and focus", func() bool {
 			return strings.Contains(frontendCompactText(p.frame), "INPUT:611b5b4f1b5b4962")
@@ -512,7 +788,7 @@ func TestFrontendPlacementResizesWithoutReplacingOrDiscardingPane(t *testing.T) 
 	awaitSpike(t, h, "main raw reader ready before resizing", func() bool {
 		return h.prompt.phase == "running" && strings.Contains(spikeFrameText(h.frame), "MENU_READY")
 	})
-	frontendChord(h, 'd')
+	frontendAlt(h, 'd')
 	awaitFrontendReady(t, h, "DOCS")
 	p, process, engine := h.pane, h.pane.process, h.pane.terminal
 
@@ -557,6 +833,7 @@ func TestFrontendPlacementResizesWithoutReplacingOrDiscardingPane(t *testing.T) 
 		t.Fatal("growing workspace did not restore the same pane geometry without stealing focus")
 	}
 	frontendChord(h, tea.KeyTab)
+	spikeKey(h, 'p', tea.ModCtrl)
 	spikeKey(h, 'a', 0)
 	awaitFrontend(t, h, "grown pane resumes input after focus loss/gain", func() bool {
 		return strings.Contains(frontendCompactText(p.frame), "INPUT:1b5b4f1b5b4961")
@@ -569,7 +846,7 @@ func TestFrontendMissingToolAndPaneFailureDoNotQuitShell(t *testing.T) {
 	path := os.Getenv("PATH")
 	t.Setenv("PATH", t.TempDir())
 	h.env = os.Environ()
-	frontendChord(h, 'x')
+	frontendAlt(h, 'x')
 	if h.err != nil || h.surface != surfaceMenu || h.pane != nil || h.paneError == nil || h.focusPane {
 		t.Fatalf("unsafe startup failure: shellErr=%v paneErr=%v pane=%v", h.err, h.paneError, h.pane)
 	}
@@ -578,20 +855,21 @@ func TestFrontendMissingToolAndPaneFailureDoNotQuitShell(t *testing.T) {
 		t.Fatalf("missing-tool error is not visible: %q", view)
 	}
 	startupError := h.paneError
-	frontendChord(h, 't')
-	if h.paneVisible || h.pane != nil || h.paneError != startupError {
-		t.Fatal("one-shot t did not hide the startup error without retrying")
+	frontendAlt(h, 'w')
+	if h.leader || h.paneVisible || h.pane != nil || h.paneError != startupError {
+		t.Fatal("Alt+W did not hide the startup error without retrying")
 	}
-	assertSpikeFooter(t, h, spikeFooterKeyText(spikeHiddenKeys), "menu hidden | error")
-	frontendChord(h, 't')
-	if !h.paneVisible || h.pane != nil || h.paneError != startupError || h.focusPane {
-		t.Fatal("one-shot t retried or focused a failed startup instead of showing its error")
+	assertSpikeFooter(t, h, spikeFooterKeyText(spikeHiddenKeys), "error "+spikeClosedPill())
+	assertPillErrorSegment(t, h)
+	frontendAlt(h, 'w')
+	if h.leader || !h.paneVisible || h.pane != nil || h.paneError != startupError || h.focusPane {
+		t.Fatal("Alt+W retried or focused a failed startup instead of showing its error")
 	}
 	h.Update(tea.PasteMsg{Content: "safe-shell"})
 	awaitSpike(t, h, "Bash remains usable after missing tool", func() bool { return spikeInput(h) == "safe-shell" })
 	t.Setenv("PATH", path)
 	h.env = os.Environ()
-	frontendChord(h, 'x')
+	frontendAlt(h, 'x')
 	awaitFrontendReady(t, h, "MENU")
 	p := h.pane
 	before := p.frame
@@ -607,37 +885,31 @@ func TestFrontendMissingToolAndPaneFailureDoNotQuitShell(t *testing.T) {
 		t.Fatal("Escape cancelled the pane instead of just the prefix")
 	}
 	failure := h.paneError
-	frontendChord(h, 't')
-	if h.paneVisible {
+	frontendAlt(h, 'w')
+	if h.leader || h.paneVisible {
 		t.Fatal("failed pane did not hide with its retained error status")
 	}
-	assertSpikeFooter(t, h, spikeFooterKeyText(spikeHiddenKeys), "menu hidden | error")
-	frontendChord(h, 't')
+	assertSpikeFooter(t, h, spikeFooterKeyText(spikeHiddenKeys), "error "+spikeClosedPill())
+	assertPillErrorSegment(t, h)
+	frontendAlt(h, 'w')
 	if h.pane != p || !h.paneVisible || h.focusPane || p.closed || h.paneError != failure || !reflect.DeepEqual(before, p.frame) {
-		t.Fatal("one-shot t restarted, focused, or discarded a failed pane")
+		t.Fatal("Alt+W restarted, focused, or discarded a failed pane")
 	}
-	frontendChord(h, 'x')
+	frontendAlt(h, 'x')
 	awaitFrontendReady(t, h, "MENU")
 	if h.pane == p || !p.closed || h.paneError != nil || !h.paneFocused() {
 		t.Fatal("explicit same-surface chord did not restart the failed pane")
 	}
 	paneTestProcessClosed(t, p)
-	frontendChord(h, 'c')
-	if h.pane != nil || h.paneError != nil || h.footer() != baseFooter {
-		t.Fatal("close chord failed to clear the error pane")
+	frontendAlt(h, 'w')
+	if h.pane == nil || h.paneVisible || h.paneError != nil || h.focusPane {
+		t.Fatal("Alt+W failed to hide the restarted pane without closing it")
 	}
 }
 
 func TestFrontendMotdAndQuestionMarkRemainShellOnly(t *testing.T) {
 	frontendTools(t)
 	h := newSpikeTestHost(t)
-	for _, key := range []tea.KeyPressMsg{{Code: '?'}, {Code: '/', ShiftedCode: '?', Mod: tea.ModShift, Text: "?"}} {
-		spikeKey(h, 'p', tea.ModCtrl)
-		h.Update(key)
-		if h.leader || h.pane != nil || h.paneVisible || h.surface != surfaceNone || !strings.Contains(h.notice, "Unknown Ctrl+P chord") {
-			t.Fatal("Ctrl+P ? must be unsupported, never a MOTD pane")
-		}
-	}
 	spikeKey(h, '?', 0)
 	awaitSpike(t, h, "bare question mark reaches readline", func() bool { return spikeInput(h) == "?" })
 	spikeKey(h, 'u', tea.ModCtrl)
@@ -648,8 +920,20 @@ func TestFrontendMotdAndQuestionMarkRemainShellOnly(t *testing.T) {
 		return h.prompt.ready && spikeInput(h) == "" &&
 			strings.Count(spikeFrameText(h.frame), "MOTD_SHELL:") == 2
 	})
-	if h.pane != nil || h.surface != surfaceNone || h.footer() != baseFooter {
-		t.Fatal("shell MOTD changed the host surface or footer")
+	if h.pane != nil || h.surface != surfaceNone {
+		t.Fatal("shell MOTD changed the host surface")
+	}
+	assertSpikeFooter(t, h, spikeFooterKeyText(spikeNavigationKeys), spikeClosedPill())
+	frontendAlt(h, 'x')
+	awaitFrontendReady(t, h, "MENU")
+	p := h.pane
+	for _, key := range []tea.KeyPressMsg{{Code: '?'}, {Code: '/', ShiftedCode: '?', Mod: tea.ModShift, Text: "?"}} {
+		spikeKey(h, 'p', tea.ModCtrl)
+		h.Update(key)
+		if !h.leader || h.pane != p || !h.paneVisible || h.surface != surfaceMenu || !strings.Contains(h.notice, "Unknown key") {
+			t.Fatal("Ctrl+P ? must be unsupported, never a MOTD pane")
+		}
+		spikeKey(h, 'p', tea.ModCtrl)
 	}
 }
 
@@ -666,15 +950,15 @@ func TestFrontendFocusReportingMouseTargetsAndOffsets(t *testing.T) {
 	spikeKey(h, 'g', tea.ModCtrl)
 	spikeKey(h, 'p', tea.ModCtrl)
 	spikeKey(h, 'g', tea.ModCtrl)
-	awaitSpike(t, h, "Ctrl+G remains foreground-owned both locked and unlocked", func() bool {
-		return !h.leader && h.pane == nil && strings.Contains(spikeFrameText(h.frame), "INPUT:0707")
+	awaitSpike(t, h, "Ctrl+G and windowless Ctrl+P remain foreground-owned", func() bool {
+		return !h.leader && h.pane == nil && strings.Contains(spikeFrameText(h.frame), "INPUT:071007")
 	})
-	frontendChord(h, 'd')
+	frontendAlt(h, 'd')
 	awaitFrontendReady(t, h, "DOCS")
 	p := h.pane
 	h.Update(tea.FocusMsg{})
 	awaitFrontend(t, h, "only pane receives focus gain", func() bool {
-		return strings.Contains(spikeFrameText(p.frame), "INPUT:1b5b49") && strings.Contains(spikeFrameText(h.frame), "INPUT:07071b5b4f")
+		return strings.Contains(spikeFrameText(p.frame), "INPUT:1b5b49") && strings.Contains(spikeFrameText(h.frame), "INPUT:0710071b5b4f")
 	})
 	if strings.Contains(spikeFrameText(h.frame), "1b5b49") {
 		t.Fatal("inactive main shell received a focus gain")
@@ -690,12 +974,14 @@ func TestFrontendFocusReportingMouseTargetsAndOffsets(t *testing.T) {
 	awaitFrontend(t, h, "former floating border cell routes to child coordinate 1,1", func() bool {
 		return strings.Contains(frontendCompactText(p.frame), "1b5b3c303b313b314d")
 	})
-	frontendChord(h, 'v')
+	frontendChord(h, ']')
+	spikeKey(h, 'p', tea.ModCtrl)
 	layout := h.layout()
 	frontendChord(h, tea.KeyTab)
-	if h.paneFocused() || h.View().MouseMode != tea.MouseModeAllMotion {
+	if !h.leader || h.paneFocused() || h.View().MouseMode != tea.MouseModeAllMotion {
 		t.Fatal("mouse capture must include visible unfocused children")
 	}
+	spikeKey(h, 'p', tea.ModCtrl)
 	h.Update(tea.MouseClickMsg{X: 0, Y: layout.FooterY, Button: tea.MouseLeft})
 	if h.paneFocused() {
 		t.Fatal("footer click changed focus")
@@ -723,7 +1009,7 @@ func TestFrontendFocusReportingMouseTargetsAndOffsets(t *testing.T) {
 	if h.paneFocused() {
 		t.Fatal("shell click did not return keyboard focus")
 	}
-	frontendChord(h, 't')
+	frontendAlt(h, 'w')
 	h.Update(tea.MouseClickMsg{X: layout.Panel.Min.X, Y: layout.Panel.Min.Y, Button: tea.MouseLeft})
 	awaitFrontend(t, h, "hidden pane origin becomes full-size shell mouse coordinate 1,1", func() bool {
 		return strings.Contains(frontendCompactText(h.frame), "1b5b3c303b313b314d")
@@ -731,14 +1017,14 @@ func TestFrontendFocusReportingMouseTargetsAndOffsets(t *testing.T) {
 	if h.paneVisible || h.focusPane || h.pane != p {
 		t.Fatal("click in a hidden pane's former body stole focus or discarded it")
 	}
-	frontendChord(h, 't')
-	if !h.paneFocused() {
+	frontendAlt(h, 'w')
+	if h.leader || !h.paneFocused() {
 		t.Fatal("showing a healthy interactive pane did not restore focus")
 	}
 }
 
 func TestFrontendCompletionAlignsDescriptionsWithoutBackground(t *testing.T) {
-	h := &host{cols: 80, rows: 14, frame: spikeFrame(80, 13), terminalFocused: true,
+	h := &host{cols: 80, rows: 14, frame: spikeFrame(80, shellRows(14)), terminalFocused: true,
 		palette: chromePalette{
 			Fg:      color.RGBA{20, 40, 60, 255},
 			Bg:      color.RGBA{5, 10, 15, 255},
@@ -802,7 +1088,7 @@ func TestFrontendCompletionAlignsDescriptionsWithoutBackground(t *testing.T) {
 		cell.Style.Fg == nil || color.RGBAModel.Convert(cell.Style.Fg) != color.RGBAModel.Convert(h.palette.Accent) {
 		t.Fatalf("selection must retain its marker, bold emphasis, and palette accent: %+v", cell)
 	}
-	assertChromeFooterCells(t, outer, h, spikeCompletionKeys, "", nil)
+	assertChromeFooterCells(t, outer, h, spikeCompletionKeys, nil)
 	if cell := outer.CellAt(area.Min.X, area.Max.Y); cell == nil || cell.Style.Bg == nil ||
 		color.RGBAModel.Convert(cell.Style.Bg) != (color.RGBA{100, 30, 40, 255}) {
 		t.Fatalf("completion painted a second footer over the native row below its candidates: %+v", cell)
@@ -828,10 +1114,10 @@ func TestFrontendComposesBorderlessPaneAndFocusedCursorWithoutEditingFrames(t *t
 		t.Fatalf("pane cursor offset/style = %+v", view.Cursor)
 	}
 	lines := strings.Split(ansi.Strip(view.Content), "\n")
-	if !strings.HasPrefix(lines[0], "界e\u0301") || !strings.Contains(lines[h.rows-1], "docs | left | focus:pane | running") {
+	if !strings.HasPrefix(lines[0], "界e\u0301") || !strings.Contains(lines[h.rows-1], spikeOpenPill("docs", true, true)) {
 		t.Fatalf("child must start at the panel origin with status only in the footer: %q", lines)
 	}
-	if content := strings.Join(lines[:h.rows-1], "\n"); strings.ContainsAny(content, "┌┐└┘│─") || strings.Contains(content, "docs |") {
+	if content := strings.Join(lines[:h.rows-1], "\n"); strings.ContainsAny(content, "┌┐└┘│─") || strings.Contains(content, spikeOpenPill("docs", true, true)) {
 		t.Fatalf("host added a border/header/title strip: %q", content)
 	}
 	if !reflect.DeepEqual(h.frame.Cells, originalShell) || !reflect.DeepEqual(p.frame.Cells, originalPane) {

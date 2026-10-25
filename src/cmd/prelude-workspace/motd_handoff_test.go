@@ -81,6 +81,7 @@ func TestHostMotdPreservesParkedLinePointAndMark(t *testing.T) {
 			docs, process, engine := h.pane, h.pane.process, h.pane.terminal
 			spikeKey(h, ']', tea.ModCtrl)
 			frontendChord(h, tea.KeyTab)
+			spikeKey(h, 'p', tea.ModCtrl)
 			paneSize := frontendPTYSize(t, process)
 			parked := "printf '%s' 'alpha-beta-界🙂' > " + shellQuote(result)
 			h.Update(tea.PasteMsg{Content: parked})
@@ -103,7 +104,7 @@ func TestHostMotdPreservesParkedLinePointAndMark(t *testing.T) {
 			}
 			awaitSpike(t, h, "mid-line point distinct from mark", func() bool { return point() == len(markPrefix+"-beta") })
 			if starship {
-				frontendChord(h, 'm')
+				frontendAlt(h, 'm')
 			} else {
 				spikeKey(h, 'm', tea.ModAlt)
 			}
@@ -115,7 +116,7 @@ func TestHostMotdPreservesParkedLinePointAndMark(t *testing.T) {
 			assertMotdCalls(t, calls, 2)
 			view := h.View()
 			if h.leader || h.pane != docs || h.paneVisible || h.focusPane || docs.closed || docs.process != process || docs.terminal != engine ||
-				frontendPTYSize(t, process) != paneSize || frontendPTYSize(t, h.child) != [2]int{160, 17} || h.layout().FooterY != 17 ||
+				frontendPTYSize(t, process) != paneSize || frontendPTYSize(t, h.child) != [2]int{h.cols, shellRows(h.rows)} || h.layout().FooterY != h.rows-1 ||
 				view.Cursor == nil || view.Cursor.X != h.frame.CursorX || view.Cursor.Y != h.frame.CursorY ||
 				strings.Contains(frontendCompactText(docs.frame), fmt.Sprintf("%x", "command motd")) ||
 				strings.Contains(spikeFrameText(h.frame), "SHADOW_MOTD") {
