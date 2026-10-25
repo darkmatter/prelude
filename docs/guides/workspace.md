@@ -200,9 +200,9 @@ handled.
   redraws, resizes, and pane actions do not replay it; run `motd` manually to
   reprint it. Alt+M also reprints it through the private main-shell
   Readline handoff: an open pane is hidden but retained, the parked line/point/mark
-  return afterward, and a busy/PS2 shell queues it until the next primary prompt.
-  An occupied pending slot is never replaced. There is no MOTD window or Ctrl+P ?
-  chord.
+  return afterward. If Bash is busy or at PS2, the request is dropped with a
+  `Shell busy; command not run` footer notice instead of running later. There
+  is no MOTD window or Ctrl+P ? chord.
 
 - One Prelude pane exists at a time. Opening menu/docs focuses it. The mouse
   is captured only while a visible child requests mouse tracking, mirroring
@@ -253,10 +253,10 @@ handled.
   to the selected command. Standalone `x` retains its normal execution behavior.
 
 - With the normal Bash prompt lifecycle, a selection made during a foreground
-  program or secondary PS2 prompt waits for the next primary prompt instead of
-  being sent to that program or spliced into the unfinished command. Opening
-  another menu while a selection is waiting shows a hint instead of replacing it.
-  This gate trusts the main PTY's OSC133 markers; see the trust limitation below.
+  program or secondary PS2 prompt is dropped with a `Shell busy; command not run` footer notice instead of being sent to that program, spliced into the
+  unfinished command, or run at the next primary prompt. Select again once
+  Bash is back at a primary prompt. This gate trusts the main PTY's OSC133
+  markers; see the trust limitation below.
 
 - Tiny windows hide the pane and suspend its input/resizing, retaining the
   child and terminal state. Focus returns to Bash and stays there when the
@@ -298,7 +298,7 @@ are removed. Bash still owns Readline edits, history, and command status.
 The footer uses the menu's resolved palette from
 `PRELUDE_MENU_CONFIG`, supplied by the launcher and workspace devshell. Keycaps use
 bold `accent2` on `bg`, labels and separators use `muted`, status values use
-`fg`, and the current layout uses `accent`. Notices and queued commands use
+`fg`, and the current layout uses `accent`. Notices use
 `warning`; failures keep `fg` text and mark themselves with an `error` element
 (the pill segment, or a dot after a host error). Only the
 keycaps, the unlocked badge, and the viewer pill paint a background; the canvas remains transparent. Theme and palette overrides in `prelude.nix` therefore apply to
@@ -433,7 +433,7 @@ verification.
 
 - Shrinking to one row omits the footer; very small windows suspend the pane.
 
-- Queued command handoff uses OSC133 markers from the main PTY as readiness
+- Menu/MOTD command handoff uses OSC133 markers from the main PTY as readiness
   signals. They are not authenticated: a foreground program emitting counterfeit
   prompt markers can confuse the gate and receive reserved Readline input
   sequences. A shell-owned readiness protocol needs a separate design before
@@ -459,8 +459,8 @@ verification.
 - [`pane.go`](../../src/cmd/prelude-workspace/pane.go) / [`process.go`](../../src/cmd/prelude-workspace/process.go): surface wrappers and shared bounded PTY lifecycle.
 - [`prompt.go`](../../src/cmd/prelude-workspace/prompt.go): private Bash rc (entry MOTD and prompt hooks), OSC133 parsing,
   and visible-input observation.
-- [`selection.go`](../../src/cmd/prelude-workspace/selection.go): picker-result handoff, primary-prompt queueing, and private
-  readline bindings that preserve parked input.
+- [`selection.go`](../../src/cmd/prelude-workspace/selection.go): picker-result handoff, the primary-prompt
+  dispatch-or-drop gate, and private readline bindings that preserve parked input.
 - [`render.go`](../../src/cmd/prelude-workspace/render.go) draws only the child terminals and footer; completion candidates are Bash's own output, never a host overlay.
 - [`terminal.go`](../../src/cmd/prelude-workspace/terminal.go) / [`bridge.c`](../../src/cmd/prelude-workspace/bridge.c) / [`bridge.h`](../../src/cmd/prelude-workspace/bridge.h): native engine and Go-owned snapshots.
 

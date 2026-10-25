@@ -75,10 +75,7 @@ func (p *pane) selectedCommand() (string, error) {
 // MOTD remains main-shell output. Reuse the private Readline handoff so a
 // shortcut cannot overwrite parked input or leak a command into a foreground job.
 func (h *host) showMotd() tea.Cmd {
-	if h.pendingCommand != "" {
-		h.notice = "A command is already waiting for Bash; MOTD not queued"
-		return nil
-	}
+
 	h.paneVisible, h.focusPane, h.notice = false, false, ""
 	if err := h.resizeWorkspace(); err != nil {
 		return h.fail(err)
@@ -86,39 +83,21 @@ func (h *host) showMotd() tea.Cmd {
 	if cmd := h.syncFocus(); cmd != nil {
 		return cmd
 	}
-	h.queueMenuCommand("command motd\n")
+	h.dispatchMenuCommand("command motd\n")
 	return nil
 }
 
-func (h *host) queueMenuCommand(command string) {
+// Dispatch now or drop: there is no waiting selection. Only a ready primary
+// prompt (OSC133 B, never PS2 or a foreground job) may receive the private
+// readline key; otherwise the footer says so and nothing runs later.
+func (h *host) dispatchMenuCommand(command string) {
 	if command == "" {
 		return // cancellation does not touch readline or the shell's last status
 	}
-	if h.pendingCommand != "" {
-		h.notice = "A menu command is already waiting for Bash; selection not run"
+	if !h.prompt.ready || h.restoreInput || h.child == nil {
+		h.notice = "Shell busy; command not run"
 		return
 	}
-	h.pendingCommand = command
-	h.dispatchMenuCommand()
-}
-
-// Input can leave readline before its output markers are consumed. Quoted
-// control characters and bracketed-paste newlines do not accept the line.
-func (h *host) noteShellInput(data []byte, quoted bool) {
-	if !quoted && !strings.HasPrefix(string(data), "\x1b[200~") &&
-		strings.ContainsAny(string(data), "\r\n\x0f\x03") {
-		h.shellAcceptPending, h.shellCommandFinished = true, false
-	}
-}
-
-// A single waiting selection is enough for the workspace. Never send the private
-// readline key while a foreground program or secondary PS2 prompt owns input.
-func (h *host) dispatchMenuCommand() {
-	if h.pendingCommand == "" || !h.prompt.ready || h.shellAcceptPending || h.restoreInput || h.child == nil {
-		return
-	}
-	command := h.pendingCommand
-	h.pendingCommand = ""
 	if err := os.WriteFile(h.child.commandFile, []byte(command), 0o600); err != nil {
 		h.notice = "Menu command not run: " + err.Error()
 		return
@@ -128,7 +107,6 @@ func (h *host) dispatchMenuCommand() {
 		return
 	}
 	h.restoreInput, h.menuCommandAcknowledged, h.menuCommandFinished = true, false, false
-	h.shellAcceptPending, h.shellCommandFinished = true, false
 }
 
 func (h *host) menuPromptMarker(marker promptMarker) {
@@ -138,31 +116,27 @@ func (h *host) menuPromptMarker(marker promptMarker) {
 			h.menuCommandAcknowledged = true
 		}
 	case 'D':
-		if h.shellAcceptPending {
-			h.shellCommandFinished = true
-		}
-		if h.restoreInput && h.menuCommandAcknowledged {
+		if h.restoreInput {
 			h.menuCommandFinished = true
 		}
 	}
 }
 
 func (h *host) menuPromptReady() error {
-	if !h.prompt.ready || (h.shellAcceptPending && !h.shellCommandFinished) {
+	if !h.prompt.ready || !h.restoreInput {
 		return nil
 	}
-	if h.restoreInput {
-		if !h.menuCommandAcknowledged {
-			// PTY delivery alone does not prove that readline saved a buffer.
-			h.notice = "Menu handoff was not acknowledged; parked input not replaced"
-		} else if !h.menuCommandFinished {
-			return nil
-		} else if err := h.child.send([]byte(menuRestoreKey)); err != nil {
-			return err
-		}
-		h.restoreInput, h.menuCommandAcknowledged, h.menuCommandFinished = false, false, false
+	// A prompt redraw can repeat B before the load acknowledgement (L) and
+	// the dispatched command's D arrive; only D proves it has finished.
+	if !h.menuCommandFinished {
+		return nil
 	}
-	h.shellAcceptPending, h.shellCommandFinished = false, false
-	h.dispatchMenuCommand()
+	if !h.menuCommandAcknowledged {
+		// PTY delivery alone does not prove that readline saved a buffer.
+		h.notice = "Menu handoff was not acknowledged; parked input not replaced"
+	} else if err := h.child.send([]byte(menuRestoreKey)); err != nil {
+		return err
+	}
+	h.restoreInput, h.menuCommandAcknowledged, h.menuCommandFinished = false, false, false
 	return nil
 }

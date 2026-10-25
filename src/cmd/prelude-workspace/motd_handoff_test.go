@@ -110,7 +110,7 @@ func TestHostMotdPreservesParkedLinePointAndMark(t *testing.T) {
 			}
 			awaitFrontend(t, h, "MOTD handoff restores exact parked line and point", func() bool {
 				data, err := os.ReadFile(calls)
-				return err == nil && string(data) == "args:\nargs:\n" && h.prompt.ready && !h.restoreInput && !h.shellAcceptPending &&
+				return err == nil && string(data) == "args:\nargs:\n" && h.prompt.ready && !h.restoreInput &&
 					spikeInput(h) == parked && point() == len(markPrefix+"-beta")
 			})
 			assertMotdCalls(t, calls, 2)
@@ -140,60 +140,52 @@ func TestHostMotdPreservesParkedLinePointAndMark(t *testing.T) {
 	}
 }
 
-func TestHostMotdForegroundSubmissionRaces(t *testing.T) {
-	for _, name := range []string{"AcceptLineBeforeCommandOutput", "PromptEndBeforeCommandStartInOneBatch"} {
-		t.Run(name, func(t *testing.T) {
-			dir := t.TempDir()
-			ready, input, calls := filepath.Join(dir, "foreground.ready"), filepath.Join(dir, "foreground.input"), filepath.Join(dir, "motd.calls")
-			t.Setenv("GHOSTTY_HOST_SELECTION_READY", ready)
-			t.Setenv("GHOSTTY_HOST_SELECTION_INPUT", input)
-			bash, err := exec.LookPath("bash")
-			if err != nil {
-				t.Fatal(err)
-			}
-			binary, err := os.Executable()
-			if err != nil {
-				t.Fatal(err)
-			}
-			wrapper := fmt.Sprintf("#!%s -p\nexport GHOSTTY_HOST_SELECTION_READER=1\nexec %q -test.run=^TestHostSelectionPTYHelper$\n", bash, binary)
-			if err := os.WriteFile(filepath.Join(dir, "motd-foreground"), []byte(wrapper), 0o700); err != nil {
-				t.Fatal(err)
-			}
-			t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
-			h := newMotdHandoffHost(t, false, calls)
-			h.Update(tea.PasteMsg{Content: "motd-foreground"})
-			awaitSpike(t, h, "foreground command before acceptance", func() bool { return spikeInput(h) == "motd-foreground" })
-			spikeKey(h, tea.KeyEnter, 0)
-			awaitMotdHandoffFile(t, ready)
-			spikeKey(h, 'm', tea.ModAlt)
-			if name == "PromptEndBeforeCommandStartInOneBatch" {
-				h.Update(outputMsg{data: []byte("\x1b]133;D;0\a\x1b]133;A\aprelude $ \x1b]133;B\a\x1b]133;C\a")})
-			}
-			if h.pendingCommand != "command motd\n" {
-				t.Fatal("foreground MOTD request was dispatched instead of queued")
-			}
-			assertMotdCalls(t, calls, 1)
-			const userInput = "only-user-input"
-			for _, code := range userInput {
-				spikeKey(h, code, 0)
-			}
-			spikeKey(h, tea.KeyEnter, 0)
-			if got := string(awaitMotdHandoffFile(t, input)); got != userInput {
-				t.Fatalf("MOTD injected private command bytes into the foreground PTY: %q", got)
-			}
-			awaitSpike(t, h, "queued MOTD runs after the real primary prompt", func() bool {
-				data, err := os.ReadFile(calls)
-				return err == nil && string(data) == "args:\nargs:\n" && h.prompt.ready && !h.restoreInput && !h.shellAcceptPending && spikeInput(h) == ""
-			})
-			assertMotdCalls(t, calls, 2)
-			if !strings.Contains(spikeFrameText(h.frame), "RACE_FOREGROUND_FINISHED") || !strings.Contains(spikeFrameText(h.frame), "MOTD_SHELL:") {
-				t.Fatal("foreground completion or MOTD output disappeared from the native shell")
-			}
-		})
+func TestHostMotdDroppedWhileForegroundRuns(t *testing.T) {
+	dir := t.TempDir()
+	ready, input, calls := filepath.Join(dir, "foreground.ready"), filepath.Join(dir, "foreground.input"), filepath.Join(dir, "motd.calls")
+	t.Setenv("GHOSTTY_HOST_SELECTION_READY", ready)
+	t.Setenv("GHOSTTY_HOST_SELECTION_INPUT", input)
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Fatal(err)
 	}
+	binary, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrapper := fmt.Sprintf("#!%s -p\nexport GHOSTTY_HOST_SELECTION_READER=1\nexec %q -test.run=^TestHostSelectionPTYHelper$\n", bash, binary)
+	if err := os.WriteFile(filepath.Join(dir, "motd-foreground"), []byte(wrapper), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	h := newMotdHandoffHost(t, false, calls)
+	h.Update(tea.PasteMsg{Content: "motd-foreground"})
+	awaitSpike(t, h, "foreground command before acceptance", func() bool { return spikeInput(h) == "motd-foreground" })
+	spikeKey(h, tea.KeyEnter, 0)
+	awaitSpike(t, h, "foreground job owns the PTY and the host absorbed OSC133 C", func() bool {
+		_, err := os.Stat(ready)
+		return err == nil && h.prompt.phase == "running" && !h.prompt.ready
+	})
+	spikeKey(h, 'm', tea.ModAlt)
+	if h.notice != "Shell busy; command not run" {
+		t.Fatalf("busy MOTD request was not dropped with a notice: notice=%q", h.notice)
+	}
+	assertMotdCalls(t, calls, 1)
+	const userInput = "only-user-input"
+	for _, code := range userInput {
+		spikeKey(h, code, 0)
+	}
+	spikeKey(h, tea.KeyEnter, 0)
+	if got := string(awaitMotdHandoffFile(t, input)); got != userInput {
+		t.Fatalf("MOTD injected private command bytes into the foreground PTY: %q", got)
+	}
+	awaitSpike(t, h, "real primary prompt after the foreground job", func() bool {
+		return h.prompt.ready && spikeInput(h) == "" && strings.Contains(spikeFrameText(h.frame), "RACE_FOREGROUND_FINISHED")
+	})
+	assertMotdCalls(t, calls, 1) // the dropped request must not run later
 }
 
-func TestHostMotdPS2SafetyAndPendingSlot(t *testing.T) {
+func TestHostMotdAndSelectionDroppedAtPS2(t *testing.T) {
 	for _, starship := range []bool{false, true} {
 		name := "Bash"
 		if starship {
@@ -210,44 +202,44 @@ func TestHostMotdPS2SafetyAndPendingSlot(t *testing.T) {
 				return !h.prompt.ready && strings.Contains(spikeFrameText(h.frame), "PS2_LEFT")
 			})
 			spikeKey(h, 'm', tea.ModAlt)
-			if h.pendingCommand != "command motd\n" {
-				t.Fatal("MOTD was not safely queued at PS2")
+			if h.notice != "Shell busy; command not run" {
+				t.Fatalf("MOTD at PS2 was not dropped with a notice: notice=%q", h.notice)
 			}
 			assertMotdCalls(t, calls, 1)
 			h.Update(tea.PasteMsg{Content: "_RIGHT'"})
 			spikeKey(h, tea.KeyEnter, 0)
-			awaitSpike(t, h, "PS2 command finishes before queued MOTD", func() bool {
-				data, err := os.ReadFile(calls)
-				return err == nil && string(data) == "args:\nargs:\n" && h.prompt.ready && !h.restoreInput && !h.shellAcceptPending && spikeInput(h) == ""
+			awaitSpike(t, h, "PS2 command finishes and the dropped MOTD stays dropped", func() bool {
+				return h.prompt.ready && spikeInput(h) == ""
 			})
+			assertMotdCalls(t, calls, 1)
 			if !strings.Contains(motdHandoffOutput(h.frame), "PS2_LEFT\n_RIGHT") {
 				t.Fatalf("MOTD bytes altered the real quoted continuation output:\n%s", spikeFrameText(h.frame))
 			}
-			// Queue a real picker result at the next PS2. A later MOTD shortcut
-			// must reject the occupied slot, not replace or run ahead of it.
+			// A real picker result at the next PS2 is dropped the same way.
 			h.Update(tea.PasteMsg{Content: "printf '%s\\n' 'PS2_SECOND"})
 			spikeKey(h, tea.KeyEnter, 0)
 			awaitSpike(t, h, "second secondary prompt", func() bool { return !h.prompt.ready && strings.Contains(spikeFrameText(h.frame), "PS2_SECOND") })
 			spikeKey(h, 'x', tea.ModAlt)
 			awaitFrontendReady(t, h, "MENU")
 			spikeKey(h, tea.KeyEnter, 0)
-			awaitFrontend(t, h, "picker result queues without entering PS2", func() bool { return h.pane == nil && h.pendingCommand != "" })
-			spikeKey(h, 'm', tea.ModAlt)
-			if !strings.Contains(ansi.Strip(h.View().Content), "MOTD not queued") {
-				t.Fatal("occupied-slot MOTD rejection was not observable")
+			awaitFrontend(t, h, "picker result dropped without entering PS2", func() bool { return h.pane == nil })
+			if h.notice != "Shell busy; command not run" {
+				t.Fatalf("selection at PS2 was not dropped with a notice: notice=%q", h.notice)
 			}
 			if _, err := os.Stat(selected); !os.IsNotExist(err) {
-				t.Fatalf("queued selection leaked into PS2: %v", err)
+				t.Fatalf("dropped selection leaked into PS2: %v", err)
 			}
 			h.Update(tea.PasteMsg{Content: "_DONE'"})
 			spikeKey(h, tea.KeyEnter, 0)
-			awaitSpike(t, h, "original pending selection runs at the primary prompt", func() bool {
-				data, err := os.ReadFile(selected)
-				return err == nil && string(data) == "selected\n" && h.prompt.ready && !h.restoreInput && !h.shellAcceptPending && spikeInput(h) == ""
+			awaitSpike(t, h, "PS2 completes and the dropped selection stays dropped", func() bool {
+				return h.prompt.ready && spikeInput(h) == ""
 			})
-			assertMotdCalls(t, calls, 2)
-			if !strings.Contains(motdHandoffOutput(h.frame), "PS2_SECOND\n_DONE") || !strings.Contains(spikeFrameText(h.frame), "PS2_SELECTION_RAN") {
-				t.Fatal("pending-slot rejection changed continuation output or discarded the picker result")
+			assertMotdCalls(t, calls, 1)
+			if _, err := os.Stat(selected); !os.IsNotExist(err) {
+				t.Fatalf("dropped selection ran at the primary prompt: %v", err)
+			}
+			if !strings.Contains(motdHandoffOutput(h.frame), "PS2_SECOND\n_DONE") || strings.Contains(spikeFrameText(h.frame), "PS2_SELECTION_RAN") {
+				t.Fatal("dropping the selection changed continuation output or ran it later")
 			}
 		})
 	}

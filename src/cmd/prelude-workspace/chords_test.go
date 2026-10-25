@@ -967,8 +967,14 @@ func TestFrontendFocusReportingMouseTargetsAndOffsets(t *testing.T) {
 	if strings.Contains(spikeFrameText(h.frame), "1b5b49") {
 		t.Fatal("inactive main shell received a focus gain")
 	}
+	if got := strings.Count(frontendCompactText(h.frame), "1b5b4f"); got != 1 {
+		t.Fatalf("inactive main shell received %d focus-out bytes, want the single switch loss", got)
+	}
 	h.Update(tea.BlurMsg{})
 	awaitFrontend(t, h, "active pane receives outer blur", func() bool { return strings.Contains(spikeFrameText(p.frame), "INPUT:1b5b491b5b4f") })
+	if got := strings.Count(frontendCompactText(h.frame), "1b5b4f"); got != 1 {
+		t.Fatalf("outer blur reached the unfocused main shell too: %d focus-out bytes, want 1", got)
+	}
 	if h.View().Cursor != nil {
 		t.Fatal("blurred outer terminal retained a cursor")
 	}

@@ -53,38 +53,61 @@ func (h *host) failPane(err error) tea.Cmd {
 	}
 	h.paneError, h.focusPane = err, false
 	h.notice = fmt.Sprintf("%s error: %v", h.surface, err)
-	if h.terminal != nil {
-		return h.forward(h.terminal.Focus(h.terminalFocused))
-	}
-	return nil
+	return h.syncFocus()
 }
 
-// Focus loss is sent before focus gain. Inactive children never receive a gain,
-// including while the outer terminal is blurred or the pane is suspended.
+// Focus bytes go only to the child whose effective focus changes: on a
+// shell↔pane switch the old child gets focus-out and the new one focus-in
+// (out before in); outer focus/blur reaches only the currently focused
+// child. A state counts as delivered only when the encoder produced bytes
+// (focus reporting enabled), so a child that enables mode 1004 later still
+// receives its pending state on the next sync.
 func (h *host) syncFocus() tea.Cmd {
 	paneFocused := h.paneFocused()
-	paneFocus := func(focused bool) tea.Cmd {
-		if h.currentPane(h.pane) && h.pane.terminal != nil {
-			return h.forwardPane(h.pane.terminal.Focus(focused))
-		}
-		return nil
+	shellDesired := h.terminalFocused && !paneFocused
+	paneDesired := h.terminalFocused && paneFocused
+	if h.paneFocusOwner != h.pane {
+		h.paneFocusOwner, h.paneFocusKnown = h.pane, false
 	}
-	shellFocus := func(focused bool) tea.Cmd {
-		if h.terminal != nil {
-			return h.forward(h.terminal.Focus(focused))
+	sendShell := func(focused bool) tea.Cmd {
+		if h.terminal == nil || (h.shellFocusKnown && h.shellFocusSent == focused) {
+			return nil
 		}
-		return nil
+		data, err := h.terminal.Focus(focused)
+		if err == nil && len(data) > 0 {
+			h.shellFocusSent, h.shellFocusKnown = focused, true
+		}
+		return h.forward(data, err)
 	}
-	if paneFocused {
-		if cmd := shellFocus(false); cmd != nil {
+	sendPane := func(focused bool) tea.Cmd {
+		if !h.currentPane(h.pane) || h.pane.terminal == nil || (h.paneFocusKnown && h.paneFocusSent == focused) {
+			return nil
+		}
+		data, err := h.pane.terminal.Focus(focused)
+		if err == nil && len(data) > 0 {
+			h.paneFocusSent, h.paneFocusKnown = focused, true
+		}
+		return h.forwardPane(data, err)
+	}
+	if !shellDesired {
+		if cmd := sendShell(false); cmd != nil {
 			return cmd
 		}
-		return paneFocus(h.terminalFocused)
 	}
-	if cmd := paneFocus(false); cmd != nil {
-		return cmd
+	if !paneDesired {
+		if cmd := sendPane(false); cmd != nil {
+			return cmd
+		}
 	}
-	return shellFocus(h.terminalFocused)
+	if shellDesired {
+		if cmd := sendShell(true); cmd != nil {
+			return cmd
+		}
+	}
+	if paneDesired {
+		return sendPane(true)
+	}
+	return nil
 }
 
 // Hiding only changes composition and focus. The current pane keeps its PTY,
@@ -119,10 +142,6 @@ func (h *host) closePane() tea.Cmd {
 }
 
 func (h *host) chooseSurface(kind surfaceKind) tea.Cmd {
-	if kind == surfaceMenu && h.pendingCommand != "" {
-		h.notice = "A menu command is waiting for the next Bash prompt"
-		return nil
-	}
 	if h.surface == kind && h.currentPane(h.pane) && h.paneError == nil {
 		return h.togglePane()
 	}
@@ -250,12 +269,7 @@ func (h *host) keyInput(message tea.KeyPressMsg) tea.Cmd {
 	if h.paneFocused() {
 		return h.forwardPane(h.pane.terminal.Key(message.Key()))
 	}
-
-	data, err := h.terminal.Key(message.Key())
-	if err == nil {
-		h.noteShellInput(data, quoted)
-	}
-	return h.forward(data, err)
+	return h.forward(h.terminal.Key(message.Key()))
 }
 
 // toggleFocus moves input between Bash and a live interactive pane.

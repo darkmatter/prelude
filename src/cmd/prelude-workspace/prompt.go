@@ -27,7 +27,7 @@ __prelude_ghostty_prompt_generation=0
 builtin trap - DEBUG
 PS0=''
 PS1=''
-# A secondary prompt is not a safe place to submit a queued menu command.
+# A secondary prompt is not a safe place to submit a menu command.
 PS2='\[\e[5 q\e]133;A;$((__prelude_ghostty_primary_prompt=0))\a\]... '
 PROMPT_COMMAND=''
 HISTFILE=/dev/null

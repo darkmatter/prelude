@@ -127,9 +127,6 @@ func TestChromePaletteHostView(t *testing.T) {
 			h.notice = "theme notice"
 			assertChromeFooter(t, h, spikeNavigationKeys, "theme notice "+spikeClosedPill())
 			h.notice = ""
-			h.pendingCommand = "echo queued"
-			assertChromeFooter(t, h, spikeNavigationKeys, spikeClosedPill()+" command queued")
-			h.pendingCommand = ""
 			h.err = errors.New("theme failure")
 			assertChromeFooter(t, h, nil, "error: theme failure ●")
 			h.err = nil
