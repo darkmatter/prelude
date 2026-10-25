@@ -41,6 +41,8 @@ type pane struct {
 	err           error
 	closed        bool
 	selectionFile string // menu-only result, separate from its PTY output
+	// Clipboard sets decoded from pane output; the host drains and forwards them.
+	clipboard []clipboardWrite
 }
 
 type paneOutputMsg struct {
@@ -119,7 +121,8 @@ func (p *pane) nextOutput() tea.Msg {
 }
 
 func (p *pane) absorb(data []byte) error {
-	replies, err := p.terminal.Write(data)
+	replies, clips, err := p.terminal.Write(data)
+	p.clipboard = append(p.clipboard, clips...)
 	if err != nil {
 		return fmt.Errorf("libghostty-vt %s pane output: %w", p.kind, err)
 	}
@@ -144,7 +147,8 @@ func (p *pane) resize(cols, rows int) error {
 		}
 	}
 	// Mode-2048 reports are queued by Resize, even without fresh child output.
-	replies, err := p.terminal.Write(nil)
+	replies, clips, err := p.terminal.Write(nil)
+	p.clipboard = append(p.clipboard, clips...)
 	if err != nil {
 		return fmt.Errorf("libghostty-vt %s pane resize replies: %w", p.kind, err)
 	}

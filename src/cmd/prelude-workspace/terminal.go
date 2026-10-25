@@ -84,12 +84,46 @@ func cloneTerminalBytes(data C.bridge_bytes) []byte {
 	return bytes.Clone(unsafe.Slice((*byte)(unsafe.Pointer(data.data)), int(data.len)))
 }
 
+// A decoded clipboard set from a child (OSC 52 / OSC 1337 Copy). Text is
+// Go-owned; empty text clears/sets empty. Clipboard reads never surface here:
+// the native engine ignores "?" queries, so children cannot read the outer
+// clipboard through this host.
+type clipboardTarget uint8
+
+const (
+	clipboardStandard clipboardTarget = iota
+	clipboardSelection
+	clipboardPrimary
+)
+
+type clipboardWrite struct {
+	target clipboardTarget
+	text   string
+}
+
+func cloneTerminalClipboards(data C.bridge_clipboards) []clipboardWrite {
+	if data.len == 0 {
+		return nil
+	}
+	items := unsafe.Slice(data.items, int(data.len))
+	clips := make([]clipboardWrite, 0, len(items))
+	for _, item := range items {
+		clips = append(clips, clipboardWrite{
+			target: clipboardTarget(item.location),
+			text:   string(cloneTerminalBytes(item.data)),
+		})
+	}
+	return clips
+}
+
 // Write consumes child output, not keystrokes. Returned bytes are terminal
 // answers going in the reverse direction; the host must send them to the PTY
-// so programs waiting for cursor/mode/color reports can make progress.
-func (t *terminal) Write(data []byte) ([]byte, error) {
+// so programs waiting for cursor/mode/color reports can make progress. The
+// clipboard writes decoded from the same output go the other way: the host
+// forwards them to the outer terminal.
+func (t *terminal) Write(data []byte) ([]byte, []clipboardWrite, error) {
 	if err := t.open(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var input unsafe.Pointer
 	if len(data) != 0 {
@@ -97,8 +131,9 @@ func (t *terminal) Write(data []byte) ([]byte, error) {
 		defer C.free(input)
 	}
 	var output C.bridge_bytes
-	result := C.bridge_write(t.native, (*C.char)(input), C.size_t(len(data)), &output)
-	return cloneTerminalBytes(output), terminalResult("write", result)
+	var clips C.bridge_clipboards
+	result := C.bridge_write(t.native, (*C.char)(input), C.size_t(len(data)), &output, &clips)
+	return cloneTerminalBytes(output), cloneTerminalClipboards(clips), terminalResult("write", result)
 }
 
 // Mode-2048 resize replies are queued until Write, including an empty Write.

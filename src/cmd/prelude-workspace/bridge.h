@@ -16,6 +16,21 @@ typedef struct {
     size_t len;
 } bridge_bytes;
 
+/* One decoded clipboard write (OSC 52 set / OSC 1337 Copy) collected during a
+   bridge_write. location mirrors GhosttyClipboardLocation: 0 standard,
+   1 selection, 2 primary. Empty data means clear/set-empty. Clipboard read
+   queries ("?") are never reported here; the library ignores them. Borrowed
+   until the next bridge_write, like bridge_bytes. */
+typedef struct {
+    int location;
+    bridge_bytes data;
+} bridge_clipboard;
+
+typedef struct {
+    const bridge_clipboard *items;
+    size_t len;
+} bridge_clipboards;
+
 /* Unset colors inherit terminal defaults; explicit RGB black is different. */
 typedef struct {
     bool set;
@@ -45,7 +60,7 @@ typedef struct {
 GhosttyResult bridge_new(uint16_t cols, uint16_t rows, bridge_terminal **out);
 void bridge_free(bridge_terminal *terminal);
 GhosttyResult bridge_write(bridge_terminal *terminal, const char *data, size_t len,
-                           bridge_bytes *out);
+                           bridge_bytes *out, bridge_clipboards *clips);
 GhosttyResult bridge_resize(bridge_terminal *terminal, uint16_t cols, uint16_t rows);
 GhosttyResult bridge_snapshot(bridge_terminal *terminal, bridge_frame *out);
 GhosttyResult bridge_key(bridge_terminal *terminal, GhosttyKey key, GhosttyMods mods,

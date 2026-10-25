@@ -21,6 +21,8 @@ struct bridge_terminal {
     bool previous_escape;
     char *replies, *encoded;
     size_t replies_len, replies_cap, encoded_cap;
+    bridge_clipboard *clips;
+    size_t clips_len, clips_cap;
     GhosttyResult reply_error;
     bridge_cell *snapshot_cells;
     size_t snapshot_cap;
@@ -62,6 +64,52 @@ static void write_pty(GhosttyTerminal terminal, void *userdata,
     t->replies_len = needed;
 }
 
+static void clear_clips(bridge_terminal *t) {
+    for (size_t i = 0; i < t->clips_len; i++) free((void *)t->clips[i].data.data);
+    t->clips_len = 0;
+}
+
+/* Called while Ghostty processes output for each decoded clipboard set
+   (OSC 52 / OSC 1337 Copy). Stash a copy like write_pty; bridge_write returns
+   the batch. The library never forwards clipboard reads ("?") here, so no
+   child can read the outer clipboard through this host. */
+static GhosttyClipboardWriteResult clipboard_write(GhosttyTerminal terminal, void *userdata,
+                                                   const GhosttyClipboardWrite *write) {
+    (void)terminal;
+    bridge_terminal *t = userdata;
+    if (!write) return GHOSTTY_CLIPBOARD_WRITE_RESULT_INVALID_DATA;
+    if (write->location < GHOSTTY_CLIPBOARD_LOCATION_STANDARD ||
+        write->location > GHOSTTY_CLIPBOARD_LOCATION_PRIMARY)
+        return GHOSTTY_CLIPBOARD_WRITE_RESULT_UNSUPPORTED;
+    if (t->reply_error != GHOSTTY_SUCCESS) return GHOSTTY_CLIPBOARD_WRITE_RESULT_IO_ERROR;
+    /* Representations are one logical value; the outer terminal takes text.
+       Prefer text/plain, fall back to the first (OSC 52 data is text). A
+       zero-contents write clears the destination: stash empty data. */
+    const GhosttyClipboardContent *chosen = NULL;
+    for (size_t i = 0; i < write->contents_len; i++) {
+        const GhosttyString mime = write->contents[i].mime;
+        if (mime.len >= 10 && memcmp(mime.ptr, "text/plain", 10) == 0) {
+            chosen = &write->contents[i];
+            break;
+        }
+    }
+    if (!chosen && write->contents_len) chosen = &write->contents[0];
+    size_t len = chosen ? chosen->data.len : 0;
+    t->reply_error = reserve((void **)&t->clips, &t->clips_cap, t->clips_len + 1, sizeof(bridge_clipboard));
+    if (t->reply_error != GHOSTTY_SUCCESS) return GHOSTTY_CLIPBOARD_WRITE_RESULT_IO_ERROR;
+    char *copy = malloc(len ? len : 1);
+    if (!copy) {
+        t->reply_error = GHOSTTY_OUT_OF_MEMORY;
+        return GHOSTTY_CLIPBOARD_WRITE_RESULT_IO_ERROR;
+    }
+    if (len) memcpy(copy, chosen->data.ptr, len);
+    t->clips[t->clips_len++] = (bridge_clipboard){
+        .location = (int)write->location,
+        .data = {.data = copy, .len = len},
+    };
+    return GHOSTTY_CLIPBOARD_WRITE_RESULT_SUCCESS;
+}
+
 static void title_changed(GhosttyTerminal terminal, void *userdata) {
     (void)terminal;
     (void)userdata;
@@ -82,8 +130,8 @@ static bool device_attributes(GhosttyTerminal terminal, void *userdata,
     *out = (GhosttyDeviceAttributes){
         .primary = {
             .conformance_level = GHOSTTY_DA_CONFORMANCE_VT220,
-            .features = {GHOSTTY_DA_FEATURE_ANSI_COLOR},
-            .num_features = 1,
+            .features = {GHOSTTY_DA_FEATURE_ANSI_COLOR, GHOSTTY_DA_FEATURE_CLIPBOARD},
+            .num_features = 2,
         },
         .secondary = {.device_type = GHOSTTY_DA_DEVICE_TYPE_VT220},
     };
@@ -121,6 +169,7 @@ static GhosttyResult initialize(bridge_terminal *t) {
     TRY(ghostty_terminal_set(t->terminal, GHOSTTY_TERMINAL_OPT_SCROLLBACK_MAX_LINES, &max_scrollback));
     TRY(ghostty_terminal_set(t->terminal, GHOSTTY_TERMINAL_OPT_USERDATA, t));
     TRY(ghostty_terminal_set(t->terminal, GHOSTTY_TERMINAL_OPT_WRITE_PTY, (const void *)write_pty));
+    TRY(ghostty_terminal_set(t->terminal, GHOSTTY_TERMINAL_OPT_CLIPBOARD_WRITE, (const void *)clipboard_write));
     TRY(ghostty_terminal_set(t->terminal, GHOSTTY_TERMINAL_OPT_TITLE_CHANGED, (const void *)title_changed));
     TRY(ghostty_terminal_set(t->terminal, GHOSTTY_TERMINAL_OPT_XTVERSION, (const void *)version));
     TRY(ghostty_terminal_set(t->terminal, GHOSTTY_TERMINAL_OPT_DEVICE_ATTRIBUTES, (const void *)device_attributes));
@@ -161,6 +210,8 @@ void bridge_free(bridge_terminal *t) {
     ghostty_render_state_free(t->render);
     ghostty_terminal_free(t->terminal);
     free(t->replies);
+    clear_clips(t);
+    free(t->clips);
     free(t->encoded);
     free(t->snapshot_cells);
     free(t->text);
@@ -168,7 +219,8 @@ void bridge_free(bridge_terminal *t) {
 }
 
 GhosttyResult bridge_write(bridge_terminal *t, const char *data, size_t len,
-                           bridge_bytes *out) {
+                           bridge_bytes *out, bridge_clipboards *clips) {
+    clear_clips(t);
     /* This pinned library's RIS resets graphics options. Split at ESC c and
        restore bounds before subsequent input, including across Write calls.
        A match inside a control string only reapplies the same graphics bounds;
@@ -187,6 +239,7 @@ GhosttyResult bridge_write(bridge_terminal *t, const char *data, size_t len,
     if (r == GHOSTTY_SUCCESS && start < len)
         ghostty_terminal_vt_write(t->terminal, (const uint8_t *)data + start, len - start);
     *out = (bridge_bytes){.data = t->replies, .len = t->replies_len};
+    *clips = (bridge_clipboards){.items = t->clips, .len = t->clips_len};
     if (r == GHOSTTY_SUCCESS) r = t->reply_error;
     t->replies_len = 0;
     t->reply_error = GHOSTTY_SUCCESS;
