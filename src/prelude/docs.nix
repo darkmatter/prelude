@@ -369,19 +369,27 @@ config: let
   collected = collect nav 0;
   navForJson = collected.nodes;
 
+  # Quoting helper for values that carry no store context (headers, file names).
   escape = lib.escapeShellArg;
 
+  # Page sources are paths owned by the consuming flake. `lib.escapeShellArg`
+  # coerces them with `toString`, which drops the string context and with it the
+  # dependency edge: the bundle then builds without the page in its sandbox and
+  # `cp` fails with "No such file or directory" (Nix warns that the derivation
+  # references a store path "without a proper context"). Interpolate the path
+  # value instead: `${e.path}` keeps the context, and store paths contain no
+  # shell metacharacters, so escaping them buys nothing.
   copyLines =
     lib.concatMapStrings (
       e:
         if e.header == ""
         then ''
-          cp ${escape e.path} $out/${escape e.fileName}
+          cp ${e.path} $out/${escape e.fileName}
         ''
         else ''
           {
             printf '%s' ${escape e.header}
-            cat ${escape e.path}
+            cat ${e.path}
           } > $out/${escape e.fileName}
         ''
     )
