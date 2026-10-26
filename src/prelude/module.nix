@@ -481,6 +481,14 @@ in {
           mkdir -p "$out/nix-support" "$out/share/prelude/shell"
           cp -f ${shellInit} "$out/share/prelude/init.bash"
           cp -R ${shellRuntime}/. "$out/share/prelude/shell/"
+
+          # `symlinkJoin` mirrors every joined path with `lndir`, so a joined
+          # package's `nix-support/setup-hook` (the motd component mirrors
+          # `just`'s, which only sets build phases) arrives as a symlink into a
+          # read-only store path: `cat >` follows it and the build fails with
+          # EACCES. The shell core owns exactly one setup hook; drop the mirror.
+          rm -f "$out/nix-support/setup-hook"
+
           cat > "$out/nix-support/setup-hook" <<'EOF'
           # This generated config remains the canonical serialized menu
           # catalogue and palette for tools that need the JSON boundary.
