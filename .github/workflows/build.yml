@@ -7,9 +7,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner:
-          - ubuntu-latest
-          - [self-hosted, macos-latest]
+        # A self-hosted Mac must never run code from a public fork, so that leg
+        # joins the matrix only for pushes and pull requests from this repo.
+        runner: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+                   && fromJSON('["ubuntu-latest", ["self-hosted", "macOS"]]')
+                   || fromJSON('["ubuntu-latest"]') }}
     runs-on: ${{ matrix.runner }}
     steps:
     - uses: actions/checkout@v4
@@ -35,9 +37,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner:
-          - ubuntu-latest
-          - [self-hosted, macos-latest]
+        # A self-hosted Mac must never run code from a public fork, so that leg
+        # joins the matrix only for pushes and pull requests from this repo.
+        runner: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+                   && fromJSON('["ubuntu-latest", ["self-hosted", "macOS"]]')
+                   || fromJSON('["ubuntu-latest"]') }}
     runs-on: ${{ matrix.runner }}
     defaults:
       run:
