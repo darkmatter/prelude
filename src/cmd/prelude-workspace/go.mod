@@ -6,7 +6,7 @@ require (
 	charm.land/bubbletea/v2 v2.0.8
 	github.com/charmbracelet/ultraviolet v0.0.0-20260901015450-b2b0f8d1567b
 	github.com/charmbracelet/x/ansi v0.11.8
-	github.com/charmbracelet/x/vt v0.0.0-20260730164118-7e2d3e6c5238
+	github.com/charmbracelet/x/vt v0.1.0
 	github.com/creack/pty v1.1.24
 	golang.org/x/sys v0.47.0
 	golang.org/x/term v0.45.0
