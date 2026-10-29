@@ -20,6 +20,10 @@ jobs:
     # No-ops where Nix is already on PATH (arc image, self-hosted Mac): the
     # installer script exits early when it finds nix.
     - uses: cachix/install-nix-action@v31
+    # cachix needs $USER, which arc pods leave unset.
+    - name: Set USER for cachix
+      if: runner.os == 'Linux'
+      run: echo "USER=$(id -un)" >> "$GITHUB_ENV"
     - uses: cachix/cachix-action@v14
       with:
         name: darkmatter
@@ -69,6 +73,12 @@ jobs:
     - uses: oven-sh/setup-bun@v2
       with:
         bun-version: "1.4.2"
+    # The smoke script shells out to `npm pack`; node is not on PATH on arc
+    # until setup-node puts it there (the Mac and ubuntu images ship npm).
+    - uses: actions/setup-node@v4
+      if: runner.os == 'Linux'
+      with:
+        node-version: "24"
     - run: bun install --frozen-lockfile
     - run: bun run typecheck
     - run: bun scripts/npm-package.ts library
