@@ -74,7 +74,7 @@ jobs:
       with:
         bun-version: "1.4.2"
     # The smoke script shells out to `npm pack`; node is not on PATH on arc
-    # until setup-node puts it there (the Mac and ubuntu images ship npm).
+    # until setup-node puts it there. The self-hosted Mac has npm on PATH.
     - uses: actions/setup-node@v4
       if: runner.os == 'Linux'
       with:
