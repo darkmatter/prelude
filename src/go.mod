@@ -1,6 +1,6 @@
 module prelude
 
-go 1.26
+go 1.26.0
 
 require (
 	charm.land/bubbles/v2 v2.1.1
@@ -11,7 +11,7 @@ require (
 	github.com/charmbracelet/ultraviolet v0.0.0-20260703014108-f5a850f9c2b7
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/yuin/goldmark v1.7.8
-	golang.org/x/term v0.45.0
+	golang.org/x/term v0.47.0
 )
 
 require (
@@ -36,6 +36,6 @@ require (
 	github.com/yuin/goldmark-emoji v1.0.5 // indirect
 	golang.org/x/net v0.39.0 // indirect
 	golang.org/x/sync v0.21.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
 )
