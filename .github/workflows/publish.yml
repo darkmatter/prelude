@@ -24,6 +24,9 @@ jobs:
 
   publish:
     needs: libraries
+    # npm trusted publishing (OIDC, no stored token) and --provenance only
+    # work on GitHub-hosted runners (docs.npmjs.com/trusted-publishers), so
+    # this job cannot move to arc without switching to an npm token.
     runs-on: ubuntu-latest
     defaults:
       run:
