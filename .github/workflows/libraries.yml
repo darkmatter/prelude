@@ -40,7 +40,7 @@ jobs:
           cache-dependency-path: src/go.sum
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.4.2"
+          bun-version: "1.4.4"
       - run: bun ts/scripts/npm-package.ts library ${{ matrix.platform }}
       - uses: actions/upload-artifact@v4
         with:
