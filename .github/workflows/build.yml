@@ -7,15 +7,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # A self-hosted Mac must never run code from a public fork, so that leg
-        # joins the matrix only for pushes and pull requests from this repo.
+        # Linux runs on the ephemeral arc pods, which may serve public-fork
+        # PRs. A self-hosted Mac must never run code from a public fork, so
+        # that leg joins the matrix only for pushes and pull requests from
+        # this repo.
         runner: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-                   && fromJSON('["ubuntu-latest", ["self-hosted", "macOS"]]')
-                   || fromJSON('["ubuntu-latest"]') }}
+                   && fromJSON('["arc", ["self-hosted", "macOS"]]')
+                   || fromJSON('["arc"]') }}
     runs-on: ${{ matrix.runner }}
     steps:
     - uses: actions/checkout@v4
+    # No-ops where Nix is already on PATH (arc image, self-hosted Mac): the
+    # installer script exits early when it finds nix.
     - uses: cachix/install-nix-action@v31
+    # cachix needs $USER, which arc pods leave unset.
+    - name: Set USER for cachix
+      if: runner.os == 'Linux'
+      run: echo "USER=$(id -un)" >> "$GITHUB_ENV"
     - uses: cachix/cachix-action@v14
       with:
         name: darkmatter
@@ -37,17 +45,27 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # A self-hosted Mac must never run code from a public fork, so that leg
-        # joins the matrix only for pushes and pull requests from this repo.
+        # Linux runs on the ephemeral arc pods, which may serve public-fork
+        # PRs. A self-hosted Mac must never run code from a public fork, so
+        # that leg joins the matrix only for pushes and pull requests from
+        # this repo.
         runner: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-                   && fromJSON('["ubuntu-latest", ["self-hosted", "macOS"]]')
-                   || fromJSON('["ubuntu-latest"]') }}
+                   && fromJSON('["arc", ["self-hosted", "macOS"]]')
+                   || fromJSON('["arc"]') }}
     runs-on: ${{ matrix.runner }}
     defaults:
       run:
         working-directory: ts
     steps:
     - uses: actions/checkout@v4
+    # The arc image carries Nix but no C compiler, and libprelude needs cgo;
+    # take gcc from nixpkgs. The Mac leg uses its host clang.
+    - name: C compiler for cgo
+      if: runner.os == 'Linux'
+      run: |
+        for p in $(nix build --no-link --print-out-paths nixpkgs#gcc); do
+          if [ -d "$p/bin" ]; then echo "$p/bin" >> "$GITHUB_PATH"; fi
+        done
     - uses: actions/setup-go@v5
       with:
         go-version-file: src/go.mod
@@ -55,6 +73,12 @@ jobs:
     - uses: oven-sh/setup-bun@v2
       with:
         bun-version: "1.4.2"
+    # The smoke script shells out to `npm pack`; node is not on PATH on arc
+    # until setup-node puts it there. The self-hosted Mac has npm on PATH.
+    - uses: actions/setup-node@v4
+      if: runner.os == 'Linux'
+      with:
+        node-version: "24"
     - run: bun install --frozen-lockfile
     - run: bun run typecheck
     - run: bun scripts/npm-package.ts library

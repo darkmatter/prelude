@@ -44,10 +44,11 @@ const library = async (name = `${process.platform}-${process.arch}`) => {
   const platform = platformNamed(name);
   if (platform.os !== process.platform) fail(`build the ${name} library on ${platform.os}; cgo does not cross OSes here`);
   const env: Record<string, string> = { CGO_ENABLED: "1", GOOS: platform.os, GOARCH: platform.goarch };
-  // A Mac builds the other architecture's library by pointing clang at it.
+  // A Mac builds the other architecture's library by pointing clang at it;
+  // on Linux the caller names a cross compiler in CC.
   if (platform.cpu !== process.arch) {
-    if (platform.os !== "darwin") fail(`build the ${name} library on a ${platform.cpu} machine`);
-    env.CC = `clang -arch ${platform.cpu === "x64" ? "x86_64" : "arm64"}`;
+    if (platform.os === "darwin") env.CC = `clang -arch ${platform.cpu === "x64" ? "x86_64" : "arm64"}`;
+    else if (!process.env.CC) fail(`build the ${name} library on a ${platform.cpu} machine, or set CC to a cross compiler`);
   }
   const directory = `lib/${id(platform)}`;
   const output = `${process.cwd()}/${libraryPath(platform)}`;
