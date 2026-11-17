@@ -16,7 +16,7 @@ concurrency:
 jobs:
   refresh:
     if: github.actor != 'github-actions[bot]' && github.ref_type == 'branch'
-    runs-on: ubuntu-latest
+    runs-on: arc
     steps:
       - name: Check out branch
         uses: actions/checkout@v4
@@ -24,6 +24,8 @@ jobs:
           fetch-depth: 0
 
       - name: Install Nix
+        # The arc image already carries Nix; this installer exits early
+        # when it finds nix on PATH.
         uses: cachix/install-nix-action@v31
 
       - name: Record stale media and sync Markdown
