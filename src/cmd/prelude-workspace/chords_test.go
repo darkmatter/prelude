@@ -305,6 +305,20 @@ func TestCtrlPWithoutWindowReachesBashWithWindowUnlocks(t *testing.T) {
 	if h.leader || spikeInput(h) != "" {
 		t.Fatal("second Ctrl+P must lock without reaching Bash")
 	}
+	// A hidden window has no layout on screen either: Ctrl+] is Readline's
+	// again and the menu's layout is unchanged.
+	frontendAlt(h, 'x')
+	if h.paneVisible || h.placement != placementFloating {
+		t.Fatal("repeating Alt+X must hide the menu in its floating layout")
+	}
+	h.Update(tea.PasteMsg{Content: "ab"})
+	spikeKey(h, ']', tea.ModCtrl)
+	spikeKey(h, 'a', 0)
+	spikeKey(h, 'X', 0)
+	awaitSpike(t, h, "Ctrl+] with a hidden window reaches Bash", func() bool { return spikeInput(h) == "abX" })
+	if h.placement != placementFloating {
+		t.Fatalf("Ctrl+] with a hidden window changed the layout to %s", h.placement)
+	}
 }
 
 // assertLayoutStrip verifies the footer's unlocked layout hint: the "[ ]"

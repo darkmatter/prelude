@@ -197,8 +197,8 @@ the four split positions describe the Prelude pane, with Bash on the other side.
 Full covers the whole content area while Bash keeps running underneath; moving
 between floating and full does not resize Bash, and Bash's mouse tracking is
 ignored while it is fully covered. It changes geometry only, so Alt+Tab still
-decides whether keys go to Bash or the pane. With no window chosen, these keys
-belong to Readline.
+decides whether keys go to Bash or the pane. With no window on screen (none
+chosen, or hidden), these keys belong to Readline, as Ctrl+P does.
 
 Ctrl+\[ requires enhanced keyboard input: legacy terminals send the same byte
 for Ctrl+\[ and Esc. Bubble Tea requests key disambiguation automatically on

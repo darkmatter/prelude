@@ -249,9 +249,9 @@ func (h *host) keyInput(message tea.KeyPressMsg) tea.Cmd {
 		}
 		// Legacy Ctrl+[ arrives as Esc, so only a distinct enhanced key can
 		// cycle backward. Ctrl+\ is unambiguous on legacy terminals too.
-		// Layout keys leave command mode as it was. With no surface there is
-		// no layout to change, so the keys stay Readline's.
-		if h.surface != surfaceNone {
+		// Layout keys leave command mode as it was. Like Ctrl+P they need a
+		// window on screen; otherwise they stay Readline's.
+		if h.windowOpen() {
 			switch message.String() {
 			case "ctrl+]":
 				return h.setPlacement(h.placement.next())
