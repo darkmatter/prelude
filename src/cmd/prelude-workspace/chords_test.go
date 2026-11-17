@@ -247,9 +247,9 @@ func TestFrontendLeaderConsumesOnlyPrefixedChords(t *testing.T) {
 			}
 		}
 	}
-	cycle(']', []placement{placementLeft, placementRight, placementTop, placementBottom, placementFloating})
-	cycle('[', []placement{placementBottom, placementTop, placementRight, placementLeft, placementFloating})
-	if footer := h.footer(); !strings.Contains(footer, " ^P layout ") || !strings.Contains(footer, "[ ]") || !strings.Contains(footer, "▣ ◧ ◨ ⬒ ⬓") {
+	cycle(']', []placement{placementLeft, placementRight, placementTop, placementBottom, placementFull, placementFloating})
+	cycle('[', []placement{placementFull, placementBottom, placementTop, placementRight, placementLeft, placementFloating})
+	if footer := h.footer(); !strings.Contains(footer, " ^P layout ") || !strings.Contains(footer, "[ ]") || !strings.Contains(footer, "▣ ◧ ◨ ⬒ ⬓ ■") {
 		t.Fatalf("unlocked footer with a window must show the badge and layout strip: %q", footer)
 	}
 	assertLayoutStrip(t, h)
@@ -257,7 +257,7 @@ func TestFrontendLeaderConsumesOnlyPrefixedChords(t *testing.T) {
 	for _, step := range []struct {
 		key  rune
 		want placement
-	}{{'[', placementBottom}, {'\\', placementTop}, {']', placementBottom}, {']', placementFloating}} {
+	}{{'[', placementFull}, {'\\', placementBottom}, {']', placementFull}, {']', placementFloating}} {
 		spikeKey(h, 'p', tea.ModCtrl)
 		spikeKey(h, step.key, tea.ModCtrl)
 		awaitSpike(t, h, "redraw after direct layout key", func() bool { return spikeInput(h) == "" })
@@ -269,7 +269,8 @@ func TestFrontendLeaderConsumesOnlyPrefixedChords(t *testing.T) {
 }
 
 // Ctrl+P is Readline's previous-history until a window is open; only then
-// does it unlock layout commands instead of reaching Bash.
+// does it unlock layout commands instead of reaching Bash. The direct layout
+// keys likewise stay Readline's until there is a window to lay out.
 func TestCtrlPWithoutWindowReachesBashWithWindowUnlocks(t *testing.T) {
 	frontendTools(t)
 	h := newSpikeTestHost(t)
@@ -285,6 +286,15 @@ func TestCtrlPWithoutWindowReachesBashWithWindowUnlocks(t *testing.T) {
 	awaitSpike(t, h, "Ctrl+P recalls previous history in Bash", func() bool { return spikeInput(h) == "echo ctrlp-history" })
 	spikeKey(h, 'c', tea.ModCtrl)
 	awaitSpike(t, h, "recalled line cancelled", func() bool { return h.prompt.ready && spikeInput(h) == "" })
+	// Ctrl+] is Readline's character search without a window: it consumes the
+	// next key ("a", not found after the cursor), so only "X" is inserted.
+	h.Update(tea.PasteMsg{Content: "ab"})
+	spikeKey(h, ']', tea.ModCtrl)
+	spikeKey(h, 'a', 0)
+	spikeKey(h, 'X', 0)
+	awaitSpike(t, h, "windowless Ctrl+] reaches Bash", func() bool { return spikeInput(h) == "abX" })
+	spikeKey(h, 'c', tea.ModCtrl)
+	awaitSpike(t, h, "searched line cancelled", func() bool { return h.prompt.ready && spikeInput(h) == "" })
 	frontendAlt(h, 'x')
 	awaitFrontendReady(t, h, "MENU")
 	spikeKey(h, 'p', tea.ModCtrl)
@@ -723,7 +733,6 @@ func TestFrontendPaneInputLifecycleAndStaleEvents(t *testing.T) {
 func TestFrontendSameSurfaceChordsRetainHiddenPanes(t *testing.T) {
 	frontendTools(t)
 	h := newSpikeTestHost(t)
-	spikeKey(h, ']', tea.ModCtrl) // A split must expand Bash when hidden.
 	var previous *pane
 	for _, surface := range []struct {
 		key   rune
@@ -732,6 +741,14 @@ func TestFrontendSameSurfaceChordsRetainHiddenPanes(t *testing.T) {
 	}{{'x', surfaceMenu, "MENU"}, {'d', surfaceDocs, "DOCS"}} {
 		frontendAlt(h, surface.key)
 		awaitFrontendReady(t, h, surface.label)
+		// Layout keys belong to Readline until a pane exists. Use a split so
+		// hiding either surface must expand Bash to the full usable area.
+		for steps := 0; h.placement != placementLeft && steps < len(placements); steps++ {
+			spikeKey(h, ']', tea.ModCtrl)
+		}
+		if h.placement != placementLeft {
+			t.Fatalf("could not place %s in a left split", surface.kind)
+		}
 		if previous != nil {
 			if !previous.closed || previous.terminal.native != nil {
 				t.Fatal("switching surface kind retained the previous child/engine")
@@ -784,6 +801,51 @@ func TestFrontendSameSurfaceChordsRetainHiddenPanes(t *testing.T) {
 	}
 }
 
+func TestFrontendSurfaceDefaultPlacements(t *testing.T) {
+	frontendTools(t)
+	h := newSpikeTestHost(t)
+	frontendAlt(h, 'd')
+	awaitFrontendReady(t, h, "DOCS")
+	layout := h.layout()
+	if h.placement != placementFull || layout.Body != layout.Shell ||
+		frontendPTYSize(t, h.pane.process) != [2]int{h.cols, shellRows(h.rows)} {
+		t.Fatal("docs must default to the full usable area above the footer")
+	}
+
+	spikeKey(h, ']', tea.ModCtrl)
+	docs := h.pane
+	frontendAlt(h, 'w')
+	frontendAlt(h, 'w')
+	if h.placement != placementFloating || h.pane != docs || !h.paneFocused() {
+		t.Fatal("hiding and showing docs must retain its chosen layout and process")
+	}
+
+	frontendAlt(h, 'x')
+	awaitFrontendReady(t, h, "MENU")
+	if h.placement != placementFloating {
+		t.Fatal("the menu must still default to floating")
+	}
+	spikeKey(h, ']', tea.ModCtrl)
+	if h.placement != placementLeft {
+		t.Fatal("menu layout could not be changed independently")
+	}
+
+	frontendAlt(h, 'd')
+	awaitFrontendReady(t, h, "DOCS")
+	if h.placement != placementFloating {
+		t.Fatal("reopening docs must restore its explicit layout, not the menu's")
+	}
+	spikeKey(h, '[', tea.ModCtrl)
+	if h.placement != placementFull {
+		t.Fatal("docs must still support switching back to full")
+	}
+	frontendAlt(h, 'x')
+	awaitFrontendReady(t, h, "MENU")
+	if h.placement != placementLeft {
+		t.Fatal("opening fullscreen docs must not overwrite the menu's chosen layout")
+	}
+}
+
 func TestFrontendPlacementResizesWithoutReplacingOrDiscardingPane(t *testing.T) {
 	dir := frontendTools(t)
 	h := newSpikeTestHost(t)
@@ -800,8 +862,8 @@ func TestFrontendPlacementResizesWithoutReplacingOrDiscardingPane(t *testing.T) 
 		key        rune
 		placements []placement
 	}{
-		{']', []placement{placementLeft, placementRight, placementTop, placementBottom, placementFloating}},
-		{'[', []placement{placementBottom, placementTop, placementRight, placementLeft, placementFloating}},
+		{']', []placement{placementFloating, placementLeft, placementRight, placementTop, placementBottom, placementFull}},
+		{'[', []placement{placementBottom, placementTop, placementRight, placementLeft, placementFloating, placementFull}},
 	} {
 		for _, want := range direction.placements {
 			spikeKey(h, direction.key, tea.ModCtrl)
@@ -959,6 +1021,7 @@ func TestFrontendFocusReportingMouseTargetsAndOffsets(t *testing.T) {
 	})
 	frontendAlt(h, 'd')
 	awaitFrontendReady(t, h, "DOCS")
+	spikeKey(h, ']', tea.ModCtrl) // Full → floating, then the test docks left.
 	p := h.pane
 	h.Update(tea.FocusMsg{})
 	awaitFrontend(t, h, "only pane receives focus gain", func() bool {
@@ -1030,6 +1093,41 @@ func TestFrontendFocusReportingMouseTargetsAndOffsets(t *testing.T) {
 	frontendAlt(h, 'w')
 	if h.leader || !h.paneFocused() {
 		t.Fatal("showing a healthy interactive pane did not restore focus")
+	}
+}
+
+func TestFrontendFullPlacementCoversShellAndKeepsFooter(t *testing.T) {
+	h := &host{cols: 90, rows: 16, surface: surfaceDocs, paneVisible: true, placement: placementFull, focusPane: true, terminalFocused: true}
+	layout := h.layout()
+	if layout.Shell != layout.Panel || layout.Panel != layout.Body {
+		t.Fatalf("full placement must cover the whole usable shell: %+v", layout)
+	}
+	h.frame = spikeFrame(layout.Shell.Dx(), layout.Shell.Dy())
+	for i := range h.frame.Cells {
+		h.frame.Cells[i] = uv.Cell{Content: "Z", Width: 1}
+	}
+	p := &pane{kind: surfaceDocs, terminal: &terminal{}, frame: spikeFrame(layout.Body.Dx(), layout.Body.Dy())}
+	h.pane = p
+	p.frame.Cells[0] = uv.Cell{Content: "V", Width: 1}
+	p.frame.CursorX, p.frame.CursorY = 1, 1
+	shell := append([]uv.Cell(nil), h.frame.Cells...)
+	view := h.View()
+	lines := strings.Split(ansi.Strip(view.Content), "\n")
+	if !strings.HasPrefix(lines[0], "V") || strings.Contains(strings.Join(lines[:h.rows-1], "\n"), "Z") {
+		t.Fatalf("full pane must mask the shell while the footer stays outside it: %q", lines)
+	}
+	if !strings.Contains(lines[h.rows-1], spikeOpenPill("docs", true, true)) {
+		t.Fatalf("full placement lost the themed footer: %q", lines[h.rows-1])
+	}
+	if view.Cursor == nil || view.Cursor.X != layout.Body.Min.X+1 || view.Cursor.Y != layout.Body.Min.Y+1 {
+		t.Fatalf("full pane cursor = %+v", view.Cursor)
+	}
+	h.focusPane = false
+	if cursor := h.View().Cursor; cursor != nil {
+		t.Fatalf("a shell-focused full placement must not draw a cursor beneath the covering pane: %+v", cursor)
+	}
+	if !reflect.DeepEqual(h.frame.Cells, shell) {
+		t.Fatal("composition mutated the hidden shell snapshot")
 	}
 }
 

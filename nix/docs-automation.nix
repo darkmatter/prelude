@@ -33,7 +33,7 @@
     Set FontSize 14
     Set LineHeight 1.0
     Set LetterSpacing 0
-    Set Theme {"name":"prelude-minted","black":"#0c0c13","red":"#ee848e","green":"#b7ce99","yellow":"#f2c17d","blue":"#89b4fa","magenta":"#CC99FF","cyan":"#89b4fa","white":"#b1b1bf","brightBlack":"#4a5585","brightRed":"#ee848e","brightGreen":"#b7ce99","brightYellow":"#f2c17d","brightBlue":"#89b4fa","brightMagenta":"#CC99FF","brightCyan":"#89b4fa","brightWhite":"#b1b1bf","background":"#0c0c13","foreground":"#b1b1bf","selection":"#f2cdcd","cursor":"#f2cdcd"}
+    Set Theme {"name":"prelude-minted","black":"#070709","red":"#ee848e","green":"#b7ce99","yellow":"#f2c17d","blue":"#89b4fa","magenta":"#CC99FF","cyan":"#89b4fa","white":"#b1b1bf","brightBlack":"#4a5585","brightRed":"#ee848e","brightGreen":"#b7ce99","brightYellow":"#f2c17d","brightBlue":"#89b4fa","brightMagenta":"#CC99FF","brightCyan":"#89b4fa","brightWhite":"#b1b1bf","background":"#070709","foreground":"#b1b1bf","selection":"#f2cdcd","cursor":"#f2cdcd"}
   '';
 
   motdTapeText = ''

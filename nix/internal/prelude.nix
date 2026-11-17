@@ -161,7 +161,7 @@ in {
       exec = "prelude-workspace";
       group = "prelude";
       details = ''
-        Open an isolated Bash with a movable Prelude menu or docs pane. Alt+X toggles the command menu; Ctrl+] cycles pane layouts so you can inspect description wrapping at different widths.
+        Open an isolated Bash with a movable Prelude menu or docs pane. Alt+X toggles the command menu; Ctrl+] cycles floating, split, and full-screen pane layouts so you can inspect description wrapping at different widths.
         The themed Prelude Starship prompt and its navigation keymap are the default; bare `prelude` opens the same workspace. Enable --starship=false for the fixed `prelude $` prompt instead.
       '';
       usage = "x prelude:workspace [--starship=false]";
@@ -169,7 +169,7 @@ in {
       args = [
         {
           token = "--starship=false";
-          description = "Use the fixed `prelude $` prompt instead of the themed Prelude Starship prompt; the command menu and docs panes still move between floating and split layouts.";
+          description = "Use the fixed `prelude $` prompt instead of the themed Prelude Starship prompt; the command menu and docs panes still move between floating, split, and full-screen layouts.";
           boolean = true;
         }
       ];

@@ -26,6 +26,7 @@ type host struct {
 	restoreInput            bool
 	menuCommandAcknowledged bool
 	menuCommandFinished     bool
+	proto                   xtabPrototype // x-tab prototype (xtab_host.go); inert unless opted in
 
 	// Last focus state actually delivered (non-empty bytes) to each child;
 	// the known flags start false so the first syncFocus establishes both.
@@ -45,6 +46,7 @@ type host struct {
 	pane            *pane
 	paneVisible     bool
 	placement       placement
+	panePlacements  map[surfaceKind]placement
 	focusPane       bool
 	leader          bool
 	paneError       error
@@ -92,6 +94,7 @@ func newHost(cols, rows int, env []string, starship bool) (*host, error) {
 	return &host{
 		child: child, terminal: engine, cols: cols, rows: rows, frame: frame,
 		env: append([]string(nil), env...), palette: palette, terminalFocused: true,
+		proto: newXtabPrototype(env),
 	}, nil
 }
 
@@ -189,6 +192,9 @@ func (h *host) absorb(data []byte) error {
 		}
 		h.prompt.mark(marker, frame)
 		h.menuPromptMarker(marker)
+		if err := h.protoPromptMarker(marker); err != nil {
+			return err
+		}
 	}
 	if err := write(len(data)); err != nil {
 		return err
@@ -198,7 +204,10 @@ func (h *host) absorb(data []byte) error {
 	}
 	// A later C or continuation A in this same batch can invalidate an earlier
 	// B. Only the final stream state may restore readline input.
-	return h.menuPromptReady()
+	if err := h.menuPromptReady(); err != nil {
+		return err
+	}
+	return h.protoAfterAbsorb()
 }
 
 // A layout change reflows both engines and delivers SIGWINCH to the existing
@@ -302,6 +311,9 @@ func (h *host) update(message tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return h, h.child.waitExit
 		}
+		if cmd := h.protoTakeCmd(); cmd != nil {
+			return h, tea.Batch(cmd, h.child.nextOutput)
+		}
 		return h, h.child.nextOutput
 	case childExitMsg:
 		h.code = exitStatus(message.err)
@@ -314,6 +326,8 @@ func (h *host) update(message tea.Msg) (tea.Model, tea.Cmd) {
 		return h, tea.Quit
 	case hostFailureMsg:
 		return h, h.fail(message.err)
+	case xtabProtoTimeoutMsg:
+		return h, h.protoTimeout(message.gen)
 	case paneOutputMsg:
 		if !h.currentPane(message.pane) {
 			return h, nil
@@ -324,6 +338,9 @@ func (h *host) update(message tea.Msg) (tea.Model, tea.Cmd) {
 				return h, h.failPane(err)
 			}
 			h.collectPaneClipboard()
+			if err := h.protoPaneOutput(p, message.output.data); err != nil {
+				return h, h.fail(err)
+			}
 		}
 		if err := message.output.err; err != nil {
 			if !errors.Is(err, io.EOF) && !errors.Is(err, syscall.EIO) {
@@ -363,6 +380,7 @@ func (h *host) update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return h, cmd
 		}
 		h.focusPane = false
+		h.hideCoveringPane()
 		return h, h.syncFocus()
 	case paneFailureMsg:
 		if h.currentPane(message.pane) {
@@ -386,9 +404,15 @@ func (h *host) update(message tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.PasteMsg:
 		h.leader, h.quoted, h.notice = false, false, ""
 		if h.paneFocused() {
+			if h.protoHoldPanePaste(message.Content) {
+				return h, nil
+			}
 			return h, h.forwardPane(h.pane.terminal.Paste(message.Content))
 		}
-		return h, h.forward(h.terminal.Paste(message.Content))
+		if h.protoHoldShellPaste(message.Content) {
+			return h, nil
+		}
+		return h, h.protoAfterShellPaste(h.forward(h.terminal.Paste(message.Content)))
 	case tea.FocusMsg:
 		h.terminalFocused = true
 		return h, h.syncFocus()

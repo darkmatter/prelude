@@ -110,6 +110,31 @@ prefix sequence. An inherited normal Prelude config selects this workspace
 preset; an explicit custom `STARSHIP_CONFIG` is preserved. Standalone interactive
 Prelude activation and its `?`/`x`/`d` shortcuts are unchanged.
 
+### Opt-in `x <Tab>` prototype
+
+Launch the workspace with the experimental input bridge enabled:
+
+```sh
+PRELUDE_X_TAB_PROTOTYPE=1 nix run path:.#prelude-workspace
+```
+
+At a primary Bash prompt, type `x bu` and press Tab to open the existing
+Alt+W command picker with `bu` as its filter. Simple edits synchronize the
+picker's root filter and the actual Readline input, including the caret.
+Alt+Tab switches focus; Alt+W hides or shows the picker. Selecting a command
+uses the existing Alt+W handoff and restores the synchronized draft afterward.
+
+Tab stays Bash's own directly after Esc or Ctrl+X, where Readline is waiting
+for the rest of a key sequence. Submitting the line ends the synchronization.
+If Bash or the picker does not answer in time, the Tab falls back to native
+completion and held input is passed through in order, unsynchronized.
+
+This prototype targets Bash 5.3 in a UTF-8 locale and accepts only a simple
+single-token `x ` filter. Subcommand pickers, argument entry, and unusual
+Readline editing chords are not synchronized. Other commands and complex
+shell expressions retain native completion. Leave `PRELUDE_X_TAB_PROTOTYPE`
+unset to keep native Bash Tab behavior everywhere.
+
 ### Published package
 
 From a flake that exports the enabled workspace package (including this
@@ -161,14 +186,19 @@ While unlocked, other keys are consumed with a hint rather than reaching Bash or
 the pane; Alt+M/X/D/W/Tab and Ctrl+G lock before they act.
 
 | Key (unlocked) | Action |
-| -------------- | ----------------------------------------------------------- |
+| --------------- | ------------------------------------------------------- |
 | **\]** / **\[** | Move to the next / previous layout |
 | **Tab** | Switch focus, for desktops that take Alt+Tab themselves |
 | **Esc** | Lock (Ctrl+P also locks) |
 
 **Ctrl+\]** moves to the next layout and **Ctrl+\[** to the previous one without
-unlocking. The cycle is **floating → left → right → top → bottom → floating**;
+unlocking. The cycle is **floating → left → right → top → bottom → full → floating**;
 the four split positions describe the Prelude pane, with Bash on the other side.
+Full covers the whole content area while Bash keeps running underneath; moving
+between floating and full does not resize Bash, and Bash's mouse tracking is
+ignored while it is fully covered. It changes geometry only, so Alt+Tab still
+decides whether keys go to Bash or the pane. With no window chosen, these keys
+belong to Readline.
 
 Ctrl+\[ requires enhanced keyboard input: legacy terminals send the same byte
 for Ctrl+\[ and Esc. Bubble Tea requests key disambiguation automatically on
@@ -181,8 +211,10 @@ There is
 no leader timeout; an unknown chord is consumed and shows a hint. **Ctrl+V**
 quotes the next key, bypassing all host bindings, including layout switching.
 
-The window starts hidden, with **floating** as its default placement. Hiding
-returns focus to Bash; showing a live window focuses it. `exit` or **Ctrl+D**
+The window starts hidden. The menu defaults to **floating**; docs default to
+**full**, covering the content area above the protected footer. Layout changes
+are remembered separately for the menu and docs during the workspace session.
+Hiding returns focus to Bash; showing a live window focuses it. `exit` or **Ctrl+D**
 at the main Bash prompt leaves the workspace; typing Ctrl+C does not quit the host.
 External SIGHUP, SIGTERM, and SIGINT request orderly shutdown with exit codes
 129, 143, and 130 respectively: Bubble Tea restores the outer terminal before
@@ -239,9 +271,10 @@ handled.
   across hiding, switching, and closing.
 
 - An exited docs pane or failed pane keeps its final image/status and returns
-  focus to Bash. Unlocked `t` shows/hides that image; repeating its surface shortcut
-  starts a fresh child. A successful menu selection or cancellation closes the
-  picker instead of leaving a dead menu image.
+  focus to Bash. A pane that exits or fails in the **full** layout hides itself so
+  Bash is visible; the footer keeps its exit status or error. Unlocked `t` shows/hides that image;
+  repeating its surface shortcut starts a fresh child. A successful menu
+  selection or cancellation closes the picker instead of leaving a dead menu image.
 
 - **Menu selections run in the main Bash**, not the menu pane. The picker
   returns complete shell source through a private file and never executes it.
@@ -269,8 +302,8 @@ still change its style or hide it while they are running.
 The Starship navigation keymap stays on the prompt. The protected bottom row
 is the command-mode footer. Its left side is empty until a window opens; then
 a **^P layout** badge joins the key and what it unlocks. After Ctrl+P the badge
-fills, followed by `[ ]` labelled with a placement strip `▣ ◧ ◨ ⬒ ⬓`
-(floating, left, right, top, bottom; the current one in `accent`) and `Esc lock`. It uses the command
+fills, followed by `[ ]` labelled with a placement strip `▣ ◧ ◨ ⬒ ⬓ ■`
+(floating, left, right, top, bottom, full; the current one in `accent`) and `Esc lock`. It uses the command
 menu's padded keycaps, muted labels, and compact spacing. On terminals at least
 8 rows tall, a blank row separates it from Bash and panes; neither can draw
 there, and Bash's PTY is sized to stop above it. The unlocked badge is

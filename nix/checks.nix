@@ -1675,7 +1675,7 @@ in {
     assert first.title == "myproj";
     assert first.rootReadme == true;
     assert second.kind == "leaf";
-    assert second.title == "Quickstart (Setup Wizard)";
+    assert second.title == "Quickstart";
     assert (cfg.heroFile or "") != "";
       pkgs.runCommand "mdSplit-readme-nav" {} "touch $out";
   prompt-shadow-palette = let
@@ -1688,7 +1688,7 @@ in {
     internalLib = import ../src/prelude/lib.nix {inherit lib;};
     themeCases = {
       phosphor = "#121614";
-      minted = "#121218";
+      minted = "#0d0d0f";
       amber = "#16120e";
       solarized = "#132828";
       nord = "#333841";

@@ -48,8 +48,8 @@
   # Minted: deep indigo-black surfaces with sage primary and rose secondary.
   # Ported from a CSS token set (background/card/secondary + term-green/amber).
   minted = {
-    bg = "#0c0c13";
-    surface = "#161623";
+    bg = "#070709";
+    surface = "#11111a";
     secondary = "#24243f";
     fg = "#979db5";
     muted = "#6a6c85";
@@ -62,7 +62,7 @@
     warning = "#f2c17d";
     info = "#89b4fa";
     error = "#ee848e";
-    selectionFg = "#0c0c13";
+    selectionFg = "#070709";
   };
 
   amber = {

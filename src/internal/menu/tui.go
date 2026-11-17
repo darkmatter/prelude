@@ -64,6 +64,7 @@ type model struct {
 	// chosen is what the picker resolved, consumed after the TUI quits; nil
 	// means the user left without choosing (a valid empty command is non-nil).
 	chosen *Selection
+	xtab   *xtabProto // x-tab prototype sync (xtab_prototype.go); nil unless opted in
 }
 
 func newModel(cfg *Config, st styles, argTask *Task) model {
@@ -82,6 +83,7 @@ func newModel(cfg *Config, st styles, argTask *Task) model {
 	}
 	m.applyLayout(80, 24)
 	m.filter()
+	m.xtab = newXtabProtoFromEnv()
 	m.syncList()
 	if argTask != nil {
 		m.enterArgMode(*argTask)
@@ -89,7 +91,7 @@ func newModel(cfg *Config, st styles, argTask *Task) model {
 	return m
 }
 
-func (m model) Init() tea.Cmd { return m.prompt.Init() }
+func (m model) Init() tea.Cmd { return m.protoInit() }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -105,12 +107,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
-		switch m.mode {
-		case modeArgs:
-			return m.updateArgs(msg)
+		if m.xtab != nil && xtabProtoTriggerKey(msg) {
+			return m.protoHandleTrigger()
 		}
-		return m.updateList(msg)
-
+		prevMode, prevPickers := m.mode, len(m.pickers)
+		var cmd tea.Cmd
+		if m.mode == modeArgs {
+			m, cmd = m.updateArgs(msg)
+		} else {
+			m, cmd = m.updateList(msg)
+		}
+		return m.protoPublish(prevMode, prevPickers, cmd)
 	case tea.MouseClickMsg:
 		return m, nil
 
@@ -122,8 +129,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-
 	var cmd tea.Cmd
+	prevMode, prevPickers := m.mode, len(m.pickers)
 	m.prompt, cmd = m.prompt.Update(msg)
-	return m, cmd
+	return m.protoPublish(prevMode, prevPickers, cmd)
 }

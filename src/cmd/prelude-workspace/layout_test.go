@@ -1,14 +1,16 @@
 package main
 
 import (
+	"errors"
+	"strings"
 	"testing"
 
 	uv "github.com/charmbracelet/ultraviolet"
 )
 
 func TestPlacementNamesAndCycle(t *testing.T) {
-	placements := []placement{placementFloating, placementLeft, placementRight, placementTop, placementBottom}
-	names := []string{"floating", "left", "right", "top", "bottom"}
+	placements := []placement{placementFloating, placementLeft, placementRight, placementTop, placementBottom, placementFull}
+	names := []string{"floating", "left", "right", "top", "bottom", "full"}
 	for i, where := range placements {
 		if where != placement(i) {
 			t.Fatalf("%s value = %d, want %d", names[i], where, i)
@@ -42,8 +44,27 @@ func TestPlacementNamesAndCycle(t *testing.T) {
 	}
 }
 
+// A pane that fails or exits while covering all of Bash hides itself and
+// locks command mode, so the keys returning to Bash go somewhere visible.
+// Other layouts leave Bash partly visible and keep the pane on screen.
+func TestFailedCoveringPaneHidesAndLocks(t *testing.T) {
+	for _, step := range []struct {
+		where   placement
+		visible bool
+	}{{placementFull, false}, {placementFloating, true}, {placementLeft, true}} {
+		h := &host{cols: 40, rows: 10, surface: surfaceDocs, paneVisible: true, leader: true, placement: step.where}
+		h.failPane(errors.New("boom"))
+		if h.paneVisible != step.visible || h.leader == !step.visible || h.windowOpen() != step.visible {
+			t.Fatalf("%s: visible=%t leader=%t, want visible=%t", step.where, h.paneVisible, h.leader, step.visible)
+		}
+		if !strings.Contains(h.notice, "boom") {
+			t.Fatalf("%s: notice %q lost the error", step.where, h.notice)
+		}
+	}
+}
+
 func TestComputeLayoutGeometry(t *testing.T) {
-	for _, where := range []placement{placementFloating, placementLeft, placementRight, placementTop, placementBottom} {
+	for _, where := range []placement{placementFloating, placementLeft, placementRight, placementTop, placementBottom, placementFull} {
 		for _, panelOpen := range []bool{false, true} {
 			name := where.String() + "/closed"
 			if panelOpen {
@@ -141,6 +162,10 @@ func TestComputeLayoutGeometry(t *testing.T) {
 							if contentRows >= 10 && (layout.Panel.Dy()*10 < contentRows*7 || layout.Panel.Dy()*10 > contentRows*9) {
 								t.Fatalf("%dx%d: floating height is not roughly 80%%: %+v", cols, rows, layout)
 							}
+						case placementFull:
+							if layout.Shell != usable || layout.Panel != usable {
+								t.Fatalf("%dx%d: full pane must cover and leave the whole usable shell: %+v", cols, rows, layout)
+							}
 						case placementLeft, placementRight, placementTop, placementBottom:
 							if layout.Panel.Overlaps(layout.Shell) || layout.Panel.Dx()*layout.Panel.Dy()+layout.Shell.Dx()*layout.Shell.Dy() != cols*contentRows {
 								t.Fatalf("%dx%d: split panes do not tile usable area: %+v", cols, rows, layout)
@@ -179,7 +204,7 @@ func TestComputeLayoutGeometry(t *testing.T) {
 func TestComputeLayoutClampsOuterSize(t *testing.T) {
 	for _, size := range [][2]int{{-10, -10}, {-10, 40}, {100, -10}, {0, 0}, {0, 8}, {8, 0}} {
 		cols, rows := size[0], size[1]
-		for _, where := range []placement{placementFloating, placementLeft, placementRight, placementTop, placementBottom} {
+		for _, where := range []placement{placementFloating, placementLeft, placementRight, placementTop, placementBottom, placementFull} {
 			for _, panelOpen := range []bool{false, true} {
 				got := computeLayout(cols, rows, where, panelOpen)
 				want := computeLayout(max(cols, 1), max(rows, 1), where, panelOpen)
@@ -192,7 +217,7 @@ func TestComputeLayoutClampsOuterSize(t *testing.T) {
 }
 
 func TestComputeLayoutInvalidPlacement(t *testing.T) {
-	for value := int(placementBottom) + 1; value <= 255; value++ {
+	for value := int(placementFull) + 1; value <= 255; value++ {
 		for _, size := range [][2]int{{1, 1}, {2, 4}, {3, 4}, {4, 5}, {5, 6}, {7, 9}, {81, 25}, {240, 100}} {
 			cols, rows := size[0], size[1]
 			for _, panelOpen := range []bool{false, true} {

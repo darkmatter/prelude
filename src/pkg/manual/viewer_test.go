@@ -149,6 +149,80 @@ func TestPlainKeysScrollPageWithoutChangingLeaf(t *testing.T) {
 	}
 }
 
+func TestDocsDirectionalKeysTargetContentAndShiftTargetsSidebar(t *testing.T) {
+	newViewer := func() Viewer {
+		body := "# Guide\n\n" + strings.Repeat("line of content\n", 80)
+		viewer := New(testDoc(NavNode{
+			Title: "Guides",
+			Children: []NavNode{
+				{Title: "One", Markdown: body},
+				{Title: "Two", Markdown: body},
+			},
+		}), testPalette())
+		viewer, _ = viewer.Handle(tea.WindowSizeMsg{Width: 80, Height: 16})
+		viewer.viewport.SetYOffset(4)
+		return viewer
+	}
+	for _, direction := range []struct {
+		arrow  string
+		letter string
+	}{
+		{"left", "h"}, {"down", "j"}, {"up", "k"}, {"right", "l"},
+	} {
+		t.Run(direction.arrow, func(t *testing.T) {
+			plain := newViewer()
+			plain, _ = plain.Handle(tea.MouseClickMsg{X: 0, Y: SidebarItemsTop, Button: tea.MouseLeft})
+			cursor, leaf := fmt.Sprint(plain.cursorPath), fmt.Sprint(plain.leafPath)
+			want, _ := plain.Handle(keyPress(direction.arrow))
+			if fmt.Sprint(want.cursorPath) != cursor || fmt.Sprint(want.leafPath) != leaf {
+				t.Fatal("unshifted arrow targeted the sidebar after a sidebar click")
+			}
+			if (direction.arrow == "up" || direction.arrow == "down") && want.viewport.YOffset() == 4 {
+				t.Fatal("unshifted vertical motion did not scroll the content")
+			}
+			for _, key := range []tea.KeyPressMsg{
+				keyPress(direction.letter),
+				{Code: rune(direction.letter[0]), Text: strings.ToUpper(direction.letter), Mod: tea.ModCapsLock},
+			} {
+				got, _ := plain.Handle(key)
+				if got.render() != want.render() || got.viewport.XOffset() != want.viewport.XOffset() {
+					t.Fatalf("%+v did not behave like plain %s", key, direction.arrow)
+				}
+			}
+
+			sidebarViewer := func() Viewer {
+				viewer := newViewer()
+				if direction.arrow == "left" || direction.arrow == "right" {
+					viewer, _ = viewer.Handle(keyPress("shift+up"))
+				}
+				if direction.arrow == "right" {
+					viewer, _ = viewer.Handle(keyPress("shift+left"))
+				}
+				return viewer
+			}
+			sidebar := sidebarViewer()
+			before := sidebar.render()
+			want, _ = sidebar.Handle(keyPress("shift+" + direction.arrow))
+			if want.render() == before {
+				t.Fatal("shifted arrow did not move or expand/collapse the sidebar")
+			}
+			upper := strings.ToUpper(direction.letter)
+			for _, key := range []tea.KeyPressMsg{
+				keyPress("shift+" + direction.letter),
+				keyPress(upper),
+				keyPress("shift+" + upper),
+				{Code: rune(direction.letter[0]), Text: direction.letter, Mod: tea.ModShift},
+				{Code: rune(direction.letter[0]), ShiftedCode: rune(upper[0]), Text: upper, Mod: tea.ModShift},
+			} {
+				got, _ := sidebarViewer().Handle(key)
+				if got.render() != want.render() {
+					t.Fatalf("%+v did not behave like Shift+%s", key, direction.arrow)
+				}
+			}
+		})
+	}
+}
+
 func TestDocsGroupCursorResizeKeepsLeafBody(t *testing.T) {
 	document := testDoc(NavNode{
 		Title: "Group",

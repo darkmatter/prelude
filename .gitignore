@@ -66,3 +66,4 @@ src/.tmp-motd-region-test/
 .work/
 .ruff_cache/
 .beads.gate.lock
+.agents

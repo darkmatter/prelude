@@ -57,7 +57,7 @@ export const themes = {
     "accent": "#f2cdcd",
     "accent2": "#CC99FF",
     "accentBorder": "#3e4441",
-    "bg": "#0c0c13",
+    "bg": "#070709",
     "border": "#1d1d2f",
     "dim": "#4a5085",
     "error": "#ee848e",
@@ -65,9 +65,9 @@ export const themes = {
     "info": "#89b4fa",
     "muted": "#6a6c85",
     "secondary": "#24243f",
-    "selectionFg": "#0c0c13",
+    "selectionFg": "#070709",
     "success": "#b7ce99",
-    "surface": "#161623",
+    "surface": "#11111a",
     "warning": "#f2c17d"
   },
   "mono": {

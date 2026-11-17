@@ -40,6 +40,7 @@ type shellProcess struct {
 	ptmx        *os.File
 	rc          string
 	commandFile string // private source file owned by the main Bash lifecycle
+	protoDir    string // x-tab prototype only: private data directory (empty unless opted in)
 	output      chan outputMsg
 	stop        chan struct{}
 	readerDone  chan struct{}
@@ -90,13 +91,22 @@ fi
 		_ = os.Remove(commandFile.Name())
 		return nil, err
 	}
+	protoDir, err := xtabProtoBashDir(env)
+	if err != nil {
+		_ = os.Remove(commandFile.Name())
+		return nil, err
+	}
 	started := false
 	defer func() {
 		if !started {
 			_ = os.Remove(commandFile.Name())
+			_ = os.RemoveAll(protoDir)
 		}
 	}()
 	content = "__prelude_ghostty_command_file=" + shellQuote(commandFile.Name()) + "\n" + content
+	if protoDir != "" {
+		content = "__prelude_xtab_proto_dir=" + shellQuote(protoDir) + "\n" + content + bashXTabPrototypeRC
+	}
 	rc, err := os.CreateTemp("", "prelude-ghostty-*.bashrc")
 	if err != nil {
 		return nil, fmt.Errorf("private Bash rc: %w", err)
@@ -111,7 +121,7 @@ fi
 	if err != nil {
 		return nil, err
 	}
-	s.commandFile, started = commandFile.Name(), true
+	s.commandFile, s.protoDir, started = commandFile.Name(), protoDir, true
 	return s, nil
 }
 
@@ -470,6 +480,10 @@ func (s *shellProcess) close() error {
 					s.closeErr = errors.Join(s.closeErr, fmt.Errorf("remove private Bash file: %w", err))
 				}
 			}
+		}
+		// RemoveAll ignores a missing or empty path.
+		if err := os.RemoveAll(s.protoDir); err != nil {
+			s.closeErr = errors.Join(s.closeErr, fmt.Errorf("remove private Bash file: %w", err))
 		}
 	})
 	return s.closeErr

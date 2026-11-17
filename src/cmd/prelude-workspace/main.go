@@ -30,7 +30,7 @@ func main() {
 		fmt.Fprintln(flag.CommandLine.Output(), "prelude-workspace: an interactive Bash workspace (private rc; your ~/.inputrc and history file apply, ~/.bashrc does not).")
 		flag.PrintDefaults()
 		fmt.Fprintln(flag.CommandLine.Output(), "Alt+m prints MOTD in the main shell; Alt+x toggles the menu; Alt+d toggles docs; Alt+w shows/hides the current window; Alt+Tab switches focus between Bash and a live window.")
-		fmt.Fprintln(flag.CommandLine.Output(), "Ctrl+] next / Ctrl+[ previous layout (legacy fallback Ctrl+\\); floating -> left -> right -> top -> bottom -> floating.")
+		fmt.Fprintln(flag.CommandLine.Output(), "Ctrl+] next / Ctrl+[ previous layout (legacy fallback Ctrl+\\); floating -> left -> right -> top -> bottom -> full -> floating. Full covers the content area above the footer and hides Bash. Docs default to full, the menu to floating; each remembers its chosen layout for the session.")
 		fmt.Fprintln(flag.CommandLine.Output(), "With a window open, Ctrl+P unlocks layout commands: ] next / [ previous layout | Tab focus (for desktops that take Alt+Tab). It stays unlocked until Esc or Ctrl+P locks; other keys are consumed. With no window, Ctrl+P reaches Bash.")
 		fmt.Fprintln(flag.CommandLine.Output(), "Ctrl+G belongs to the child, not Prelude. Ctrl+V quotes reserved keys; exit: quit the main shell.")
 		fmt.Fprintln(flag.CommandLine.Output(), "Alt+x/Alt+d/Alt+w/Alt+Tab act without restarting a live pane, and lock command mode. Menu selection closes the picker and runs in the main Bash, preserving parked readline input.")

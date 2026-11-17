@@ -12,8 +12,14 @@ func (h *host) layout() workspaceLayout {
 	return computeLayout(h.cols, h.rows, h.placement, h.paneVisible && h.surface != surfaceNone)
 }
 
+// Callers hold a surface (layout keys and command mode need one), so the
+// choice is remembered for that surface for the rest of the session.
 func (h *host) setPlacement(where placement) tea.Cmd {
 	h.placement = where
+	if h.panePlacements == nil {
+		h.panePlacements = make(map[surfaceKind]placement)
+	}
+	h.panePlacements[h.surface] = where
 	h.notice = ""
 	wasPane := h.focusPane
 	if err := h.resizeWorkspace(); err != nil {
@@ -53,7 +59,19 @@ func (h *host) failPane(err error) tea.Cmd {
 	}
 	h.paneError, h.focusPane = err, false
 	h.notice = fmt.Sprintf("%s error: %v", h.surface, err)
+	h.hideCoveringPane()
 	return h.syncFocus()
+}
+
+// hideCoveringPane hides a pane that no longer takes input when it covers all
+// of Bash (full layout), so Bash is visible while it has the keys. The footer
+// keeps the exit status or error and Alt+W shows the final image. Full already
+// gives Bash the whole usable area, so hiding needs no resize. Command mode
+// locks with the window, as on every other hide.
+func (h *host) hideCoveringPane() {
+	if h.placement == placementFull {
+		h.paneVisible, h.leader = false, false
+	}
 }
 
 // Focus bytes go only to the child whose effective focus changes: on a
@@ -129,6 +147,7 @@ func (h *host) closePane() tea.Cmd {
 	p := h.pane
 	h.pane, h.surface, h.paneError = nil, surfaceNone, nil
 	h.leader = false // Layout commands need a window.
+	h.protoDetach()
 	h.paneVisible, h.focusPane, h.notice = false, false, ""
 	if p != nil {
 		if err := p.close(); err != nil {
@@ -147,6 +166,13 @@ func (h *host) chooseSurface(kind surfaceKind) tea.Cmd {
 	}
 	p := h.pane
 	h.pane, h.surface, h.paneError = nil, kind, nil
+	h.placement = placementFloating
+	if kind == surfaceDocs {
+		h.placement = placementFull
+	}
+	if where, ok := h.panePlacements[kind]; ok {
+		h.placement = where
+	}
 	h.paneVisible, h.focusPane, h.notice = true, false, ""
 	if p != nil {
 		if err := p.close(); err != nil {
@@ -163,6 +189,7 @@ func (h *host) chooseSurface(kind surfaceKind) tea.Cmd {
 	if err != nil {
 		h.paneError = err
 		h.notice = fmt.Sprintf("%s error: %v", kind, err)
+		h.hideCoveringPane()
 		return h.syncFocus()
 	}
 	h.pane = p
@@ -222,12 +249,15 @@ func (h *host) keyInput(message tea.KeyPressMsg) tea.Cmd {
 		}
 		// Legacy Ctrl+[ arrives as Esc, so only a distinct enhanced key can
 		// cycle backward. Ctrl+\ is unambiguous on legacy terminals too.
-		// Layout keys leave command mode as it was.
-		switch message.String() {
-		case "ctrl+]":
-			return h.setPlacement(h.placement.next())
-		case "ctrl+[", "ctrl+\\":
-			return h.setPlacement(h.placement.prev())
+		// Layout keys leave command mode as it was. With no surface there is
+		// no layout to change, so the keys stay Readline's.
+		if h.surface != surfaceNone {
+			switch message.String() {
+			case "ctrl+]":
+				return h.setPlacement(h.placement.next())
+			case "ctrl+[", "ctrl+\\":
+				return h.setPlacement(h.placement.prev())
+			}
 		}
 		if message.String() == "ctrl+g" {
 			h.leader = false // Child-owned even while command mode was unlocked.
@@ -265,11 +295,32 @@ func (h *host) keyInput(message tea.KeyPressMsg) tea.Cmd {
 		}
 	}
 	h.notice = ""
+	// x-tab prototype: a plain Tab for Bash may open/seed the menu instead
+	// (xtab_host.go); quoted Tab and leader Tab already returned above.
+	// While a Tab decision (or a fresh menu's ready ack) is outstanding,
+	// destination-bound keys are held so nothing overtakes the decision.
+	if !quoted && message.String() == "tab" && !h.paneFocused() {
+		if h.protoHoldShellKey(message) {
+			return nil
+		}
+		if cmd, handled := h.protoTab(); handled {
+			return cmd
+		}
+	}
 	// Ordinary keys and Ctrl+G belong to the focused child outside command mode.
 	if h.paneFocused() {
+		if h.protoHoldPaneKey(message) {
+			return nil
+		}
 		return h.forwardPane(h.pane.terminal.Key(message.Key()))
 	}
-	return h.forward(h.terminal.Key(message.Key()))
+	if cmd := h.protoCtrlCEscape(message); cmd != nil {
+		return cmd
+	}
+	if h.protoHoldShellKey(message) {
+		return nil
+	}
+	return h.protoAfterShellKey(message, h.forward(h.terminal.Key(message.Key())))
 }
 
 // toggleFocus moves input between Bash and a live interactive pane.

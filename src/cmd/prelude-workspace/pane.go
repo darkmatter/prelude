@@ -41,6 +41,8 @@ type pane struct {
 	err           error
 	closed        bool
 	selectionFile string // menu-only result, separate from its PTY output
+	protoInFile   string // x-tab prototype only: host -> menu seed data
+	protoOutFile  string // x-tab prototype only: menu -> host filter data
 	// Clipboard sets decoded from pane output; the host drains and forwards them.
 	clipboard []clipboardWrite
 }
@@ -95,6 +97,12 @@ func startPane(kind surfaceKind, cols, rows int, env []string) (*pane, error) {
 			return nil, err
 		}
 		args = append(args, "--select-output", p.selectionFile)
+		var protoErr error
+		env, protoErr = p.protoPaneEnv(env)
+		if protoErr != nil {
+			_ = p.close()
+			return nil, protoErr
+		}
 	}
 	p.process, err = startPTY(path, args, cols, rows, env, "")
 	if err != nil {
@@ -205,8 +213,11 @@ func (p *pane) close() error {
 	}
 	// Teardown, like all native operations, belongs to the UI-loop owner.
 	p.terminal.Close()
-	if p.selectionFile != "" {
-		if removeErr := os.Remove(p.selectionFile); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+	for _, file := range []string{p.selectionFile, p.protoInFile, p.protoOutFile} {
+		if file == "" {
+			continue
+		}
+		if removeErr := os.Remove(file); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
 			err = errors.Join(err, removeErr)
 		}
 	}

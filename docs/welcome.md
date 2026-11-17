@@ -9,9 +9,11 @@ This shell is Prelude developing itself: everything you see is produced from
 root `prelude.nix` (plus the small `nix/prelude-*.nix` imports), the same shape
 a downstream project would use.
 
-Viewer keys: digits jump between pages, `Tab`/`Shift-Tab` (or `Shift` with the
-arrows or `h`/`j`/`k`/`l`) move through the navigation, plain `j`/`k` and the
-arrows scroll the page, `q` quits.
+Viewer keys: arrows and `h`/`j`/`k`/`l` always target the content, even after
+clicking the sidebar. Hold `Shift` with either set to target the sidebar instead:
+up/down selects entries, left collapses a group or moves to its parent, and right
+expands a group or enters it. Digits jump between pages, `Tab`/`Shift-Tab` select
+sidebar entries, and `q` quits.
 
 ## Silencing direnv noise under the MOTD
 
@@ -38,7 +40,7 @@ grep -q hide_env_diff ~/.config/direnv/direnv.toml 2>/dev/null \
 - `warn_timeout` — `… is taking a while to execute`
 
 This has to live in the user's own direnv config. `direnv export` reads its
-logging settings at startup, *before* it runs `.envrc`, so exporting
+logging settings at startup, _before_ it runs `.envrc`, so exporting
 `DIRENV_LOG_FORMAT` from a devshell or from `.envrc` cannot silence the load
 that is already underway — the variable only lands in the environment being
 produced. Prelude therefore cannot apply this for you. If you ship the MOTD to

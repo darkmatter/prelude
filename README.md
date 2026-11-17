@@ -4,9 +4,9 @@
   <br />
 </div>
 
-Greets `nix develop` with a MOTD, command picker, docs viewer, and themed prompt. Use it as a flake-parts module or, in any other flake (blueprint, a plain `outputs` function), through `prelude.lib.evalModule`.
+A command picker, MOTD, and docs viewer for your project.
 
-Prelude keeps docs next to where you run the project. `docs` in the devshell explains this repo; `nix run github:darkmatter/prelude#docs` explains whatever checkout you are in, with its own Prelude theme and pages when it has them; `nix run github:org/repo#prelude-docs` explains a prelude-enabled dependency, and `nix run github:org/repo#prelude-menu` opens its command menu. The only command to remember is `nix develop`.
+Define commands in [TypeScript with Bun](#if-you-use-typescript), or configure your devshell with [Nix flakes](#if-you-use-nix-flakes). Both use the same terminal UI; the Nix integration also provides a themed prompt and managed Bash workspace.
 
 <br />
 <div align="center">
@@ -14,9 +14,46 @@ Prelude keeps docs next to where you run the project. `docs` in the devshell exp
 </div>
 <br />
 
-## Quickstart (Setup Wizard)
+## Quickstart
 
-The wizard writes `prelude.nix`, a sibling `title.txt`, and a project-root `.envrc` (`use flake`):
+### If you use TypeScript
+
+Install the Bun package—no Nix required:
+
+```sh
+bun add @drkmttr/prelude
+```
+
+Create `prelude.ts` in your project root:
+
+```ts
+import { Command, Prelude } from "@drkmttr/prelude";
+
+await Prelude.make({
+  project: "acme",
+  commands: {
+    hello: Command.make({
+      description: "say hello",
+      args: [{ token: "--name", default: "world" }],
+      run: ({ name }) => console.log(`Hello, ${name}!`),
+    }),
+  },
+}).main();
+```
+
+```sh
+bun prelude.ts                   # open the picker
+bun prelude.ts hello --name Ada   # run a typed function command
+bun prelude.ts --list             # list the catalogue
+```
+
+See the [TypeScript guide](ts/README.md) for the MOTD/docs APIs and the
+[complete example](examples/typescript/).
+
+### If you use Nix flakes
+
+Generate a devshell configuration with the setup wizard. It writes `prelude.nix`,
+a sibling `title.txt`, and a project-root `.envrc` (`use flake`):
 
 ```bash
 nix run github:darkmatter/prelude -- wizard
@@ -27,9 +64,26 @@ nix run github:darkmatter/prelude -- wizard -o nix/prelude.nix
 
 ![docs/recording.gif](https://github.com/darkmatter/prelude/blob/main/docs/recording.gif?raw=true)
 
-The wizard never overwrites an existing `flake.nix`; wire the sidecar in as [Install](#install) shows.
+The wizard never overwrites an existing `flake.nix`. Follow [Install](#install)
+to wire the sidecar into your flake, with or without flake-parts. Then enter
+`nix develop` and run `x` to pick a command.
 
 The generated file lists every option as a commented default. Put clone-to-running steps on the MOTD; put the rest in the command catalogue (`x`) and Markdown docs.
+
+**Using TypeScript and Nix together?** Point the devshell's `x` at your TypeScript
+entrypoint in `prelude.nix`:
+
+```nix
+prelude.menu.enable = true;
+prelude.typescript.entrypoint = "prelude.ts";
+```
+
+Set `dispatcher: "x"` in `Prelude.make(...)`, reenter `nix develop`, and use
+`x hello --name Ada`. TypeScript owns that catalogue instead of merging Nix
+commands into it. See the [integration guide](ts/README.md#use-the-devshells-x)
+for dependency and published-root requirements.
+
+## Surfaces
 
 ### Command picker
 
@@ -43,6 +97,9 @@ x d               # …or by its single-key accelerator
 x --list          # print the command table
 ```
 
+To open a Prelude-enabled dependency's menu, run
+`nix run github:org/repo#prelude-menu`.
+
 Adapt existing packages so the menu does not drift:
 
 ```nix
@@ -53,6 +110,11 @@ prelude.commands.dev = prelude.lib.fromPkg packages.dev {
 ```
 
 ### Docs
+
+Prelude keeps docs next to where you run the project. `docs` in the devshell
+explains this repo; `nix run github:darkmatter/prelude#docs` explains whatever
+checkout you are in, with its own Prelude theme and pages when it has them.
+`nix run github:org/repo#prelude-docs` explains a Prelude-enabled dependency.
 
 ![docs](docs/media/shots/docs.png)
 
@@ -92,22 +154,6 @@ All use the current checkout's menu, with your own Docs, MOTD, theme, and comple
 Each init is stamped before launch, so exit or failure does not immediately reopen the workspace. Leaving and reentering the devshell, or a changed init, permits automatic entry again. Noninteractive, envrc, lorri, zsh, and non-TTY contexts never auto-launch it; `PRELUDE_WORKSPACE_ACTIVE` prevents child recursion. Workspace mode skips legacy BLE initialization. The public `prelude hook bash` remains optional for already-configured interactive handoffs after direnv, not an onboarding requirement.
 
 Set `prelude.workspace.enable = false` to opt out and avoid workspace native dependencies. This repo dogfoods it enabled, so its default shell includes the launcher and native runtime, but not headers or renderer tooling. See the [workspace guide](docs/guides/workspace.md) for activation details, published launches, controls, and runtime limitations.
-
-### TypeScript
-
-Bun apps get the same picker, MOTD, and docs viewer from TypeScript. Commands are functions declared next to the code they run, with typed arguments:
-
-```ts
-export const preludeCommand = Command.make({
-  description: "run the dev server",
-  args: [{ token: "--port", type: "number", default: 3000 }],
-  run: (args) => serve(args.port), // args.port: number
-});
-
-await Prelude.make({ project: "acme", commands: { dev: preludeCommand } }).main();
-```
-
-Install with `bun add @drkmttr/prelude`. Walkthrough: [`examples/typescript/`](examples/typescript/). API: [`ts/`](ts/README.md).
 
 ## Install
 

@@ -14,6 +14,7 @@
   pkgs,
   lib,
   config,
+  system,
   ...
 }: let
   args = {
@@ -41,6 +42,10 @@
     };
   previews = import ./previews.nix (args // {inherit checks;});
 in {
+  _module.args.pkgs = import inputs.nixpkgs {
+    inherit system;
+    overlays = [inputs.nix-bun.overlays.default];
+  };
   packages = import ./packages.nix (
     args
     // {

@@ -67,7 +67,8 @@ __prelude_ghostty_prompt() {
 }
 __prelude_ghostty_preexec() {
     if [[ $__prelude_ghostty_at_prompt == 1 && $BASH_COMMAND != __prelude_ghostty_prompt &&
-          $BASH_COMMAND != __prelude_ghostty_load_command && $BASH_COMMAND != __prelude_ghostty_restore_input ]]; then
+          $BASH_COMMAND != __prelude_ghostty_load_command && $BASH_COMMAND != __prelude_ghostty_restore_input &&
+          $BASH_COMMAND != __prelude_xtab_proto_snapshot && $BASH_COMMAND != __prelude_xtab_proto_apply ]]; then
         __prelude_ghostty_at_prompt=0
         __prelude_ghostty_primary_prompt=0
         builtin printf '\e]133;C\a'
@@ -135,8 +136,10 @@ func (p *promptParser) scan(data []byte) []promptMarker {
 						marker.status = code
 					}
 				}
-				// L is a private readline load acknowledgement.
-				if strings.ContainsRune("ABCDL", rune(marker.kind)) {
+				// L is a private readline load acknowledgement. X is the
+				// x-tab prototype's snapshot acknowledgement (only ever
+				// emitted by its opt-in bind-x function).
+				if strings.ContainsRune("ABCDLX", rune(marker.kind)) {
 					markers = append(markers, marker)
 				}
 			}

@@ -54,7 +54,7 @@ type smokeKeyHint struct {
 
 var smokeNavigationKeys = []smokeKeyHint{}
 var smokeWindowKeys = []smokeKeyHint{{"^P", "layout", true, false}}
-var smokeLeaderWindowKeys = []smokeKeyHint{{"^P", "layout", true, true}, {"[ ]", "▣ ◧ ◨ ⬒ ⬓", false, false}, {"Esc", "lock", false, false}}
+var smokeLeaderWindowKeys = []smokeKeyHint{{"^P", "layout", true, true}, {"[ ]", "▣ ◧ ◨ ⬒ ⬓ ■", false, false}, {"Esc", "lock", false, false}}
 var smokePaneKeys = smokeWindowKeys
 
 type smokeFooterSpan struct {
@@ -433,6 +433,9 @@ func (f smokeFrame) hasLine(want string) bool {
 }
 
 func (f smokeFrame) panel(surface string) bool {
+	if surface == "docs" {
+		return strings.HasPrefix(f.textAt(0, 0, f.cols), "LEADER_DOCS:")
+	}
 	width := min(100, f.cols-f.cols/5)
 	contentRows := len(f.rows) - 1
 	height := min(30, contentRows-contentRows/5)

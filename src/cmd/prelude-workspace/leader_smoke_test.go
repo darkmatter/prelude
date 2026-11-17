@@ -178,6 +178,7 @@ func TestGhosttyLeaderBinarySmoke(t *testing.T) {
 		s.await("hiding reopened picker leaves parked input intact", func(f smokeFrame) bool {
 			return f.hasInput("prelude $", "echo native-main") && f.hasPaneFooter(smokeClosedPill())
 		})
+		body = smokeLayoutBody(120, 42, placementFull)
 		s.send("\x1bd")
 		paint("configured docs shortcut first paint", "docs", "PAGES", "DOCS")
 		docsImage := leaderSmokeBody(s.frame(), body)
@@ -331,7 +332,9 @@ func TestGhosttyLeaderBinarySmoke(t *testing.T) {
 			{"right", smokeLayoutBody(ghosttySmokeCols, ghosttySmokeRows, placementRight), "\x1d", "R"},
 			{"top", smokeLayoutBody(ghosttySmokeCols, ghosttySmokeRows, placementTop), "\x1d", "T"},
 			{"bottom", smokeLayoutBody(ghosttySmokeCols, ghosttySmokeRows, placementBottom), "\x1d", "B"},
+			{"full", smokeLayoutBody(ghosttySmokeCols, ghosttySmokeRows, placementFull), "\x1d", "A"},
 			{"floating", smokeLayoutBody(ghosttySmokeCols, ghosttySmokeRows, placementFloating), "\x1d", "F"},
+			{"full", smokeLayoutBody(ghosttySmokeCols, ghosttySmokeRows, placementFull), "\x1b[91;5u", "a"},
 			{"bottom", smokeLayoutBody(ghosttySmokeCols, ghosttySmokeRows, placementBottom), "\x1b[91;5u", "b"},
 			{"top", smokeLayoutBody(ghosttySmokeCols, ghosttySmokeRows, placementTop), "\x1b[91;5u", "t"},
 			{"right", smokeLayoutBody(ghosttySmokeCols, ghosttySmokeRows, placementRight), "\x1b[91;5u", "r"},
@@ -348,8 +351,8 @@ func TestGhosttyLeaderBinarySmoke(t *testing.T) {
 			key  string
 			want string
 		}{
-			{"]", "left"}, {"]", "right"}, {"]", "top"}, {"]", "bottom"}, {"]", "floating"},
-			{"[", "bottom"}, {"[", "top"}, {"[", "right"}, {"[", "left"}, {"[", "floating"},
+			{"]", "left"}, {"]", "right"}, {"]", "top"}, {"]", "bottom"}, {"]", "full"}, {"]", "floating"},
+			{"[", "full"}, {"[", "bottom"}, {"[", "top"}, {"[", "right"}, {"[", "left"}, {"[", "floating"},
 		} {
 			s.send(step.key)
 			where = step.want
@@ -375,6 +378,7 @@ func TestGhosttyLeaderBinarySmoke(t *testing.T) {
 		s.send("\x10\t\x10R")
 		input = append(input, 'R')
 		pane("same child resumes; hidden input went only to Bash", "pane")
+		body = smokeLayoutBody(ghosttySmokeCols, ghosttySmokeRows, placementFull)
 		s.send("\x1bd")
 		docs := s.await("switch safely reaps menu and paints docs child", func(f smokeFrame) bool {
 			return strings.Contains(leaderSmokeBody(f, body), "LEADER_DOCS:") &&
@@ -382,11 +386,9 @@ func TestGhosttyLeaderBinarySmoke(t *testing.T) {
 		})
 		docsIdentity := strings.TrimSpace(docs.textAt(body.Min.X, body.Min.Y, body.Dx()))
 		s.send("q")
-		finished := s.await("child exit retained while main Bash stays alive", func(f smokeFrame) bool {
-			return strings.Contains(leaderSmokeBody(f, body), docsIdentity) && f.hasPaneFooter(f.paneFooterStatus("docs", "exited 7")) && !f.pillFocusesPane()
-		})
-		s.send("\x1bw")
-		s.await("finished docs hides without restart", func(f smokeFrame) bool {
+		// A finished full-screen pane would hide Bash, so it hides itself; the
+		// footer keeps the exit status.
+		s.await("finished full-screen docs hides while main Bash stays alive", func(f smokeFrame) bool {
 			return f.hasInput("prelude $", shellInput) && f.hasPaneFooter("exited 7 "+smokeClosedPill())
 		})
 		s.send("-e")
@@ -396,7 +398,7 @@ func TestGhosttyLeaderBinarySmoke(t *testing.T) {
 		})
 		s.send("\x1bw")
 		s.await("show restores final docs image without focus or restart", func(f smokeFrame) bool {
-			return leaderSmokeBody(f, body) == leaderSmokeBody(finished, body) && f.hasPaneFooter(f.paneFooterStatus("docs", "exited 7")) && !f.pillFocusesPane()
+			return strings.Contains(leaderSmokeBody(f, body), docsIdentity) && f.hasPaneFooter(f.paneFooterStatus("docs", "exited 7")) && !f.pillFocusesPane()
 		})
 		s.send("\x1bd")
 		s.await("explicit docs chord restarts a finished surface", func(f smokeFrame) bool {

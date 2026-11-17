@@ -34,7 +34,7 @@ func (sb statusBarView) View() string {
 	// Mode chip (DOCS) is the footer's primary differentiator.
 	left := text.Bold(true).PaddingLeft(2).Render(sb.mode) + text.Render(" :"+sb.section)
 	if sb.jumpCount > 0 {
-		left += text.Faint(true).Render(fmt.Sprintf("  ·  1-%d pages · tab/shift+↑↓ nav · ↑↓ scroll · q quit", sb.jumpCount))
+		left += text.Faint(true).Render(fmt.Sprintf("  ·  1-%d pages · hjkl/←↓↑→ scroll · shift nav · q quit", sb.jumpCount))
 	}
 	right := text.Faint(true).PaddingRight(2).Render(position)
 	remaining := max(sb.width-lipgloss.Width(left), 0)

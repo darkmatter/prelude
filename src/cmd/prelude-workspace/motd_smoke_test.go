@@ -99,7 +99,11 @@ fi`, log, log, log))
 					shown := s.await("MOTD stays outside the "+surface.kind+" pane", func(f smokeFrame) bool {
 						return f.panel(surface.kind) && f.hasPaneFooter(f.paneFooterStatus(surface.kind, "")) && f.pillFocusesPane()
 					})
-					if body := leaderSmokeBody(shown, smokeLayoutBody(ghosttySmokeCols, ghosttySmokeRows, placementFloating)); strings.Contains(body, "MOTD_") {
+					where := placementFloating
+					if surface.kind == "docs" {
+						where = placementFull
+					}
+					if body := leaderSmokeBody(shown, smokeLayoutBody(ghosttySmokeCols, ghosttySmokeRows, where)); strings.Contains(body, "MOTD_") {
 						t.Fatalf("MOTD appeared in the surface pane: %q", body)
 					}
 					if surface.kind == "menu" && shown.rows[0] != "STARTUP_MOTD_ONCE" {
@@ -114,7 +118,7 @@ fi`, log, log, log))
 						return f.panel(surface.kind) && f.hasPaneFooter(f.paneFooterStatus(surface.kind, "")) && f.pillFocusesPane()
 					})
 					s.send("\x1d")
-					s.await("docked "+surface.kind+" with parked Bash input", func(f smokeFrame) bool {
+					s.await("next layout for "+surface.kind+" with parked Bash input", func(f smokeFrame) bool {
 						return f.hasPaneFooter(f.paneFooterStatus(surface.kind, "")) && f.pillFocusesPane()
 					})
 					s.resize(104, 28)
@@ -122,7 +126,7 @@ fi`, log, log, log))
 						return f.cols == 104 && len(f.rows) == 28 && f.hasPaneFooter(f.paneFooterStatus(surface.kind, "")) && f.pillFocusesPane()
 					})
 					s.send("\x1c")
-					s.await("floating "+surface.kind+" restored", func(f smokeFrame) bool {
+					s.await("default layout for "+surface.kind+" restored", func(f smokeFrame) bool {
 						return f.panel(surface.kind) && f.hasPaneFooter(f.paneFooterStatus(surface.kind, "")) && f.pillFocusesPane()
 					})
 					s.send("\x1b" + surface.key)

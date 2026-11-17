@@ -30,3 +30,25 @@ func TestViewMirrorsVisibleChildMouseMode(t *testing.T) {
 		t.Fatalf("mouse mode = %v, want none after the child disables tracking", got)
 	}
 }
+
+// A full-screen pane covers Bash, which can then never receive a mouse
+// event; its tracking must not take the mouse from the outer terminal. Any
+// layout that leaves part of Bash exposed still mirrors it.
+func TestViewIgnoresCoveredShellMouseMode(t *testing.T) {
+	h := &host{cols: 40, rows: 10, surface: surfaceDocs, paneVisible: true}
+	h.frame = spikeFrame(40, 9)
+	h.frame.MouseMode = 1003
+	for _, step := range []struct {
+		where placement
+		want  tea.MouseMode
+	}{
+		{placementFull, tea.MouseModeNone},
+		{placementFloating, tea.MouseModeAllMotion},
+		{placementLeft, tea.MouseModeAllMotion},
+	} {
+		h.placement = step.where
+		if got := h.View().MouseMode; got != step.want {
+			t.Fatalf("%s: mouse mode = %v, want %v", step.where, got, step.want)
+		}
+	}
+}

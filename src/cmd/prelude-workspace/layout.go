@@ -10,6 +10,7 @@ const (
 	placementRight
 	placementTop
 	placementBottom
+	placementFull
 )
 
 func (p placement) String() string {
@@ -22,13 +23,15 @@ func (p placement) String() string {
 		return "top"
 	case placementBottom:
 		return "bottom"
+	case placementFull:
+		return "full"
 	default:
 		return "floating"
 	}
 }
 
 // placements is the cycle order shown by the unlocked layout strip.
-var placements = [...]placement{placementFloating, placementLeft, placementRight, placementTop, placementBottom}
+var placements = [...]placement{placementFloating, placementLeft, placementRight, placementTop, placementBottom, placementFull}
 
 // glyph is a one-cell picture of where the pane sits.
 func (p placement) glyph() string {
@@ -41,6 +44,8 @@ func (p placement) glyph() string {
 		return "⬒"
 	case placementBottom:
 		return "⬓"
+	case placementFull:
+		return "■"
 	default:
 		return "▣"
 	}
@@ -56,6 +61,8 @@ func (p placement) next() placement {
 		return placementTop
 	case placementTop:
 		return placementBottom
+	case placementBottom:
+		return placementFull
 	default:
 		return placementFloating
 	}
@@ -64,13 +71,15 @@ func (p placement) next() placement {
 func (p placement) prev() placement {
 	switch p {
 	case placementFloating:
-		return placementBottom
+		return placementFull
 	case placementRight:
 		return placementLeft
 	case placementTop:
 		return placementRight
 	case placementBottom:
 		return placementTop
+	case placementFull:
+		return placementBottom
 	default:
 		return placementFloating
 	}
@@ -124,6 +133,13 @@ func computeLayout(cols, rows int, where placement, panelOpen bool) workspaceLay
 			layout.Panel = uv.Rect(0, contentRows-height, cols, height)
 			layout.Shell = uv.Rect(0, 0, cols, contentRows-height)
 		}
+	case placementFull:
+		if cols < 3 || contentRows < 3 {
+			return layout
+		}
+		// An uncapped overlay: the shell keeps the full usable rect, as under a
+		// floating pane, while the pane owns every cell above the footer.
+		layout.Panel = uv.Rect(0, 0, cols, contentRows)
 	default:
 		if cols < 3 || contentRows < 3 {
 			return layout

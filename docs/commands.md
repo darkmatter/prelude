@@ -58,7 +58,8 @@ Workspace and project commands (the workspace entry is built in when enabled;
   Bash and a live window. With a window open, Ctrl+P unlocks layout commands: `]` / `[`
   next/previous layout, Tab focus; it stays unlocked until Esc or Ctrl+P locks. With
   no window, Ctrl+P reaches Bash. Ctrl+G is child-owned, not a Prelude binding. Ctrl+\] / Ctrl+\[ cycle
-  floating/left/right/top/bottom without unlocking; `Ctrl+\` is the legacy-terminal
+  floating/left/right/top/bottom/full without unlocking; full covers the content
+  area above the footer and hides Bash. `Ctrl+\` is the legacy-terminal
   fallback for previous layout. Normal `motd` prints once on entry before the
   first prompt, as main-shell output, not a pane; a startup failure is nonfatal.
   Menu selections close the picker and run in the main Bash, preserving parked

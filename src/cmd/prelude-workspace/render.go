@@ -96,8 +96,10 @@ func (h *host) View() tea.View {
 	// Init disabled its alternate-scroll so the wheel cannot become Up/Down
 	// history keys meanwhile. 1000 and 1002 both map to cell motion: the
 	// Ghostty encoder drops events the child's own mode did not ask for.
+	// A shell fully covered by the pane (full layout) can never receive a mouse
+	// event, so its tracking must not take the mouse from native selection.
 	mouseMode := 0
-	if !layout.Shell.Empty() {
+	if !layout.Shell.Empty() && !layout.Shell.In(layout.Panel) {
 		mouseMode = max(mouseMode, h.frame.MouseMode)
 	}
 	if !layout.Body.Empty() && h.currentPane(h.pane) {

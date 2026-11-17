@@ -4,7 +4,40 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
+// Normalize motion before routing so legacy uppercase letters and enhanced
+// keyboard events with an explicit Shift modifier target the same pane.
+func motionKey(msg tea.KeyPressMsg) (tea.KeyPressMsg, bool) {
+	key := msg.Key()
+	if key.Mod & ^(tea.ModShift|tea.ModCapsLock|tea.ModNumLock) != 0 {
+		return msg, false
+	}
+	var code rune
+	switch key.Code {
+	case tea.KeyLeft, 'h', 'H':
+		code = tea.KeyLeft
+	case tea.KeyDown, 'j', 'J':
+		code = tea.KeyDown
+	case tea.KeyUp, 'k', 'K':
+		code = tea.KeyUp
+	case tea.KeyRight, 'l', 'L':
+		code = tea.KeyRight
+	default:
+		return msg, false
+	}
+	shift := key.Mod & tea.ModShift
+	if key.Code >= 'A' && key.Code <= 'Z' && key.Mod&tea.ModCapsLock == 0 {
+		shift = tea.ModShift
+	}
+	return tea.KeyPressMsg{Code: code, Mod: shift}, true
+}
+
 func (v Viewer) handleKey(msg tea.KeyPressMsg) (Viewer, tea.Cmd) {
+	if motion, ok := motionKey(msg); ok {
+		if motion.Mod&tea.ModShift != 0 {
+			return v.handleNavKey(motion.String())
+		}
+		return v.updateViewport(motion)
+	}
 	key := msg.String()
 	switch key {
 	case "q", "esc", "ctrl+c":
@@ -17,15 +50,8 @@ func (v Viewer) handleKey(msg tea.KeyPressMsg) (Viewer, tea.Cmd) {
 		return v, nil
 	}
 
-	// No pane focus to switch: shift-modified motion (and tab) drives the
-	// navigation tree, plain motion scrolls the page. Shift+letter arrives
-	// as the uppercase rune on most terminals, hence the J/K/H/L aliases.
 	switch key {
-	case "tab", "shift+down", "shift+j", "J",
-		"shift+tab", "shift+up", "shift+k", "K",
-		"shift+right", "shift+l", "L",
-		"shift+left", "shift+h", "H",
-		"shift+home", "shift+end", "enter":
+	case "tab", "shift+tab", "shift+home", "shift+end", "enter":
 		return v.handleNavKey(key)
 	case "home", "g":
 		v.viewport.GotoTop()
@@ -44,13 +70,13 @@ func (v Viewer) handleNavKey(key string) (Viewer, tea.Cmd) {
 	}
 	cur := v.cursorRow()
 	switch key {
-	case "shift+tab", "shift+up", "shift+k", "K":
+	case "shift+tab", "shift+up":
 		v.selectRow(stepSelectable(v.rows, cur, -1))
-	case "tab", "shift+down", "shift+j", "J":
+	case "tab", "shift+down":
 		v.selectRow(stepSelectable(v.rows, cur, 1))
-	case "shift+right", "shift+l", "L":
+	case "shift+right":
 		v.expandOrEnter(cur)
-	case "shift+left", "shift+h", "H":
+	case "shift+left":
 		v.collapseOrParent(cur)
 	case "enter":
 		v.activateRow(cur)
